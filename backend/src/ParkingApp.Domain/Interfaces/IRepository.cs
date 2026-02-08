@@ -28,6 +28,7 @@ public interface IUserRepository : IRepository<User>
 public interface IParkingSpaceRepository : IRepository<ParkingSpace>
 {
     Task<IEnumerable<ParkingSpace>> SearchAsync(
+        string? state = null,
         string? city = null,
         string? address = null,
         double? latitude = null,

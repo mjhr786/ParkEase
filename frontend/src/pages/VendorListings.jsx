@@ -5,6 +5,7 @@ import { useNotificationContext } from '../context/NotificationContext';
 import api from '../services/api';
 import { handleApiError } from '../utils/errorHandler';
 import showToast from '../utils/toast.jsx';
+import INDIAN_STATES_CITIES, { STATES } from '../utils/indianStatesCities';
 
 const PARKING_TYPES = ['Open', 'Covered', 'Garage', 'Street', 'Underground'];
 const API_BASE = 'http://localhost:5129'; // 'http://localhost:5129' // 'https://parkease.azurewebsites.net'
@@ -229,6 +230,54 @@ export default function VendorListings() {
         }
     };
 
+    const validatePostalCode = async () => {
+        if (form.postalCode && form.postalCode.length < 6) {
+            showToast.error('Postal code must be 6 digits');
+            // Optional: clear or keep focus depending on UX preference
+            return;
+        }
+
+        if (form.postalCode.length === 6) {
+            try {
+                const response = await fetch(`https://api.postalpincode.in/pincode/${form.postalCode}`);
+                const data = await response.json();
+
+                if (data && data[0] && data[0].Status === 'Success') {
+                    const postOffice = data[0].PostOffice[0];
+                    const apiState = postOffice.State;
+                    const apiDistrict = postOffice.District;
+                    // const apiBlock = postOffice.Block; // May contain city name
+
+                    // Verify State (Exact match usually works for states)
+                    if (apiState !== form.state) {
+                        showToast.error(`Postal code belongs to ${apiState}, not ${form.state}`);
+                        setForm(prev => ({ ...prev, postalCode: '' }));
+                        return;
+                    }
+
+                    // Verify City (Fuzzy match as district names might vary)
+                    // Check if city name is part of district or vice versa
+                    const cityLower = form.city.toLowerCase();
+                    const districtLower = apiDistrict.toLowerCase();
+
+                    if (!districtLower.includes(cityLower) && !cityLower.includes(districtLower)) {
+                        showToast.error(`Postal code belongs to ${apiDistrict}, not ${form.city}`);
+                        setForm(prev => ({ ...prev, postalCode: '' }));
+                        return;
+                    }
+
+                    showToast.success('Postal code verified');
+                } else {
+                    showToast.error('Invalid Postal Code');
+                    setForm(prev => ({ ...prev, postalCode: '' }));
+                }
+            } catch (error) {
+                console.error('PIN verification failed:', error);
+                // Don't block user if API fails, just log
+            }
+        }
+    };
+
     return (
         <div className="page">
             <div className="container">
@@ -297,33 +346,56 @@ export default function VendorListings() {
                                     />
                                 </div>
                                 <div className="form-group" style={{ margin: 0 }}>
-                                    <label className="form-label">City *</label>
-                                    <input
-                                        type="text"
-                                        className="form-input"
+                                    <label className="form-label" style={{ display: 'block', marginBottom: '0.5rem' }}>State *</label>
+                                    <select
+                                        className="form-select"
+                                        style={{ width: '100%' }}
+                                        value={form.state}
+                                        onChange={(e) => {
+                                            const newState = e.target.value;
+                                            setForm({ ...form, state: newState, city: '' });
+                                        }}
+                                        required
+                                    >
+                                        <option value="">Select State</option>
+                                        {STATES.map(state => (
+                                            <option key={state} value={state}>{state}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                                <div className="form-group" style={{ margin: 0 }}>
+                                    <label className="form-label" style={{ display: 'block', marginBottom: '0.5rem' }}>City *</label>
+                                    <select
+                                        className="form-select"
+                                        style={{ width: '100%' }}
                                         value={form.city}
                                         onChange={(e) => setForm({ ...form, city: e.target.value })}
                                         required
-                                    />
+                                        disabled={!form.state}
+                                    >
+                                        <option value="">Select City</option>
+                                        {form.state && INDIAN_STATES_CITIES[form.state]?.map(city => (
+                                            <option key={city} value={city}>{city}</option>
+                                        ))}
+                                    </select>
                                 </div>
                                 <div className="form-group" style={{ margin: 0 }}>
-                                    <label className="form-label">State *</label>
+                                    <label className="form-label" style={{ display: 'block', marginBottom: '0.5rem' }}>Postal Code *</label>
                                     <input
                                         type="text"
                                         className="form-input"
-                                        value={form.state}
-                                        onChange={(e) => setForm({ ...form, state: e.target.value })}
-                                        required
-                                    />
-                                </div>
-                                <div className="form-group" style={{ margin: 0 }}>
-                                    <label className="form-label">Postal Code *</label>
-                                    <input
-                                        type="text"
-                                        className="form-input"
+                                        style={{ width: '100%' }}
                                         value={form.postalCode}
-                                        onChange={(e) => setForm({ ...form, postalCode: e.target.value })}
+                                        onChange={(e) => {
+                                            const val = e.target.value;
+                                            // Only allow digits and max 6 characters
+                                            if (/^\d{0,6}$/.test(val)) {
+                                                setForm({ ...form, postalCode: val });
+                                            }
+                                        }}
+                                        onBlur={validatePostalCode}
                                         required
+                                        placeholder="6 digits"
                                     />
                                 </div>
                             </div>

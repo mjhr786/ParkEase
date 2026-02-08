@@ -53,7 +53,7 @@ public class ParkingSpaceService : IParkingSpaceService
     public async Task<ApiResponse<ParkingSearchResultDto>> SearchAsync(ParkingSearchDto dto, CancellationToken cancellationToken = default)
     {
         // Create cache key from search parameters
-        var cacheKey = $"search:{dto.City}:{dto.ParkingType}:{dto.VehicleType}:{dto.MinPrice}:{dto.MaxPrice}:{dto.Page}:{dto.PageSize}";
+        var cacheKey = $"search:{dto.State}:{dto.City}:{dto.Address}:{dto.ParkingType}:{dto.VehicleType}:{dto.MinPrice}:{dto.MaxPrice}:{dto.Page}:{dto.PageSize}";
         var cached = await _cache.GetAsync<ParkingSearchResultDto>(cacheKey, cancellationToken);
         if (cached != null)
         {
@@ -64,6 +64,7 @@ public class ParkingSpaceService : IParkingSpaceService
         _logger.LogInformation("Searching parking spaces: City={City}, Type={ParkingType}, Vehicle={VehicleType}", 
             dto.City, dto.ParkingType, dto.VehicleType);
         var parkingSpaces = await _unitOfWork.ParkingSpaces.SearchAsync(
+            state: dto.State,
             city: dto.City,
             address: dto.Address,
             latitude: dto.Latitude,

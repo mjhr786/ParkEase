@@ -95,6 +95,7 @@ public record UpdateParkingSpaceDto(
 );
 
 public record ParkingSearchDto(
+    string? State = null,
     string? City = null,
     string? Address = null,
     double? Latitude = null,

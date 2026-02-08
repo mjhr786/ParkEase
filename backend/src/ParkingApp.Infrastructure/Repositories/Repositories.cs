@@ -114,6 +114,7 @@ public class ParkingSpaceRepository : Repository<ParkingSpace>, IParkingSpaceRep
     }
 
     public async Task<IEnumerable<ParkingSpace>> SearchAsync(
+        string? state = null,
         string? city = null,
         string? address = null,
         double? latitude = null,
@@ -132,6 +133,9 @@ public class ParkingSpaceRepository : Repository<ParkingSpace>, IParkingSpaceRep
         CancellationToken cancellationToken = default)
     {
         var query = _dbSet.Include(p => p.Owner).Where(p => p.IsActive);
+
+        if (!string.IsNullOrEmpty(state))
+            query = query.Where(p => p.State.ToLower() == state.ToLower());
 
         if (!string.IsNullOrEmpty(city))
             query = query.Where(p => p.City.ToLower().Contains(city.ToLower()));
@@ -154,10 +158,10 @@ public class ParkingSpaceRepository : Repository<ParkingSpace>, IParkingSpaceRep
         }
 
         if (minPrice.HasValue)
-            query = query.Where(p => p.HourlyRate >= minPrice.Value || p.DailyRate >= minPrice.Value);
+            query = query.Where(p => p.HourlyRate >= minPrice.Value);
 
         if (maxPrice.HasValue)
-            query = query.Where(p => p.HourlyRate <= maxPrice.Value || p.DailyRate <= maxPrice.Value);
+            query = query.Where(p => p.HourlyRate <= maxPrice.Value);
 
         if (!string.IsNullOrEmpty(parkingType) && Enum.TryParse<ParkingType>(parkingType, out var pt))
             query = query.Where(p => p.ParkingType == pt);

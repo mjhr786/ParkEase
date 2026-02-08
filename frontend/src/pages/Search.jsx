@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
+
 import { useSearchParams, Link } from 'react-router-dom';
 import api from '../services/api';
+import INDIAN_STATES_CITIES, { STATES } from '../utils/indianStatesCities';
 
 const PARKING_TYPES = ['Open', 'Covered', 'Garage', 'Street', 'Underground'];
 const VEHICLE_TYPES = ['Car', 'Motorcycle', 'SUV', 'Truck', 'Van', 'Electric'];
@@ -11,6 +13,7 @@ export default function Search() {
     const [loading, setLoading] = useState(false);
     const [hasSearched, setHasSearched] = useState(false);
     const [filters, setFilters] = useState({
+        state: '',
         city: searchParams.get('city') || '',
         address: '',
         minPrice: '',
@@ -68,14 +71,34 @@ export default function Search() {
                     <form onSubmit={handleSearch}>
                         <div className="grid grid-4" style={{ gap: '1rem' }}>
                             <div className="form-group" style={{ margin: 0 }}>
+                                <label className="form-label">State</label>
+                                <select
+                                    className="form-select"
+                                    value={filters.state}
+                                    onChange={(e) => {
+                                        setFilters(prev => ({ ...prev, state: e.target.value, city: '' }));
+                                    }}
+                                >
+                                    <option value="">Select State</option>
+                                    {STATES.map(state => (
+                                        <option key={state} value={state}>{state}</option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            <div className="form-group" style={{ margin: 0 }}>
                                 <label className="form-label">City</label>
-                                <input
-                                    type="text"
-                                    className="form-input"
-                                    placeholder="Enter city"
+                                <select
+                                    className="form-select"
                                     value={filters.city}
                                     onChange={(e) => handleFilterChange('city', e.target.value)}
-                                />
+                                    disabled={!filters.state}
+                                >
+                                    <option value="">Select City</option>
+                                    {filters.state && INDIAN_STATES_CITIES[filters.state]?.map(city => (
+                                        <option key={city} value={city}>{city}</option>
+                                    ))}
+                                </select>
                             </div>
 
                             <div className="form-group" style={{ margin: 0 }}>
