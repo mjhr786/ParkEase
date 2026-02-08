@@ -29,7 +29,7 @@ public static class DependencyInjection
 
         // Services
         services.AddScoped<ITokenService, JwtTokenService>();
-        services.AddScoped<IPaymentService, MockPaymentService>();
+        services.AddScoped<IPaymentService, MockRazorpayPaymentService>();
         
         // Cache Registration (Redis or In-Memory)
         var redisConnection = configuration.GetConnectionString("Redis");

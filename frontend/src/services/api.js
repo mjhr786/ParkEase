@@ -1,5 +1,5 @@
 // Use empty string for production (same origin) or localhost for development
-const API_BASE_URL = import.meta.env.VITE_API_URL || (import.meta.env.PROD ? '/api' : 'http://localhost:5129/api'); // 'https://parkease.azurewebsites.net/api'
+const API_BASE_URL = import.meta.env.VITE_API_URL || (import.meta.env.PROD ? '/api' : 'http://localhost:5129/api'); // 'http://localhost:5129/api' // 'https://parkease.azurewebsites.net/api'
 
 class ApiService {
   constructor() {
@@ -138,8 +138,23 @@ class ApiService {
   }
 
   async updateProfile(data) {
-    return this.request('/users/me', {
+    return this.request('/users/profile', {
       method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
+  // Payment endpoints
+  async createRazorpayOrder(bookingId) {
+    return this.request('/payments/create-order', {
+      method: 'POST',
+      body: JSON.stringify(bookingId),
+    });
+  }
+
+  async verifyRazorpayPayment(data) {
+    return this.request('/payments/verify', {
+      method: 'POST',
       body: JSON.stringify(data),
     });
   }

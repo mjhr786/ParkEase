@@ -51,6 +51,8 @@ public interface IPaymentAppService
     Task<ApiResponse<PaymentDto>> GetByIdAsync(Guid id, Guid userId, CancellationToken cancellationToken = default);
     Task<ApiResponse<PaymentDto>> GetByBookingIdAsync(Guid bookingId, Guid userId, CancellationToken cancellationToken = default);
     Task<ApiResponse<PaymentResultDto>> ProcessPaymentAsync(Guid userId, CreatePaymentDto dto, CancellationToken cancellationToken = default);
+    Task<ApiResponse<string>> CreateRazorpayOrderAsync(Guid userId, Guid bookingId, CancellationToken cancellationToken = default);
+    Task<ApiResponse<PaymentResultDto>> ProcessRazorpayPaymentAsync(Guid userId, VerifyPaymentDto dto, CancellationToken cancellationToken = default);
     Task<ApiResponse<RefundResultDto>> ProcessRefundAsync(Guid userId, RefundRequestDto dto, CancellationToken cancellationToken = default);
 }
 

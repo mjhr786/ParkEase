@@ -150,20 +150,10 @@ public class PaymentAppService : IPaymentAppService
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
-        // Notify parking owner when payment is successful
-        if (result.Success && booking.ParkingSpace?.OwnerId != null)
+        // Send notification
+        if (result.Success)
         {
-            var user = await _unitOfWork.Users.GetByIdAsync(userId, cancellationToken);
-            await _notificationService.NotifyUserAsync(
-                booking.ParkingSpace.OwnerId,
-                new NotificationDto(
-                    NotificationTypes.PaymentCompleted,
-                    "Payment Received",
-                    $"{user?.FirstName ?? "A member"} has completed payment for booking {booking.BookingReference}",
-                    new { BookingId = dto.BookingId, BookingReference = booking.BookingReference, Amount = booking.TotalAmount }
-                ),
-                cancellationToken);
-            _logger.LogInformation("Notification sent to owner {OwnerId} for successful payment of booking {BookingId}.", booking.ParkingSpace.OwnerId, dto.BookingId);
+            await NotifyOwnerOfPaymentAsync(booking, userId, cancellationToken);
         }
 
         var resultDto = new PaymentResultDto(
@@ -175,6 +165,147 @@ public class PaymentAppService : IPaymentAppService
         );
 
         return new ApiResponse<PaymentResultDto>(result.Success, null, resultDto);
+    }
+
+    public async Task<ApiResponse<string>> CreateRazorpayOrderAsync(Guid userId, Guid bookingId, CancellationToken cancellationToken = default)
+    {
+        var booking = await _unitOfWork.Bookings.GetByIdAsync(bookingId, cancellationToken);
+        if (booking == null)
+        {
+            return new ApiResponse<string>(false, "Booking not found", null);
+        }
+
+        if (booking.UserId != userId)
+        {
+            return new ApiResponse<string>(false, "Unauthorized", null);
+        }
+
+        if (booking.Status != BookingStatus.AwaitingPayment)
+        {
+            return new ApiResponse<string>(false, "Booking is not awaiting payment", null);
+        }
+
+        try
+        {
+            var orderId = await _paymentService.CreateOrderAsync(booking.TotalAmount, "INR", null, cancellationToken);
+            return new ApiResponse<string>(true, null, orderId);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to create Razorpay order for booking {BookingId}", bookingId);
+            return new ApiResponse<string>(false, "Failed to create payment order", null);
+        }
+    }
+
+    public async Task<ApiResponse<PaymentResultDto>> ProcessRazorpayPaymentAsync(Guid userId, VerifyPaymentDto dto, CancellationToken cancellationToken = default)
+    {
+        var booking = await _unitOfWork.Bookings.GetByIdAsync(dto.BookingId, cancellationToken);
+        if (booking == null)
+        {
+            return new ApiResponse<PaymentResultDto>(false, "Booking not found", null);
+        }
+
+        if (booking.UserId != userId)
+        {
+            return new ApiResponse<PaymentResultDto>(false, "Unauthorized", null);
+        }
+
+        // Check if already paid
+        var existingPayment = await _unitOfWork.Payments.GetByBookingIdAsync(dto.BookingId, cancellationToken);
+        if (existingPayment != null && existingPayment.Status == PaymentStatus.Completed)
+        {
+            return new ApiResponse<PaymentResultDto>(true, "Payment already completed", new PaymentResultDto(
+                true,
+                existingPayment.TransactionId,
+                PaymentStatus.Completed,
+                "Payment already completed",
+                existingPayment.ReceiptUrl
+            ));
+        }
+
+        // Verify Signature
+        var isValid = await _paymentService.VerifyPaymentSignatureAsync(dto.RazorpayPaymentId, dto.RazorpayOrderId, dto.RazorpaySignature, cancellationToken);
+        if (!isValid)
+        {
+            _logger.LogWarning("Invalid Razorpay signature for booking {BookingId}", dto.BookingId);
+            return new ApiResponse<PaymentResultDto>(false, "Invalid payment signature", null);
+        }
+
+        // Create Payment Record
+        var payment = existingPayment ?? new Payment
+        {
+            BookingId = dto.BookingId,
+            UserId = userId,
+            Amount = booking.TotalAmount,
+            Currency = "INR",
+            PaymentMethod = PaymentMethod.CreditCard // Default since we don't know method from Razorpay callback easily without API call
+        };
+
+        payment.Status = PaymentStatus.Completed;
+        payment.TransactionId = dto.RazorpayPaymentId;
+        payment.PaymentGatewayReference = dto.RazorpayOrderId;
+        payment.PaymentGateway = "Razorpay";
+        payment.PaidAt = DateTime.UtcNow;
+        payment.InvoiceNumber = $"INV-{DateTime.UtcNow:yyyyMMdd}-{Guid.NewGuid().ToString("N")[..6].ToUpper()}";
+
+        // Update Booking
+        booking.Status = BookingStatus.Confirmed;
+        _unitOfWork.Bookings.Update(booking);
+
+        if (existingPayment == null)
+        {
+            await _unitOfWork.Payments.AddAsync(payment, cancellationToken);
+        }
+        else
+        {
+            _unitOfWork.Payments.Update(payment);
+        }
+
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        // Send notification
+        await NotifyOwnerOfPaymentAsync(booking, userId, cancellationToken);
+
+        return new ApiResponse<PaymentResultDto>(true, "Payment verified successfully", new PaymentResultDto(
+            true,
+            payment.TransactionId,
+            PaymentStatus.Completed,
+            "Payment verified successfully",
+            null
+        ));
+    }
+
+    private async Task NotifyOwnerOfPaymentAsync(Booking booking, Guid payerId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var parkingSpace = booking.ParkingSpace;
+            if (parkingSpace == null)
+            {
+                parkingSpace = await _unitOfWork.ParkingSpaces.GetByIdAsync(booking.ParkingSpaceId, cancellationToken);
+            }
+
+            if (parkingSpace == null) return;
+
+            var payer = await _unitOfWork.Users.GetByIdAsync(payerId, cancellationToken);
+            var payerName = payer?.FirstName ?? "A user";
+
+            await _notificationService.NotifyUserAsync(
+                parkingSpace.OwnerId,
+                new NotificationDto(
+                    "payment.completed",
+                    "Payment Received",
+                    $"{payerName} has completed payment for booking {booking.BookingReference}",
+                    new { BookingId = booking.Id, BookingReference = booking.BookingReference, Amount = booking.TotalAmount }
+                ),
+                cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to send payment notification for booking {BookingId}", booking.Id);
+        }
     }
 
     public async Task<ApiResponse<RefundResultDto>> ProcessRefundAsync(Guid userId, RefundRequestDto dto, CancellationToken cancellationToken = default)

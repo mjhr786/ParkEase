@@ -6,6 +6,7 @@ namespace ParkingApp.Application.Services;
 public class FileUploadService : IFileUploadService
 {
     private readonly IUnitOfWork _unitOfWork;
+    private readonly ICacheService _cache;
     private readonly string _uploadsPath;
     
     private static readonly string[] AllowedImageExtensions = { ".jpg", ".jpeg", ".png", ".webp" };
@@ -13,9 +14,10 @@ public class FileUploadService : IFileUploadService
     private const long MaxImageSize = 5 * 1024 * 1024; // 5MB
     private const long MaxVideoSize = 50 * 1024 * 1024; // 50MB
 
-    public FileUploadService(IUnitOfWork unitOfWork, string uploadsPath)
+    public FileUploadService(IUnitOfWork unitOfWork, ICacheService cache, string uploadsPath)
     {
         _unitOfWork = unitOfWork;
+        _cache = cache;
         _uploadsPath = uploadsPath;
     }
 
@@ -85,6 +87,10 @@ public class FileUploadService : IFileUploadService
             
             _unitOfWork.ParkingSpaces.Update(parking);
             await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+            // Invalidate caches
+            await _cache.RemoveAsync($"parking:{parkingSpaceId}", cancellationToken);
+            await _cache.RemoveByPatternAsync("search:*", cancellationToken);
         }
 
         return uploadedUrls;
@@ -123,6 +129,10 @@ public class FileUploadService : IFileUploadService
             
             _unitOfWork.ParkingSpaces.Update(parking);
             await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+            // Invalidate caches
+            await _cache.RemoveAsync($"parking:{parkingSpaceId}", cancellationToken);
+            await _cache.RemoveByPatternAsync("search:*", cancellationToken);
         }
 
         return true;

@@ -42,6 +42,8 @@ public class RefundResult
 public interface IPaymentService
 {
     Task<PaymentResult> ProcessPaymentAsync(PaymentRequest request, CancellationToken cancellationToken = default);
+    Task<string> CreateOrderAsync(decimal amount, string currency = "INR", Dictionary<string, string>? notes = null, CancellationToken cancellationToken = default);
+    Task<bool> VerifyPaymentSignatureAsync(string paymentId, string orderId, string signature, CancellationToken cancellationToken = default);
     Task<RefundResult> ProcessRefundAsync(RefundRequest request, CancellationToken cancellationToken = default);
     Task<PaymentStatus> GetPaymentStatusAsync(string transactionId, CancellationToken cancellationToken = default);
 }

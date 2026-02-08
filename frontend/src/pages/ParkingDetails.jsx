@@ -9,7 +9,7 @@ const PARKING_TYPES = ['Open', 'Covered', 'Garage', 'Street', 'Underground'];
 const VEHICLE_TYPES = ['Car', 'Motorcycle', 'SUV', 'Truck', 'Van', 'Electric'];
 const PRICING_TYPES = ['Hourly', 'Daily', 'Weekly', 'Monthly'];
 const PAYMENT_METHODS = ['Credit Card', 'Debit Card', 'UPI', 'Net Banking', 'Wallet', 'Cash'];
-const API_BASE = 'http://localhost:5129'; // 'https://parkease.azurewebsites.net'
+const API_BASE = 'http://localhost:5129'; // 'http://localhost:5129' // 'https://parkease.azurewebsites.net'
 
 export default function ParkingDetails() {
     const { id } = useParams();
