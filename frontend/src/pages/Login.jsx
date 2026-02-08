@@ -1,18 +1,17 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import showToast from '../utils/toast.jsx';
 
 export default function Login() {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
-    const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
     const { login } = useAuth();
     const navigate = useNavigate();
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        setError('');
         setLoading(true);
 
         const result = await login(email, password);
@@ -20,7 +19,7 @@ export default function Login() {
         if (result.success) {
             navigate('/dashboard');
         } else {
-            setError(result.message || 'Login failed');
+            showToast.error(result.message || 'Login failed');
         }
 
         setLoading(false);
@@ -31,8 +30,6 @@ export default function Login() {
             <div className="card auth-card">
                 <h1 className="auth-title">Welcome Back</h1>
                 <p className="auth-subtitle">Sign in to your account</p>
-
-                {error && <div className="alert alert-error">{error}</div>}
 
                 <form onSubmit={handleSubmit}>
                     <div className="form-group">

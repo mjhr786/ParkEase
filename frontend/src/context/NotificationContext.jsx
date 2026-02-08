@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useCallback } from 'react';
+import { createContext, useContext, useState, useCallback, useRef } from 'react';
 import useNotifications from '../hooks/useNotifications';
 
 const NotificationContext = createContext(null);
@@ -19,11 +19,34 @@ const NOTIFICATION_STYLES = {
 
 /**
  * Provider component for app-wide notifications.
- * Manages SignalR connection and toast display.
+ * Manages SignalR connection, toast display, and page refresh subscriptions.
  */
 export function NotificationProvider({ children }) {
     const [notifications, setNotifications] = useState([]);
     const [toasts, setToasts] = useState([]);
+
+    // Ref to store refresh callbacks (using ref to avoid re-renders)
+    const refreshCallbacksRef = useRef(new Map());
+
+    /**
+     * Subscribe to refresh events for specific notification types.
+     * Returns unsubscribe function for cleanup.
+     * @param {string} subscriberId - Unique identifier for the subscriber (e.g., 'VendorListings')
+     * @param {string[]} notificationTypes - Array of notification types to listen for
+     * @param {function} callback - Function to call when matching notification received
+     */
+    const subscribeToRefresh = useCallback((subscriberId, notificationTypes, callback) => {
+        // Store subscription
+        refreshCallbacksRef.current.set(subscriberId, {
+            types: notificationTypes,
+            callback
+        });
+
+        // Return unsubscribe function
+        return () => {
+            refreshCallbacksRef.current.delete(subscriberId);
+        };
+    }, []);
 
     // Handle incoming notification
     const handleNotification = useCallback((notification) => {
@@ -40,6 +63,21 @@ export function NotificationProvider({ children }) {
         setTimeout(() => {
             setToasts(prev => prev.filter(t => t.id !== id));
         }, 5000);
+
+        // Trigger refresh callbacks for matching subscribers
+        refreshCallbacksRef.current.forEach((subscription, subscriberId) => {
+            if (subscription.types.includes(notification.type)) {
+                console.log(`🔄 Triggering refresh for ${subscriberId} due to ${notification.type}`);
+                // Use setTimeout to ensure UI updates don't block notification display
+                setTimeout(() => {
+                    try {
+                        subscription.callback(notification);
+                    } catch (err) {
+                        console.error(`Error in refresh callback for ${subscriberId}:`, err);
+                    }
+                }, 100);
+            }
+        });
     }, []);
 
     const { isConnected, connectionError } = useNotifications(handleNotification);
@@ -71,7 +109,8 @@ export function NotificationProvider({ children }) {
                 isConnected,
                 connectionError,
                 markAsRead,
-                clearAll
+                clearAll,
+                subscribeToRefresh
             }}
         >
             {children}

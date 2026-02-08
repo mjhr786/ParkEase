@@ -1,33 +1,68 @@
 using ParkingApp.Application.DTOs;
 using ParkingApp.Application.Interfaces;
 using ParkingApp.Application.Mappings;
+using ParkingApp.Domain.Entities;
 using ParkingApp.Domain.Enums;
 using ParkingApp.Domain.Interfaces;
+using Microsoft.Extensions.Logging;
+using ParkingApp.BuildingBlocks.Logging;
 
 namespace ParkingApp.Application.Services;
 
 public class ParkingSpaceService : IParkingSpaceService
 {
     private readonly IUnitOfWork _unitOfWork;
+    private readonly ICacheService _cache;
+    private readonly ILogger<ParkingSpaceService> _logger;
+    private static readonly TimeSpan ParkingCacheDuration = TimeSpan.FromMinutes(5);
+    private static readonly TimeSpan SearchCacheDuration = TimeSpan.FromMinutes(2);
 
-    public ParkingSpaceService(IUnitOfWork unitOfWork)
+    public ParkingSpaceService(IUnitOfWork unitOfWork, ICacheService cache, ILogger<ParkingSpaceService> logger)
     {
         _unitOfWork = unitOfWork;
+        _cache = cache;
+        _logger = logger;
     }
 
     public async Task<ApiResponse<ParkingSpaceDto>> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
     {
+        // Try cache first
+        var cacheKey = $"parking:{id}";
+        var cached = await _cache.GetAsync<ParkingSpaceDto>(cacheKey, cancellationToken);
+        if (cached != null)
+        {
+            _logger.LogCacheHit(cacheKey);
+            return new ApiResponse<ParkingSpaceDto>(true, null, cached);
+        }
+
+        _logger.LogCacheMiss(cacheKey);
         var parking = await _unitOfWork.ParkingSpaces.GetByIdAsync(id, cancellationToken);
         if (parking == null)
         {
             return new ApiResponse<ParkingSpaceDto>(false, "Parking space not found", null);
         }
 
-        return new ApiResponse<ParkingSpaceDto>(true, null, parking.ToDto());
+        var dto = parking.ToDto();
+        
+        // Cache the result
+        await _cache.SetAsync(cacheKey, dto, ParkingCacheDuration, cancellationToken);
+
+        return new ApiResponse<ParkingSpaceDto>(true, null, dto);
     }
 
     public async Task<ApiResponse<ParkingSearchResultDto>> SearchAsync(ParkingSearchDto dto, CancellationToken cancellationToken = default)
     {
+        // Create cache key from search parameters
+        var cacheKey = $"search:{dto.City}:{dto.ParkingType}:{dto.VehicleType}:{dto.MinPrice}:{dto.MaxPrice}:{dto.Page}:{dto.PageSize}";
+        var cached = await _cache.GetAsync<ParkingSearchResultDto>(cacheKey, cancellationToken);
+        if (cached != null)
+        {
+            _logger.LogCacheHit(cacheKey);
+            return new ApiResponse<ParkingSearchResultDto>(true, null, cached);
+        }
+
+        _logger.LogInformation("Searching parking spaces: City={City}, Type={ParkingType}, Vehicle={VehicleType}", 
+            dto.City, dto.ParkingType, dto.VehicleType);
         var parkingSpaces = await _unitOfWork.ParkingSpaces.SearchAsync(
             city: dto.City,
             address: dto.Address,
@@ -66,6 +101,9 @@ public class ParkingSpaceService : IParkingSpaceService
             (int)Math.Ceiling((double)totalCount / dto.PageSize)
         );
 
+        // Cache the search result
+        await _cache.SetAsync(cacheKey, result, SearchCacheDuration, cancellationToken);
+
         return new ApiResponse<ParkingSearchResultDto>(true, null, result);
     }
 
@@ -96,6 +134,11 @@ public class ParkingSpaceService : IParkingSpaceService
 
         await _unitOfWork.ParkingSpaces.AddAsync(parking, cancellationToken);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        // Invalidate search cache (new parking added)
+        await _cache.RemoveByPatternAsync("search:*", cancellationToken);
+        
+        _logger.LogEntityCreated<ParkingSpace>(parking.Id);
 
         return new ApiResponse<ParkingSpaceDto>(true, "Parking space created", parking.ToDto());
     }
@@ -141,6 +184,12 @@ public class ParkingSpaceService : IParkingSpaceService
         _unitOfWork.ParkingSpaces.Update(parking);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
+        // Invalidate caches
+        await _cache.RemoveAsync($"parking:{id}", cancellationToken);
+        await _cache.RemoveByPatternAsync("search:*", cancellationToken);
+        
+        _logger.LogEntityUpdated<ParkingSpace>(id);
+
         return new ApiResponse<ParkingSpaceDto>(true, "Parking space updated", parking.ToDto());
     }
 
@@ -171,6 +220,12 @@ public class ParkingSpaceService : IParkingSpaceService
         _unitOfWork.ParkingSpaces.Remove(parking);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
+        // Invalidate caches
+        await _cache.RemoveAsync($"parking:{id}", cancellationToken);
+        await _cache.RemoveByPatternAsync("search:*", cancellationToken);
+        
+        _logger.LogEntityDeleted<ParkingSpace>(id);
+
         return new ApiResponse<bool>(true, "Parking space deleted", true);
     }
 
@@ -190,6 +245,12 @@ public class ParkingSpaceService : IParkingSpaceService
         parking.IsActive = !parking.IsActive;
         _unitOfWork.ParkingSpaces.Update(parking);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        // Invalidate caches
+        await _cache.RemoveAsync($"parking:{id}", cancellationToken);
+        await _cache.RemoveByPatternAsync("search:*", cancellationToken);
+        
+        _logger.LogCacheInvalidated($"parking:{id}");
 
         return new ApiResponse<bool>(true, $"Parking space {(parking.IsActive ? "activated" : "deactivated")}", true);
     }

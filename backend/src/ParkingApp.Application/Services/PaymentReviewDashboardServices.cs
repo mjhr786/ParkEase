@@ -4,6 +4,8 @@ using ParkingApp.Application.Mappings;
 using ParkingApp.Domain.Entities;
 using ParkingApp.Domain.Enums;
 using ParkingApp.Domain.Interfaces;
+using Microsoft.Extensions.Logging;
+using ParkingApp.BuildingBlocks.Logging;
 
 namespace ParkingApp.Application.Services;
 
@@ -12,12 +14,14 @@ public class PaymentAppService : IPaymentAppService
     private readonly IUnitOfWork _unitOfWork;
     private readonly IPaymentService _paymentService;
     private readonly INotificationService _notificationService;
+    private readonly ILogger<PaymentAppService> _logger;
 
-    public PaymentAppService(IUnitOfWork unitOfWork, IPaymentService paymentService, INotificationService notificationService)
+    public PaymentAppService(IUnitOfWork unitOfWork, IPaymentService paymentService, INotificationService notificationService, ILogger<PaymentAppService> logger)
     {
         _unitOfWork = unitOfWork;
         _paymentService = paymentService;
         _notificationService = notificationService;
+        _logger = logger;
     }
 
     public async Task<ApiResponse<PaymentDto>> GetByIdAsync(Guid id, Guid userId, CancellationToken cancellationToken = default)
@@ -25,11 +29,13 @@ public class PaymentAppService : IPaymentAppService
         var payment = await _unitOfWork.Payments.GetByIdAsync(id, cancellationToken);
         if (payment == null)
         {
+            _logger.LogEntityNotFound<Payment>(id);
             return new ApiResponse<PaymentDto>(false, "Payment not found", null);
         }
 
-        if (payment.UserId != userId)
+        if (payment.Booking.UserId != userId)
         {
+            _logger.LogUnauthorizedAccess(userId, $"Payment:{id}");
             return new ApiResponse<PaymentDto>(false, "Unauthorized", null);
         }
 
@@ -41,11 +47,13 @@ public class PaymentAppService : IPaymentAppService
         var payment = await _unitOfWork.Payments.GetByBookingIdAsync(bookingId, cancellationToken);
         if (payment == null)
         {
+            _logger.LogEntityNotFound<Payment>(bookingId);
             return new ApiResponse<PaymentDto>(false, "Payment not found", null);
         }
 
         if (payment.UserId != userId)
         {
+            _logger.LogWarning("Unauthorized access attempt to payment for booking {BookingId} by user {UserId}.", bookingId, userId);
             return new ApiResponse<PaymentDto>(false, "Unauthorized", null);
         }
 
@@ -58,16 +66,19 @@ public class PaymentAppService : IPaymentAppService
         var booking = await _unitOfWork.Bookings.GetByIdAsync(dto.BookingId, cancellationToken);
         if (booking == null)
         {
+            _logger.LogWarning("Booking with ID {BookingId} not found for payment processing by user {UserId}.", dto.BookingId, userId);
             return new ApiResponse<PaymentResultDto>(false, "Booking not found", null);
         }
 
         if (booking.UserId != userId)
         {
+            _logger.LogWarning("Unauthorized attempt to process payment for booking {BookingId} by user {UserId}.", dto.BookingId, userId);
             return new ApiResponse<PaymentResultDto>(false, "Unauthorized", null);
         }
 
         if (booking.Status != BookingStatus.AwaitingPayment)
         {
+            _logger.LogWarning("Payment attempted for booking {BookingId} with status {BookingStatus} (expected AwaitingPayment).", dto.BookingId, booking.Status);
             return new ApiResponse<PaymentResultDto>(false, "Booking must be approved by the owner before payment", null);
         }
 
@@ -75,6 +86,7 @@ public class PaymentAppService : IPaymentAppService
         var existingPayment = await _unitOfWork.Payments.GetByBookingIdAsync(dto.BookingId, cancellationToken);
         if (existingPayment != null && existingPayment.Status == PaymentStatus.Completed)
         {
+            _logger.LogInformation("Payment already completed for booking {BookingId}.", dto.BookingId);
             return new ApiResponse<PaymentResultDto>(false, "Payment already completed", null);
         }
 
@@ -89,7 +101,10 @@ public class PaymentAppService : IPaymentAppService
             Description = $"Parking booking: {booking.BookingReference}"
         };
 
+        _logger.LogInformation("Initiating payment processing for booking {BookingId} with amount {Amount}.", dto.BookingId, booking.TotalAmount);
         var result = await _paymentService.ProcessPaymentAsync(paymentRequest, cancellationToken);
+        _logger.LogInformation("Payment gateway result for booking {BookingId}: Success={Success}, TransactionId={TransactionId}, Status={Status}.",
+            dto.BookingId, result.Success, result.TransactionId, result.Status);
 
         // Create or update payment record
         var payment = existingPayment ?? new Payment
@@ -115,10 +130,13 @@ public class PaymentAppService : IPaymentAppService
             // Now set booking to Confirmed after successful payment
             booking.Status = BookingStatus.Confirmed;
             _unitOfWork.Bookings.Update(booking);
+            _logger.LogInformation("Payment {PaymentId} completed for booking {BookingReference}, amount: {Amount:C}", 
+                payment.Id, booking.BookingReference, booking.TotalAmount);
         }
         else
         {
             payment.FailureReason = result.ErrorMessage;
+            _logger.LogError("Payment failed for booking {BookingId}. Reason: {ErrorMessage}", dto.BookingId, result.ErrorMessage);
         }
 
         if (existingPayment == null)
@@ -145,6 +163,7 @@ public class PaymentAppService : IPaymentAppService
                     new { BookingId = dto.BookingId, BookingReference = booking.BookingReference, Amount = booking.TotalAmount }
                 ),
                 cancellationToken);
+            _logger.LogInformation("Notification sent to owner {OwnerId} for successful payment of booking {BookingId}.", booking.ParkingSpace.OwnerId, dto.BookingId);
         }
 
         var resultDto = new PaymentResultDto(
@@ -163,16 +182,19 @@ public class PaymentAppService : IPaymentAppService
         var payment = await _unitOfWork.Payments.GetByIdAsync(dto.PaymentId, cancellationToken);
         if (payment == null)
         {
+            _logger.LogWarning("Refund requested for non-existent payment ID {PaymentId} by user {UserId}.", dto.PaymentId, userId);
             return new ApiResponse<RefundResultDto>(false, "Payment not found", null);
         }
 
         if (payment.UserId != userId)
         {
+            _logger.LogWarning("Unauthorized refund attempt for payment {PaymentId} by user {UserId}.", dto.PaymentId, userId);
             return new ApiResponse<RefundResultDto>(false, "Unauthorized", null);
         }
 
         if (payment.Status != PaymentStatus.Completed)
         {
+            _logger.LogWarning("Refund attempted for payment {PaymentId} with status {PaymentStatus} (expected Completed).", dto.PaymentId, payment.Status);
             return new ApiResponse<RefundResultDto>(false, "Cannot refund a non-completed payment", null);
         }
 
@@ -184,7 +206,10 @@ public class PaymentAppService : IPaymentAppService
             Reason = dto.Reason
         };
 
+        _logger.LogInformation("Initiating refund processing for payment {PaymentId} with amount {Amount}.", dto.PaymentId, dto.Amount);
         var result = await _paymentService.ProcessRefundAsync(refundRequest, cancellationToken);
+        _logger.LogInformation("Refund gateway result for payment {PaymentId}: Success={Success}, RefundTransactionId={RefundTransactionId}.",
+            dto.PaymentId, result.Success, result.RefundTransactionId);
 
         if (result.Success)
         {
@@ -196,6 +221,11 @@ public class PaymentAppService : IPaymentAppService
 
             _unitOfWork.Payments.Update(payment);
             await _unitOfWork.SaveChangesAsync(cancellationToken);
+            _logger.LogInformation("Refund processed successfully for payment {PaymentId}. Refunded amount: {RefundedAmount:C}.", payment.Id, result.RefundedAmount);
+        }
+        else
+        {
+            _logger.LogError("Refund failed for payment {PaymentId}. Reason: {ErrorMessage}", dto.PaymentId, result.ErrorMessage);
         }
 
         var resultDto = new RefundResultDto(
@@ -212,10 +242,15 @@ public class PaymentAppService : IPaymentAppService
 public class ReviewService : IReviewService
 {
     private readonly IUnitOfWork _unitOfWork;
+    private readonly ICacheService _cache;
+    private readonly ILogger<ReviewService> _logger;
+    private static readonly TimeSpan ReviewCacheDuration = TimeSpan.FromMinutes(10);
 
-    public ReviewService(IUnitOfWork unitOfWork)
+    public ReviewService(IUnitOfWork unitOfWork, ICacheService cache, ILogger<ReviewService> logger)
     {
         _unitOfWork = unitOfWork;
+        _cache = cache;
+        _logger = logger;
     }
 
     public async Task<ApiResponse<ReviewDto>> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
@@ -231,8 +266,20 @@ public class ReviewService : IReviewService
 
     public async Task<ApiResponse<List<ReviewDto>>> GetByParkingSpaceAsync(Guid parkingSpaceId, CancellationToken cancellationToken = default)
     {
+        // Try cache first
+        var cacheKey = $"reviews:parking:{parkingSpaceId}";
+        var cached = await _cache.GetAsync<List<ReviewDto>>(cacheKey, cancellationToken);
+        if (cached != null)
+        {
+            return new ApiResponse<List<ReviewDto>>(true, null, cached);
+        }
+
+        // Cache miss - fetch from DB
         var reviews = await _unitOfWork.Reviews.GetByParkingSpaceIdAsync(parkingSpaceId, cancellationToken);
         var dtos = reviews.Select(r => r.ToDto()).ToList();
+
+        // Cache the result
+        await _cache.SetAsync(cacheKey, dtos, ReviewCacheDuration, cancellationToken);
 
         return new ApiResponse<List<ReviewDto>>(true, null, dtos);
     }
@@ -286,6 +333,13 @@ public class ReviewService : IReviewService
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
+        // Invalidate caches (reviews and parking space due to rating update)
+        await _cache.RemoveAsync($"reviews:parking:{dto.ParkingSpaceId}", cancellationToken);
+        await _cache.RemoveAsync($"parking:{dto.ParkingSpaceId}", cancellationToken);
+        
+        _logger.LogInformation("Review submitted for parking {ParkingSpaceId} by user {UserId}, rating: {Rating}", 
+            dto.ParkingSpaceId, userId, dto.Rating);
+
         return new ApiResponse<ReviewDto>(true, "Review submitted", review.ToDto());
     }
 
@@ -324,6 +378,14 @@ public class ReviewService : IReviewService
         }
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        // Invalidate caches
+        await _cache.RemoveAsync($"reviews:parking:{review.ParkingSpaceId}", cancellationToken);
+        if (dto.Rating.HasValue && dto.Rating.Value != oldRating)
+        {
+            // Rating changed - invalidate parking cache too
+            await _cache.RemoveAsync($"parking:{review.ParkingSpaceId}", cancellationToken);
+        }
 
         return new ApiResponse<ReviewDto>(true, "Review updated", review.ToDto());
     }
@@ -366,6 +428,10 @@ public class ReviewService : IReviewService
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
+        // Invalidate caches (reviews and parking due to rating update)
+        await _cache.RemoveAsync($"reviews:parking:{parkingSpaceId}", cancellationToken);
+        await _cache.RemoveAsync($"parking:{parkingSpaceId}", cancellationToken);
+
         return new ApiResponse<bool>(true, "Review deleted", true);
     }
 
@@ -389,6 +455,9 @@ public class ReviewService : IReviewService
         _unitOfWork.Reviews.Update(review);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
+        // Invalidate review cache
+        await _cache.RemoveAsync($"reviews:parking:{review.ParkingSpaceId}", cancellationToken);
+
         return new ApiResponse<ReviewDto>(true, "Response added", review.ToDto());
     }
 }
@@ -396,14 +465,29 @@ public class ReviewService : IReviewService
 public class DashboardService : IDashboardService
 {
     private readonly IUnitOfWork _unitOfWork;
+    private readonly ICacheService _cache;
+    private readonly ILogger<DashboardService> _logger;
+    private static readonly TimeSpan DashboardCacheDuration = TimeSpan.FromMinutes(5);
 
-    public DashboardService(IUnitOfWork unitOfWork)
+    public DashboardService(IUnitOfWork unitOfWork, ICacheService cache, ILogger<DashboardService> logger)
     {
         _unitOfWork = unitOfWork;
+        _cache = cache;
+        _logger = logger;
     }
 
     public async Task<ApiResponse<VendorDashboardDto>> GetVendorDashboardAsync(Guid vendorId, CancellationToken cancellationToken = default)
     {
+        // Try cache first
+        var cacheKey = $"dashboard:vendor:{vendorId}";
+        var cached = await _cache.GetAsync<VendorDashboardDto>(cacheKey, cancellationToken);
+        if (cached != null)
+        {
+            _logger.LogDebug("Cache hit for vendor dashboard: {VendorId}", vendorId);
+            return new ApiResponse<VendorDashboardDto>(true, null, cached);
+        }
+
+        _logger.LogInformation("Generating vendor dashboard for vendor {VendorId}", vendorId);
         var parkingSpaces = (await _unitOfWork.ParkingSpaces.GetByOwnerIdAsync(vendorId, cancellationToken)).ToList();
         var parkingSpaceIds = parkingSpaces.Select(p => p.Id).ToList();
 
@@ -457,11 +541,23 @@ public class DashboardService : IDashboardService
             EarningsChart: earningsChart
         );
 
+        // Cache the result
+        await _cache.SetAsync(cacheKey, dashboard, DashboardCacheDuration, cancellationToken);
+
         return new ApiResponse<VendorDashboardDto>(true, null, dashboard);
     }
 
     public async Task<ApiResponse<MemberDashboardDto>> GetMemberDashboardAsync(Guid memberId, CancellationToken cancellationToken = default)
     {
+        // Try cache first
+        var cacheKey = $"dashboard:member:{memberId}";
+        var cached = await _cache.GetAsync<MemberDashboardDto>(cacheKey, cancellationToken);
+        if (cached != null)
+        {
+            return new ApiResponse<MemberDashboardDto>(true, null, cached);
+        }
+
+        // Cache miss - generate dashboard
         var bookings = (await _unitOfWork.Bookings.GetByUserIdAsync(memberId, cancellationToken)).ToList();
         var now = DateTime.UtcNow;
 
@@ -491,6 +587,9 @@ public class DashboardService : IDashboardService
             UpcomingBookings: upcomingBookings,
             RecentBookings: recentBookings
         );
+
+        // Cache the result
+        await _cache.SetAsync(cacheKey, dashboard, DashboardCacheDuration, cancellationToken);
 
         return new ApiResponse<MemberDashboardDto>(true, null, dashboard);
     }

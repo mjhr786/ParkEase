@@ -2,12 +2,14 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../services/api';
+import { getErrorMessage, handleApiError } from '../utils/errorHandler';
+import showToast from '../utils/toast.jsx';
 
 const PARKING_TYPES = ['Open', 'Covered', 'Garage', 'Street', 'Underground'];
 const VEHICLE_TYPES = ['Car', 'Motorcycle', 'SUV', 'Truck', 'Van', 'Electric'];
 const PRICING_TYPES = ['Hourly', 'Daily', 'Weekly', 'Monthly'];
 const PAYMENT_METHODS = ['Credit Card', 'Debit Card', 'UPI', 'Net Banking', 'Wallet', 'Cash'];
-const API_BASE = 'http://localhost:5129';
+const API_BASE = 'http://localhost:5129'; // 'https://parkease.azurewebsites.net'
 
 export default function ParkingDetails() {
     const { id } = useParams();
@@ -17,7 +19,7 @@ export default function ParkingDetails() {
     const [parking, setParking] = useState(null);
     const [reviews, setReviews] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [error, setError] = useState('');
+    const [error, setError] = useState(''); // Keep for initial page load errors
 
     const [booking, setBooking] = useState({
         startDateTime: '',
@@ -94,7 +96,6 @@ export default function ParkingDetails() {
         }
 
         setBookingLoading(true);
-        setError('');
 
         try {
             const response = await api.createBooking({
@@ -116,11 +117,12 @@ export default function ParkingDetails() {
                     message: 'Booking request submitted! Waiting for owner approval.',
                     isPending: true,
                 });
+                showToast.success('Booking request submitted! Waiting for owner approval.');
             } else {
-                setError(response.message || 'Booking failed');
+                showToast.error(getErrorMessage(response));
             }
         } catch (err) {
-            setError(err.message || 'Booking failed');
+            showToast.error(handleApiError(err, 'Booking failed'));
         }
 
         setBookingLoading(false);
@@ -128,7 +130,6 @@ export default function ParkingDetails() {
 
     const handlePayment = async () => {
         setBookingLoading(true);
-        setError('');
 
         try {
             const response = await api.processPayment({
@@ -142,11 +143,12 @@ export default function ParkingDetails() {
                     message: 'Payment successful! Your booking is confirmed.',
                 });
                 setShowPayment(false);
+                showToast.success('Payment successful! Your booking is confirmed.');
             } else {
-                setError(response.data?.message || 'Payment failed');
+                showToast.error(getErrorMessage(response.data || response));
             }
         } catch (err) {
-            setError(err.message || 'Payment failed');
+            showToast.error(handleApiError(err, 'Payment failed'));
         }
 
         setBookingLoading(false);

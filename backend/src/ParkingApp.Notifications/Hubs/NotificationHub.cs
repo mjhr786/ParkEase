@@ -3,7 +3,7 @@ using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Logging;
 using System.Security.Claims;
 
-namespace ParkingApp.Infrastructure.Hubs;
+namespace ParkingApp.Notifications.Hubs;
 
 /// <summary>
 /// SignalR Hub for real-time notifications.

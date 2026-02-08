@@ -2,6 +2,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\ParkingApp.Domain\ParkingApp.Domain.csproj" />
+    <ProjectReference Include="..\ParkingApp.BuildingBlocks\ParkingApp.BuildingBlocks.csproj" />
   </ItemGroup>
 
   <ItemGroup>

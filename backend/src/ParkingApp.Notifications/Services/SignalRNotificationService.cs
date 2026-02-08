@@ -1,23 +1,23 @@
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Logging;
 using ParkingApp.Application.Interfaces;
-using ParkingApp.Infrastructure.Hubs;
+using ParkingApp.Notifications.Hubs;
 
-namespace ParkingApp.Infrastructure.Services;
+namespace ParkingApp.Notifications.Services;
 
 /// <summary>
 /// SignalR-based notification service implementation.
 /// Thread-safe and optimized for high-throughput messaging.
 /// </summary>
-public class NotificationService : INotificationService
+public class SignalRNotificationService : INotificationService
 {
     private readonly IHubContext<NotificationHub> _hubContext;
-    private readonly ILogger<NotificationService> _logger;
+    private readonly ILogger<SignalRNotificationService> _logger;
     private const string ReceiveNotificationMethod = "ReceiveNotification";
 
-    public NotificationService(
+    public SignalRNotificationService(
         IHubContext<NotificationHub> hubContext,
-        ILogger<NotificationService> logger)
+        ILogger<SignalRNotificationService> logger)
     {
         _hubContext = hubContext;
         _logger = logger;

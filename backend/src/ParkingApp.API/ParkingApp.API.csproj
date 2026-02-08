@@ -3,10 +3,16 @@
   <ItemGroup>
     <ProjectReference Include="..\ParkingApp.Application\ParkingApp.Application.csproj" />
     <ProjectReference Include="..\ParkingApp.Infrastructure\ParkingApp.Infrastructure.csproj" />
+    <ProjectReference Include="..\ParkingApp.BuildingBlocks\ParkingApp.BuildingBlocks.csproj" />
+    <ProjectReference Include="..\ParkingApp.Notifications\ParkingApp.Notifications.csproj" />
   </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="9.0.0" />
+    <PackageReference Include="Serilog.AspNetCore" Version="10.0.0" />
+    <PackageReference Include="Serilog.Enrichers.Environment" Version="3.0.1" />
+    <PackageReference Include="Serilog.Enrichers.Thread" Version="4.0.0" />
+    <PackageReference Include="Serilog.Sinks.File" Version="7.0.0" />
   </ItemGroup>
 
   <PropertyGroup>

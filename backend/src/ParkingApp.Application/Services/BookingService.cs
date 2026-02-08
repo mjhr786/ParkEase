@@ -4,6 +4,8 @@ using ParkingApp.Application.Mappings;
 using ParkingApp.Domain.Entities;
 using ParkingApp.Domain.Enums;
 using ParkingApp.Domain.Interfaces;
+using Microsoft.Extensions.Logging;
+using ParkingApp.BuildingBlocks.Logging;
 
 namespace ParkingApp.Application.Services;
 
@@ -11,13 +13,17 @@ public class BookingService : IBookingService
 {
     private readonly IUnitOfWork _unitOfWork;
     private readonly INotificationService _notificationService;
+    private readonly ICacheService _cache;
+    private readonly ILogger<BookingService> _logger;
     private const decimal TaxRate = 0.18m; // 18% tax
     private const decimal ServiceFeeRate = 0.05m; // 5% service fee
 
-    public BookingService(IUnitOfWork unitOfWork, INotificationService notificationService)
+    public BookingService(IUnitOfWork unitOfWork, INotificationService notificationService, ICacheService cache, ILogger<BookingService> logger)
     {
         _unitOfWork = unitOfWork;
         _notificationService = notificationService;
+        _cache = cache;
+        _logger = logger;
     }
 
     public async Task<ApiResponse<BookingDto>> GetByIdAsync(Guid id, Guid userId, CancellationToken cancellationToken = default)
@@ -150,10 +156,13 @@ public class BookingService : IBookingService
 
     public async Task<ApiResponse<BookingDto>> CreateAsync(Guid userId, CreateBookingDto dto, CancellationToken cancellationToken = default)
     {
+        _logger.LogInformation("Creating booking for user {UserId} at parking {ParkingSpaceId}", userId, dto.ParkingSpaceId);
+        
         // Validate parking space
         var parking = await _unitOfWork.ParkingSpaces.GetByIdAsync(dto.ParkingSpaceId, cancellationToken);
         if (parking == null)
         {
+            _logger.LogWarning("Booking creation failed: Parking space {ParkingSpaceId} not found", dto.ParkingSpaceId);
             return new ApiResponse<BookingDto>(false, "Parking space not found", null);
         }
 
@@ -185,6 +194,8 @@ public class BookingService : IBookingService
 
             if (vehicleOverlapBooking != null)
             {
+                _logger.LogWarning("Vehicle {VehicleNumber} already booked during requested time period (Booking: {BookingReference})", 
+                    dto.VehicleNumber, vehicleOverlapBooking.BookingReference);
                 return new ApiResponse<BookingDto>(false,
                     $"Vehicle {dto.VehicleNumber} is already booked during this time period at another location (Ref: {vehicleOverlapBooking.BookingReference})",
                     null);
@@ -256,6 +267,9 @@ public class BookingService : IBookingService
 
         await _unitOfWork.Bookings.AddAsync(booking, cancellationToken);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
+        
+        _logger.LogInformation("Booking {BookingReference} created successfully for user {UserId}, total amount: {TotalAmount:C}", 
+            booking.BookingReference, userId, totalAmount);
 
         // Reload with navigation properties
         booking = await _unitOfWork.Bookings.GetByIdAsync(booking.Id, cancellationToken);
@@ -271,6 +285,12 @@ public class BookingService : IBookingService
                 new { BookingId = booking!.Id, BookingReference = booking.BookingReference }
             ),
             cancellationToken);
+
+        // Invalidate dashboard caches for both member and vendor
+        await _cache.RemoveAsync($"dashboard:member:{userId}", cancellationToken);
+        await _cache.RemoveAsync($"dashboard:vendor:{parking.OwnerId}", cancellationToken);
+        
+        _logger.LogDebug("Dashboard caches invalidated for user {UserId} and vendor {VendorId}", userId, parking.OwnerId);
 
         return new ApiResponse<BookingDto>(true, "Booking created. Awaiting owner approval.", booking.ToDto());
     }
@@ -352,6 +372,8 @@ public class BookingService : IBookingService
 
     public async Task<ApiResponse<BookingDto>> CancelAsync(Guid id, Guid userId, CancelBookingDto dto, CancellationToken cancellationToken = default)
     {
+        _logger.LogInformation("Cancelling booking {BookingId} by user {UserId}", id, userId);
+        
         var booking = await _unitOfWork.Bookings.GetByIdAsync(id, cancellationToken);
         if (booking == null)
         {
@@ -391,6 +413,9 @@ public class BookingService : IBookingService
 
         _unitOfWork.Bookings.Update(booking);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
+        
+        _logger.LogInformation("Booking {BookingReference} cancelled, refund amount: {RefundAmount:C}", 
+            booking.BookingReference, refundAmount);
 
         // Notify the other party about cancellation
         var recipientId = booking.UserId == userId ? booking.ParkingSpace?.OwnerId : booking.UserId;
@@ -405,6 +430,13 @@ public class BookingService : IBookingService
                     new { BookingId = id, BookingReference = booking.BookingReference }
                 ),
                 cancellationToken);
+        }
+
+        // Invalidate dashboard caches
+        await _cache.RemoveAsync($"dashboard:member:{booking.UserId}", cancellationToken);
+        if (booking.ParkingSpace?.OwnerId != null)
+        {
+            await _cache.RemoveAsync($"dashboard:vendor:{booking.ParkingSpace.OwnerId}", cancellationToken);
         }
 
         return new ApiResponse<BookingDto>(true, 
@@ -484,6 +516,13 @@ public class BookingService : IBookingService
         _unitOfWork.Bookings.Update(booking);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
+        // Invalidate dashboard caches
+        await _cache.RemoveAsync($"dashboard:member:{userId}", cancellationToken);
+        if (booking.ParkingSpace?.OwnerId != null)
+        {
+            await _cache.RemoveAsync($"dashboard:vendor:{booking.ParkingSpace.OwnerId}", cancellationToken);
+        }
+
         return new ApiResponse<BookingDto>(true, "Checked out successfully", booking.ToDto());
     }
 
@@ -540,6 +579,8 @@ public class BookingService : IBookingService
 
     public async Task<ApiResponse<BookingDto>> ApproveAsync(Guid id, Guid vendorId, CancellationToken cancellationToken = default)
     {
+        _logger.LogInformation("Vendor {VendorId} approving booking {BookingId}", vendorId, id);
+        
         var booking = await _unitOfWork.Bookings.GetByIdAsync(id, cancellationToken);
         if (booking == null)
         {
@@ -561,6 +602,8 @@ public class BookingService : IBookingService
         
         _unitOfWork.Bookings.Update(booking);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
+        
+        _logger.LogInformation("Booking {BookingReference} approved by vendor {VendorId}", booking.BookingReference, vendorId);
 
         // Notify member that their booking was approved
         await _notificationService.NotifyUserAsync(
@@ -573,11 +616,16 @@ public class BookingService : IBookingService
             ),
             cancellationToken);
 
+        // Invalidate dashboard cache for member
+        await _cache.RemoveAsync($"dashboard:member:{booking.UserId}", cancellationToken);
+
         return new ApiResponse<BookingDto>(true, "Booking approved. Awaiting member payment.", booking.ToDto());
     }
 
     public async Task<ApiResponse<BookingDto>> RejectAsync(Guid id, Guid vendorId, string? reason, CancellationToken cancellationToken = default)
     {
+        _logger.LogInformation("Vendor {VendorId} rejecting booking {BookingId}, reason: {Reason}", vendorId, id, reason);
+        
         var booking = await _unitOfWork.Bookings.GetByIdAsync(id, cancellationToken);
         if (booking == null)
         {
@@ -612,6 +660,9 @@ public class BookingService : IBookingService
                 new { BookingId = id, BookingReference = booking.BookingReference, Reason = booking.CancellationReason }
             ),
             cancellationToken);
+
+        // Invalidate dashboard cache for member
+        await _cache.RemoveAsync($"dashboard:member:{booking.UserId}", cancellationToken);
 
         return new ApiResponse<BookingDto>(true, "Booking rejected", booking.ToDto());
     }

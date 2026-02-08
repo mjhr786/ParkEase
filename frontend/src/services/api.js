@@ -1,4 +1,5 @@
-const API_BASE_URL = 'http://localhost:5129/api';
+// Use empty string for production (same origin) or localhost for development
+const API_BASE_URL = import.meta.env.VITE_API_URL || (import.meta.env.PROD ? '/api' : 'http://localhost:5129/api'); // 'https://parkease.azurewebsites.net/api'
 
 class ApiService {
   constructor() {
@@ -60,11 +61,32 @@ class ApiService {
   }
 
   async handleResponse(response) {
-    const data = await response.json();
-    if (!response.ok) {
-      throw new Error(data.message || 'An error occurred');
+    const contentType = response.headers.get('content-type');
+
+    // Handle JSON responses
+    if (contentType && contentType.includes('application/json')) {
+      const data = await response.json();
+
+      if (!response.ok) {
+        // Preserve the entire error response including errors array
+        throw {
+          response: {
+            data: data,
+            status: response.status
+          },
+          message: data.message || `HTTP error! status: ${response.status}`
+        };
+      }
+
+      return data;
     }
-    return data;
+
+    // Handle non-JSON responses
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    return response;
   }
 
   async refreshToken() {

@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect } from 'react';
 import api from '../services/api';
+import { getErrorMessage } from '../utils/errorHandler';
 
 const AuthContext = createContext(null);
 
@@ -25,9 +26,9 @@ export function AuthProvider({ children }) {
                 setUser(userData);
                 return { success: true };
             }
-            return { success: false, message: response.message };
+            return { success: false, message: getErrorMessage(response), errors: response.errors };
         } catch (error) {
-            return { success: false, message: error.message };
+            return { success: false, message: error.response?.data ? getErrorMessage(error.response.data) : error.message, errors: error.response?.data?.errors };
         }
     };
 
@@ -41,9 +42,9 @@ export function AuthProvider({ children }) {
                 setUser(userData);
                 return { success: true };
             }
-            return { success: false, message: response.message };
+            return { success: false, message: getErrorMessage(response), errors: response.errors };
         } catch (error) {
-            return { success: false, message: error.message };
+            return { success: false, message: error.response?.data ? getErrorMessage(error.response.data) : error.message, errors: error.response?.data?.errors };
         }
     };
 

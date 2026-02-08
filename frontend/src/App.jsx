@@ -1,6 +1,7 @@
-import { BrowserRouter, Routes, Route, Navigate, Link } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, Link, useNavigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { NotificationProvider } from './context/NotificationContext';
+import toast, { Toaster } from 'react-hot-toast';
 import Home from './pages/Home';
 import Login from './pages/Login';
 import Register from './pages/Register';
@@ -14,6 +15,12 @@ import './index.css';
 
 function Header() {
   const { isAuthenticated, user, logout, isVendor } = useAuth();
+  const navigate = useNavigate();
+
+  const handleLogout = async () => {
+    await logout();
+    navigate('/login');
+  };
 
   return (
     <header className="header">
@@ -34,7 +41,7 @@ function Header() {
               <span className="nav-link" style={{ color: 'var(--color-text-muted)' }}>
                 Hi, {user?.firstName}
               </span>
-              <button onClick={logout} className="btn btn-secondary" style={{ padding: '0.5rem 1rem' }}>
+              <button onClick={handleLogout} className="btn btn-secondary" style={{ padding: '0.5rem 1rem' }}>
                 Logout
               </button>
             </>
@@ -148,6 +155,47 @@ function App() {
     <BrowserRouter>
       <AuthProvider>
         <NotificationProvider>
+          <Toaster
+            position="top-right"
+            reverseOrder={false}
+            gutter={12}
+            toastOptions={{
+              duration: 6000,
+              style: {
+                background: '#1e293b',
+                color: '#f1f5f9',
+                border: '1px solid #334155',
+                padding: '14px 16px',
+                borderRadius: '8px',
+                boxShadow: '0 10px 40px rgba(0,0,0,0.5)',
+                fontSize: '14px',
+                maxWidth: '420px',
+                cursor: 'pointer',
+              },
+              success: {
+                duration: 5000,
+                style: {
+                  background: '#064e3b',
+                  border: '1px solid #10b981',
+                },
+                iconTheme: {
+                  primary: '#10b981',
+                  secondary: 'white',
+                },
+              },
+              error: {
+                duration: 8000,
+                style: {
+                  background: '#450a0a',
+                  border: '1px solid #ef4444',
+                },
+                iconTheme: {
+                  primary: '#ef4444',
+                  secondary: 'white',
+                },
+              },
+            }}
+          />
           <Header />
           <AppRoutes />
           <Footer />
