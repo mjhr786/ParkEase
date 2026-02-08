@@ -73,6 +73,34 @@ public class PaymentsController : ControllerBase
         return Ok(result);
     }
 
+    [HttpPost("create-order")]
+    public async Task<IActionResult> CreateOrder([FromBody] Guid bookingId, CancellationToken cancellationToken)
+    {
+        var userId = GetUserId();
+        if (userId == null)
+            return Unauthorized();
+
+        var result = await _paymentService.CreateRazorpayOrderAsync(userId.Value, bookingId, cancellationToken);
+        if (!result.Success)
+            return BadRequest(result);
+
+        return Ok(result);
+    }
+
+    [HttpPost("verify")]
+    public async Task<IActionResult> VerifyPayment([FromBody] VerifyPaymentDto dto, CancellationToken cancellationToken)
+    {
+        var userId = GetUserId();
+        if (userId == null)
+            return Unauthorized();
+
+        var result = await _paymentService.ProcessRazorpayPaymentAsync(userId.Value, dto, cancellationToken);
+        if (!result.Success)
+            return BadRequest(result);
+
+        return Ok(result);
+    }
+
     [HttpPost("refund")]
     public async Task<IActionResult> ProcessRefund([FromBody] RefundRequestDto dto, CancellationToken cancellationToken)
     {

@@ -8,6 +8,16 @@ namespace ParkingApp.Infrastructure.Services;
 /// </summary>
 public class MockPaymentService : IPaymentService
 {
+    public Task<string> CreateOrderAsync(decimal amount, string currency = "INR", Dictionary<string, string>? notes = null, CancellationToken cancellationToken = default)
+    {
+        return Task.FromResult($"order_mock_{Guid.NewGuid().ToString("N")[..14]}");
+    }
+
+    public Task<bool> VerifyPaymentSignatureAsync(string paymentId, string orderId, string signature, CancellationToken cancellationToken = default)
+    {
+        return Task.FromResult(true);
+    }
+
     public async Task<PaymentResult> ProcessPaymentAsync(PaymentRequest request, CancellationToken cancellationToken = default)
     {
         // Simulate payment processing delay

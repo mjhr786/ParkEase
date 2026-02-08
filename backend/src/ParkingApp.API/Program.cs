@@ -52,7 +52,11 @@ builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowFrontend", policy =>
     {
-        policy.WithOrigins("http://localhost:5173", "https://localhost:5173")
+        policy.WithOrigins(
+                "http://localhost:5173", 
+                "https://localhost:5173",
+                "https://parkease.azurewebsites.net" // Add Azure URL
+              )
               .AllowAnyHeader()
               .AllowAnyMethod()
               .AllowCredentials();
@@ -65,7 +69,8 @@ Directory.CreateDirectory(uploadsPath);
 builder.Services.AddScoped<IFileUploadService>(sp =>
 {
     var unitOfWork = sp.GetRequiredService<ParkingApp.Domain.Interfaces.IUnitOfWork>();
-    return new FileUploadService(unitOfWork, uploadsPath);
+    var cache = sp.GetRequiredService<ICacheService>();
+    return new FileUploadService(unitOfWork, cache, uploadsPath);
 });
 
 // Add SignalR for real-time notifications

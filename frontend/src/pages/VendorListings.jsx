@@ -7,7 +7,7 @@ import { handleApiError } from '../utils/errorHandler';
 import showToast from '../utils/toast.jsx';
 
 const PARKING_TYPES = ['Open', 'Covered', 'Garage', 'Street', 'Underground'];
-const API_BASE = 'http://localhost:5129'; // 'https://parkease.azurewebsites.net'
+const API_BASE = 'http://localhost:5129'; // 'http://localhost:5129' // 'https://parkease.azurewebsites.net'
 
 // Notification types that should trigger a refresh of vendor listings
 const REFRESH_TRIGGERS = [

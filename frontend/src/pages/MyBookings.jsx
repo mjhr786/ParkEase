@@ -5,6 +5,7 @@ import { useNotificationContext } from '../context/NotificationContext';
 import api from '../services/api';
 import { handleApiError } from '../utils/errorHandler';
 import showToast from '../utils/toast.jsx';
+import MockRazorpay from '../utils/MockRazorpay';
 
 const BOOKING_STATUS = ['Pending', 'Confirmed', 'InProgress', 'Completed', 'Cancelled', 'Expired', 'Awaiting Payment'];
 const STATUS_COLORS = {
@@ -119,26 +120,63 @@ export default function MyBookings() {
 
     const [payingId, setPayingId] = useState(null);
 
-    const handlePayment = async (bookingId) => {
+    const handlePayment = async (bookingId, amount) => {
         setPayingId(bookingId);
 
         try {
-            const response = await api.processPayment({
-                bookingId: bookingId,
-                paymentMethod: 0, // Default to Credit Card
-            });
-
-            if (response.success && response.data?.success) {
-                showToast.success('Payment processed successfully');
-                fetchBookings();
-            } else {
-                showToast.error(response.data?.message || response.message || 'Payment failed');
+            // 1. Create Order
+            const orderRes = await api.createRazorpayOrder(bookingId);
+            if (!orderRes.success) {
+                throw new Error(orderRes.message || 'Failed to create payment order');
             }
-        } catch (err) {
-            showToast.error(handleApiError(err, 'Failed to process payment'));
-        }
 
-        setPayingId(null);
+            const options = {
+                key: "test_key_id", // Dummy key for mock
+                amount: amount * 100, // Amount in paise
+                currency: "INR",
+                name: "ParkEase",
+                description: `Payment for Booking`,
+                order_id: orderRes.data, // Order ID from backend
+                handler: async (response) => {
+                    try {
+                        // 3. Verify Payment
+                        const verifyRes = await api.verifyRazorpayPayment({
+                            bookingId: bookingId,
+                            razorpayPaymentId: response.razorpay_payment_id,
+                            razorpayOrderId: response.razorpay_order_id,
+                            razorpaySignature: response.razorpay_signature
+                        });
+
+                        if (verifyRes.success) {
+                            showToast.success('Payment successful');
+                            fetchBookings();
+                        } else {
+                            showToast.error(verifyRes.message || 'Payment verification failed');
+                        }
+                    } catch (err) {
+                        showToast.error(handleApiError(err, 'Payment verification failed'));
+                    }
+                },
+                prefill: {
+                    name: "ParkEase User",
+                    email: "user@example.com",
+                    contact: "9999999999"
+                },
+                theme: {
+                    color: "#3399cc"
+                }
+            };
+
+            // 2. Open Checkout
+            // Use MockRazorpay (or window.Razorpay in real scenario)
+            const rzp = new MockRazorpay(options);
+            rzp.open();
+
+        } catch (err) {
+            showToast.error(handleApiError(err, 'Failed to initiate payment'));
+        } finally {
+            setPayingId(null);
+        }
     };
 
     return (
@@ -222,7 +260,7 @@ export default function MyBookings() {
                                         <>
                                             <button
                                                 className="btn btn-primary"
-                                                onClick={() => handlePayment(booking.id)}
+                                                onClick={() => handlePayment(booking.id, booking.totalAmount)}
                                                 disabled={payingId === booking.id}
                                             >
                                                 {payingId === booking.id ? 'Processing...' : `Pay ₹${booking.totalAmount}`}

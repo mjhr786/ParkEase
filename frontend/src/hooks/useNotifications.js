@@ -2,7 +2,7 @@ import { useEffect, useRef, useCallback, useState } from 'react';
 import * as signalR from '@microsoft/signalr';
 
 // Use empty string for production (same origin) or localhost for development
-const API_URL = import.meta.env.VITE_API_URL || (import.meta.env.PROD ? '' : 'http://localhost:5129'); // 'https://parkease.azurewebsites.net'
+const API_URL = import.meta.env.VITE_API_URL || (import.meta.env.PROD ? '' : 'http://localhost:5129'); // 'https://parkease.azurewebsites.net' // 'http://localhost:5129'
 
 /**
  * Custom hook for SignalR real-time notifications.

@@ -48,8 +48,31 @@ export function NotificationProvider({ children }) {
         };
     }, []);
 
+    // Ref to track processed notifications for deduplication
+    const processedRef = useRef(new Set());
+
     // Handle incoming notification
     const handleNotification = useCallback((notification) => {
+        // Create a unique signature for deduplication
+        // Use type, title, and data (specifically IDs) to identify duplicates
+        const dataStr = notification.data ?
+            (notification.data.BookingId || notification.data.bookingId || JSON.stringify(notification.data)) : '';
+        const signature = `${notification.type}-${dataStr}-${notification.title}`;
+
+        // Check if we've processed this recently
+        if (processedRef.current.has(signature)) {
+            console.log(`Duplicate notification ignored: ${signature}`);
+            return;
+        }
+
+        // Add to processed set
+        processedRef.current.add(signature);
+
+        // Remove from set after 2 seconds to allow future similar notifications
+        setTimeout(() => {
+            processedRef.current.delete(signature);
+        }, 2000);
+
         const id = Date.now().toString();
         const newNotification = { ...notification, id, read: false };
 
