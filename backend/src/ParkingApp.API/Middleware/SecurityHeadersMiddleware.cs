@@ -20,9 +20,14 @@ public class SecurityHeadersMiddleware
         // Enable XSS protection
         context.Response.Headers.Append("X-XSS-Protection", "1; mode=block");
         
-        // Content Security Policy - adjust as needed for your app
+        // Content Security Policy - configured for SPA with API and WebSocket connections
         context.Response.Headers.Append("Content-Security-Policy", 
-            "default-src 'self'; img-src 'self' data: blob:; script-src 'self'; style-src 'self' 'unsafe-inline';");
+            "default-src 'self'; " +
+            "img-src 'self' data: blob: https:; " +
+            "script-src 'self' 'unsafe-inline'; " +
+            "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
+            "font-src 'self' https://fonts.gstatic.com; " +
+            "connect-src 'self' ws: wss:;");
         
         // Referrer Policy
         context.Response.Headers.Append("Referrer-Policy", "strict-origin-when-cross-origin");

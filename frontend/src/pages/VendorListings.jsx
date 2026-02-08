@@ -1,20 +1,33 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
+import { useNotificationContext } from '../context/NotificationContext';
 import api from '../services/api';
+import { handleApiError } from '../utils/errorHandler';
+import showToast from '../utils/toast.jsx';
 
 const PARKING_TYPES = ['Open', 'Covered', 'Garage', 'Street', 'Underground'];
-const API_BASE = 'http://localhost:5129';
+const API_BASE = 'http://localhost:5129'; // 'https://parkease.azurewebsites.net'
+
+// Notification types that should trigger a refresh of vendor listings
+const REFRESH_TRIGGERS = [
+    'booking.requested',   // New booking request
+    'payment.completed',   // User paid
+    'booking.cancelled',   // User cancelled
+    'booking.checkin',     // User checked in
+    'booking.checkout'     // User checked out
+];
 
 export default function VendorListings() {
     const [listings, setListings] = useState([]);
     const [loading, setLoading] = useState(true);
     const [showForm, setShowForm] = useState(false);
     const [editingId, setEditingId] = useState(null);
-    const [error, setError] = useState('');
-    const [success, setSuccess] = useState('');
     const [uploadingId, setUploadingId] = useState(null);
     const [uploadProgress, setUploadProgress] = useState('');
     const [bookings, setBookings] = useState([]);
+
+    const { subscribeToRefresh } = useNotificationContext();
 
     const emptyForm = {
         title: '',
@@ -39,24 +52,19 @@ export default function VendorListings() {
 
     const [form, setForm] = useState(emptyForm);
 
-    useEffect(() => {
-        fetchListings();
-        fetchBookings();
-    }, []);
-
-    const fetchListings = async () => {
+    const fetchListings = useCallback(async () => {
         try {
             const response = await api.getMyListings();
             if (response.success && response.data) {
                 setListings(response.data);
             }
         } catch (err) {
-            console.error('Fetch listings error:', err);
+            showToast.error(handleApiError(err, 'Failed to load listings'));
         }
         setLoading(false);
-    };
+    }, []);
 
-    const fetchBookings = async () => {
+    const fetchBookings = useCallback(async () => {
         try {
             const response = await api.getVendorBookings();
             if (response.success && response.data?.bookings) {
@@ -65,7 +73,23 @@ export default function VendorListings() {
         } catch (err) {
             console.error('Fetch bookings error:', err);
         }
-    };
+    }, []);
+
+    // Initial data load
+    useEffect(() => {
+        fetchListings();
+        fetchBookings();
+    }, [fetchListings, fetchBookings]);
+
+    // Subscribe to real-time refresh events
+    useEffect(() => {
+        const unsubscribe = subscribeToRefresh('VendorListings', REFRESH_TRIGGERS, () => {
+            console.log('🔄 VendorListings: Auto-refreshing due to notification');
+            fetchListings();
+            fetchBookings();
+        });
+        return unsubscribe;
+    }, [subscribeToRefresh, fetchListings, fetchBookings]);
 
     const getActiveBookingsForListing = (listingId) => {
         const now = new Date();
@@ -101,8 +125,6 @@ export default function VendorListings() {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        setError('');
-        setSuccess('');
 
         const data = {
             ...form,
@@ -126,16 +148,16 @@ export default function VendorListings() {
             }
 
             if (response.success) {
-                setSuccess(editingId ? 'Listing updated successfully!' : 'Listing created successfully!');
+                showToast.success(editingId ? 'Listing updated successfully!' : 'Listing created successfully!');
                 setShowForm(false);
                 setEditingId(null);
                 setForm(emptyForm);
                 fetchListings();
             } else {
-                setError(response.message || 'Operation failed');
+                showToast.error(response.message || 'Operation failed');
             }
         } catch (err) {
-            setError(err.message);
+            showToast.error(handleApiError(err, 'Failed to save listing'));
         }
     };
 
@@ -154,13 +176,13 @@ export default function VendorListings() {
         try {
             const response = await api.deleteParking(id);
             if (response.success) {
-                setSuccess('Listing deleted successfully!');
+                showToast.success('Listing deleted successfully!');
                 fetchListings();
             } else {
-                setError(response.message || 'Delete failed');
+                showToast.error(response.message || 'Delete failed');
             }
         } catch (err) {
-            setError(err.message);
+            showToast.error(handleApiError(err, 'Failed to delete listing'));
         }
     };
 
@@ -169,21 +191,21 @@ export default function VendorListings() {
 
         setUploadingId(listingId);
         setUploadProgress('Uploading...');
-        setError('');
 
         try {
             const response = await api.uploadParkingFiles(listingId, Array.from(files));
             if (response.success) {
-                setSuccess(`${response.data.urls.length} file(s) uploaded successfully!`);
+                const count = response.data.urls.length;
+                showToast.success(`${count} file(s) uploaded successfully!`);
                 if (response.data.errors?.length > 0) {
-                    setError(`Some files skipped: ${response.data.errors.join(', ')}`);
+                    showToast.error(`Some files skipped: ${response.data.errors.join(', ')}`);
                 }
                 fetchListings();
             } else {
-                setError(response.message || 'Upload failed');
+                showToast.error(response.message || 'Upload failed');
             }
         } catch (err) {
-            setError(err.message || 'Upload failed');
+            showToast.error(handleApiError(err, 'Failed to upload files'));
         }
 
         setUploadingId(null);
@@ -197,13 +219,13 @@ export default function VendorListings() {
         try {
             const response = await api.deleteParkingFile(listingId, fileName);
             if (response.success) {
-                setSuccess('File deleted');
+                showToast.success('File deleted');
                 fetchListings();
             } else {
-                setError(response.message || 'Delete failed');
+                showToast.error(response.message || 'Delete failed');
             }
         } catch (err) {
-            setError(err.message);
+            showToast.error(handleApiError(err, 'Failed to delete file'));
         }
     };
 
@@ -223,9 +245,6 @@ export default function VendorListings() {
                         {showForm ? 'Cancel' : '+ Add Listing'}
                     </button>
                 </div>
-
-                {error && <div className="alert alert-error">{error}</div>}
-                {success && <div className="alert alert-success">{success}</div>}
 
                 {showForm && (
                     <div className="card mb-3">

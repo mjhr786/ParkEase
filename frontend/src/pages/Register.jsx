@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import showToast from '../utils/toast.jsx';
 
 export default function Register() {
     const [formData, setFormData] = useState({
@@ -12,7 +13,6 @@ export default function Register() {
         phoneNumber: '',
         role: 2, // Member by default
     });
-    const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
     const { register } = useAuth();
     const navigate = useNavigate();
@@ -23,15 +23,14 @@ export default function Register() {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        setError('');
 
         if (formData.password !== formData.confirmPassword) {
-            setError('Passwords do not match');
+            showToast.error('Passwords do not match');
             return;
         }
 
         if (formData.password.length < 8) {
-            setError('Password must be at least 8 characters');
+            showToast.error('Password must be at least 8 characters');
             return;
         }
 
@@ -45,7 +44,7 @@ export default function Register() {
         if (result.success) {
             navigate('/dashboard');
         } else {
-            setError(result.message || 'Registration failed');
+            showToast.error(result.message || 'Registration failed');
         }
 
         setLoading(false);
@@ -56,8 +55,6 @@ export default function Register() {
             <div className="card auth-card">
                 <h1 className="auth-title">Create Account</h1>
                 <p className="auth-subtitle">Join our parking community</p>
-
-                {error && <div className="alert alert-error">{error}</div>}
 
                 <form onSubmit={handleSubmit}>
                     <div className="grid grid-2">

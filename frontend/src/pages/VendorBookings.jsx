@@ -1,6 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
+import { useNotificationContext } from '../context/NotificationContext';
 import api from '../services/api';
+import { handleApiError } from '../utils/errorHandler';
+import showToast from '../utils/toast.jsx';
 
 const BOOKING_STATUS = ['Pending', 'Confirmed', 'InProgress', 'Completed', 'Cancelled', 'Expired', 'Awaiting Payment'];
 const STATUS_COLORS = {
@@ -13,21 +16,26 @@ const STATUS_COLORS = {
     6: '#8b5cf6', // Awaiting Payment (purple)
 };
 
+// Notification types that should trigger a refresh of vendor bookings
+const REFRESH_TRIGGERS = [
+    'booking.requested',   // New booking request
+    'payment.completed',   // User paid
+    'booking.cancelled',   // User cancelled
+    'booking.checkin',     // User checked in
+    'booking.checkout'     // User checked out
+];
+
 export default function VendorBookings() {
     const [bookings, setBookings] = useState([]);
     const [loading, setLoading] = useState(true);
     const [filter, setFilter] = useState('0'); // Default to Pending
-    const [error, setError] = useState('');
-    const [success, setSuccess] = useState('');
     const [processingId, setProcessingId] = useState(null);
     const [rejectReason, setRejectReason] = useState('');
     const [showRejectModal, setShowRejectModal] = useState(null);
 
-    useEffect(() => {
-        fetchBookings();
-    }, [filter]);
+    const { subscribeToRefresh } = useNotificationContext();
 
-    const fetchBookings = async () => {
+    const fetchBookings = useCallback(async () => {
         setLoading(true);
         try {
             const params = filter ? { status: filter } : {};
@@ -41,27 +49,39 @@ export default function VendorBookings() {
                 setBookings([]);
             }
         } catch (err) {
-            console.error('Fetch vendor bookings error:', err);
+            showToast.error(handleApiError(err, 'Failed to load bookings'));
             setBookings([]);
         }
         setLoading(false);
-    };
+    }, [filter]);
+
+    // Load bookings when filter changes
+    useEffect(() => {
+        fetchBookings();
+    }, [fetchBookings]);
+
+    // Subscribe to real-time refresh events
+    useEffect(() => {
+        const unsubscribe = subscribeToRefresh('VendorBookings', REFRESH_TRIGGERS, () => {
+            console.log('🔄 VendorBookings: Auto-refreshing due to notification');
+            fetchBookings();
+        });
+        return unsubscribe;
+    }, [subscribeToRefresh, fetchBookings]);
 
     const handleApprove = async (id) => {
         setProcessingId(id);
-        setError('');
-        setSuccess('');
 
         try {
             const response = await api.approveBooking(id);
             if (response.success) {
-                setSuccess('Booking approved successfully!');
+                showToast.success('Booking approved successfully!');
                 fetchBookings();
             } else {
-                setError(response.message || 'Failed to approve booking');
+                showToast.error(response.message || 'Failed to approve booking');
             }
         } catch (err) {
-            setError(err.message);
+            showToast.error(handleApiError(err, 'Failed to approve booking'));
         }
 
         setProcessingId(null);
@@ -69,21 +89,19 @@ export default function VendorBookings() {
 
     const handleReject = async (id) => {
         setProcessingId(id);
-        setError('');
-        setSuccess('');
 
         try {
             const response = await api.rejectBooking(id, rejectReason);
             if (response.success) {
-                setSuccess('Booking rejected');
+                showToast.success('Booking rejected');
                 setShowRejectModal(null);
                 setRejectReason('');
                 fetchBookings();
             } else {
-                setError(response.message || 'Failed to reject booking');
+                showToast.error(response.message || 'Failed to reject booking');
             }
         } catch (err) {
-            setError(err.message);
+            showToast.error(handleApiError(err, 'Failed to reject booking'));
         }
 
         setProcessingId(null);
@@ -106,9 +124,6 @@ export default function VendorBookings() {
                         ))}
                     </select>
                 </div>
-
-                {error && <div className="alert alert-error">{error}</div>}
-                {success && <div className="alert alert-success">{success}</div>}
 
                 {loading ? (
                     <div className="loading">

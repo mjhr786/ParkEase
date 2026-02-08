@@ -3,6 +3,7 @@
   <ItemGroup>
     <ProjectReference Include="..\ParkingApp.Domain\ParkingApp.Domain.csproj" />
     <ProjectReference Include="..\ParkingApp.Application\ParkingApp.Application.csproj" />
+    <ProjectReference Include="..\ParkingApp.BuildingBlocks\ParkingApp.BuildingBlocks.csproj" />
   </ItemGroup>
 
   <ItemGroup>
@@ -13,7 +14,9 @@
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
     <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="9.0.0" />
+    <PackageReference Include="StackExchange.Redis" Version="2.10.14" />
     <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Caching.Memory" Version="9.0.0" />
   </ItemGroup>
 
   <PropertyGroup>

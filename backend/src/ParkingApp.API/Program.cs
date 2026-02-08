@@ -9,17 +9,55 @@ using ParkingApp.Application.Interfaces;
 using ParkingApp.Application.Services;
 using ParkingApp.Infrastructure;
 using ParkingApp.Infrastructure.Data;
-using ParkingApp.Infrastructure.Hubs;
+using ParkingApp.Notifications;
+using Serilog;
+using Serilog.Events;
 
-var builder = WebApplication.CreateBuilder(args);
+// Configure Serilog before building the application
+Log.Logger = new LoggerConfiguration()
+    .MinimumLevel.Information()
+    .MinimumLevel.Override("Microsoft", LogEventLevel.Warning)
+    .MinimumLevel.Override("Microsoft.AspNetCore", LogEventLevel.Warning)
+    .MinimumLevel.Override("System", LogEventLevel.Warning)
+    .Enrich.FromLogContext()
+    .Enrich.WithMachineName()
+    .Enrich.WithThreadId()
+    .Enrich.WithEnvironmentName()
+    .WriteTo.Console(
+        outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] {Message:lj} {Properties:j}{NewLine}{Exception}")
+    .WriteTo.File(
+        path: "logs/parkease-.txt",
+        rollingInterval: RollingInterval.Day,
+        retainedFileCountLimit: 30,
+        outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} [{Level:u3}] {Message:lj} {Properties:j}{NewLine}{Exception}")
+    .CreateLogger();
 
-// Add services
-builder.Services.AddControllers();
-builder.Services.AddEndpointsApiExplorer();
-
-// Add Infrastructure and Application layers
+try
+{
+    Log.Information("Starting ParkEase API");
+    
+    var builder = WebApplication.CreateBuilder(args);
+    
+    // Use Serilog for logging
+    builder.Host.UseSerilog();
 builder.Services.AddInfrastructure(builder.Configuration);
+builder.Services.AddNotificationServices();
 builder.Services.AddApplication();
+
+// Add Controllers
+builder.Services.AddControllers();
+
+// Add CORS
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowFrontend", policy =>
+    {
+        policy.WithOrigins("http://localhost:5173", "https://localhost:5173")
+              .AllowAnyHeader()
+              .AllowAnyMethod()
+              .AllowCredentials();
+    });
+});
 
 // Register FileUploadService
 var uploadsPath = Path.Combine(builder.Environment.WebRootPath ?? Path.Combine(builder.Environment.ContentRootPath, "wwwroot"), "uploads");
@@ -119,6 +157,19 @@ using (var scope = app.Services.CreateScope())
 // Configure middleware pipeline
 app.UseMiddleware<SecurityHeadersMiddleware>();
 app.UseMiddleware<ExceptionHandlingMiddleware>();
+
+// Serilog request logging
+app.UseSerilogRequestLogging(options =>
+{
+    options.MessageTemplate = "HTTP {RequestMethod} {RequestPath} responded {StatusCode} in {Elapsed:0.0000} ms";
+    options.EnrichDiagnosticContext = (diagnosticContext, httpContext) =>
+    {
+        diagnosticContext.Set("RequestHost", httpContext.Request.Host.Value);
+        diagnosticContext.Set("RequestScheme", httpContext.Request.Scheme);
+        diagnosticContext.Set("UserAgent", httpContext.Request.Headers["User-Agent"].ToString());
+    };
+});
+
 app.UseMiddleware<RateLimitingMiddleware>();
 
 app.UseCors("AllowFrontend");
@@ -127,14 +178,19 @@ app.UseCors("AllowFrontend");
 var webRootPath = builder.Environment.WebRootPath ?? Path.Combine(builder.Environment.ContentRootPath, "wwwroot");
 Directory.CreateDirectory(webRootPath);
 
+// Serve default files (index.html) for SPA
+app.UseDefaultFiles();
 app.UseStaticFiles(new StaticFileOptions
 {
     FileProvider = new PhysicalFileProvider(webRootPath),
     RequestPath = "",
     OnPrepareResponse = ctx =>
     {
-        // Cache images/videos for 7 days
-        ctx.Context.Response.Headers.Append("Cache-Control", "public,max-age=604800");
+        // Cache static assets for 7 days, but not index.html
+        if (!ctx.Context.Request.Path.Value?.EndsWith(".html") ?? false)
+        {
+            ctx.Context.Response.Headers.Append("Cache-Control", "public,max-age=604800");
+        }
     }
 });
 
@@ -146,8 +202,20 @@ app.MapControllers();
 // Health check endpoint
 app.MapGet("/health", () => Results.Ok(new { status = "healthy", timestamp = DateTime.UtcNow }));
 
-// SignalR Hub endpoint
-app.MapHub<NotificationHub>("/hubs/notifications");
+// Map SignalR hub for notifications
+app.MapHub<ParkingApp.Notifications.Hubs.NotificationHub>("/hubs/notifications");
+
+// SPA fallback - serve index.html for any unmatched routes (must be last!)
+app.MapFallbackToFile("index.html");
 
 app.Run();
 
+}
+catch (Exception ex)
+{
+    Log.Fatal(ex, "Application terminated unexpectedly");
+}
+finally
+{
+    Log.CloseAndFlush();
+}

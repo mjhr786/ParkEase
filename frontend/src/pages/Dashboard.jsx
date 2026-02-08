@@ -1,20 +1,30 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { useNotificationContext } from '../context/NotificationContext';
 import api from '../services/api';
 
 const BOOKING_STATUS = ['Pending', 'Confirmed', 'InProgress', 'Completed', 'Cancelled', 'NoShow', 'Expired'];
+
+// All booking/payment events should refresh dashboard stats
+const REFRESH_TRIGGERS = [
+    'booking.requested',
+    'booking.approved',
+    'booking.rejected',
+    'booking.cancelled',
+    'payment.completed',
+    'booking.checkin',
+    'booking.checkout'
+];
 
 export default function Dashboard() {
     const { user, isVendor, isMember } = useAuth();
     const [stats, setStats] = useState(null);
     const [loading, setLoading] = useState(true);
 
-    useEffect(() => {
-        fetchDashboard();
-    }, []);
+    const { subscribeToRefresh } = useNotificationContext();
 
-    const fetchDashboard = async () => {
+    const fetchDashboard = useCallback(async () => {
         try {
             const response = isVendor
                 ? await api.getVendorDashboard()
@@ -27,7 +37,21 @@ export default function Dashboard() {
             console.error('Dashboard error:', error);
         }
         setLoading(false);
-    };
+    }, [isVendor]);
+
+    // Initial load
+    useEffect(() => {
+        fetchDashboard();
+    }, [fetchDashboard]);
+
+    // Subscribe to real-time refresh events
+    useEffect(() => {
+        const unsubscribe = subscribeToRefresh('Dashboard', REFRESH_TRIGGERS, () => {
+            console.log('🔄 Dashboard: Auto-refreshing due to notification');
+            fetchDashboard();
+        });
+        return unsubscribe;
+    }, [subscribeToRefresh, fetchDashboard]);
 
     if (loading) {
         return (

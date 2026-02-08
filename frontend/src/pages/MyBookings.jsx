@@ -1,6 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
+import { useNotificationContext } from '../context/NotificationContext';
 import api from '../services/api';
+import { handleApiError } from '../utils/errorHandler';
+import showToast from '../utils/toast.jsx';
 
 const BOOKING_STATUS = ['Pending', 'Confirmed', 'InProgress', 'Completed', 'Cancelled', 'Expired', 'Awaiting Payment'];
 const STATUS_COLORS = {
@@ -13,18 +17,24 @@ const STATUS_COLORS = {
     6: '#8b5cf6', // Awaiting Payment (purple)
 };
 
+// Notification types that should trigger a refresh of user bookings
+const REFRESH_TRIGGERS = [
+    'booking.approved',    // Owner approved
+    'booking.rejected',    // Owner rejected
+    'payment.completed',   // Payment confirmed
+    'booking.checkin',     // Checked in
+    'booking.checkout'     // Checked out
+];
+
 export default function MyBookings() {
     const [bookings, setBookings] = useState([]);
     const [loading, setLoading] = useState(true);
     const [filter, setFilter] = useState('');
-    const [error, setError] = useState('');
     const [cancellingId, setCancellingId] = useState(null);
 
-    useEffect(() => {
-        fetchBookings();
-    }, [filter]);
+    const { subscribeToRefresh } = useNotificationContext();
 
-    const fetchBookings = async () => {
+    const fetchBookings = useCallback(async () => {
         setLoading(true);
         try {
             const params = filter ? { status: filter } : {};
@@ -39,27 +49,41 @@ export default function MyBookings() {
                 setBookings([]);
             }
         } catch (err) {
-            console.error('Fetch bookings error:', err);
+            showToast.error(handleApiError(err, 'Failed to load bookings'));
             setBookings([]);
         }
         setLoading(false);
-    };
+    }, [filter]);
+
+    // Load bookings when filter changes
+    useEffect(() => {
+        fetchBookings();
+    }, [fetchBookings]);
+
+    // Subscribe to real-time refresh events
+    useEffect(() => {
+        const unsubscribe = subscribeToRefresh('MyBookings', REFRESH_TRIGGERS, () => {
+            console.log('🔄 MyBookings: Auto-refreshing due to notification');
+            fetchBookings();
+        });
+        return unsubscribe;
+    }, [subscribeToRefresh, fetchBookings]);
 
     const handleCancel = async (id) => {
         if (!window.confirm('Are you sure you want to cancel this booking?')) return;
 
         setCancellingId(id);
-        setError('');
 
         try {
             const response = await api.cancelBooking(id, 'User requested cancellation');
             if (response.success) {
+                showToast.success('Booking cancelled successfully');
                 fetchBookings();
             } else {
-                setError(response.message || 'Failed to cancel booking');
+                showToast.error(response.message || 'Cancel failed');
             }
         } catch (err) {
-            setError(err.message);
+            showToast.error(handleApiError(err, 'Failed to cancel booking'));
         }
 
         setCancellingId(null);
@@ -69,12 +93,13 @@ export default function MyBookings() {
         try {
             const response = await api.checkIn(id);
             if (response.success) {
+                showToast.success('Checked in successfully');
                 fetchBookings();
             } else {
-                setError(response.message || 'Check-in failed');
+                showToast.error(response.message || 'Check-in failed');
             }
         } catch (err) {
-            setError(err.message);
+            showToast.error(handleApiError(err, 'Failed to check in'));
         }
     };
 
@@ -82,12 +107,13 @@ export default function MyBookings() {
         try {
             const response = await api.checkOut(id);
             if (response.success) {
+                showToast.success('Checked out successfully');
                 fetchBookings();
             } else {
-                setError(response.message || 'Check-out failed');
+                showToast.error(response.message || 'Check-out failed');
             }
         } catch (err) {
-            setError(err.message);
+            showToast.error(handleApiError(err, 'Failed to check out'));
         }
     };
 
@@ -95,7 +121,6 @@ export default function MyBookings() {
 
     const handlePayment = async (bookingId) => {
         setPayingId(bookingId);
-        setError('');
 
         try {
             const response = await api.processPayment({
@@ -104,12 +129,13 @@ export default function MyBookings() {
             });
 
             if (response.success && response.data?.success) {
+                showToast.success('Payment processed successfully');
                 fetchBookings();
             } else {
-                setError(response.data?.message || response.message || 'Payment failed');
+                showToast.error(response.data?.message || response.message || 'Payment failed');
             }
         } catch (err) {
-            setError(err.message || 'Payment failed');
+            showToast.error(handleApiError(err, 'Failed to process payment'));
         }
 
         setPayingId(null);
@@ -132,8 +158,6 @@ export default function MyBookings() {
                         ))}
                     </select>
                 </div>
-
-                {error && <div className="alert alert-error">{error}</div>}
 
                 {loading ? (
                     <div className="loading">
