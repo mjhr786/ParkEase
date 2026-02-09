@@ -5,11 +5,26 @@
  */
 export const getErrorMessage = (response) => {
     // If there are specific validation errors, show them
-    if (response?.errors && Array.isArray(response.errors) && response.errors.length > 0) {
-        return response.errors.join(', ');
+    if (response?.errors) {
+        // Handle array of errors
+        if (Array.isArray(response.errors) && response.errors.length > 0) {
+            return response.errors.join(', ');
+        }
+
+        // Handle validation errors object (key: [messages])
+        if (typeof response.errors === 'object') {
+            const messages = Object.values(response.errors)
+                .flat()
+                .filter(msg => typeof msg === 'string' && msg.length > 0);
+
+            if (messages.length > 0) {
+                return messages.join(', ');
+            }
+        }
     }
+
     // Otherwise use the general message
-    return response?.message || 'An error occurred';
+    return response?.detail || response?.title || response?.message || 'An error occurred';
 };
 
 /**

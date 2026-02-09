@@ -2,16 +2,27 @@ import { BrowserRouter, Routes, Route, Navigate, Link, useNavigate } from 'react
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { NotificationProvider } from './context/NotificationContext';
 import toast, { Toaster } from 'react-hot-toast';
-import Home from './pages/Home';
-import Login from './pages/Login';
-import Register from './pages/Register';
-import Search from './pages/Search';
-import ParkingDetails from './pages/ParkingDetails';
-import Dashboard from './pages/Dashboard';
-import MyBookings from './pages/MyBookings';
-import VendorListings from './pages/VendorListings';
-import VendorBookings from './pages/VendorBookings';
+import React, { Suspense } from 'react';
 import './index.css';
+
+// Lazy load pages
+const Home = React.lazy(() => import('./pages/Home'));
+const Login = React.lazy(() => import('./pages/Login'));
+const Register = React.lazy(() => import('./pages/Register'));
+const Search = React.lazy(() => import('./pages/Search'));
+const ParkingDetails = React.lazy(() => import('./pages/ParkingDetails'));
+const Dashboard = React.lazy(() => import('./pages/Dashboard'));
+const MyBookings = React.lazy(() => import('./pages/MyBookings'));
+const VendorListings = React.lazy(() => import('./pages/VendorListings'));
+const VendorBookings = React.lazy(() => import('./pages/VendorBookings'));
+
+function Loading() {
+  return (
+    <div className="loading" style={{ minHeight: '60vh', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+      <div className="spinner"></div>
+    </div>
+  );
+}
 
 function Header() {
   const { isAuthenticated, user, logout, isVendor } = useAuth();
@@ -61,11 +72,7 @@ function ProtectedRoute({ children, vendorOnly = false }) {
   const { isAuthenticated, loading, isVendor } = useAuth();
 
   if (loading) {
-    return (
-      <div className="loading" style={{ minHeight: '100vh' }}>
-        <div className="spinner"></div>
-      </div>
-    );
+    return <Loading />;
   }
 
   if (!isAuthenticated) {
@@ -83,52 +90,54 @@ function AppRoutes() {
   const { isAuthenticated } = useAuth();
 
   return (
-    <Routes>
-      <Route path="/" element={<Home />} />
-      <Route path="/search" element={<Search />} />
-      <Route path="/parking/:id" element={<ParkingDetails />} />
-      <Route
-        path="/login"
-        element={isAuthenticated ? <Navigate to="/dashboard" /> : <Login />}
-      />
-      <Route
-        path="/register"
-        element={isAuthenticated ? <Navigate to="/dashboard" /> : <Register />}
-      />
-      <Route
-        path="/dashboard"
-        element={
-          <ProtectedRoute>
-            <Dashboard />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/bookings"
-        element={
-          <ProtectedRoute>
-            <MyBookings />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/vendor/listings"
-        element={
-          <ProtectedRoute vendorOnly>
-            <VendorListings />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/vendor/bookings"
-        element={
-          <ProtectedRoute vendorOnly>
-            <VendorBookings />
-          </ProtectedRoute>
-        }
-      />
-      <Route path="*" element={<Navigate to="/" />} />
-    </Routes>
+    <Suspense fallback={<Loading />}>
+      <Routes>
+        <Route path="/" element={<Home />} />
+        <Route path="/search" element={<Search />} />
+        <Route path="/parking/:id" element={<ParkingDetails />} />
+        <Route
+          path="/login"
+          element={isAuthenticated ? <Navigate to="/dashboard" /> : <Login />}
+        />
+        <Route
+          path="/register"
+          element={isAuthenticated ? <Navigate to="/dashboard" /> : <Register />}
+        />
+        <Route
+          path="/dashboard"
+          element={
+            <ProtectedRoute>
+              <Dashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/bookings"
+          element={
+            <ProtectedRoute>
+              <MyBookings />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/vendor/listings"
+          element={
+            <ProtectedRoute vendorOnly>
+              <VendorListings />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/vendor/bookings"
+          element={
+            <ProtectedRoute vendorOnly>
+              <VendorBookings />
+            </ProtectedRoute>
+          }
+        />
+        <Route path="*" element={<Navigate to="/" />} />
+      </Routes>
+    </Suspense>
   );
 }
 

@@ -42,7 +42,10 @@ public class ApplicationDbContext : DbContext
             entity.Property(e => e.Description).HasMaxLength(2000).IsRequired();
             entity.Property(e => e.Address).HasMaxLength(500).IsRequired();
             entity.Property(e => e.City).HasMaxLength(100).IsRequired();
+            entity.Property(e => e.City).HasMaxLength(100).IsRequired();
             entity.Property(e => e.State).HasMaxLength(100).IsRequired();
+            entity.HasIndex(e => e.State); // Added index for State
+            entity.Property(e => e.Country).HasMaxLength(100).IsRequired();
             entity.Property(e => e.Country).HasMaxLength(100).IsRequired();
             entity.Property(e => e.PostalCode).HasMaxLength(20).IsRequired();
             entity.Property(e => e.HourlyRate).HasPrecision(18, 2);

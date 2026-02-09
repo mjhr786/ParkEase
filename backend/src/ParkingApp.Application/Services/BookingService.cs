@@ -290,7 +290,11 @@ public class BookingService : IBookingService
         await _cache.RemoveAsync($"dashboard:member:{userId}", cancellationToken);
         await _cache.RemoveAsync($"dashboard:vendor:{parking.OwnerId}", cancellationToken);
         
-        _logger.LogDebug("Dashboard caches invalidated for user {UserId} and vendor {VendorId}", userId, parking.OwnerId);
+        // Invalidate search and parking detail caches
+        await _cache.RemoveAsync($"parking:{dto.ParkingSpaceId}", cancellationToken);
+        await _cache.RemoveByPatternAsync("search:*", cancellationToken);
+        
+        _logger.LogDebug("Dashboard and search caches invalidated for user {UserId} and vendor {VendorId}", userId, parking.OwnerId);
 
         return new ApiResponse<BookingDto>(true, "Booking created. Awaiting owner approval.", booking.ToDto());
     }
@@ -439,6 +443,13 @@ public class BookingService : IBookingService
             await _cache.RemoveAsync($"dashboard:vendor:{booking.ParkingSpace.OwnerId}", cancellationToken);
         }
 
+        // Invalidate search and parking detail caches
+        if (booking.ParkingSpaceId != Guid.Empty)
+        {
+            await _cache.RemoveAsync($"parking:{booking.ParkingSpaceId}", cancellationToken);
+        }
+        await _cache.RemoveByPatternAsync("search:*", cancellationToken);
+
         return new ApiResponse<BookingDto>(true, 
             refundAmount > 0 ? $"Booking cancelled. Refund of {refundAmount:C} will be processed." : "Booking cancelled.",
             booking.ToDto());
@@ -522,6 +533,10 @@ public class BookingService : IBookingService
         {
             await _cache.RemoveAsync($"dashboard:vendor:{booking.ParkingSpace.OwnerId}", cancellationToken);
         }
+
+        // Invalidate search and parking detail caches
+        await _cache.RemoveAsync($"parking:{booking.ParkingSpaceId}", cancellationToken);
+        await _cache.RemoveByPatternAsync("search:*", cancellationToken);
 
         return new ApiResponse<BookingDto>(true, "Checked out successfully", booking.ToDto());
     }
@@ -619,6 +634,10 @@ public class BookingService : IBookingService
         // Invalidate dashboard cache for member
         await _cache.RemoveAsync($"dashboard:member:{booking.UserId}", cancellationToken);
 
+        // Invalidate search and parking detail caches
+        await _cache.RemoveAsync($"parking:{booking.ParkingSpaceId}", cancellationToken);
+        await _cache.RemoveByPatternAsync("search:*", cancellationToken);
+
         return new ApiResponse<BookingDto>(true, "Booking approved. Awaiting member payment.", booking.ToDto());
     }
 
@@ -663,6 +682,10 @@ public class BookingService : IBookingService
 
         // Invalidate dashboard cache for member
         await _cache.RemoveAsync($"dashboard:member:{booking.UserId}", cancellationToken);
+
+        // Invalidate search and parking detail caches
+        await _cache.RemoveAsync($"parking:{booking.ParkingSpaceId}", cancellationToken);
+        await _cache.RemoveByPatternAsync("search:*", cancellationToken);
 
         return new ApiResponse<BookingDto>(true, "Booking rejected", booking.ToDto());
     }

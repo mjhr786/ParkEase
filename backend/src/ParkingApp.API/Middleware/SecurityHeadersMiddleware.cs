@@ -24,7 +24,7 @@ public class SecurityHeadersMiddleware
         context.Response.Headers.Append("Content-Security-Policy", 
             "default-src 'self'; " +
             "img-src 'self' data: blob: https:; " +
-            "script-src 'self' 'unsafe-inline'; " +
+            "script-src 'self' " +
             "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
             "font-src 'self' https://fonts.gstatic.com; " +
             "connect-src 'self' ws: wss:;");
@@ -40,7 +40,7 @@ public class SecurityHeadersMiddleware
         if (!context.Request.IsHttps)
         {
             // Uncomment in production with HTTPS
-            // context.Response.Headers.Append("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
+            context.Response.Headers.Append("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
         }
 
         await _next(context);
