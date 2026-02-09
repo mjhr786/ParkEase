@@ -179,6 +179,9 @@ app.UseMiddleware<RateLimitingMiddleware>();
 
 app.UseCors("AllowFrontend");
 
+// Add Image Resizing Middleware (Before Static Files)
+app.UseMiddleware<ImageResizingMiddleware>();
+
 // Static files for uploads with caching
 var webRootPath = builder.Environment.WebRootPath ?? Path.Combine(builder.Environment.ContentRootPath, "wwwroot");
 Directory.CreateDirectory(webRootPath);

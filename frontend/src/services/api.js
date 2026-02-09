@@ -64,7 +64,7 @@ class ApiService {
     const contentType = response.headers.get('content-type');
 
     // Handle JSON responses
-    if (contentType && contentType.includes('application/json')) {
+    if (contentType && (contentType.includes('application/json') || contentType.includes('application/problem+json'))) {
       const data = await response.json();
 
       if (!response.ok) {
