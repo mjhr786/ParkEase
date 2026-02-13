@@ -1,3 +1,6 @@
+using Microsoft.AspNetCore.Http;
+using System.Threading.Tasks;
+
 namespace ParkingApp.API.Middleware;
 
 public class SecurityHeadersMiddleware
@@ -20,27 +23,29 @@ public class SecurityHeadersMiddleware
         // Enable XSS protection
         context.Response.Headers.Append("X-XSS-Protection", "1; mode=block");
         
-        // Content Security Policy - configured for SPA with API and WebSocket connections
-        context.Response.Headers.Append("Content-Security-Policy", 
-            "default-src 'self'; " +
-            "img-src 'self' data: blob: https:; " +
-            "script-src 'self' " +
-            "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
-            "font-src 'self' https://fonts.gstatic.com; " +
-            "connect-src 'self' ws: wss:;");
+        // Content Security Policy
+        // Using a single string to ensure no concatenation errors and easy readability
+        const string csp = "default-src 'self'; " +
+                           "img-src 'self' data: blob: https: http:; " +
+                           "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://js.stripe.com; " +
+                           "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
+                           "font-src 'self' https://fonts.gstatic.com; " +
+                           "frame-src https://js.stripe.com; " +
+                           "connect-src 'self' ws: wss: https: http:;";
+
+        context.Response.Headers.Append("Content-Security-Policy", csp);
         
         // Referrer Policy
         context.Response.Headers.Append("Referrer-Policy", "strict-origin-when-cross-origin");
         
-        // Permissions Policy (formerly Feature Policy)
-        context.Response.Headers.Append("Permissions-Policy", 
-            "geolocation=(), microphone=(), camera=()");
+        // Permissions Policy
+        context.Response.Headers.Append("Permissions-Policy", "geolocation=(), microphone=(), camera=()");
         
         // HSTS - only add in production with HTTPS
         if (!context.Request.IsHttps)
         {
             // Uncomment in production with HTTPS
-            context.Response.Headers.Append("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
+            // context.Response.Headers.Append("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
         }
 
         await _next(context);

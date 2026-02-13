@@ -1,3 +1,4 @@
+using NetTopologySuite.Geometries;
 using ParkingApp.Domain.Enums;
 
 namespace ParkingApp.Domain.Entities;
@@ -16,6 +17,9 @@ public class ParkingSpace : BaseEntity
     public string PostalCode { get; set; } = string.Empty;
     public double Latitude { get; set; }
     public double Longitude { get; set; }
+    
+    // PostGIS spatial column for geo-spatial queries
+    public Point? Location { get; set; }
     
     // Parking details
     public ParkingType ParkingType { get; set; }

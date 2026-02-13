@@ -5,7 +5,7 @@ import { useNotificationContext } from '../context/NotificationContext';
 import api from '../services/api';
 import { handleApiError } from '../utils/errorHandler';
 import showToast from '../utils/toast.jsx';
-import MockRazorpay from '../utils/MockRazorpay';
+import StripeCheckout from '../components/StripeCheckout';
 
 const BOOKING_STATUS = ['Pending', 'Confirmed', 'InProgress', 'Completed', 'Cancelled', 'Expired', 'Awaiting Payment'];
 const STATUS_COLORS = {
@@ -119,64 +119,66 @@ export default function MyBookings() {
     };
 
     const [payingId, setPayingId] = useState(null);
+    const [stripeConfig, setStripeConfig] = useState({ clientSecret: null, publishableKey: null, bookingId: null });
+
+    // Fetch Stripe publishable key on mount
+    useEffect(() => {
+        api.getStripeConfig().then(res => {
+            if (res.publishableKey) {
+                setStripeConfig(prev => ({ ...prev, publishableKey: res.publishableKey }));
+            }
+        }).catch(() => { });
+    }, []);
 
     const handlePayment = async (bookingId, amount) => {
         setPayingId(bookingId);
 
         try {
-            // 1. Create Order
-            const orderRes = await api.createRazorpayOrder(bookingId);
+            // 1. Create PaymentIntent on backend
+            const orderRes = await api.createPaymentOrder(bookingId);
             if (!orderRes.success) {
                 throw new Error(orderRes.message || 'Failed to create payment order');
             }
 
-            const options = {
-                key: "test_key_id", // Dummy key for mock
-                amount: amount * 100, // Amount in paise
-                currency: "INR",
-                name: "ParkEase",
-                description: `Payment for Booking`,
-                order_id: orderRes.data, // Order ID from backend
-                handler: async (response) => {
-                    try {
-                        // 3. Verify Payment
-                        const verifyRes = await api.verifyRazorpayPayment({
-                            bookingId: bookingId,
-                            razorpayPaymentId: response.razorpay_payment_id,
-                            razorpayOrderId: response.razorpay_order_id,
-                            razorpaySignature: response.razorpay_signature
-                        });
-
-                        if (verifyRes.success) {
-                            showToast.success('Payment successful');
-                            fetchBookings();
-                        } else {
-                            showToast.error(verifyRes.message || 'Payment verification failed');
-                        }
-                    } catch (err) {
-                        showToast.error(handleApiError(err, 'Payment verification failed'));
-                    }
-                },
-                prefill: {
-                    name: "ParkEase User",
-                    email: "user@example.com",
-                    contact: "9999999999"
-                },
-                theme: {
-                    color: "#3399cc"
-                }
-            };
-
-            // 2. Open Checkout
-            // Use MockRazorpay (or window.Razorpay in real scenario)
-            const rzp = new MockRazorpay(options);
-            rzp.open();
+            // orderRes.data is the clientSecret
+            setStripeConfig(prev => ({
+                ...prev,
+                clientSecret: orderRes.data,
+                bookingId
+            }));
 
         } catch (err) {
             showToast.error(handleApiError(err, 'Failed to initiate payment'));
-        } finally {
             setPayingId(null);
         }
+    };
+
+    const handleStripeSuccess = async (paymentIntentId) => {
+        try {
+            const verifyRes = await api.verifyPayment({
+                bookingId: stripeConfig.bookingId,
+                razorpayPaymentId: paymentIntentId,
+                razorpayOrderId: paymentIntentId,
+                razorpaySignature: 'stripe'
+            });
+
+            if (verifyRes.success) {
+                showToast.success('Payment successful! 🎉');
+                fetchBookings();
+            } else {
+                showToast.error(verifyRes.message || 'Payment verification failed');
+            }
+        } catch (err) {
+            showToast.error(handleApiError(err, 'Payment verification failed'));
+        } finally {
+            setStripeConfig(prev => ({ ...prev, clientSecret: null, bookingId: null }));
+            setPayingId(null);
+        }
+    };
+
+    const handleStripeCancel = () => {
+        setStripeConfig(prev => ({ ...prev, clientSecret: null, bookingId: null }));
+        setPayingId(null);
     };
 
     return (
@@ -196,6 +198,22 @@ export default function MyBookings() {
                         ))}
                     </select>
                 </div>
+
+                {/* Stripe Checkout Modal */}
+                {stripeConfig.clientSecret && stripeConfig.publishableKey && (
+                    <div className="stripe-modal-overlay">
+                        <div className="card stripe-modal">
+                            <h3 className="card-title mb-2">💳 Complete Payment</h3>
+                            <StripeCheckout
+                                clientSecret={stripeConfig.clientSecret}
+                                publishableKey={stripeConfig.publishableKey}
+                                bookingId={stripeConfig.bookingId}
+                                onSuccess={handleStripeSuccess}
+                                onCancel={handleStripeCancel}
+                            />
+                        </div>
+                    </div>
+                )}
 
                 {loading ? (
                     <div className="loading">

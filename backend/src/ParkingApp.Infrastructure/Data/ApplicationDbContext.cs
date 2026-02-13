@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using NetTopologySuite.Geometries;
 using ParkingApp.Domain.Entities;
 
 namespace ParkingApp.Infrastructure.Data;
@@ -58,6 +59,13 @@ public class ApplicationDbContext : DbContext
             entity.Property(e => e.SpecialInstructions).HasMaxLength(2000);
             entity.HasIndex(e => e.City);
             entity.HasIndex(e => new { e.Latitude, e.Longitude });
+            
+            // PostGIS spatial column configuration
+            entity.Property(e => e.Location)
+                .HasColumnType("geography (point)");
+            entity.HasIndex(e => e.Location)
+                .HasMethod("gist"); // GiST index for spatial queries
+            
             entity.HasQueryFilter(e => !e.IsDeleted);
             
             entity.HasOne(e => e.Owner)

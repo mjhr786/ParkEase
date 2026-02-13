@@ -1,5 +1,7 @@
+import { API_ENDPOINTS } from '../config';
+
 // Use empty string for production (same origin) or localhost for development
-const API_BASE_URL = import.meta.env.VITE_API_URL || (import.meta.env.PROD ? '/api' : 'http://localhost:5129/api'); // 'http://localhost:5129/api' // 'https://parkease.azurewebsites.net/api'
+const API_BASE_URL = API_ENDPOINTS.BASE;
 
 class ApiService {
   constructor() {
@@ -41,16 +43,22 @@ class ApiService {
       });
 
       if (response.status === 401) {
-        // Try to refresh token
-        const refreshed = await this.refreshToken();
-        if (refreshed) {
-          headers['Authorization'] = `Bearer ${this.getToken()}`;
-          const retryResponse = await fetch(url, { ...options, headers });
-          return this.handleResponse(retryResponse);
+        // Don't try to refresh token for auth endpoints (login/register)
+        // A 401 here means invalid credentials, not an expired token
+        const isAuthEndpoint = endpoint.startsWith('/auth/');
+
+        if (!isAuthEndpoint) {
+          // Try to refresh token
+          const refreshed = await this.refreshToken();
+          if (refreshed) {
+            headers['Authorization'] = `Bearer ${this.getToken()}`;
+            const retryResponse = await fetch(url, { ...options, headers });
+            return this.handleResponse(retryResponse);
+          }
+          this.clearTokens();
+          window.location.href = '/login';
+          return null;
         }
-        this.clearTokens();
-        window.location.href = '/login';
-        return null;
       }
 
       return this.handleResponse(response);
@@ -145,14 +153,18 @@ class ApiService {
   }
 
   // Payment endpoints
-  async createRazorpayOrder(bookingId) {
+  async getStripeConfig() {
+    return this.request('/payments/stripe-config');
+  }
+
+  async createPaymentOrder(bookingId) {
     return this.request('/payments/create-order', {
       method: 'POST',
       body: JSON.stringify(bookingId),
     });
   }
 
-  async verifyRazorpayPayment(data) {
+  async verifyPayment(data) {
     return this.request('/payments/verify', {
       method: 'POST',
       body: JSON.stringify(data),

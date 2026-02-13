@@ -1,5 +1,6 @@
 using System.Linq.Expressions;
 using Microsoft.EntityFrameworkCore;
+using NetTopologySuite.Geometries;
 using ParkingApp.Domain.Entities;
 using ParkingApp.Domain.Enums;
 using ParkingApp.Domain.Interfaces;
@@ -102,6 +103,7 @@ public class UserRepository : Repository<User>, IUserRepository
     }
 }
 
+
 public class ParkingSpaceRepository : Repository<ParkingSpace>, IParkingSpaceRepository
 {
     public ParkingSpaceRepository(ApplicationDbContext context) : base(context) { }
@@ -144,17 +146,14 @@ public class ParkingSpaceRepository : Repository<ParkingSpace>, IParkingSpaceRep
             query = query.Where(p => p.Address.ToLower().Contains(address.ToLower()) || 
                                      p.Title.ToLower().Contains(address.ToLower()));
 
+        // PostGIS geo-spatial search - performed entirely in the database
         if (latitude.HasValue && longitude.HasValue && radiusKm.HasValue)
         {
-            // Simple bounding box for SQLite compatibility
-            var latDelta = radiusKm.Value / 111.0;
-            var lonDelta = radiusKm.Value / (111.0 * Math.Cos(latitude.Value * Math.PI / 180));
+            var searchPoint = new Point(longitude.Value, latitude.Value) { SRID = 4326 };
+            var radiusMeters = radiusKm.Value * 1000; // Convert km to meters
             
-            query = query.Where(p => 
-                p.Latitude >= latitude.Value - latDelta &&
-                p.Latitude <= latitude.Value + latDelta &&
-                p.Longitude >= longitude.Value - lonDelta &&
-                p.Longitude <= longitude.Value + lonDelta);
+            query = query.Where(p => p.Location != null && 
+                                     p.Location.IsWithinDistance(searchPoint, radiusMeters));
         }
 
         if (minPrice.HasValue)
@@ -183,8 +182,18 @@ public class ParkingSpaceRepository : Repository<ParkingSpace>, IParkingSpaceRep
         if (minRating.HasValue)
             query = query.Where(p => p.AverageRating >= minRating.Value);
 
+        // Order by distance if geo-spatial search is active, otherwise by rating
+        if (latitude.HasValue && longitude.HasValue)
+        {
+            var orderPoint = new Point(longitude.Value, latitude.Value) { SRID = 4326 };
+            query = query.OrderBy(p => p.Location != null ? p.Location.Distance(orderPoint) : double.MaxValue);
+        }
+        else
+        {
+            query = query.OrderByDescending(p => p.AverageRating);
+        }
+
         return await query
-            .OrderByDescending(p => p.AverageRating)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
             .ToListAsync(cancellationToken);

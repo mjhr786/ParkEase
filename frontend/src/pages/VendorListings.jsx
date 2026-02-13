@@ -6,9 +6,12 @@ import api from '../services/api';
 import { handleApiError } from '../utils/errorHandler';
 import showToast from '../utils/toast.jsx';
 import INDIAN_STATES_CITIES, { STATES } from '../utils/indianStatesCities';
+import LocationPicker from '../components/LocationPicker';
+
+import { API_BASE_URL } from '../config';
 
 const PARKING_TYPES = ['Open', 'Covered', 'Garage', 'Street', 'Underground'];
-const API_BASE = 'http://localhost:5129'; // 'http://localhost:5129' // 'https://parkease.azurewebsites.net'
+const API_BASE = API_BASE_URL;
 
 // Notification types that should trigger a refresh of vendor listings
 const REFRESH_TRIGGERS = [
@@ -399,6 +402,12 @@ export default function VendorListings() {
                                     />
                                 </div>
                             </div>
+
+                            <LocationPicker
+                                latitude={form.latitude}
+                                longitude={form.longitude}
+                                onLocationSelect={(lat, lng) => setForm(prev => ({ ...prev, latitude: lat, longitude: lng }))}
+                            />
 
                             <div className="grid grid-4 mt-1" style={{ gap: '1rem' }}>
                                 <div className="form-group" style={{ margin: 0 }}>

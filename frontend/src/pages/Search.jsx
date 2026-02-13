@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 
 import { useSearchParams, Link } from 'react-router-dom';
 import api from '../services/api';
+import LocationMap from '../components/LocationMap';
 import INDIAN_STATES_CITIES, { STATES } from '../utils/indianStatesCities';
 
 const PARKING_TYPES = ['Open', 'Covered', 'Garage', 'Street', 'Underground'];
@@ -25,6 +26,7 @@ export default function Search() {
         pageSize: 12,
     });
     const [totalPages, setTotalPages] = useState(1);
+    const [viewMode, setViewMode] = useState('list');
 
     // Only fetch when page changes AND user has already searched
     useEffect(() => {
@@ -204,57 +206,76 @@ export default function Search() {
                     </div>
                 ) : (
                     <>
-                        <div className="grid grid-3">
-                            {parkingSpaces.map(parking => (
-                                <Link to={`/parking/${parking.id}`} key={parking.id} style={{ textDecoration: 'none', color: 'inherit' }}>
-                                    <div className="card parking-card">
-                                        <div className="parking-image">🅿️</div>
-                                        <h3 className="card-title">{parking.title}</h3>
-                                        <div className="parking-location">
-                                            📍 {parking.address}, {parking.city}
-                                        </div>
-                                        <div className="flex-between mt-1">
-                                            <div className="parking-price">
-                                                ₹{parking.hourlyRate}<span>/hr</span>
-                                            </div>
-                                            <div className="rating">
-                                                ⭐ {parking.averageRating?.toFixed(1) || 'New'}
-                                            </div>
-                                        </div>
-                                        <div className="parking-meta">
-                                            <span className="parking-tag">{PARKING_TYPES[parking.parkingType] || 'Open'}</span>
-                                            <span className="parking-tag">{parking.availableSpots} spots</span>
-                                            {parking.is24Hours && <span className="parking-tag">24/7</span>}
-                                        </div>
-                                        {parking.activeReservations && parking.activeReservations.length > 0 && (
-                                            <div style={{
-                                                marginTop: '0.75rem',
-                                                padding: '0.5rem',
-                                                background: 'rgba(239, 68, 68, 0.1)',
-                                                borderRadius: 'var(--radius-sm)',
-                                                fontSize: '0.8rem'
-                                            }}>
-                                                <strong style={{ color: '#ef4444' }}>🔒 Reserved:</strong>
-                                                <ul style={{ margin: '0.25rem 0 0 1rem', padding: 0 }}>
-                                                    {parking.activeReservations.slice(0, 3).map((res, i) => (
-                                                        <li key={i} style={{ color: 'var(--color-text-muted)' }}>
-                                                            {new Date(res.startDateTime).toLocaleDateString()} {new Date(res.startDateTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                                            {' → '}
-                                                            {new Date(res.endDateTime).toLocaleDateString()} {new Date(res.endDateTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                                        </li>
-                                                    ))}
-                                                    {parking.activeReservations.length > 3 && (
-                                                        <li style={{ color: 'var(--color-text-muted)' }}>
-                                                            +{parking.activeReservations.length - 3} more reservations
-                                                        </li>
-                                                    )}
-                                                </ul>
-                                            </div>
-                                        )}
-                                    </div>
-                                </Link>
-                            ))}
+                        <div className="view-toggle mb-2">
+                            <button
+                                className={`btn btn-sm ${viewMode === 'list' ? 'btn-primary' : 'btn-secondary'}`}
+                                onClick={() => setViewMode('list')}
+                            >
+                                📋 List View
+                            </button>
+                            <button
+                                className={`btn btn-sm ${viewMode === 'map' ? 'btn-primary' : 'btn-secondary'}`}
+                                onClick={() => setViewMode('map')}
+                            >
+                                🗺️ Map View
+                            </button>
                         </div>
+
+                        {viewMode === 'map' ? (
+                            <LocationMap parkingSpaces={parkingSpaces} height="500px" />
+                        ) : (
+                            <div className="grid grid-3">
+                                {parkingSpaces.map(parking => (
+                                    <Link to={`/parking/${parking.id}`} key={parking.id} style={{ textDecoration: 'none', color: 'inherit' }}>
+                                        <div className="card parking-card">
+                                            <div className="parking-image">🅿️</div>
+                                            <h3 className="card-title">{parking.title}</h3>
+                                            <div className="parking-location">
+                                                📍 {parking.address}, {parking.city}
+                                            </div>
+                                            <div className="flex-between mt-1">
+                                                <div className="parking-price">
+                                                    ₹{parking.hourlyRate}<span>/hr</span>
+                                                </div>
+                                                <div className="rating">
+                                                    ⭐ {parking.averageRating?.toFixed(1) || 'New'}
+                                                </div>
+                                            </div>
+                                            <div className="parking-meta">
+                                                <span className="parking-tag">{PARKING_TYPES[parking.parkingType] || 'Open'}</span>
+                                                <span className="parking-tag">{parking.availableSpots} spots</span>
+                                                {parking.is24Hours && <span className="parking-tag">24/7</span>}
+                                            </div>
+                                            {parking.activeReservations && parking.activeReservations.length > 0 && (
+                                                <div style={{
+                                                    marginTop: '0.75rem',
+                                                    padding: '0.5rem',
+                                                    background: 'rgba(239, 68, 68, 0.1)',
+                                                    borderRadius: 'var(--radius-sm)',
+                                                    fontSize: '0.8rem'
+                                                }}>
+                                                    <strong style={{ color: '#ef4444' }}>🔒 Reserved:</strong>
+                                                    <ul style={{ margin: '0.25rem 0 0 1rem', padding: 0 }}>
+                                                        {parking.activeReservations.slice(0, 3).map((res, i) => (
+                                                            <li key={i} style={{ color: 'var(--color-text-muted)' }}>
+                                                                {new Date(res.startDateTime).toLocaleDateString()} {new Date(res.startDateTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                                {' → '}
+                                                                {new Date(res.endDateTime).toLocaleDateString()} {new Date(res.endDateTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                            </li>
+                                                        ))}
+                                                        {parking.activeReservations.length > 3 && (
+                                                            <li style={{ color: 'var(--color-text-muted)' }}>
+                                                                +{parking.activeReservations.length - 3} more reservations
+                                                            </li>
+                                                        )}
+                                                    </ul>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </Link>
+                                ))}
+                            </div>
+                        )}
 
                         {/* Pagination */}
                         {totalPages > 1 && (

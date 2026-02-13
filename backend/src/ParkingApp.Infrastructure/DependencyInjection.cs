@@ -14,10 +14,12 @@ public static class DependencyInjection
 {
     public static IServiceCollection AddInfrastructure(this IServiceCollection services, IConfiguration configuration)
     {
-        // Database
-        var connectionString = configuration.GetConnectionString("DefaultConnection") ?? "Data Source=parking.db";
+        // Database - PostgreSQL with PostGIS
+        var connectionString = configuration.GetConnectionString("DefaultConnection") 
+            ?? throw new InvalidOperationException("DefaultConnection string is required");
         services.AddDbContext<ApplicationDbContext>(options =>
-            options.UseSqlite(connectionString));
+            options.UseNpgsql(connectionString, npgsqlOptions =>
+                npgsqlOptions.UseNetTopologySuite()));
 
         // Repositories
         services.AddScoped<IUnitOfWork, UnitOfWork>();
@@ -29,7 +31,7 @@ public static class DependencyInjection
 
         // Services
         services.AddScoped<ITokenService, JwtTokenService>();
-        services.AddScoped<IPaymentService, MockRazorpayPaymentService>();
+        services.AddScoped<IPaymentService, StripePaymentService>();
         
         // Cache Registration (Redis or In-Memory)
         var redisConnection = configuration.GetConnectionString("Redis");

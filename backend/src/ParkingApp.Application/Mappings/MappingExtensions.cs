@@ -115,6 +115,7 @@ public static class MappingExtensions
         PostalCode = dto.PostalCode,
         Latitude = dto.Latitude,
         Longitude = dto.Longitude,
+        Location = new NetTopologySuite.Geometries.Point(dto.Longitude, dto.Latitude) { SRID = 4326 },
         ParkingType = dto.ParkingType,
         TotalSpots = dto.TotalSpots,
         AvailableSpots = dto.TotalSpots,

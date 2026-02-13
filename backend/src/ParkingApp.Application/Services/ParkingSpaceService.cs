@@ -167,6 +167,13 @@ public class ParkingSpaceService : IParkingSpaceService
         if (!string.IsNullOrEmpty(dto.PostalCode)) parking.PostalCode = dto.PostalCode;
         if (dto.Latitude.HasValue) parking.Latitude = dto.Latitude.Value;
         if (dto.Longitude.HasValue) parking.Longitude = dto.Longitude.Value;
+        
+        // Update PostGIS Location point when Lat/Lon change
+        if (dto.Latitude.HasValue || dto.Longitude.HasValue)
+        {
+            parking.Location = new NetTopologySuite.Geometries.Point(parking.Longitude, parking.Latitude) { SRID = 4326 };
+        }
+        
         if (dto.ParkingType.HasValue) parking.ParkingType = dto.ParkingType.Value;
         if (dto.TotalSpots.HasValue) parking.TotalSpots = dto.TotalSpots.Value;
         if (dto.HourlyRate.HasValue) parking.HourlyRate = dto.HourlyRate.Value;

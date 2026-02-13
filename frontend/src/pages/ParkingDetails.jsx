@@ -2,14 +2,17 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../services/api';
+import LocationMap from '../components/LocationMap';
 import { getErrorMessage, handleApiError } from '../utils/errorHandler';
 import showToast from '../utils/toast.jsx';
 
 const PARKING_TYPES = ['Open', 'Covered', 'Garage', 'Street', 'Underground'];
+import { API_BASE_URL } from '../config';
+
 const VEHICLE_TYPES = ['Car', 'Motorcycle', 'SUV', 'Truck', 'Van', 'Electric'];
 const PRICING_TYPES = ['Hourly', 'Daily', 'Weekly', 'Monthly'];
 const PAYMENT_METHODS = ['Credit Card', 'Debit Card', 'UPI', 'Net Banking', 'Wallet', 'Cash'];
-const API_BASE = 'http://localhost:5129'; // 'http://localhost:5129' // 'https://parkease.azurewebsites.net'
+const API_BASE = API_BASE_URL;
 
 export default function ParkingDetails() {
     const { id } = useParams();
@@ -280,6 +283,21 @@ export default function ParkingDetails() {
                                 <p>{parking.specialInstructions}</p>
                             </div>
                         )}
+
+                        {/* Location Map */}
+                        <div className="card mt-2">
+                            <h3 className="card-title">Location</h3>
+                            <div style={{ marginTop: '0.75rem' }}>
+                                <LocationMap
+                                    singleLocation={{
+                                        latitude: parking.latitude,
+                                        longitude: parking.longitude,
+                                        title: parking.title
+                                    }}
+                                    height="250px"
+                                />
+                            </div>
+                        </div>
 
                         {/* Reviews */}
                         <div className="card mt-2">

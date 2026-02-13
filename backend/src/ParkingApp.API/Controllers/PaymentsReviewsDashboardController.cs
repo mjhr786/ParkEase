@@ -13,10 +13,20 @@ namespace ParkingApp.API.Controllers;
 public class PaymentsController : ControllerBase
 {
     private readonly IPaymentAppService _paymentService;
+    private readonly IConfiguration _configuration;
 
-    public PaymentsController(IPaymentAppService paymentService)
+    public PaymentsController(IPaymentAppService paymentService, IConfiguration configuration)
     {
         _paymentService = paymentService;
+        _configuration = configuration;
+    }
+
+    [AllowAnonymous]
+    [HttpGet("stripe-config")]
+    public IActionResult GetStripeConfig()
+    {
+        var publishableKey = _configuration["Stripe:PublishableKey"];
+        return Ok(new { publishableKey });
     }
 
     [HttpGet("{id:guid}")]
