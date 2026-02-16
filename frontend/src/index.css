@@ -165,22 +165,36 @@ a:hover {
 .btn-secondary:hover {
   background: var(--color-bg-card);
   border-color: var(--color-accent);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
 }
 
 .btn-outline {
   background: transparent;
-  color: var(--color-accent-light);
+  color: var(--color-accent);
   border: 1px solid var(--color-accent);
+  /* Ensure icon alignment */
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
 }
 
 .btn-outline:hover {
-  background: var(--color-accent);
-  color: white;
+  background: rgba(99, 102, 241, 0.1);
+  /* Subtle primary tint */
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.2);
 }
 
 .btn-danger {
   background: var(--color-error);
   color: white;
+}
+
+.btn-danger:hover {
+  background: #dc2626;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
 }
 
 .btn-full {
@@ -583,6 +597,105 @@ a:hover {
   gap: 1.5rem;
 }
 
+/* Animations */
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.stat-card {
+  animation: slideUp 0.5s ease-out forwards;
+  /* Ensure the hover effect from .card is enhanced */
+}
+
+.stat-card:hover {
+  transform: translateY(-5px);
+  box-shadow: var(--shadow-glow) !important;
+  border-color: var(--color-accent) !important;
+}
+
+/* Stagger animation for grid items */
+.stat-card:nth-child(1) {
+  animation-delay: 0.1s;
+}
+
+.stat-card:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.stat-card:nth-child(3) {
+  animation-delay: 0.3s;
+}
+
+.stat-card:nth-child(4) {
+  animation-delay: 0.4s;
+}
+
+/* Generic Animation Class */
+.animate-card {
+  animation: slideUp 0.5s ease-out forwards;
+}
+
+.animate-card:hover {
+  transform: translateY(-5px);
+  box-shadow: var(--shadow-glow) !important;
+  border-color: var(--color-accent) !important;
+}
+
+/* Hover only effect (no entrance animation) */
+.hover-card {
+  transition: transform 0.3s ease, box-shadow 0.3s ease, border-color 0.3s ease;
+}
+
+.hover-card:hover {
+  transform: translateY(-5px);
+  box-shadow: var(--shadow-glow) !important;
+  border-color: var(--color-accent) !important;
+}
+
+.animate-card:nth-child(1) {
+  animation-delay: 0.1s;
+}
+
+.animate-card:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.animate-card:nth-child(3) {
+  animation-delay: 0.3s;
+}
+
+.animate-card:nth-child(4) {
+  animation-delay: 0.4s;
+}
+
+.animate-card:nth-child(5) {
+  animation-delay: 0.5s;
+}
+
+.animate-card:nth-child(6) {
+  animation-delay: 0.6s;
+}
+
+.stat-value {
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--color-text-primary);
+  margin-bottom: 0.5rem;
+}
+
+.stat-label {
+  color: var(--color-text-secondary);
+  font-size: 0.9rem;
+}
+
 .mt-1 {
   margin-top: 0.5rem;
 }
@@ -787,4 +900,64 @@ a:hover {
 
 .stripe-checkout {
   margin-top: 0.5rem;
+}
+
+/* Split View Search Layout */
+.search-split {
+  display: flex;
+  gap: 1.5rem;
+  height: calc(100vh - 200px);
+  /* Adjust based on header/filter height */
+  min-height: 500px;
+}
+
+.search-cards {
+  flex: 1;
+  overflow-y: auto;
+  padding-right: 0.5rem;
+  /* Space for scrollbar */
+  /* Hide scrollbar but allow scrolling */
+  scrollbar-width: thin;
+}
+
+.search-map {
+  flex: 1;
+  position: sticky;
+  top: 0;
+  height: 100%;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.search-card-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.parking-card-highlighted {
+  border-color: var(--color-primary);
+  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.2);
+  transform: translateY(-2px);
+  transition: all 0.2s ease;
+}
+
+/* Mobile Responsive */
+@media (max-width: 768px) {
+  .search-split {
+    flex-direction: column-reverse;
+    /* Map on top, cards below */
+    height: auto;
+  }
+
+  .search-map {
+    height: 300px;
+    position: relative;
+    /* Not sticky on mobile */
+    margin-bottom: 1rem;
+  }
+
+  .search-cards {
+    overflow-y: visible;
+  }
 }

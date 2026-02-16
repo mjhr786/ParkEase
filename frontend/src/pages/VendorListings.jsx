@@ -56,7 +56,7 @@ export default function VendorListings() {
 
     const [form, setForm] = useState(emptyForm);
 
-    const fetchListings = useCallback(async () => {
+    const fetchListings = useCallback(async (shouldSetLoading = true) => {
         try {
             const response = await api.getMyListings();
             if (response.success && response.data) {
@@ -65,7 +65,7 @@ export default function VendorListings() {
         } catch (err) {
             showToast.error(handleApiError(err, 'Failed to load listings'));
         }
-        setLoading(false);
+        if (shouldSetLoading) setLoading(false);
     }, []);
 
     const fetchBookings = useCallback(async () => {
@@ -81,15 +81,22 @@ export default function VendorListings() {
 
     // Initial data load
     useEffect(() => {
-        fetchListings();
-        fetchBookings();
+        const loadData = async () => {
+            setLoading(true);
+            await Promise.all([
+                fetchListings(false),
+                fetchBookings()
+            ]);
+            setLoading(false);
+        };
+        loadData();
     }, [fetchListings, fetchBookings]);
 
     // Subscribe to real-time refresh events
     useEffect(() => {
         const unsubscribe = subscribeToRefresh('VendorListings', REFRESH_TRIGGERS, () => {
             console.log('🔄 VendorListings: Auto-refreshing due to notification');
-            fetchListings();
+            fetchListings(false); // background refresh
             fetchBookings();
         });
         return unsubscribe;
@@ -194,22 +201,65 @@ export default function VendorListings() {
         if (!files || files.length === 0) return;
 
         setUploadingId(listingId);
-        setUploadProgress('Uploading...');
+        setUploadProgress('Starting upload...');
+
+        const successUrls = [];
+        const errors = [];
 
         try {
-            const response = await api.uploadParkingFiles(listingId, Array.from(files));
-            if (response.success) {
-                const count = response.data.urls.length;
-                showToast.success(`${count} file(s) uploaded successfully!`);
-                if (response.data.errors?.length > 0) {
-                    showToast.error(`Some files skipped: ${response.data.errors.join(', ')}`);
+            for (let i = 0; i < files.length; i++) {
+                const file = files[i];
+                setUploadProgress(`Uploading ${i + 1}/${files.length}...`);
+
+                try {
+                    // 1. Get Pre-signed URL
+                    const signResponse = await api.getPresignedUrl(listingId, file.name, file.type);
+                    if (!signResponse.success) throw new Error('Failed to get upload URL');
+
+                    const { uploadUrl, publicUrl } = signResponse.data;
+
+                    // 2. Upload to R2
+                    const uploadResponse = await fetch(uploadUrl, {
+                        method: 'PUT',
+                        headers: {
+                            'Content-Type': file.type
+                        },
+                        body: file
+                    });
+
+                    if (!uploadResponse.ok) throw new Error('Failed to upload to storage');
+
+                    successUrls.push(publicUrl);
+
+                } catch (err) {
+                    console.error(`Upload error for ${file.name}:`, err);
+                    errors.push(file.name);
                 }
-                fetchListings();
-            } else {
-                showToast.error(response.message || 'Upload failed');
             }
+
+            // 3. Confirm Uploads
+            if (successUrls.length > 0) {
+                setUploadProgress('Finalizing...');
+                const confirmResponse = await api.confirmUpload(listingId, successUrls);
+
+                if (confirmResponse.success) {
+                    showToast.success(`${successUrls.length} file(s) uploaded successfully!`);
+
+                    if (errors.length > 0) {
+                        showToast.error(`Failed to upload: ${errors.join(', ')}`);
+                    }
+
+                    fetchListings();
+                } else {
+                    showToast.error('Failed to confirm uploads');
+                }
+            } else if (errors.length > 0) {
+                showToast.error('All uploads failed');
+            }
+
         } catch (err) {
-            showToast.error(handleApiError(err, 'Failed to upload files'));
+            console.error('Upload process error:', err);
+            showToast.error(handleApiError(err, 'Upload process failed'));
         }
 
         setUploadingId(null);
@@ -495,7 +545,7 @@ export default function VendorListings() {
                 ) : (
                     <div className="grid grid-2">
                         {listings.map(listing => (
-                            <div key={listing.id} className="card">
+                            <div key={listing.id} className="card hover-card">
                                 <div className="flex-between">
                                     <h3 className="card-title">{listing.title}</h3>
                                     <span className={`parking-tag ${listing.isActive ? '' : 'inactive'}`}
@@ -589,7 +639,7 @@ export default function VendorListings() {
                                             {listing.imageUrls.map((url, i) => (
                                                 <div key={i} style={{ position: 'relative' }}>
                                                     <img
-                                                        src={`${API_BASE}${url}`}
+                                                        src={url.startsWith('http') ? url : `${API_BASE}${url}`}
                                                         alt={`Parking ${i + 1}`}
                                                         style={{
                                                             width: '60px',

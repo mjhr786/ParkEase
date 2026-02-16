@@ -86,11 +86,15 @@ public class ParkingSpaceService : IParkingSpaceService
         var parkingList = parkingSpaces.ToList();
         var totalCount = await _unitOfWork.ParkingSpaces.CountAsync(p => p.IsActive, cancellationToken);
 
-        // Fetch active bookings for each parking space to show reservation periods
+        // Batch fetch active bookings for all parking spaces to avoid N+1 problem
+        var parkingIds = parkingList.Select(p => p.Id).ToList();
+        var allBookings = await _unitOfWork.Bookings.GetActiveBookingsForSpacesAsync(parkingIds, cancellationToken);
+        var bookingsByParkingId = allBookings.GroupBy(b => b.ParkingSpaceId).ToDictionary(g => g.Key, g => g.ToList());
+
         var parkingDtos = new List<ParkingSpaceDto>();
         foreach (var parking in parkingList)
         {
-            var bookings = await _unitOfWork.Bookings.GetByParkingSpaceIdAsync(parking.Id, cancellationToken);
+            var bookings = bookingsByParkingId.ContainsKey(parking.Id) ? bookingsByParkingId[parking.Id] : new List<Booking>();
             parkingDtos.Add(parking.ToDtoWithReservations(bookings));
         }
 
@@ -138,6 +142,7 @@ public class ParkingSpaceService : IParkingSpaceService
 
         // Invalidate search cache (new parking added)
         await _cache.RemoveByPatternAsync("search:*", cancellationToken);
+        await _cache.RemoveByPatternAsync("map:*", cancellationToken);
         
         _logger.LogEntityCreated<ParkingSpace>(parking.Id);
 
@@ -195,6 +200,7 @@ public class ParkingSpaceService : IParkingSpaceService
         // Invalidate caches
         await _cache.RemoveAsync($"parking:{id}", cancellationToken);
         await _cache.RemoveByPatternAsync("search:*", cancellationToken);
+        await _cache.RemoveByPatternAsync("map:*", cancellationToken);
         
         _logger.LogEntityUpdated<ParkingSpace>(id);
 
@@ -231,6 +237,7 @@ public class ParkingSpaceService : IParkingSpaceService
         // Invalidate caches
         await _cache.RemoveAsync($"parking:{id}", cancellationToken);
         await _cache.RemoveByPatternAsync("search:*", cancellationToken);
+        await _cache.RemoveByPatternAsync("map:*", cancellationToken);
         
         _logger.LogEntityDeleted<ParkingSpace>(id);
 
@@ -257,9 +264,55 @@ public class ParkingSpaceService : IParkingSpaceService
         // Invalidate caches
         await _cache.RemoveAsync($"parking:{id}", cancellationToken);
         await _cache.RemoveByPatternAsync("search:*", cancellationToken);
+        await _cache.RemoveByPatternAsync("map:*", cancellationToken);
         
         _logger.LogCacheInvalidated($"parking:{id}");
 
         return new ApiResponse<bool>(true, $"Parking space {(parking.IsActive ? "activated" : "deactivated")}", true);
+    }
+
+    public async Task<ApiResponse<List<ParkingMapDto>>> GetMapCoordinatesAsync(ParkingSearchDto dto, CancellationToken cancellationToken = default)
+    {
+        var cacheKey = $"map:{dto.State}:{dto.City}:{dto.Address}:{dto.ParkingType}:{dto.VehicleType}:{dto.MinPrice}:{dto.MaxPrice}:{dto.RadiusKm}:{dto.Latitude}:{dto.Longitude}";
+        var cached = await _cache.GetAsync<List<ParkingMapDto>>(cacheKey, cancellationToken);
+        if (cached != null)
+        {
+            return new ApiResponse<List<ParkingMapDto>>(true, null, cached);
+        }
+
+        var models = await _unitOfWork.ParkingSpaces.GetMapCoordinatesAsync(
+            state: dto.State,
+            city: dto.City,
+            address: dto.Address,
+            latitude: dto.Latitude,
+            longitude: dto.Longitude,
+            radiusKm: dto.RadiusKm,
+            startDate: dto.StartDateTime,
+            endDate: dto.EndDateTime,
+            minPrice: dto.MinPrice,
+            maxPrice: dto.MaxPrice,
+            parkingType: dto.ParkingType?.ToString(),
+            vehicleType: dto.VehicleType?.ToString(),
+            amenities: dto.Amenities != null ? string.Join(",", dto.Amenities) : null,
+            minRating: dto.MinRating,
+            cancellationToken: cancellationToken
+        );
+
+        var dtos = models.Select(m => new ParkingMapDto(
+            m.Id,
+            m.Title,
+            m.Address,
+            m.City,
+            m.Latitude,
+            m.Longitude,
+            m.HourlyRate,
+            !string.IsNullOrEmpty(m.ImageUrls) ? (m.ImageUrls.IndexOf(',') > -1 ? m.ImageUrls.Substring(0, m.ImageUrls.IndexOf(',')) : m.ImageUrls) : null,
+            m.AverageRating,
+            m.ParkingType
+        )).ToList();
+
+        await _cache.SetAsync(cacheKey, dtos, SearchCacheDuration, cancellationToken);
+
+        return new ApiResponse<List<ParkingMapDto>>(true, null, dtos);
     }
 }

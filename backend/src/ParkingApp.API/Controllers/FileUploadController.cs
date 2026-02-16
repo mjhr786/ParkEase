@@ -118,10 +118,62 @@ public class FileUploadController : ControllerBase
     }
 
     [HttpGet("parking/{parkingSpaceId:guid}")]
-    public IActionResult GetParkingFiles(Guid parkingSpaceId)
+    public async Task<IActionResult> GetParkingFiles(Guid parkingSpaceId, CancellationToken cancellationToken)
     {
-        var files = _fileUploadService.GetParkingImages(parkingSpaceId);
+        var files = await _fileUploadService.GetParkingImagesAsync(parkingSpaceId, cancellationToken);
         return Ok(new { success = true, data = files });
+    }
+
+    [HttpPost("parking/{parkingSpaceId:guid}/sign-upload")]
+    [Authorize(Roles = "Vendor,Admin")]
+    public async Task<IActionResult> GeneratePresignedUrl(Guid parkingSpaceId, [FromBody] GenerateUrlRequest request, CancellationToken cancellationToken)
+    {
+        var userId = GetUserId();
+        if (userId == null) return Unauthorized();
+
+        try
+        {
+            var result = await _fileUploadService.GeneratePresignedUrlAsync(
+                parkingSpaceId, userId.Value, request.FileName, request.ContentType, cancellationToken);
+
+            return Ok(new
+            {
+                success = true,
+                data = new { uploadUrl = result.UploadUrl, publicUrl = result.PublicUrl, key = result.Key }
+            });
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return Unauthorized(new { success = false, message = "Not authorized" });
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { success = false, message = ex.Message });
+        }
+    }
+
+    [HttpPost("parking/{parkingSpaceId:guid}/confirm-upload")]
+    [Authorize(Roles = "Vendor,Admin")]
+    public async Task<IActionResult> ConfirmUpload(Guid parkingSpaceId, [FromBody] ConfirmUploadRequest request, CancellationToken cancellationToken)
+    {
+        var userId = GetUserId();
+        if (userId == null) return Unauthorized();
+
+        try
+        {
+            await _fileUploadService.ConfirmUploadAsync(
+                parkingSpaceId, userId.Value, request.FileUrls, cancellationToken);
+
+            return Ok(new { success = true, message = "Upload confirmed" });
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return Unauthorized(new { success = false, message = "Not authorized" });
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { success = false, message = ex.Message });
+        }
     }
 
     private Guid? GetUserId()
@@ -129,4 +181,15 @@ public class FileUploadController : ControllerBase
         var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
         return Guid.TryParse(userIdClaim, out var userId) ? userId : null;
     }
+}
+
+public class GenerateUrlRequest
+{
+    public required string FileName { get; set; }
+    public required string ContentType { get; set; }
+}
+
+public class ConfirmUploadRequest
+{
+    public required List<string> FileUrls { get; set; }
 }

@@ -15,15 +15,18 @@ public class BookingService : IBookingService
     private readonly INotificationService _notificationService;
     private readonly ICacheService _cache;
     private readonly ILogger<BookingService> _logger;
+    private readonly IEmailService _emailService;
+
     private const decimal TaxRate = 0.18m; // 18% tax
     private const decimal ServiceFeeRate = 0.05m; // 5% service fee
 
-    public BookingService(IUnitOfWork unitOfWork, INotificationService notificationService, ICacheService cache, ILogger<BookingService> logger)
+    public BookingService(IUnitOfWork unitOfWork, INotificationService notificationService, ICacheService cache, ILogger<BookingService> logger, IEmailService emailService)
     {
         _unitOfWork = unitOfWork;
         _notificationService = notificationService;
         _cache = cache;
         _logger = logger;
+        _emailService = emailService;
     }
 
     public async Task<ApiResponse<BookingDto>> GetByIdAsync(Guid id, Guid userId, CancellationToken cancellationToken = default)
@@ -286,6 +289,26 @@ public class BookingService : IBookingService
             ),
             cancellationToken);
 
+        // Send Email to Owner
+        if (parking.Owner?.Email != null)
+        {
+            await _emailService.SendEmailAsync(
+                parking.Owner.Email,
+                $"New Booking Request: {booking.BookingReference}",
+                $"<p>Hello {parking.Owner.FirstName},</p><p>You have a new booking request from {memberName} for <strong>{parking.Title}</strong>.</p><p>Please log in to your dashboard to approve or reject it.</p>"
+            );
+        }
+
+        // Send Email to Member (Confirmation of request)
+        if (booking.User?.Email != null)
+        {
+             await _emailService.SendEmailAsync(
+                booking.User.Email,
+                $"Booking Requested: {booking.BookingReference}",
+                $"<p>Hello {booking.User.FirstName},</p><p>Your booking request for <strong>{parking.Title}</strong> has been sent.</p><p>You will be notified once the owner approves it.</p>"
+            );
+        }
+
         // Invalidate dashboard caches for both member and vendor
         await _cache.RemoveAsync($"dashboard:member:{userId}", cancellationToken);
         await _cache.RemoveAsync($"dashboard:vendor:{parking.OwnerId}", cancellationToken);
@@ -434,6 +457,29 @@ public class BookingService : IBookingService
                     new { BookingId = id, BookingReference = booking.BookingReference }
                 ),
                 cancellationToken);
+        }
+
+        // Send Email to the cancelled party
+        // If user cancelled, email owner. If owner (or system) cancelled, email user.
+        // Actually both should probably know.
+        var owner = booking.ParkingSpace?.Owner;
+        var user = booking.User;
+
+        if (owner?.Email != null)
+        {
+             await _emailService.SendEmailAsync(
+                owner.Email,
+                $"Booking Cancelled: {booking.BookingReference}",
+                $"<p>Hello {owner.FirstName},</p><p>The booking {booking.BookingReference} for <strong>{booking.ParkingSpace?.Title}</strong> has been cancelled.</p>"
+            );
+        }
+        if (user?.Email != null)
+        {
+             await _emailService.SendEmailAsync(
+                user.Email,
+                $"Booking Cancelled: {booking.BookingReference}",
+                $"<p>Hello {user.FirstName},</p><p>The booking {booking.BookingReference} for <strong>{booking.ParkingSpace?.Title}</strong> has been cancelled.</p>"
+            );
         }
 
         // Invalidate dashboard caches
@@ -631,6 +677,16 @@ public class BookingService : IBookingService
             ),
             cancellationToken);
 
+        // Send Email to Member
+        if (booking.User?.Email != null)
+        {
+            await _emailService.SendEmailAsync(
+                booking.User.Email,
+                $"Booking Approved: {booking.BookingReference}",
+                $"<p>Hello {booking.User.FirstName},</p><p>Great news! Your booking for <strong>{booking.ParkingSpace?.Title}</strong> has been approved.</p><p>Please log in and complete your payment to confirm the reservation.</p>"
+            );
+        }
+
         // Invalidate dashboard cache for member
         await _cache.RemoveAsync($"dashboard:member:{booking.UserId}", cancellationToken);
 
@@ -679,6 +735,16 @@ public class BookingService : IBookingService
                 new { BookingId = id, BookingReference = booking.BookingReference, Reason = booking.CancellationReason }
             ),
             cancellationToken);
+
+        // Send Email to Member
+        if (booking.User?.Email != null)
+        {
+            await _emailService.SendEmailAsync(
+                booking.User.Email,
+                $"Booking Rejected: {booking.BookingReference}",
+                $"<p>Hello {booking.User.FirstName},</p><p>We're sorry, but your booking for <strong>{booking.ParkingSpace?.Title}</strong> was rejected.</p><p><strong>Reason:</strong> {booking.CancellationReason}</p>"
+            );
+        }
 
         // Invalidate dashboard cache for member
         await _cache.RemoveAsync($"dashboard:member:{booking.UserId}", cancellationToken);

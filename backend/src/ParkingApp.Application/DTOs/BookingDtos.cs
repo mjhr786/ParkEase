@@ -10,6 +10,8 @@ public record BookingDto(
     Guid ParkingSpaceId,
     string ParkingSpaceTitle,
     string ParkingSpaceAddress,
+    double Latitude,
+    double Longitude,
     DateTime StartDateTime,
     DateTime EndDateTime,
     PricingType PricingType,

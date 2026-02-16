@@ -12,6 +12,9 @@ using ParkingApp.Infrastructure.Data;
 using ParkingApp.Notifications;
 using Serilog;
 using Serilog.Events;
+using Amazon.S3;
+using Amazon.Runtime;
+using ParkingApp.Infrastructure.Services;
 
 // Configure Serilog before building the application
 Log.Logger = new LoggerConfiguration()
@@ -47,6 +50,12 @@ builder.Services.AddApplication();
 // Add Controllers
 builder.Services.AddControllers();
 
+// Add Response Compression
+builder.Services.AddResponseCompression(options =>
+{
+    options.EnableForHttps = true;
+});
+
 // Add CORS
 builder.Services.AddCors(options =>
 {
@@ -63,15 +72,37 @@ builder.Services.AddCors(options =>
     });
 });
 
-// Register FileUploadService
-var uploadsPath = Path.Combine(builder.Environment.WebRootPath ?? Path.Combine(builder.Environment.ContentRootPath, "wwwroot"), "uploads");
-Directory.CreateDirectory(uploadsPath);
-builder.Services.AddScoped<IFileUploadService>(sp =>
+// Register File Storage
+if (builder.Configuration["Storage:Provider"] == "R2")
 {
-    var unitOfWork = sp.GetRequiredService<ParkingApp.Domain.Interfaces.IUnitOfWork>();
-    var cache = sp.GetRequiredService<ICacheService>();
-    return new FileUploadService(unitOfWork, cache, uploadsPath);
-});
+    var accountId = builder.Configuration["Storage:R2:AccountId"];
+    var accessKey = builder.Configuration["Storage:R2:AccessKey"];
+    var secretKey = builder.Configuration["Storage:R2:SecretKey"];
+    var serviceUrl = $"https://{accountId}.r2.cloudflarestorage.com";
+
+    var s3Config = new AmazonS3Config
+    {
+        ServiceURL = serviceUrl,
+        ForcePathStyle = true 
+    };
+
+    builder.Services.AddSingleton<IAmazonS3>(sp => new AmazonS3Client(accessKey, secretKey, s3Config));
+    builder.Services.AddScoped<IFileStorage, R2FileStorage>();
+    Log.Information(">> Using Cloudflare R2 Storage");
+}
+else
+{
+    var webRoot = builder.Environment.WebRootPath ?? Path.Combine(builder.Environment.ContentRootPath, "wwwroot");
+    Directory.CreateDirectory(Path.Combine(webRoot, "uploads"));
+    
+    // Fallback Local Storage
+    var baseUrl = builder.Configuration["API_BASE_URL"] ?? "https://localhost:7082"; // Adjust port if needed
+    builder.Services.AddScoped<IFileStorage>(sp => 
+        new LocalFileStorage(webRoot, $"{baseUrl}/uploads"));
+    Log.Information(">> Using Local File Storage");
+}
+
+builder.Services.AddScoped<IFileUploadService, FileUploadService>();
 
 // Add SignalR for real-time notifications
 builder.Services.AddSignalR(options =>
@@ -181,6 +212,9 @@ app.UseCors("AllowFrontend");
 
 // Add Image Resizing Middleware (Before Static Files)
 app.UseMiddleware<ImageResizingMiddleware>();
+
+// Enable Response Compression
+app.UseResponseCompression();
 
 // Static files for uploads with caching
 var webRootPath = builder.Environment.WebRootPath ?? Path.Combine(builder.Environment.ContentRootPath, "wwwroot");

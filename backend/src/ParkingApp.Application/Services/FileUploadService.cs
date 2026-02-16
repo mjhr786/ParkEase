@@ -7,18 +7,13 @@ public class FileUploadService : IFileUploadService
 {
     private readonly IUnitOfWork _unitOfWork;
     private readonly ICacheService _cache;
-    private readonly string _uploadsPath;
-    
-    private static readonly string[] AllowedImageExtensions = { ".jpg", ".jpeg", ".png", ".webp" };
-    private static readonly string[] AllowedVideoExtensions = { ".mp4", ".webm" };
-    private const long MaxImageSize = 5 * 1024 * 1024; // 5MB
-    private const long MaxVideoSize = 50 * 1024 * 1024; // 50MB
+    private readonly IFileStorage _fileStorage;
 
-    public FileUploadService(IUnitOfWork unitOfWork, ICacheService cache, string uploadsPath)
+    public FileUploadService(IUnitOfWork unitOfWork, ICacheService cache, IFileStorage fileStorage)
     {
         _unitOfWork = unitOfWork;
         _cache = cache;
-        _uploadsPath = uploadsPath;
+        _fileStorage = fileStorage;
     }
 
     public async Task<List<string>> UploadParkingImagesAsync(
@@ -35,120 +30,115 @@ public class FileUploadService : IFileUploadService
         }
 
         var uploadedUrls = new List<string>();
-        var parkingDir = Path.Combine(_uploadsPath, "parking", parkingSpaceId.ToString());
-        
-        // Ensure directory exists
-        Directory.CreateDirectory(parkingDir);
 
         foreach (var (stream, fileName, contentType) in files)
         {
-            var extension = Path.GetExtension(fileName).ToLowerInvariant();
-            
-            // Validate file type
-            bool isImage = AllowedImageExtensions.Contains(extension);
-            bool isVideo = AllowedVideoExtensions.Contains(extension);
-            
-            if (!isImage && !isVideo)
-            {
-                continue; // Skip invalid file types
-            }
-
-            // Validate file size
-            long maxSize = isImage ? MaxImageSize : MaxVideoSize;
-            if (stream.Length > maxSize)
-            {
-                continue; // Skip files that are too large
-            }
-
-            // Generate unique filename
-            var uniqueFileName = $"{Guid.NewGuid():N}{extension}";
-            var filePath = Path.Combine(parkingDir, uniqueFileName);
-
-            // Save file
-            using (var fileStream = new FileStream(filePath, FileMode.Create))
-            {
-                await stream.CopyToAsync(fileStream, cancellationToken);
-            }
-
-            // Generate relative URL
-            var relativeUrl = $"/uploads/parking/{parkingSpaceId}/{uniqueFileName}";
-            uploadedUrls.Add(relativeUrl);
+            var url = await _fileStorage.UploadFileAsync(stream, fileName, contentType, cancellationToken);
+            uploadedUrls.Add(url);
         }
 
-        // Update parking space image URLs
-        if (uploadedUrls.Count > 0)
-        {
-            var existingUrls = string.IsNullOrEmpty(parking.ImageUrls) 
-                ? new List<string>() 
-                : parking.ImageUrls.Split(',', StringSplitOptions.RemoveEmptyEntries).ToList();
-            
-            existingUrls.AddRange(uploadedUrls);
-            parking.ImageUrls = string.Join(",", existingUrls);
-            
-            _unitOfWork.ParkingSpaces.Update(parking);
-            await _unitOfWork.SaveChangesAsync(cancellationToken);
-
-            // Invalidate caches
-            await _cache.RemoveAsync($"parking:{parkingSpaceId}", cancellationToken);
-            await _cache.RemoveByPatternAsync("search:*", cancellationToken);
-        }
+        await UpdateParkingImagesAsync(parking, uploadedUrls, cancellationToken);
 
         return uploadedUrls;
+    }
+
+    public async Task<(string UploadUrl, string PublicUrl, string Key)> GeneratePresignedUrlAsync(
+        Guid parkingSpaceId, Guid ownerId, string fileName, string contentType, CancellationToken cancellationToken = default)
+    {
+        // Verify ownership
+        var parking = await _unitOfWork.ParkingSpaces.GetByIdAsync(parkingSpaceId, cancellationToken);
+        if (parking == null || parking.OwnerId != ownerId)
+        {
+            throw new UnauthorizedAccessException("Unauthorized to upload files for this parking space");
+        }
+
+        // Generate URL (valid for 10 minutes)
+        return _fileStorage.GetPresignedUploadUrl(fileName, contentType, TimeSpan.FromMinutes(10));
+    }
+
+    public async Task ConfirmUploadAsync(Guid parkingSpaceId, Guid ownerId, List<string> newFileUrls, CancellationToken cancellationToken = default)
+    {
+        var parking = await _unitOfWork.ParkingSpaces.GetByIdAsync(parkingSpaceId, cancellationToken);
+        if (parking == null || parking.OwnerId != ownerId)
+        {
+             throw new UnauthorizedAccessException("Unauthorized to update this parking space");
+        }
+
+        if (newFileUrls != null && newFileUrls.Count > 0)
+        {
+            await UpdateParkingImagesAsync(parking, newFileUrls, cancellationToken);
+        }
+    }
+
+    private async Task UpdateParkingImagesAsync(ParkingApp.Domain.Entities.ParkingSpace parking, List<string> newUrls, CancellationToken cancellationToken)
+    {
+        var existingUrls = string.IsNullOrEmpty(parking.ImageUrls) 
+            ? new List<string>() 
+            : parking.ImageUrls.Split(',', StringSplitOptions.RemoveEmptyEntries).ToList();
+        
+        existingUrls.AddRange(newUrls);
+        
+        // Dedup just in case
+        parking.ImageUrls = string.Join(",", existingUrls.Distinct());
+        
+        _unitOfWork.ParkingSpaces.Update(parking);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        // Invalidate caches
+        await _cache.RemoveAsync($"parking:{parking.Id}", cancellationToken);
+        await _cache.RemoveByPatternAsync("search:*", cancellationToken);
     }
 
     public async Task<bool> DeleteParkingFileAsync(
         Guid parkingSpaceId, 
         Guid ownerId, 
-        string fileName,
+        string fileUrlOrKey,
         CancellationToken cancellationToken = default)
     {
-        // Verify ownership
         var parking = await _unitOfWork.ParkingSpaces.GetByIdAsync(parkingSpaceId, cancellationToken);
         if (parking == null || parking.OwnerId != ownerId)
         {
             return false;
         }
 
-        var filePath = Path.Combine(_uploadsPath, "parking", parkingSpaceId.ToString(), fileName);
+        // Delete from storage
+        await _fileStorage.DeleteFileAsync(fileUrlOrKey, cancellationToken);
         
-        if (!File.Exists(filePath))
-        {
-            return false;
-        }
-
-        // Delete file
-        File.Delete(filePath);
-
-        // Update parking space image URLs
-        var relativeUrl = $"/uploads/parking/{parkingSpaceId}/{fileName}";
+        // Update DB
         if (!string.IsNullOrEmpty(parking.ImageUrls))
         {
             var urls = parking.ImageUrls.Split(',', StringSplitOptions.RemoveEmptyEntries).ToList();
-            urls.Remove(relativeUrl);
-            parking.ImageUrls = string.Join(",", urls);
             
-            _unitOfWork.ParkingSpaces.Update(parking);
-            await _unitOfWork.SaveChangesAsync(cancellationToken);
+            // Remove by matching URL or Key (simplistic match)
+            // Assuming fileUrlOrKey is the full Public URL
+            var urlToRemove = urls.FirstOrDefault(u => u.EndsWith(fileUrlOrKey) || fileUrlOrKey.EndsWith(u));
+            
+            if (urlToRemove != null)
+            {
+                urls.Remove(urlToRemove);
+                parking.ImageUrls = string.Join(",", urls);
+                
+                _unitOfWork.ParkingSpaces.Update(parking);
+                await _unitOfWork.SaveChangesAsync(cancellationToken);
 
-            // Invalidate caches
-            await _cache.RemoveAsync($"parking:{parkingSpaceId}", cancellationToken);
-            await _cache.RemoveByPatternAsync("search:*", cancellationToken);
+                // Invalidate caches
+                await _cache.RemoveAsync($"parking:{parkingSpaceId}", cancellationToken);
+                await _cache.RemoveByPatternAsync("search:*", cancellationToken);
+                return true;
+            }
         }
 
-        return true;
+        return false;
     }
 
-    public List<string> GetParkingImages(Guid parkingSpaceId)
+    public async Task<List<string>> GetParkingImagesAsync(Guid parkingSpaceId, CancellationToken cancellationToken = default)
     {
-        var parkingDir = Path.Combine(_uploadsPath, "parking", parkingSpaceId.ToString());
-        
-        if (!Directory.Exists(parkingDir))
+        var parking = await _unitOfWork.ParkingSpaces.GetByIdAsync(parkingSpaceId, cancellationToken);
+        if (parking == null || string.IsNullOrEmpty(parking.ImageUrls))
         {
             return new List<string>();
         }
 
-        return Directory.GetFiles(parkingDir)
-            .Select(f => $"/uploads/parking/{parkingSpaceId}/{Path.GetFileName(f)}")
-            .ToList();
+        return parking.ImageUrls.Split(',', StringSplitOptions.RemoveEmptyEntries).ToList();
     }
 }

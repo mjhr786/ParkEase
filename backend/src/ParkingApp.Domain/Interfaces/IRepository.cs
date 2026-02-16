@@ -47,6 +47,22 @@ public interface IParkingSpaceRepository : IRepository<ParkingSpace>
         CancellationToken cancellationToken = default);
     
     Task<IEnumerable<ParkingSpace>> GetByOwnerIdAsync(Guid ownerId, CancellationToken cancellationToken = default);
+    Task<IEnumerable<ParkingApp.Domain.Models.ParkingMapModel>> GetMapCoordinatesAsync(
+        string? state = null,
+        string? city = null,
+        string? address = null,
+        double? latitude = null,
+        double? longitude = null,
+        double? radiusKm = null,
+        DateTime? startDate = null,
+        DateTime? endDate = null,
+        decimal? minPrice = null,
+        decimal? maxPrice = null,
+        string? parkingType = null,
+        string? vehicleType = null,
+        string? amenities = null,
+        double? minRating = null,
+        CancellationToken cancellationToken = default);
 }
 
 public interface IBookingRepository : IRepository<Booking>
@@ -58,6 +74,7 @@ public interface IBookingRepository : IRepository<Booking>
     Task<Booking?> GetByIdWithDetailsAsync(Guid id, CancellationToken cancellationToken = default);
     Task<bool> HasOverlappingBookingAsync(Guid parkingSpaceId, DateTime startDateTime, DateTime endDateTime, Guid? excludeBookingId = null, CancellationToken cancellationToken = default);
     Task<int> GetActiveBookingsCountAsync(Guid parkingSpaceId, DateTime startDateTime, DateTime endDateTime, CancellationToken cancellationToken = default);
+    Task<IEnumerable<Booking>> GetActiveBookingsForSpacesAsync(IEnumerable<Guid> parkingSpaceIds, CancellationToken cancellationToken = default);
 }
 
 public interface IPaymentRepository : IRepository<Payment>

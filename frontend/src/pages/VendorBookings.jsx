@@ -138,7 +138,7 @@ export default function VendorBookings() {
                 ) : (
                     <div className="grid" style={{ gap: '1rem' }}>
                         {bookings.map(booking => (
-                            <div key={booking.id} className="card">
+                            <div key={booking.id} className="card hover-card">
                                 <div className="flex-between">
                                     <div>
                                         <h3 className="card-title">{booking.parkingSpaceTitle}</h3>
