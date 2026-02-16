@@ -134,8 +134,77 @@ public class ParkingSpaceRepository : Repository<ParkingSpace>, IParkingSpaceRep
         int pageSize = 20,
         CancellationToken cancellationToken = default)
     {
-        var query = _dbSet.Include(p => p.Owner).Where(p => p.IsActive);
+        var query = _dbSet.AsNoTracking().Include(p => p.Owner).Where(p => p.IsActive);
+        query = ApplySearchFilters(query, state, city, address, latitude, longitude, radiusKm, minPrice, maxPrice, parkingType, vehicleType, amenities, minRating);
 
+        // Sorting
+        if (latitude.HasValue && longitude.HasValue)
+        {
+            var orderPoint = new Point(longitude.Value, latitude.Value) { SRID = 4326 };
+            query = query.OrderBy(p => p.Location != null ? p.Location.Distance(orderPoint) : double.MaxValue);
+        }
+        else
+        {
+            query = query.OrderByDescending(p => p.AverageRating);
+        }
+
+        return await query
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task<IEnumerable<ParkingApp.Domain.Models.ParkingMapModel>> GetMapCoordinatesAsync(
+        string? state = null,
+        string? city = null,
+        string? address = null,
+        double? latitude = null,
+        double? longitude = null,
+        double? radiusKm = null,
+        DateTime? startDate = null,
+        DateTime? endDate = null,
+        decimal? minPrice = null,
+        decimal? maxPrice = null,
+        string? parkingType = null,
+        string? vehicleType = null,
+        string? amenities = null,
+        double? minRating = null,
+        CancellationToken cancellationToken = default)
+    {
+        var query = _dbSet.AsNoTracking().Where(p => p.IsActive);
+        query = ApplySearchFilters(query, state, city, address, latitude, longitude, radiusKm, minPrice, maxPrice, parkingType, vehicleType, amenities, minRating);
+
+        return await query.Select(p => new ParkingApp.Domain.Models.ParkingMapModel(
+            p.Id,
+            p.Title,
+            p.Address,
+            p.City,
+            p.Latitude,
+            p.Longitude,
+            p.HourlyRate,
+            p.ImageUrls,
+            p.AverageRating,
+            p.ParkingType
+        ))
+        .Take(2000)
+        .ToListAsync(cancellationToken);
+    }
+
+    private IQueryable<ParkingSpace> ApplySearchFilters(
+        IQueryable<ParkingSpace> query,
+        string? state,
+        string? city,
+        string? address,
+        double? latitude,
+        double? longitude,
+        double? radiusKm,
+        decimal? minPrice,
+        decimal? maxPrice,
+        string? parkingType,
+        string? vehicleType,
+        string? amenities,
+        double? minRating)
+    {
         if (!string.IsNullOrEmpty(state))
             query = query.Where(p => p.State.ToLower() == state.ToLower());
 
@@ -146,11 +215,11 @@ public class ParkingSpaceRepository : Repository<ParkingSpace>, IParkingSpaceRep
             query = query.Where(p => p.Address.ToLower().Contains(address.ToLower()) || 
                                      p.Title.ToLower().Contains(address.ToLower()));
 
-        // PostGIS geo-spatial search - performed entirely in the database
+        // PostGIS geo-spatial search
         if (latitude.HasValue && longitude.HasValue && radiusKm.HasValue)
         {
             var searchPoint = new Point(longitude.Value, latitude.Value) { SRID = 4326 };
-            var radiusMeters = radiusKm.Value * 1000; // Convert km to meters
+            var radiusMeters = radiusKm.Value * 1000;
             
             query = query.Where(p => p.Location != null && 
                                      p.Location.IsWithinDistance(searchPoint, radiusMeters));
@@ -182,21 +251,7 @@ public class ParkingSpaceRepository : Repository<ParkingSpace>, IParkingSpaceRep
         if (minRating.HasValue)
             query = query.Where(p => p.AverageRating >= minRating.Value);
 
-        // Order by distance if geo-spatial search is active, otherwise by rating
-        if (latitude.HasValue && longitude.HasValue)
-        {
-            var orderPoint = new Point(longitude.Value, latitude.Value) { SRID = 4326 };
-            query = query.OrderBy(p => p.Location != null ? p.Location.Distance(orderPoint) : double.MaxValue);
-        }
-        else
-        {
-            query = query.OrderByDescending(p => p.AverageRating);
-        }
-
-        return await query
-            .Skip((page - 1) * pageSize)
-            .Take(pageSize)
-            .ToListAsync(cancellationToken);
+        return query;
     }
 
     public async Task<IEnumerable<ParkingSpace>> GetByOwnerIdAsync(Guid ownerId, CancellationToken cancellationToken = default)
@@ -234,6 +289,7 @@ public class BookingRepository : Repository<Booking>, IBookingRepository
     public async Task<IEnumerable<Booking>> GetByUserIdAsync(Guid userId, CancellationToken cancellationToken = default)
     {
         return await _dbSet
+            .AsNoTracking()
             .Include(b => b.ParkingSpace)
             .Include(b => b.Payment)
             .Where(b => b.UserId == userId)
@@ -244,6 +300,7 @@ public class BookingRepository : Repository<Booking>, IBookingRepository
     public async Task<IEnumerable<Booking>> GetByParkingSpaceIdAsync(Guid parkingSpaceId, CancellationToken cancellationToken = default)
     {
         return await _dbSet
+            .AsNoTracking()
             .Include(b => b.User)
             .Include(b => b.Payment)
             .Where(b => b.ParkingSpaceId == parkingSpaceId)
@@ -254,6 +311,7 @@ public class BookingRepository : Repository<Booking>, IBookingRepository
     public async Task<IEnumerable<Booking>> GetByVendorIdAsync(Guid vendorId, CancellationToken cancellationToken = default)
     {
         return await _dbSet
+            .AsNoTracking()
             .Include(b => b.User)
             .Include(b => b.ParkingSpace)
             .Include(b => b.Payment)
@@ -265,6 +323,7 @@ public class BookingRepository : Repository<Booking>, IBookingRepository
     public async Task<Booking?> GetByReferenceAsync(string bookingReference, CancellationToken cancellationToken = default)
     {
         return await _dbSet
+            .AsNoTracking()
             .Include(b => b.User)
             .Include(b => b.ParkingSpace)
             .Include(b => b.Payment)
@@ -296,6 +355,15 @@ public class BookingRepository : Repository<Booking>, IBookingRepository
             b.StartDateTime < endDateTime &&
             b.EndDateTime > startDateTime,
             cancellationToken);
+    }
+    public async Task<IEnumerable<Booking>> GetActiveBookingsForSpacesAsync(IEnumerable<Guid> parkingSpaceIds, CancellationToken cancellationToken = default)
+    {
+        return await _dbSet
+            .AsNoTracking()
+            .Where(b => parkingSpaceIds.Contains(b.ParkingSpaceId) &&
+                       (b.Status == BookingStatus.Confirmed || b.Status == BookingStatus.InProgress) &&
+                       b.EndDateTime > DateTime.UtcNow)
+            .ToListAsync(cancellationToken);
     }
 }
 

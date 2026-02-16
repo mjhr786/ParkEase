@@ -123,7 +123,7 @@ export default function Dashboard() {
 
                 {/* Vendor Earnings Chart */}
                 {isVendor && stats?.earningsChart && (
-                    <div className="card mt-3">
+                    <div className="card hover-card mt-3">
                         <h3 className="card-title">Weekly Earnings</h3>
                         <div className="flex gap-1 mt-2" style={{ alignItems: 'flex-end', height: '200px' }}>
                             {stats.earningsChart.map((day, i) => (
@@ -144,7 +144,7 @@ export default function Dashboard() {
                 )}
 
                 {/* Upcoming/Recent Bookings */}
-                <div className="card mt-3">
+                <div className="card hover-card mt-3">
                     <h3 className="card-title mb-2">
                         {isMember ? 'Upcoming Bookings' : 'Recent Bookings'}
                     </h3>

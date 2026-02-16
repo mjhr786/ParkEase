@@ -1,5 +1,4 @@
-import { useState, useEffect } from 'react';
-
+import { useState, useEffect, useCallback } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import api from '../services/api';
 import LocationMap from '../components/LocationMap';
@@ -7,12 +6,14 @@ import INDIAN_STATES_CITIES, { STATES } from '../utils/indianStatesCities';
 
 const PARKING_TYPES = ['Open', 'Covered', 'Garage', 'Street', 'Underground'];
 const VEHICLE_TYPES = ['Car', 'Motorcycle', 'SUV', 'Truck', 'Van', 'Electric'];
+import { API_BASE_URL } from '../config';
 
 export default function Search() {
     const [searchParams] = useSearchParams();
     const [parkingSpaces, setParkingSpaces] = useState([]);
+    const [mapParkingSpaces, setMapParkingSpaces] = useState([]);
     const [loading, setLoading] = useState(false);
-    const [hasSearched, setHasSearched] = useState(false);
+    const [hoveredId, setHoveredId] = useState(null);
     const [filters, setFilters] = useState({
         state: '',
         city: searchParams.get('city') || '',
@@ -26,37 +27,52 @@ export default function Search() {
         pageSize: 12,
     });
     const [totalPages, setTotalPages] = useState(1);
-    const [viewMode, setViewMode] = useState('list');
 
-    // Only fetch when page changes AND user has already searched
-    useEffect(() => {
-        if (hasSearched) {
-            fetchParkingSpaces();
-        }
-    }, [filters.page]);
-
-    const fetchParkingSpaces = async () => {
+    const fetchParkingSpaces = useCallback(async (searchFilters) => {
         setLoading(true);
         try {
+            const filtersToUse = searchFilters || filters;
             const params = Object.fromEntries(
-                Object.entries(filters).filter(([, v]) => v !== '')
+                Object.entries(filtersToUse).filter(([, v]) => v !== '')
             );
-            const response = await api.searchParking(params);
-            if (response.success && response.data) {
-                setParkingSpaces(response.data.parkingSpaces || []);
-                setTotalPages(response.data.totalPages || 1);
+
+            // Fetch list and map data in parallel
+            const [listResponse, mapResponse] = await Promise.all([
+                api.searchParking(params),
+                api.getMapParking(params)
+            ]);
+
+            if (listResponse.success && listResponse.data) {
+                setParkingSpaces(listResponse.data.parkingSpaces || []);
+                setTotalPages(listResponse.data.totalPages || 1);
+            }
+
+            if (mapResponse.success && mapResponse.data) {
+                setMapParkingSpaces(mapResponse.data || []);
             }
         } catch (error) {
             console.error('Search error:', error);
         }
         setLoading(false);
-    };
+    }, [filters]);
+
+    // Fetch on initial load (show all parking)
+    useEffect(() => {
+        fetchParkingSpaces();
+    }, []);
+
+    // Fetch when page changes
+    useEffect(() => {
+        if (filters.page > 1) {
+            fetchParkingSpaces();
+        }
+    }, [filters.page]);
 
     const handleSearch = (e) => {
         e.preventDefault();
-        setHasSearched(true);
-        setFilters(prev => ({ ...prev, page: 1 }));
-        fetchParkingSpaces();
+        const newFilters = { ...filters, page: 1 };
+        setFilters(newFilters);
+        fetchParkingSpaces(newFilters);
     };
 
     const handleFilterChange = (key, value) => {
@@ -68,8 +84,8 @@ export default function Search() {
             <div className="container">
                 <h1 style={{ marginBottom: '1.5rem' }}>Find Parking</h1>
 
-                {/* Search & Filter */}
-                <div className="card mb-3">
+                {/* Filters */}
+                <div className="card hover-card mb-3">
                     <form onSubmit={handleSearch}>
                         <div className="grid grid-4" style={{ gap: '1rem' }}>
                             <div className="form-group" style={{ margin: 0 }}>
@@ -187,99 +203,103 @@ export default function Search() {
                     </form>
                 </div>
 
-                {/* Results */}
-                {loading ? (
-                    <div className="loading">
-                        <div className="spinner"></div>
-                    </div>
-                ) : !hasSearched ? (
-                    <div className="empty-state">
-                        <div className="empty-icon">🔍</div>
-                        <h3>Search for Parking</h3>
-                        <p>Enter a city or address and click search to find available parking spaces</p>
-                    </div>
-                ) : parkingSpaces.length === 0 ? (
-                    <div className="empty-state">
-                        <div className="empty-icon">🅿️</div>
-                        <h3>No parking spaces found</h3>
-                        <p>Try adjusting your search filters</p>
-                    </div>
-                ) : (
-                    <>
-                        <div className="view-toggle mb-2">
-                            <button
-                                className={`btn btn-sm ${viewMode === 'list' ? 'btn-primary' : 'btn-secondary'}`}
-                                onClick={() => setViewMode('list')}
-                            >
-                                📋 List View
-                            </button>
-                            <button
-                                className={`btn btn-sm ${viewMode === 'map' ? 'btn-primary' : 'btn-secondary'}`}
-                                onClick={() => setViewMode('map')}
-                            >
-                                🗺️ Map View
-                            </button>
-                        </div>
-
-                        {viewMode === 'map' ? (
-                            <LocationMap parkingSpaces={parkingSpaces} height="500px" />
-                        ) : (
-                            <div className="grid grid-3">
-                                {parkingSpaces.map(parking => (
-                                    <Link to={`/parking/${parking.id}`} key={parking.id} style={{ textDecoration: 'none', color: 'inherit' }}>
-                                        <div className="card parking-card">
-                                            <div className="parking-image">🅿️</div>
-                                            <h3 className="card-title">{parking.title}</h3>
-                                            <div className="parking-location">
-                                                📍 {parking.address}, {parking.city}
-                                            </div>
-                                            <div className="flex-between mt-1">
-                                                <div className="parking-price">
-                                                    ₹{parking.hourlyRate}<span>/hr</span>
-                                                </div>
-                                                <div className="rating">
-                                                    ⭐ {parking.averageRating?.toFixed(1) || 'New'}
-                                                </div>
-                                            </div>
-                                            <div className="parking-meta">
-                                                <span className="parking-tag">{PARKING_TYPES[parking.parkingType] || 'Open'}</span>
-                                                <span className="parking-tag">{parking.availableSpots} spots</span>
-                                                {parking.is24Hours && <span className="parking-tag">24/7</span>}
-                                            </div>
-                                            {parking.activeReservations && parking.activeReservations.length > 0 && (
-                                                <div style={{
-                                                    marginTop: '0.75rem',
-                                                    padding: '0.5rem',
-                                                    background: 'rgba(239, 68, 68, 0.1)',
-                                                    borderRadius: 'var(--radius-sm)',
-                                                    fontSize: '0.8rem'
-                                                }}>
-                                                    <strong style={{ color: '#ef4444' }}>🔒 Reserved:</strong>
-                                                    <ul style={{ margin: '0.25rem 0 0 1rem', padding: 0 }}>
-                                                        {parking.activeReservations.slice(0, 3).map((res, i) => (
-                                                            <li key={i} style={{ color: 'var(--color-text-muted)' }}>
-                                                                {new Date(res.startDateTime).toLocaleDateString()} {new Date(res.startDateTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                                                {' → '}
-                                                                {new Date(res.endDateTime).toLocaleDateString()} {new Date(res.endDateTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                                            </li>
-                                                        ))}
-                                                        {parking.activeReservations.length > 3 && (
-                                                            <li style={{ color: 'var(--color-text-muted)' }}>
-                                                                +{parking.activeReservations.length - 3} more reservations
-                                                            </li>
-                                                        )}
-                                                    </ul>
-                                                </div>
-                                            )}
-                                        </div>
-                                    </Link>
-                                ))}
+                {/* Split View: Cards + Map */}
+                <div className="search-split">
+                    {/* Left: Cards */}
+                    <div className="search-cards">
+                        {loading ? (
+                            <div className="loading">
+                                <div className="spinner"></div>
                             </div>
+                        ) : parkingSpaces.length === 0 ? (
+                            <div className="empty-state">
+                                <div className="empty-icon">🅿️</div>
+                                <h3>No parking spaces found</h3>
+                                <p>Try adjusting your search filters</p>
+                            </div>
+                        ) : (
+                            <>
+                                <div className="search-results-count mb-1">
+                                    <span style={{ color: 'var(--color-text-muted)', fontSize: '0.9rem' }}>
+                                        {parkingSpaces.length} parking spot{parkingSpaces.length !== 1 ? 's' : ''} found
+                                    </span>
+                                </div>
+                                <div className="search-card-list">
+                                    {parkingSpaces.map(parking => (
+                                        <Link
+                                            to={`/parking/${parking.id}`}
+                                            key={parking.id}
+                                            style={{ textDecoration: 'none', color: 'inherit' }}
+                                            onMouseEnter={() => setHoveredId(parking.id)}
+                                            onMouseLeave={() => setHoveredId(null)}
+                                        >
+                                            <div className={`card parking-card hover-card ${hoveredId === parking.id ? 'parking-card-highlighted' : ''}`}>
+                                                {parking.imageUrls && parking.imageUrls.length > 0 ? (
+                                                    <img
+                                                        src={parking.imageUrls[0].startsWith('http') ? parking.imageUrls[0] : `${API_BASE_URL}${parking.imageUrls[0]}`}
+                                                        alt={parking.title}
+                                                        className="parking-image"
+                                                        style={{ objectFit: 'cover' }}
+                                                    />
+                                                ) : (
+                                                    <div className="parking-image">🅿️</div>
+                                                )}
+                                                <h3 className="card-title">{parking.title}</h3>
+                                                <div className="parking-location">
+                                                    📍 {parking.address}, {parking.city}
+                                                </div>
+                                                <div className="flex-between mt-1">
+                                                    <div className="parking-price">
+                                                        ₹{parking.hourlyRate}<span>/hr</span>
+                                                    </div>
+                                                    <div className="rating">
+                                                        ⭐ {parking.averageRating?.toFixed(1) || 'New'}
+                                                    </div>
+                                                </div>
+                                                <div className="parking-meta">
+                                                    <span className="parking-tag">{PARKING_TYPES[parking.parkingType] || 'Open'}</span>
+                                                    <span className="parking-tag">{parking.availableSpots} spots</span>
+                                                    {parking.is24Hours && <span className="parking-tag">24/7</span>}
+                                                </div>
+                                                {(() => {
+                                                    const validReservations = parking.activeReservations?.filter(r => new Date(r.endDateTime) > new Date()) || [];
+                                                    if (validReservations.length === 0) return null;
+
+                                                    return (
+                                                        <div style={{
+                                                            marginTop: '0.75rem',
+                                                            padding: '0.5rem',
+                                                            background: 'rgba(239, 68, 68, 0.1)',
+                                                            borderRadius: 'var(--radius-sm)',
+                                                            fontSize: '0.8rem'
+                                                        }}>
+                                                            <strong style={{ color: '#ef4444' }}>🔒 Reserved:</strong>
+                                                            <ul style={{ margin: '0.25rem 0 0 1rem', padding: 0 }}>
+                                                                {validReservations.slice(0, 3).map((res, i) => (
+                                                                    <li key={i} style={{ color: 'var(--color-text-muted)' }}>
+                                                                        {new Date(res.startDateTime).toLocaleDateString()} {new Date(res.startDateTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                                        {' → '}
+                                                                        {new Date(res.endDateTime).toLocaleDateString()} {new Date(res.endDateTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                                    </li>
+                                                                ))}
+                                                                {validReservations.length > 3 && (
+                                                                    <li style={{ color: 'var(--color-text-muted)' }}>
+                                                                        +{validReservations.length - 3} more reservations
+                                                                    </li>
+                                                                )}
+                                                            </ul>
+                                                        </div>
+                                                    );
+                                                })()}
+                                            </div>
+                                        </Link>
+                                    ))}
+                                </div>
+                            </>
                         )}
 
-                        {/* Pagination */}
                         {totalPages > 1 && (
-                            <div className="flex-center gap-2 mt-3">
+                            <div className="flex-center gap-2 mt-2">
                                 <button
                                     className="btn btn-secondary"
                                     disabled={filters.page <= 1}
@@ -297,8 +317,18 @@ export default function Search() {
                                 </button>
                             </div>
                         )}
-                    </>
-                )}
+                    </div>
+
+                    {/* Right: Sticky Map */}
+                    <div className="search-map" style={{ top: '80px' }}>
+                        <LocationMap
+                            parkingSpaces={mapParkingSpaces}
+                            height="100%"
+                            highlightedId={hoveredId}
+                            onMarkerHover={setHoveredId}
+                        />
+                    </div>
+                </div>
             </div>
         </div>
     );

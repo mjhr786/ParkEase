@@ -123,3 +123,16 @@ public record ParkingSearchResultDto(
     int PageSize,
     int TotalPages
 );
+
+public record ParkingMapDto(
+    Guid Id,
+    string Title,
+    string Address,
+    string City,
+    double Latitude,
+    double Longitude,
+    decimal HourlyRate,
+    string? ThumbnailUrl,
+    double AverageRating,
+    ParkingType ParkingType
+);

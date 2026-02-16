@@ -15,13 +15,15 @@ public class PaymentAppService : IPaymentAppService
     private readonly IPaymentService _paymentService;
     private readonly INotificationService _notificationService;
     private readonly ILogger<PaymentAppService> _logger;
+    private readonly IEmailService _emailService;
 
-    public PaymentAppService(IUnitOfWork unitOfWork, IPaymentService paymentService, INotificationService notificationService, ILogger<PaymentAppService> logger)
+    public PaymentAppService(IUnitOfWork unitOfWork, IPaymentService paymentService, INotificationService notificationService, ILogger<PaymentAppService> logger, IEmailService emailService)
     {
         _unitOfWork = unitOfWork;
         _paymentService = paymentService;
         _notificationService = notificationService;
         _logger = logger;
+        _emailService = emailService;
     }
 
     public async Task<ApiResponse<PaymentDto>> GetByIdAsync(Guid id, Guid userId, CancellationToken cancellationToken = default)
@@ -154,6 +156,17 @@ public class PaymentAppService : IPaymentAppService
         if (result.Success)
         {
             await NotifyOwnerOfPaymentAsync(booking, userId, cancellationToken);
+            
+            // Send Email Receipt to User
+            var user = await _unitOfWork.Users.GetByIdAsync(userId, cancellationToken);
+            if (user?.Email != null)
+            {
+                await _emailService.SendEmailAsync(
+                    user.Email,
+                    $"Payment Receipt: {booking.BookingReference}",
+                    $"<p>Hello {user.FirstName},</p><p>Thank you for your payment of <strong>₹{booking.TotalAmount}</strong> for booking {booking.BookingReference}.</p><p>Your booking is now <strong>Confirmed</strong>.</p>"
+                );
+            }
         }
 
         var resultDto = new PaymentResultDto(
@@ -268,6 +281,17 @@ public class PaymentAppService : IPaymentAppService
         // Send notification
         await NotifyOwnerOfPaymentAsync(booking, userId, cancellationToken);
 
+        // Send Email Receipt to User
+        var user = await _unitOfWork.Users.GetByIdAsync(userId, cancellationToken);
+        if (user?.Email != null)
+        {
+            await _emailService.SendEmailAsync(
+                user.Email,
+                $"Payment Receipt: {booking.BookingReference}",
+                $"<p>Hello {user.FirstName},</p><p>Thank you for your payment of <strong>₹{booking.TotalAmount}</strong> for booking {booking.BookingReference}.</p><p>Your booking is now <strong>Confirmed</strong>.</p>"
+            );
+        }
+
         return new ApiResponse<PaymentResultDto>(true, "Payment verified successfully", new PaymentResultDto(
             true,
             payment.TransactionId,
@@ -301,6 +325,17 @@ public class PaymentAppService : IPaymentAppService
                     new { BookingId = booking.Id, BookingReference = booking.BookingReference, Amount = booking.TotalAmount }
                 ),
                 cancellationToken);
+
+            // Send Email to Owner
+            var owner = await _unitOfWork.Users.GetByIdAsync(parkingSpace.OwnerId, cancellationToken);
+            if (owner?.Email != null)
+            {
+                await _emailService.SendEmailAsync(
+                    owner.Email,
+                    $"Payment Received: {booking.BookingReference}",
+                    $"<p>Hello {owner.FirstName},</p><p>You have received a payment of <strong>₹{booking.TotalAmount}</strong> from {payerName} for booking {booking.BookingReference}.</p>"
+                );
+            }
         }
         catch (Exception ex)
         {

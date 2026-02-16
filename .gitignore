@@ -416,3 +416,8 @@ FodyWeavers.xsd
 *.msix
 *.msm
 *.msp
+
+# Publish Output
+**/publish/
+.vscode/settings.json
+backend/src/ParkingApp.API/.vscode/settings.json

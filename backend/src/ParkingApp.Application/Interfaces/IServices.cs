@@ -27,6 +27,7 @@ public interface IParkingSpaceService
     Task<ApiResponse<ParkingSpaceDto>> UpdateAsync(Guid id, Guid ownerId, UpdateParkingSpaceDto dto, CancellationToken cancellationToken = default);
     Task<ApiResponse<bool>> DeleteAsync(Guid id, Guid ownerId, CancellationToken cancellationToken = default);
     Task<ApiResponse<bool>> ToggleActiveAsync(Guid id, Guid ownerId, CancellationToken cancellationToken = default);
+    Task<ApiResponse<List<ParkingMapDto>>> GetMapCoordinatesAsync(ParkingSearchDto dto, CancellationToken cancellationToken = default);
 }
 
 public interface IBookingService

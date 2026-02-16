@@ -142,6 +142,8 @@ public static class MappingExtensions
         booking.ParkingSpaceId,
         booking.ParkingSpace?.Title ?? "Unknown",
         booking.ParkingSpace?.Address ?? "Unknown",
+        booking.ParkingSpace?.Latitude ?? 0,
+        booking.ParkingSpace?.Longitude ?? 0,
         booking.StartDateTime,
         booking.EndDateTime,
         booking.PricingType,

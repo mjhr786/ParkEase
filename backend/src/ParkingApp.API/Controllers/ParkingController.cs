@@ -42,6 +42,13 @@ public class ParkingController : ControllerBase
         return Ok(result);
     }
 
+    [HttpGet("map")]
+    public async Task<IActionResult> GetMap([FromQuery] ParkingSearchDto dto, CancellationToken cancellationToken)
+    {
+        var result = await _parkingService.GetMapCoordinatesAsync(dto, cancellationToken);
+        return Ok(result);
+    }
+
     [Authorize(Roles = "Vendor,Admin")]
     [HttpGet("my-listings")]
     public async Task<IActionResult> GetMyListings(CancellationToken cancellationToken)

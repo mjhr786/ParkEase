@@ -179,6 +179,13 @@ class ApiService {
     return this.request(`/parking/search?${queryString}`);
   }
 
+  async getMapParking(params) {
+    const queryString = new URLSearchParams(
+      Object.entries(params).filter(([, v]) => v != null)
+    ).toString();
+    return this.request(`/parking/map?${queryString}`);
+  }
+
   async getParkingById(id) {
     return this.request(`/parking/${id}`);
   }
@@ -220,6 +227,20 @@ class ApiService {
     });
 
     return this.handleResponse(response);
+  }
+
+  async getPresignedUrl(parkingSpaceId, fileName, contentType) {
+    return this.request(`/files/parking/${parkingSpaceId}/sign-upload`, {
+      method: 'POST',
+      body: JSON.stringify({ fileName, contentType })
+    });
+  }
+
+  async confirmUpload(parkingSpaceId, fileUrls) {
+    return this.request(`/files/parking/${parkingSpaceId}/confirm-upload`, {
+      method: 'POST',
+      body: JSON.stringify({ fileUrls })
+    });
   }
 
   async deleteParkingFile(parkingSpaceId, fileName) {

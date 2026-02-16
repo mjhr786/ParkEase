@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../services/api';
 import LocationMap from '../components/LocationMap';
+import ImageGallery from '../components/ImageGallery';
 import { getErrorMessage, handleApiError } from '../utils/errorHandler';
 import showToast from '../utils/toast.jsx';
 
@@ -197,35 +198,7 @@ export default function ParkingDetails() {
                     {/* Parking Details */}
                     <div>
                         {/* Image Gallery */}
-                        {parking.imageUrls && parking.imageUrls.length > 0 ? (
-                            <div style={{ marginBottom: '1.5rem' }}>
-                                <div style={{
-                                    display: 'grid',
-                                    gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
-                                    gap: '0.5rem'
-                                }}>
-                                    {parking.imageUrls.map((url, i) => (
-                                        <img
-                                            key={i}
-                                            src={`${API_BASE}${url}`}
-                                            alt={`${parking.title} - ${i + 1}`}
-                                            style={{
-                                                width: '100%',
-                                                height: '150px',
-                                                objectFit: 'cover',
-                                                borderRadius: 'var(--radius-md)',
-                                                cursor: 'pointer'
-                                            }}
-                                            loading="lazy"
-                                        />
-                                    ))}
-                                </div>
-                            </div>
-                        ) : (
-                            <div className="parking-image" style={{ height: '300px', marginBottom: '1.5rem', fontSize: '5rem' }}>
-                                🅿️
-                            </div>
-                        )}
+                        <ImageGallery images={parking.imageUrls} title={parking.title} />
 
                         <h1 style={{ marginBottom: '0.5rem' }}>{parking.title}</h1>
                         <div className="parking-location" style={{ fontSize: '1.1rem' }}>

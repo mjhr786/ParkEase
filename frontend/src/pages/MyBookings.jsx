@@ -231,7 +231,7 @@ export default function MyBookings() {
                 ) : (
                     <div className="grid" style={{ gap: '1rem' }}>
                         {bookings.map(booking => (
-                            <div key={booking.id} className="card">
+                            <div key={booking.id} className="card hover-card">
                                 <div className="flex-between">
                                     <div>
                                         <h3 className="card-title">{booking.parkingSpaceTitle}</h3>
@@ -325,6 +325,17 @@ export default function MyBookings() {
                                         >
                                             {cancellingId === booking.id ? 'Cancelling...' : 'Cancel'}
                                         </button>
+                                    )}
+                                    {/* Navigation Button for all active bookings */}
+                                    {[1, 2, 6].includes(booking.status) && booking.latitude && booking.longitude && (
+                                        <a
+                                            href={`https://www.google.com/maps/dir/?api=1&destination=${parseFloat(booking.latitude)},${parseFloat(booking.longitude)}`}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="btn btn-outline"
+                                        >
+                                            🧭 Navigate
+                                        </a>
                                     )}
                                     <Link to={`/parking/${booking.parkingSpaceId}`} className="btn btn-secondary">
                                         View Parking
