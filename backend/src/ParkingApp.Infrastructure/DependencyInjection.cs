@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using ParkingApp.Application.Interfaces;
+using ParkingApp.Domain.Events;
 using ParkingApp.Domain.Interfaces;
 using ParkingApp.Infrastructure.Data;
 using ParkingApp.Infrastructure.Repositories;
@@ -20,6 +21,13 @@ public static class DependencyInjection
         services.AddDbContext<ApplicationDbContext>(options =>
             options.UseNpgsql(connectionString, npgsqlOptions =>
                 npgsqlOptions.UseNetTopologySuite()));
+
+        // Dapper SQL connection factory (uses same connection string, Npgsql pooling)
+        services.AddSingleton<ISqlConnectionFactory>(new NpgsqlConnectionFactory(connectionString));
+
+
+        // Domain Events
+        services.AddScoped<IDomainEventDispatcher, DomainEventDispatcher>();
 
         // Repositories
         services.AddScoped<IUnitOfWork, UnitOfWork>();
