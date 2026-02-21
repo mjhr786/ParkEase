@@ -96,21 +96,17 @@ public static class CollectionExtensions
         return list;
     }
     
-    public static IEnumerable<IEnumerable<T>> Batch<T>(this IEnumerable<T> source, int batchSize)
+    public static IEnumerable<List<T>> Batch<T>(this IEnumerable<T> source, int batchSize)
     {
         using var enumerator = source.GetEnumerator();
         while (enumerator.MoveNext())
         {
-            yield return GetBatch(enumerator, batchSize);
-        }
-    }
-    
-    private static IEnumerable<T> GetBatch<T>(IEnumerator<T> enumerator, int batchSize)
-    {
-        yield return enumerator.Current;
-        for (int i = 1; i < batchSize && enumerator.MoveNext(); i++)
-        {
-            yield return enumerator.Current;
+            var batch = new List<T> { enumerator.Current };
+            for (int i = 1; i < batchSize && enumerator.MoveNext(); i++)
+            {
+                batch.Add(enumerator.Current);
+            }
+            yield return batch;
         }
     }
 }
