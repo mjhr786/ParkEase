@@ -1,4 +1,6 @@
 using Microsoft.EntityFrameworkCore.Storage;
+using ParkingApp.Domain.Entities;
+using ParkingApp.Domain.Events;
 using ParkingApp.Domain.Interfaces;
 using ParkingApp.Infrastructure.Data;
 
@@ -7,6 +9,7 @@ namespace ParkingApp.Infrastructure.Repositories;
 public class UnitOfWork : IUnitOfWork
 {
     private readonly ApplicationDbContext _context;
+    private readonly IDomainEventDispatcher _eventDispatcher;
     private IDbContextTransaction? _transaction;
     
     private IUserRepository? _users;
@@ -15,9 +18,10 @@ public class UnitOfWork : IUnitOfWork
     private IPaymentRepository? _payments;
     private IReviewRepository? _reviews;
 
-    public UnitOfWork(ApplicationDbContext context)
+    public UnitOfWork(ApplicationDbContext context, IDomainEventDispatcher eventDispatcher)
     {
         _context = context;
+        _eventDispatcher = eventDispatcher;
     }
 
     public IUserRepository Users => _users ??= new UserRepository(_context);
@@ -28,7 +32,32 @@ public class UnitOfWork : IUnitOfWork
 
     public async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
     {
-        return await _context.SaveChangesAsync(cancellationToken);
+        // Persist changes first
+        var result = await _context.SaveChangesAsync(cancellationToken);
+
+        // Collect and dispatch domain events from all tracked entities
+        var entitiesWithEvents = _context.ChangeTracker
+            .Entries<BaseEntity>()
+            .Where(e => e.Entity.DomainEvents.Any())
+            .Select(e => e.Entity)
+            .ToList();
+
+        var domainEvents = entitiesWithEvents
+            .SelectMany(e => e.DomainEvents)
+            .ToList();
+
+        // Clear events before dispatching to prevent re-entrancy issues
+        foreach (var entity in entitiesWithEvents)
+        {
+            entity.ClearDomainEvents();
+        }
+
+        if (domainEvents.Any())
+        {
+            await _eventDispatcher.DispatchEventsAsync(domainEvents, cancellationToken);
+        }
+
+        return result;
     }
 
     public async Task BeginTransactionAsync(CancellationToken cancellationToken = default)
@@ -62,3 +91,4 @@ public class UnitOfWork : IUnitOfWork
         _context.Dispose();
     }
 }
+
