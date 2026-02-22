@@ -205,18 +205,38 @@ const bookingSlice = createSlice({
                 state.vendorBookingsLoading = false;
             })
             // Approve
+            .addCase(approveBookingThunk.pending, (state) => {
+                state.actionLoading = true;
+            })
             .addCase(approveBookingThunk.fulfilled, (state, action) => {
+                state.actionLoading = false;
                 if (action.payload) {
                     const idx = state.vendorBookings.findIndex((b) => b.id === action.payload.id);
                     if (idx !== -1) state.vendorBookings[idx] = action.payload;
+                    if (state.selectedBooking?.id === action.payload.id) {
+                        state.selectedBooking = action.payload;
+                    }
                 }
             })
+            .addCase(approveBookingThunk.rejected, (state) => {
+                state.actionLoading = false;
+            })
             // Reject
+            .addCase(rejectBookingThunk.pending, (state) => {
+                state.actionLoading = true;
+            })
             .addCase(rejectBookingThunk.fulfilled, (state, action) => {
+                state.actionLoading = false;
                 if (action.payload) {
                     const idx = state.vendorBookings.findIndex((b) => b.id === action.payload.id);
                     if (idx !== -1) state.vendorBookings[idx] = action.payload;
+                    if (state.selectedBooking?.id === action.payload.id) {
+                        state.selectedBooking = action.payload;
+                    }
                 }
+            })
+            .addCase(rejectBookingThunk.rejected, (state) => {
+                state.actionLoading = false;
             });
     },
 });
