@@ -3,8 +3,8 @@
  * Full parking space details: images, amenities, pricing, reviews
  */
 
-import React, { useEffect } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet } from 'react-native';
+import React, { useEffect, useState, useCallback } from 'react';
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Alert } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { Ionicons } from '@expo/vector-icons';
 import { getParkingDetailThunk } from '../../store/slices/parkingSlice';
@@ -18,17 +18,47 @@ import LoadingScreen from '../../components/Common/LoadingScreen';
 import { colors, spacing, typography, shadows } from '../../styles/globalStyles';
 import { formatCurrency, formatDate } from '../../utils/formatters';
 import { ParkingTypeLabels, PricingTypeLabels } from '../../utils/constants';
+import chatService from '../../services/chat/chatService';
 
 const ParkingDetailScreen = ({ navigation, route }) => {
     const { parkingId } = route.params;
     const dispatch = useDispatch();
     const { selectedParking: parking, detailLoading } = useSelector((s) => s.parking);
     const { reviews } = useSelector((s) => s.review);
+    const [chatLoading, setChatLoading] = useState(false);
 
     useEffect(() => {
         dispatch(getParkingDetailThunk(parkingId));
         dispatch(getReviewsThunk(parkingId));
     }, [dispatch, parkingId]);
+
+    const handleChatWithOwner = useCallback(async () => {
+        setChatLoading(true);
+        try {
+            // Check if a conversation already exists for this parking space
+            const existing = await chatService.findConversationByParkingSpace(parkingId);
+            if (existing) {
+                navigation.navigate('ChatScreen', {
+                    conversationId: existing.id,
+                    parkingSpaceId: parkingId,
+                    participantName: existing.otherParticipantName,
+                    parkingTitle: existing.parkingSpaceTitle,
+                });
+            } else {
+                // Navigate to chat with just parkingSpaceId — user will compose first message
+                navigation.navigate('ChatScreen', {
+                    conversationId: null,
+                    parkingSpaceId: parkingId,
+                    participantName: parking?.ownerName || 'Owner',
+                    parkingTitle: parking?.title || 'Parking Space',
+                });
+            }
+        } catch (error) {
+            Alert.alert('Error', 'Could not open chat. Please try again.');
+        } finally {
+            setChatLoading(false);
+        }
+    }, [parkingId, parking, navigation]);
 
     if (detailLoading || !parking) return <LoadingScreen />;
 
@@ -136,13 +166,23 @@ const ParkingDetailScreen = ({ navigation, route }) => {
                         ))}
                     </Card>
 
-                    {/* Book Button */}
-                    <Button
-                        title="Book Now"
-                        onPress={() => navigation.navigate('BookParking', { parkingId: parking.id })}
-                        style={styles.bookButton}
-                        icon={<Ionicons name="calendar" size={20} color={colors.white} />}
-                    />
+                    {/* Action Buttons */}
+                    <View style={styles.actionButtons}>
+                        <Button
+                            title="Book Now"
+                            onPress={() => navigation.navigate('BookParking', { parkingId: parking.id })}
+                            style={{ flex: 1 }}
+                            icon={<Ionicons name="calendar" size={20} color={colors.white} />}
+                        />
+                        <Button
+                            title="Chat with Owner"
+                            onPress={handleChatWithOwner}
+                            variant="secondary"
+                            loading={chatLoading}
+                            style={{ flex: 1 }}
+                            icon={<Ionicons name="chatbubble-ellipses" size={20} color={colors.primary} />}
+                        />
+                    </View>
                 </View>
             </ScrollView>
         </ScreenLayout>
@@ -185,7 +225,7 @@ const styles = StyleSheet.create({
     reviewerName: { ...typography.label, color: colors.textPrimary },
     reviewComment: { ...typography.bodySmall, color: colors.textSecondary, marginTop: spacing.xs },
     reviewDate: { ...typography.caption, color: colors.textTertiary, marginTop: spacing.xs },
-    bookButton: { marginTop: spacing.lg },
+    actionButtons: { flexDirection: 'row', gap: spacing.md, marginTop: spacing.lg },
 });
 
 export default ParkingDetailScreen;

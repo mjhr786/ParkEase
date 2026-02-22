@@ -25,7 +25,8 @@ const CreateParkingScreen = ({ navigation }) => {
         address: '',
         city: '',
         state: '',
-        zipCode: '',
+        country: 'India',
+        postalCode: '',
         latitude: 0,
         longitude: 0,
         totalSpots: '',
@@ -52,24 +53,26 @@ const CreateParkingScreen = ({ navigation }) => {
     };
 
     const handleCreate = useCallback(async () => {
-        if (!formData.title || !formData.address || !formData.city || !formData.totalSpots || !formData.hourlyRate) {
-            Alert.alert('Required Fields', 'Please fill in all required fields');
+        if (!formData.title || !formData.description || !formData.address || !formData.city || !formData.state || !formData.totalSpots || !formData.hourlyRate) {
+            Alert.alert('Required Fields', 'Please fill in Title, Description, Address, City, State, Total Spots, and Hourly Rate.');
             return;
         }
 
-        const result = await dispatch(createParkingThunk({
-            ...formData,
-            totalSpots: parseInt(formData.totalSpots),
-            hourlyRate: parseFloat(formData.hourlyRate),
-            dailyRate: parseFloat(formData.dailyRate) || 0,
-            weeklyRate: parseFloat(formData.weeklyRate) || 0,
-            monthlyRate: parseFloat(formData.monthlyRate) || 0,
-        }));
+        try {
+            const result = await dispatch(createParkingThunk({
+                ...formData,
+                totalSpots: parseInt(formData.totalSpots),
+                hourlyRate: parseFloat(formData.hourlyRate),
+                dailyRate: parseFloat(formData.dailyRate) || 0,
+                weeklyRate: parseFloat(formData.weeklyRate) || 0,
+                monthlyRate: parseFloat(formData.monthlyRate) || 0,
+            })).unwrap();
 
-        if (!result.error) {
             Alert.alert('Success', 'Parking space created!', [
                 { text: 'OK', onPress: () => navigation.goBack() },
             ]);
+        } catch (error) {
+            Alert.alert('Failed', typeof error === 'string' ? error : 'Could not create parking space. Please check all fields and try again.');
         }
     }, [dispatch, formData, navigation]);
 
@@ -90,7 +93,7 @@ const CreateParkingScreen = ({ navigation }) => {
                     <Card>
                         <Text style={styles.sectionTitle}>Basic Information</Text>
                         <Input label="Title *" value={formData.title} onChangeText={updateField('title')} placeholder="e.g. Downtown Parking Garage" leftIcon="car-sport-outline" />
-                        <Input label="Description" value={formData.description} onChangeText={updateField('description')} placeholder="Describe your parking space" multiline numberOfLines={3} />
+                        <Input label="Description *" value={formData.description} onChangeText={updateField('description')} placeholder="Describe your parking space" multiline numberOfLines={3} />
                         <Input label="Total Spots *" value={formData.totalSpots} onChangeText={updateField('totalSpots')} placeholder="Number of spots" keyboardType="numeric" leftIcon="grid-outline" />
                     </Card>
 
@@ -103,10 +106,17 @@ const CreateParkingScreen = ({ navigation }) => {
                                 <Input label="City *" value={formData.city} onChangeText={updateField('city')} placeholder="City" />
                             </View>
                             <View style={{ flex: 1 }}>
-                                <Input label="State" value={formData.state} onChangeText={updateField('state')} placeholder="State" />
+                                <Input label="State *" value={formData.state} onChangeText={updateField('state')} placeholder="State" />
                             </View>
                         </View>
-                        <Input label="Zip Code" value={formData.zipCode} onChangeText={updateField('zipCode')} placeholder="Zip" keyboardType="numeric" />
+                        <View style={styles.row}>
+                            <View style={{ flex: 1 }}>
+                                <Input label="Country" value={formData.country} onChangeText={updateField('country')} placeholder="Country" />
+                            </View>
+                            <View style={{ flex: 1 }}>
+                                <Input label="Postal Code" value={formData.postalCode} onChangeText={updateField('postalCode')} placeholder="Postal Code" keyboardType="numeric" />
+                            </View>
+                        </View>
                     </Card>
 
                     {/* Parking Type */}

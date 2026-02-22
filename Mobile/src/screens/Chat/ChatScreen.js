@@ -10,33 +10,39 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../../styles/globalStyles';
-import { useAuth } from '../../contexts/AuthContext';
+import { useAuth } from '../../hooks/useAuth';
 import chatService from '../../services/chat/chatService';
 
 const ChatScreen = ({ route, navigation }) => {
-    const { conversationId, parkingSpaceId, participantName, parkingTitle } = route.params;
+    const { conversationId: initialConversationId, parkingSpaceId, participantName, parkingTitle } = route.params;
     const { user } = useAuth();
+    const [activeConversationId, setActiveConversationId] = useState(initialConversationId);
     const [messages, setMessages] = useState([]);
     const [newMessage, setNewMessage] = useState('');
-    const [loading, setLoading] = useState(true);
+    const [loading, setLoading] = useState(!!initialConversationId);
     const [sending, setSending] = useState(false);
     const flatListRef = useRef(null);
     const pollInterval = useRef(null);
 
     useEffect(() => {
-        loadMessages();
-        markRead();
+        if (activeConversationId) {
+            loadMessages();
+            markRead();
 
-        // Poll for new messages every 5 seconds (lightweight real-time substitute for mobile)
-        pollInterval.current = setInterval(loadMessages, 5000);
+            // Poll for new messages every 5 seconds (lightweight real-time substitute for mobile)
+            pollInterval.current = setInterval(loadMessages, 5000);
+        } else {
+            setLoading(false);
+        }
         return () => {
             if (pollInterval.current) clearInterval(pollInterval.current);
         };
-    }, [conversationId]);
+    }, [activeConversationId]);
 
     const loadMessages = async () => {
+        if (!activeConversationId) return;
         try {
-            const result = await chatService.getMessages(conversationId);
+            const result = await chatService.getMessages(activeConversationId);
             if (result.success) {
                 // Reverse to show oldest first (API returns newest first)
                 setMessages((result.data || []).reverse());
@@ -49,8 +55,9 @@ const ChatScreen = ({ route, navigation }) => {
     };
 
     const markRead = async () => {
+        if (!activeConversationId) return;
         try {
-            await chatService.markAsRead(conversationId);
+            await chatService.markAsRead(activeConversationId);
         } catch { }
     };
 
@@ -64,6 +71,12 @@ const ChatScreen = ({ route, navigation }) => {
             if (result.success && result.data) {
                 setMessages(prev => [...prev, result.data]);
                 setNewMessage('');
+
+                // If this was a new conversation, set the active conversation ID to start polling
+                if (!activeConversationId && result.data.conversationId) {
+                    setActiveConversationId(result.data.conversationId);
+                }
+
                 // Auto-scroll
                 setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
             }
