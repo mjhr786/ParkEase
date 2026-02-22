@@ -421,3 +421,9 @@ FodyWeavers.xsd
 **/publish/
 .vscode/settings.json
 backend/src/ParkingApp.API/.vscode/settings.json
+
+# Test coverage reports
+coveragereport/
+
+# wwwroot assets
+wwwroot/assets/

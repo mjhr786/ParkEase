@@ -1,0 +1,164 @@
+﻿  Determining projects to restore...
+F:\ParkingApp\ParkEase\backend\tests\ParkingApp.UnitTests\ParkingApp.UnitTests.csproj : warning NU1603: ParkingApp.UnitTests depends on AwesomeAssertions (>= 7.0.1) but AwesomeAssertions 7.0.1 was not found. AwesomeAssertions 7.1.0 was resolved instead.
+  All projects are up-to-date for restore.
+F:\ParkingApp\ParkEase\backend\tests\ParkingApp.UnitTests\ParkingApp.UnitTests.csproj : warning NU1603: ParkingApp.UnitTests depends on AwesomeAssertions (>= 7.0.1) but AwesomeAssertions 7.0.1 was not found. AwesomeAssertions 7.1.0 was resolved instead.
+  ParkingApp.BuildingBlocks -> F:\ParkingApp\ParkEase\backend\src\ParkingApp.BuildingBlocks\bin\Debug\net9.0\ParkingApp.BuildingBlocks.dll
+  ParkingApp.Domain -> F:\ParkingApp\ParkEase\backend\src\ParkingApp.Domain\bin\Debug\net9.0\ParkingApp.Domain.dll
+  ParkingApp.Application -> F:\ParkingApp\ParkEase\backend\src\ParkingApp.Application\bin\Debug\net9.0\ParkingApp.Application.dll
+  ParkingApp.Infrastructure -> F:\ParkingApp\ParkEase\backend\src\ParkingApp.Infrastructure\bin\Debug\net9.0\ParkingApp.Infrastructure.dll
+  ParkingApp.Notifications -> F:\ParkingApp\ParkEase\backend\src\ParkingApp.Notifications\bin\Debug\net9.0\ParkingApp.Notifications.dll
+  ParkingApp.API -> F:\ParkingApp\ParkEase\backend\src\ParkingApp.API\bin\Debug\net9.0\ParkingApp.API.dll
+  ParkingApp.UnitTests -> F:\ParkingApp\ParkEase\backend\tests\ParkingApp.UnitTests\bin\Debug\net9.0\ParkingApp.UnitTests.dll
+Test run for F:\ParkingApp\ParkEase\backend\tests\ParkingApp.UnitTests\bin\Debug\net9.0\ParkingApp.UnitTests.dll (.NETCoreApp,Version=v9.0)
+VSTest version 17.14.0 (x64)
+
+Starting test execution, please wait...
+A total of 1 test files matched the specified pattern.
+F:\ParkingApp\ParkEase\backend\tests\ParkingApp.UnitTests\bin\Debug\net9.0\ParkingApp.UnitTests.dll
+[xUnit.net 00:00:00.00] xUnit.net VSTest Adapter v2.8.2+699d445a1a (64-bit .NET 9.0.6)
+[xUnit.net 00:00:01.09]   Discovering: ParkingApp.UnitTests
+[xUnit.net 00:00:01.23]   Discovered:  ParkingApp.UnitTests
+[xUnit.net 00:00:01.24]   Starting:    ParkingApp.UnitTests
+  Passed ParkingApp.UnitTests.UnitTest1.Test1 [37 ms]
+  Passed ParkingApp.UnitTests.MappingTests.ToDto_WithCommaSeparatedValues_ShouldParseCorrectly [606 ms]
+  Passed ParkingApp.UnitTests.MappingTests.ToDto_WithNullOptionalCollections_ShouldReturnEmptyListsInDto [11 ms]
+  Passed ParkingApp.UnitTests.MappingTests.ToEntity_FromDto_ShouldSetGeoLocationCorrectly [471 ms]
+  Passed ParkingApp.UnitTests.MappingTests.ToDtoWithReservations_ShouldFilterOldAndIrrelevantBookings [9 ms]
+  Passed ParkingApp.UnitTests.InfrastructureTests.Guard_AgainstNegative_ShouldThrowWhenNegative [1 s]
+  Passed ParkingApp.UnitTests.InfrastructureTests.Guard_AgainstInvalidEmail_ShouldThrowForBadEmail [2 ms]
+  Passed ParkingApp.UnitTests.InfrastructureTests.Guard_AgainstEmpty_ShouldThrowForEmptyGuid [16 ms]
+  Passed ParkingApp.UnitTests.InfrastructureTests.Guard_AgainstNull_ShouldThrowWhenNull [2 ms]
+  Passed ParkingApp.UnitTests.SampleTest.InitialTest_ShouldPass [< 1 ms]
+  Passed ParkingApp.UnitTests.BookingTests.CreateBookingHandler_WhenParkingDoesNotExist_ShouldReturnFailure [1 s]
+  Passed ParkingApp.UnitTests.PaymentTests.ProcessPaymentHandler_WhenBookingNotFound_ShouldReturnFailure [1 s]
+  Passed ParkingApp.UnitTests.ChatTests.SendMessage_WhenSenderIsOwner_ShouldReturnFailure [1 s]
+  Passed ParkingApp.UnitTests.ReviewTests.CreateReviewHandler_WithInvalidBooking_ShouldReturnFailure [1 s]
+  Passed ParkingApp.UnitTests.ChatTests.SendMessage_WhenParkingNotFound_ShouldReturnFailure [6 ms]
+  Passed ParkingApp.UnitTests.ReviewTests.CreateReviewHandler_WhenParkingNotFound_ShouldReturnFailure [6 ms]
+  Passed ParkingApp.UnitTests.ReviewTests.CreateReviewHandler_WhenAlreadyReviewed_ShouldReturnFailure [6 ms]
+  Passed ParkingApp.UnitTests.ChatTests.ChatMessage_ShouldInitializeWithDefaults [30 ms]
+  Passed ParkingApp.UnitTests.PaymentTests.VerifyPaymentHandler_WithValidSignature_ShouldConfirmBooking [57 ms]
+  Passed ParkingApp.UnitTests.ReviewTests.CreateReviewHandler_WhenValid_ShouldCalculateNewRatingAndSucceed [27 ms]
+  Passed ParkingApp.UnitTests.BookingTests.CreateBookingHandler_WithValidData_ShouldCreateBooking [74 ms]
+  Passed ParkingApp.UnitTests.BookingTests.CancelBookingHandler_WhenNotOwner_ShouldReturnFailure [4 ms]
+  Passed ParkingApp.UnitTests.ChatTests.SendMessage_WhenValid_ShouldCreateConversationAndMessage [20 ms]
+  Passed ParkingApp.UnitTests.ReviewTests.AddOwnerResponse_WhenUnauthorized_ShouldReturnFailure [15 ms]
+  Passed ParkingApp.UnitTests.PaymentTests.ProcessPaymentHandler_WhenDirectPaymentSucceeds_ShouldUpdateStatus [17 ms]
+  Passed ParkingApp.UnitTests.ExtensionTests.StringExtensions_Truncate_ShouldWorkCorrectly [< 1 ms]
+  Passed ParkingApp.UnitTests.ChatTests.MarkMessagesRead_WhenUserNotParticipant_ShouldReturnFailure [7 ms]
+  Passed ParkingApp.UnitTests.ChatTests.SendMessage_WhenContentEmpty_ShouldReturnFailure [2 ms]
+  Passed ParkingApp.UnitTests.BookingTests.CreateBookingHandler_WhenNoSpotsAvailable_ShouldReturnFailure [14 ms]
+  Passed ParkingApp.UnitTests.ExtensionTests.CollectionExtensions_Batch_ShouldSplitCorrectly [8 ms]
+  Passed ParkingApp.UnitTests.ExtensionTests.DateTimeExtensions_RelativeTime_ShouldReturnCorrectStrings [1 ms]
+  Passed ParkingApp.UnitTests.PaymentTests.ProcessRefundHandler_WhenValid_ShouldUpdatePaymentStatus [14 ms]
+  Passed ParkingApp.UnitTests.ChatTests.GetConversations_WhenValid_ShouldReturnConversationsList [14 ms]
+  Passed ParkingApp.UnitTests.ChatTests.MarkMessagesRead_WhenValid_ShouldSucceed [7 ms]
+  Passed ParkingApp.UnitTests.ParkingTests.CreateParkingHandler_WhenOwnerIsVendor_ShouldSucceed [14 ms]
+  Passed ParkingApp.UnitTests.ChatTests.GetMessages_WhenConversationNotFound_ShouldReturnFailure [5 ms]
+  Passed ParkingApp.UnitTests.ParkingTests.CreateParkingHandler_WithNonVendorRole_ShouldReturnFailure [5 ms]
+  Passed ParkingApp.UnitTests.ChatTests.Conversation_ShouldInitializeWithDefaults [1 ms]
+  Passed ParkingApp.UnitTests.ChatTests.GetMessages_WhenUserNotParticipant_ShouldReturnUnauthorized [3 ms]
+  Passed ParkingApp.UnitTests.ParkingTests.ToggleActiveHandler_WhenParkingNotFound_ShouldReturnFailure [8 ms]
+  Passed ParkingApp.UnitTests.ChatTests.SendMessage_WhenConversationExists_ShouldReuseIt [9 ms]
+  Passed ParkingApp.UnitTests.ChatTests.GetMessages_WhenValid_ShouldReturnMessages [6 ms]
+  Passed ParkingApp.UnitTests.ParkingTests.UpdateParkingHandler_WhenUnauthorized_ShouldReturnFailure [12 ms]
+  Passed ParkingApp.UnitTests.ChatTests.MarkMessagesRead_WhenConversationNotFound_ShouldReturnFailure [2 ms]
+  Passed ParkingApp.UnitTests.ChatTests.SendMessage_WhenContentTooLong_ShouldReturnFailure [2 ms]
+  Passed ParkingApp.UnitTests.ParkingTests.DeleteParkingHandler_WhenSuccessful_ShouldRemoveAndInvalidateCache [19 ms]
+  Passed ParkingApp.UnitTests.UserModuleTests.DeleteUserHandler_WhenUserFound_ShouldDeleteAndRemoveFromCache [16 ms]
+  Passed ParkingApp.UnitTests.QueryTests.CalculatePriceHandler_ForHourlyPricing_ShouldCalculateCorrectly [9 ms]
+  Passed ParkingApp.UnitTests.UserModuleTests.GetCurrentUserHandler_WhenInCache_ShouldReturnCachedData [31 ms]
+  Passed ParkingApp.UnitTests.UserModuleTests.UpdateUserHandler_WithValidData_ShouldUpdateAndInvalidateCache [16 ms]
+  Passed ParkingApp.UnitTests.QueryTests.SearchParkingHandler_WhenFound_ShouldSucceedWithReservations [51 ms]
+  Passed ParkingApp.UnitTests.ServiceTests.BookingService_Create_WhenSpotsNotAvailable_ShouldReturnFailure [19 ms]
+  Passed ParkingApp.UnitTests.QueryTests.GetParkingByIdHandler_WhenCached_ShouldReturnCacheAndSkipDb [14 ms]
+  Passed ParkingApp.UnitTests.Domain.BookingDomainTests.CheckIn_WhenTooEarly_ShouldThrowException [4 ms]
+  Passed ParkingApp.UnitTests.ServiceTests.BookingService_CalculatePrice_WithDiscountCode_ShouldApplyDiscount [11 ms]
+  Passed ParkingApp.UnitTests.Domain.BookingDomainTests.Cancel_WhenValid_ShouldSetStatusToCancelledAndRecordReason [1 ms]
+  Passed ParkingApp.UnitTests.Domain.BookingDomainTests.Confirm_WhenStatusIsNotPendingOrAwaitingPayment_ShouldThrowException(status: Confirmed) [3 ms]
+  Passed ParkingApp.UnitTests.Domain.BookingDomainTests.Confirm_WhenStatusIsNotPendingOrAwaitingPayment_ShouldThrowException(status: Cancelled) [1 ms]
+  Passed ParkingApp.UnitTests.Domain.BookingDomainTests.Confirm_WhenStatusIsNotPendingOrAwaitingPayment_ShouldThrowException(status: Completed) [12 ms]
+  Passed ParkingApp.UnitTests.Domain.BookingDomainTests.ApplyDiscount_WhenValid_ShouldUpdateTotals [1 ms]
+  Passed ParkingApp.UnitTests.Domain.BookingDomainTests.Confirm_WhenStatusIsPending_ShouldSetStatusToConfirmed [< 1 ms]
+  Passed ParkingApp.UnitTests.Domain.BookingDomainTests.CheckIn_WhenWithinOneHourOfStartTime_ShouldSetStatusToInProgress [< 1 ms]
+  Passed ParkingApp.UnitTests.Domain.BookingDomainTests.ApplyDiscount_WhenInvalidAmount_ShouldThrowArgumentException [1 ms]
+  Passed ParkingApp.UnitTests.DomainLogicTests.Email_Validation_ShouldCorrectlyVerifyFormat(emailValue: "TEST@EXAMPLE.COM", expectedValid: True) [393 ms]
+  Passed ParkingApp.UnitTests.DomainLogicTests.Email_Validation_ShouldCorrectlyVerifyFormat(emailValue: "invalid-email", expectedValid: False) [8 ms]
+  Passed ParkingApp.UnitTests.AuthTests.RegisterHandler_WhenEmailExists_ShouldReturnFailure [380 ms]
+  Passed ParkingApp.UnitTests.DomainLogicTests.Email_Validation_ShouldCorrectlyVerifyFormat(emailValue: "", expectedValid: False) [< 1 ms]
+  Passed ParkingApp.UnitTests.DomainLogicTests.Email_Validation_ShouldCorrectlyVerifyFormat(emailValue: "test@example.com", expectedValid: True) [< 1 ms]
+  Passed ParkingApp.UnitTests.DomainLogicTests.Address_InValidCoordinates_ShouldThrow [5 ms]
+  Passed ParkingApp.UnitTests.DomainLogicTests.Address_DistanceCalculation_ShouldBeAccurate [6 ms]
+  Passed ParkingApp.UnitTests.DomainLogicTests.Money_Operations_ShouldBeCorrect [4 ms]
+  Passed ParkingApp.UnitTests.ControllerTests.AuthController_Login_WithInvalidDto_ShouldReturnBadRequest [615 ms]
+  Passed ParkingApp.UnitTests.ChatHubTests.OnDisconnectedAsync_WithValidUser_ShouldLogAndDisconnect [933 ms]
+  Passed ParkingApp.UnitTests.ChatHubTests.OnConnectedAsync_WithValidUser_ShouldAddToGroup [13 ms]
+  Passed ParkingApp.UnitTests.ChatHubTests.GetUserGroupName_ShouldReturnFormattedString [< 1 ms]
+  Passed ParkingApp.UnitTests.ControllerTests.ChatController_GetConversations_ShouldReturnOk [137 ms]
+  Passed ParkingApp.UnitTests.ControllerTests.UsersController_Me_WhenAuthenticated_ShouldReturnUser [12 ms]
+  Passed ParkingApp.UnitTests.ControllerTests.ChatController_MarkAsRead_ShouldReturnOkAndBroadcast [117 ms]
+  Passed ParkingApp.UnitTests.ControllerTests.ChatController_SendMessage_ShouldReturnOkAndBroadcast [20 ms]
+  Passed ParkingApp.UnitTests.ControllerTests.ChatController_GetMessages_ShouldReturnOk [16 ms]
+  Passed ParkingApp.UnitTests.ControllerTests.AuthController_Login_WhenSuccessful_ShouldReturnOk [12 ms]
+  Passed ParkingApp.UnitTests.ValidatorTests.RegisterValidator_PasswordComplexity_ShouldValidateCorrectly(password: "nospecial!", expectedValid: False) [1 s]
+  Passed ParkingApp.UnitTests.ValidatorTests.RegisterValidator_PasswordComplexity_ShouldValidateCorrectly(password: "NOSPECIAL!", expectedValid: False) [2 ms]
+  Passed ParkingApp.UnitTests.ValidatorTests.RegisterValidator_PasswordComplexity_ShouldValidateCorrectly(password: "Valid123!", expectedValid: True) [< 1 ms]
+  Passed ParkingApp.UnitTests.ValidatorTests.RegisterValidator_PasswordComplexity_ShouldValidateCorrectly(password: "weak", expectedValid: False) [1 ms]
+  Passed ParkingApp.UnitTests.ValidatorTests.RegisterValidator_PasswordComplexity_ShouldValidateCorrectly(password: "NoSpecial123", expectedValid: False) [2 ms]
+  Passed ParkingApp.UnitTests.ValidatorTests.RegisterValidator_PhoneNumber_ShouldValidateCorrectly(phone: "123", expectedValid: False) [1 ms]
+  Passed ParkingApp.UnitTests.ValidatorTests.RegisterValidator_PhoneNumber_ShouldValidateCorrectly(phone: "+1234567890", expectedValid: True) [1 ms]
+  Passed ParkingApp.UnitTests.ValidatorTests.RegisterValidator_PhoneNumber_ShouldValidateCorrectly(phone: "1234567890123456", expectedValid: False) [< 1 ms]
+  Passed ParkingApp.UnitTests.ValidatorTests.RegisterValidator_EmailFormat_ShouldValidateCorrectly(email: "test@domain.com", expectedValid: True) [1 ms]
+  Passed ParkingApp.UnitTests.ValidatorTests.RegisterValidator_EmailFormat_ShouldValidateCorrectly(email: "invalid-email", expectedValid: False) [2 ms]
+  Passed ParkingApp.UnitTests.AdvancedInfrastructureTests.ImageResizingMiddleware_WithoutResizeQuery_ShouldPassThrough [1 s]
+  Passed ParkingApp.UnitTests.Infrastructure.JwtTokenServiceTests.GenerateRefreshToken_ShouldReturnRandomString [516 ms]
+  Passed ParkingApp.UnitTests.AdvancedInfrastructureTests.Result_Generic_ShouldHandleSuccessAndFailure [1 ms]
+  Passed ParkingApp.UnitTests.AdvancedInfrastructureTests.PagedResult_ShouldCalculateMetadataCorrectly [3 ms]
+  Passed ParkingApp.UnitTests.ValidatorTests.CreateParkingSpaceValidator_Coordinates_ShouldBeInRange [56 ms]
+[xUnit.net 00:00:04.11]       System.NullReferenceException : Object reference not set to an instance of an object.
+[xUnit.net 00:00:04.11]       Stack Trace:
+[xUnit.net 00:00:04.11]            at Microsoft.AspNetCore.SignalR.ClientProxyExtensions.SendAsync(IClientProxy clientProxy, String method, Object arg1, CancellationToken cancellationToken)
+[xUnit.net 00:00:04.11]         F:\ParkingApp\ParkEase\backend\src\ParkingApp.Notifications\Hubs\ChatHub.cs(66,0): at ParkingApp.Notifications.Hubs.ChatHub.SendMessage(Guid parkingSpaceId, String content)
+[xUnit.net 00:00:04.11]         F:\ParkingApp\ParkEase\backend\tests\ParkingApp.UnitTests\ChatHubTests.cs(106,0): at ParkingApp.UnitTests.ChatHubTests.SendMessage_WhenUnauthenticated_ShouldSendError()
+[xUnit.net 00:00:04.11]         --- End of stack trace from previous location ---
+[xUnit.net 00:00:04.11]       System.NullReferenceException : Object reference not set to an instance of an object.
+[xUnit.net 00:00:04.11]       Stack Trace:
+[xUnit.net 00:00:04.11]            at Microsoft.AspNetCore.SignalR.ClientProxyExtensions.SendAsync(IClientProxy clientProxy, String method, Object arg1, CancellationToken cancellationToken)
+[xUnit.net 00:00:04.11]         F:\ParkingApp\ParkEase\backend\src\ParkingApp.Notifications\Hubs\ChatHub.cs(88,0): at ParkingApp.Notifications.Hubs.ChatHub.SendMessage(Guid parkingSpaceId, String content)
+[xUnit.net 00:00:04.11]         F:\ParkingApp\ParkEase\backend\tests\ParkingApp.UnitTests\ChatHubTests.cs(122,0): at ParkingApp.UnitTests.ChatHubTests.SendMessage_WhenDispatcherFails_ShouldSendError()
+[xUnit.net 00:00:04.11]         --- End of stack trace from previous location ---
+  Passed ParkingApp.UnitTests.ValidatorTests.CreateParkingSpaceValidator_Rates_ShouldNotBeNegative [8 ms]
+  Passed ParkingApp.UnitTests.AdvancedInfrastructureTests.JwtTokenService_GenerateAccessToken_ShouldReturnValidToken [142 ms]
+  Passed ParkingApp.UnitTests.Infrastructure.JwtTokenServiceTests.GenerateAccessToken_ShouldReturnValidJwt [182 ms]
+  Passed ParkingApp.UnitTests.Infrastructure.JwtTokenServiceTests.ValidateRefreshToken_WithExpiredToken_ShouldReturnFalse [2 ms]
+  Passed ParkingApp.UnitTests.Infrastructure.JwtTokenServiceTests.ValidateRefreshToken_WithCorrectToken_ShouldReturnTrue [< 1 ms]
+  Failed ParkingApp.UnitTests.ChatHubTests.SendMessage_WhenUnauthenticated_ShouldSendError [96 ms]
+  Error Message:
+   System.NullReferenceException : Object reference not set to an instance of an object.
+  Stack Trace:
+     at Microsoft.AspNetCore.SignalR.ClientProxyExtensions.SendAsync(IClientProxy clientProxy, String method, Object arg1, CancellationToken cancellationToken)
+   at ParkingApp.Notifications.Hubs.ChatHub.SendMessage(Guid parkingSpaceId, String content) in F:\ParkingApp\ParkEase\backend\src\ParkingApp.Notifications\Hubs\ChatHub.cs:line 66
+   at ParkingApp.UnitTests.ChatHubTests.SendMessage_WhenUnauthenticated_ShouldSendError() in F:\ParkingApp\ParkEase\backend\tests\ParkingApp.UnitTests\ChatHubTests.cs:line 106
+--- End of stack trace from previous location ---
+  Passed ParkingApp.UnitTests.ChatHubTests.SendMessage_WhenSuccessful_ShouldBroadcastToGroup [8 ms]
+  Failed ParkingApp.UnitTests.ChatHubTests.SendMessage_WhenDispatcherFails_ShouldSendError [4 ms]
+  Error Message:
+   System.NullReferenceException : Object reference not set to an instance of an object.
+  Stack Trace:
+     at Microsoft.AspNetCore.SignalR.ClientProxyExtensions.SendAsync(IClientProxy clientProxy, String method, Object arg1, CancellationToken cancellationToken)
+   at ParkingApp.Notifications.Hubs.ChatHub.SendMessage(Guid parkingSpaceId, String content) in F:\ParkingApp\ParkEase\backend\src\ParkingApp.Notifications\Hubs\ChatHub.cs:line 88
+   at ParkingApp.UnitTests.ChatHubTests.SendMessage_WhenDispatcherFails_ShouldSendError() in F:\ParkingApp\ParkEase\backend\tests\ParkingApp.UnitTests\ChatHubTests.cs:line 122
+--- End of stack trace from previous location ---
+  Passed ParkingApp.UnitTests.MiddlewareTests.RateLimitingMiddleware_WhenLimitExceeded_ShouldReturn429 [3 s]
+  Passed ParkingApp.UnitTests.MiddlewareTests.ExceptionHandlingMiddleware_OnArgumentException_ShouldReturnBadRequest [74 ms]
+  Passed ParkingApp.UnitTests.MiddlewareTests.SecurityHeadersMiddleware_ShouldAddSecurityHeaders [3 ms]
+  Passed ParkingApp.UnitTests.AuthTests.LoginHandler_WithValidCredentials_ShouldReturnToken [2 s]
+[xUnit.net 00:00:07.34]   Finished:    ParkingApp.UnitTests
+  Passed ParkingApp.UnitTests.AuthTests.ChangePasswordHandler_WithCorrectOldPassword_ShouldUpdateHash [1 s]
+  Passed ParkingApp.UnitTests.AuthTests.RegisterHandler_WithValidData_ShouldCreateUserAndReturnToken [230 ms]
+  Passed ParkingApp.UnitTests.AuthTests.LogoutHandler_WhenUserExists_ShouldClearRefreshToken [18 ms]
+
+Total tests: 111
+     Passed: 109
+     Failed: 2
+ Total time: 9.3283 Seconds

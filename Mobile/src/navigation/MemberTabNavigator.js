@@ -18,6 +18,8 @@ import MyBookingsScreen from '../screens/Booking/MyBookingsScreen';
 import BookingDetailScreen from '../screens/Booking/BookingDetailScreen';
 import CreateReviewScreen from '../screens/Review/CreateReviewScreen';
 import ProfileScreen from '../screens/Profile/ProfileScreen';
+import ConversationListScreen from '../screens/Chat/ConversationListScreen';
+import ChatScreen from '../screens/Chat/ChatScreen';
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
@@ -60,6 +62,14 @@ const ProfileStack = () => (
     </Stack.Navigator>
 );
 
+// Messages Stack
+const MessagesStack = () => (
+    <Stack.Navigator screenOptions={stackOptions}>
+        <Stack.Screen name="ConversationList" component={ConversationListScreen} />
+        <Stack.Screen name="ChatScreen" component={ChatScreen} />
+    </Stack.Navigator>
+);
+
 const MemberTabNavigator = () => (
     <Tab.Navigator
         screenOptions={({ route }) => ({
@@ -69,6 +79,7 @@ const MemberTabNavigator = () => (
                     HomeTab: focused ? 'home' : 'home-outline',
                     SearchTab: focused ? 'search' : 'search-outline',
                     BookingsTab: focused ? 'calendar' : 'calendar-outline',
+                    MessagesTab: focused ? 'chatbubbles' : 'chatbubbles-outline',
                     ProfileTab: focused ? 'person' : 'person-outline',
                 };
                 return <Ionicons name={icons[route.name]} size={size} color={color} />;
@@ -91,6 +102,7 @@ const MemberTabNavigator = () => (
         <Tab.Screen name="HomeTab" component={HomeStack} options={{ tabBarLabel: 'Home' }} />
         <Tab.Screen name="SearchTab" component={SearchStack} options={{ tabBarLabel: 'Search' }} />
         <Tab.Screen name="BookingsTab" component={BookingsStack} options={{ tabBarLabel: 'Bookings' }} />
+        <Tab.Screen name="MessagesTab" component={MessagesStack} options={{ tabBarLabel: 'Messages' }} />
         <Tab.Screen name="ProfileTab" component={ProfileStack} options={{ tabBarLabel: 'Profile' }} />
     </Tab.Navigator>
 );

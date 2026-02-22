@@ -1,11 +1,13 @@
 using Microsoft.Extensions.DependencyInjection;
 using ParkingApp.Application.CQRS.Commands.Auth;
 using ParkingApp.Application.CQRS.Commands.Bookings;
+using ParkingApp.Application.CQRS.Commands.Chat;
 using ParkingApp.Application.CQRS.Commands.Parking;
 using ParkingApp.Application.CQRS.Commands.Payments;
 using ParkingApp.Application.CQRS.Commands.Reviews;
 using ParkingApp.Application.CQRS.Commands.Users;
 using ParkingApp.Application.CQRS.Queries.Bookings;
+using ParkingApp.Application.CQRS.Queries.Chat;
 using ParkingApp.Application.CQRS.Queries.Dashboard;
 using ParkingApp.Application.CQRS.Queries.Parking;
 using ParkingApp.Application.CQRS.Queries.Payments;
@@ -62,6 +64,10 @@ public static class CQRSServiceExtensions
         services.AddScoped<ICommandHandler<DeleteReviewCommand, ApiResponse<bool>>, DeleteReviewHandler>();
         services.AddScoped<ICommandHandler<AddOwnerResponseCommand, ApiResponse<ReviewDto>>, AddOwnerResponseHandler>();
 
+        // ── Chat ──
+        services.AddScoped<ICommandHandler<SendMessageCommand, ApiResponse<ChatMessageDto>>, SendMessageHandler>();
+        services.AddScoped<ICommandHandler<MarkMessagesReadCommand, ApiResponse<bool>>, MarkMessagesReadHandler>();
+
         // ══════════════════════════════════════════════════════
         // QUERY HANDLERS
         // ══════════════════════════════════════════════════════
@@ -93,6 +99,10 @@ public static class CQRSServiceExtensions
         // ── Dashboard ──
         services.AddScoped<IQueryHandler<GetVendorDashboardQuery, ApiResponse<VendorDashboardDto>>, GetVendorDashboardHandler>();
         services.AddScoped<IQueryHandler<GetMemberDashboardQuery, ApiResponse<MemberDashboardDto>>, GetMemberDashboardHandler>();
+
+        // ── Chat ──
+        services.AddScoped<IQueryHandler<GetConversationsQuery, ApiResponse<ConversationListDto>>, GetConversationsHandler>();
+        services.AddScoped<IQueryHandler<GetMessagesQuery, ApiResponse<List<ChatMessageDto>>>, GetMessagesHandler>();
 
         return services;
     }

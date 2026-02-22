@@ -17,6 +17,8 @@ public class UnitOfWork : IUnitOfWork
     private IBookingRepository? _bookings;
     private IPaymentRepository? _payments;
     private IReviewRepository? _reviews;
+    private IConversationRepository? _conversations;
+    private IChatMessageRepository? _chatMessages;
 
     public UnitOfWork(ApplicationDbContext context, IDomainEventDispatcher eventDispatcher)
     {
@@ -29,6 +31,8 @@ public class UnitOfWork : IUnitOfWork
     public IBookingRepository Bookings => _bookings ??= new BookingRepository(_context);
     public IPaymentRepository Payments => _payments ??= new PaymentRepository(_context);
     public IReviewRepository Reviews => _reviews ??= new ReviewRepository(_context);
+    public IConversationRepository Conversations => _conversations ??= new ConversationRepository(_context);
+    public IChatMessageRepository ChatMessages => _chatMessages ??= new ChatMessageRepository(_context);
 
     public async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
     {

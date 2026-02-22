@@ -212,6 +212,21 @@ export default function ParkingDetails() {
                             {parking.is24Hours && <span className="parking-tag">24/7</span>}
                         </div>
 
+                        {/* Chat with Owner */}
+                        {isAuthenticated && user?.id !== parking.ownerId && (
+                            <button
+                                className="btn btn-secondary mt-2"
+                                onClick={() => navigate(`/chat?parkingSpaceId=${parking.id}`)}
+                                style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '0.5rem'
+                                }}
+                            >
+                                💬 Chat with Owner
+                            </button>
+                        )}
+
                         <div className="card mt-3">
                             <h3 className="card-title">Description</h3>
                             <p>{parking.description}</p>
