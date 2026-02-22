@@ -47,6 +47,7 @@ const BookingsStack = () => (
     <Stack.Navigator screenOptions={stackOptions}>
         <Stack.Screen name="VendorBookings" component={VendorBookingsScreen} />
         <Stack.Screen name="BookingDetail" component={BookingDetailScreen} />
+        <Stack.Screen name="ChatScreen" component={ChatScreen} />
     </Stack.Navigator>
 );
 
