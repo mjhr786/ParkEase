@@ -58,7 +58,7 @@ public class ChatHub : Hub
     /// Client-invokable method to send a message.
     /// Dispatches via CQRS and pushes real-time notification to the recipient.
     /// </summary>
-    public async Task SendMessage(Guid parkingSpaceId, string content)
+    public async Task SendMessage(Guid parkingSpaceId, string content, Guid? conversationId = null)
     {
         var userId = GetUserId();
         if (!userId.HasValue)
@@ -67,14 +67,14 @@ public class ChatHub : Hub
             return;
         }
 
-        var dto = new SendMessageDto(parkingSpaceId, content);
+        var dto = new SendMessageDto(parkingSpaceId, content, conversationId);
         var result = await _dispatcher.SendAsync(
             new SendMessageCommand(userId.Value, dto));
 
         if (result.Success && result.Data != null)
         {
             // Determine recipient: if sender is the one who sent, find the other participant
-            var conversationId = result.Data.ConversationId;
+            var resultConversationId = result.Data.ConversationId;
 
             // Send to both participants so the UI updates for all connected clients
             await Clients.Group(GetUserGroupName(userId.Value))

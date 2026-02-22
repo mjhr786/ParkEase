@@ -221,7 +221,8 @@ export default function Chat() {
         try {
             const result = await api.sendMessage({
                 parkingSpaceId: conv.parkingSpaceId,
-                content: newMessage.trim()
+                content: newMessage.trim(),
+                conversationId: conversationId
             });
             if (result.success && result.data) {
                 setMessages(prev => {

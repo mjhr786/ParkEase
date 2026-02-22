@@ -3,6 +3,7 @@ import { useSearchParams, Link } from 'react-router-dom';
 import api from '../services/api';
 import LocationMap from '../components/LocationMap';
 import INDIAN_STATES_CITIES, { STATES } from '../utils/indianStatesCities';
+import toast from 'react-hot-toast';
 
 const PARKING_TYPES = ['Open', 'Covered', 'Garage', 'Street', 'Underground'];
 const VEHICLE_TYPES = ['Car', 'Motorcycle', 'SUV', 'Truck', 'Van', 'Electric'];
@@ -17,6 +18,9 @@ export default function Search() {
     const [filters, setFilters] = useState({
         state: '',
         city: searchParams.get('city') || '',
+        latitude: searchParams.get('lat') || '',
+        longitude: searchParams.get('lng') || '',
+        radiusKm: searchParams.get('lat') ? 5 : '',
         address: '',
         minPrice: '',
         maxPrice: '',
@@ -77,6 +81,40 @@ export default function Search() {
 
     const handleFilterChange = (key, value) => {
         setFilters(prev => ({ ...prev, [key]: value }));
+    };
+
+    const handleNearMeClick = () => {
+        if (!navigator.geolocation) {
+            toast.error("Geolocation is not supported by your browser");
+            return;
+        }
+
+        const toastId = toast.loading("Getting your location...");
+        navigator.geolocation.getCurrentPosition(
+            (position) => {
+                toast.dismiss(toastId);
+                toast.success("Location found!");
+                const newFilters = {
+                    ...filters,
+                    latitude: position.coords.latitude,
+                    longitude: position.coords.longitude,
+                    radiusKm: 5,
+                    page: 1,
+                    city: '', // Clear city/state if using exact coordinates
+                    state: '',
+                    address: ''
+                };
+                setFilters(newFilters);
+                fetchParkingSpaces(newFilters);
+            },
+            (error) => {
+                toast.dismiss(toastId);
+                let errorMessage = "Unable to retrieve your location";
+                if (error.code === 1) errorMessage = "Location access denied. Please allow location access in your browser.";
+                toast.error(errorMessage);
+            },
+            { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
+        );
     };
 
     return (
@@ -194,8 +232,11 @@ export default function Search() {
                                 </select>
                             </div>
 
-                            <div className="form-group" style={{ margin: 0, alignSelf: 'flex-end' }}>
-                                <button type="submit" className="btn btn-primary btn-full">
+                            <div className="form-group" style={{ margin: 0, alignSelf: 'flex-end', display: 'flex', gap: '0.5rem' }}>
+                                <button type="button" className="btn btn-secondary" onClick={handleNearMeClick} style={{ flex: '1 0 auto', padding: '0.875rem 0.5rem', whiteSpace: 'nowrap' }} title="Use my current location">
+                                    📍 Near Me
+                                </button>
+                                <button type="submit" className="btn btn-primary" style={{ flex: '2 1 auto' }}>
                                     🔍 Search
                                 </button>
                             </div>
