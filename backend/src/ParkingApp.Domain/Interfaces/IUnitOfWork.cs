@@ -7,6 +7,8 @@ public interface IUnitOfWork : IDisposable
     IBookingRepository Bookings { get; }
     IPaymentRepository Payments { get; }
     IReviewRepository Reviews { get; }
+    IConversationRepository Conversations { get; }
+    IChatMessageRepository ChatMessages { get; }
     
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
     Task BeginTransactionAsync(CancellationToken cancellationToken = default);

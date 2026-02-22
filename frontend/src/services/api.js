@@ -334,6 +334,32 @@ class ApiService {
   async getMemberDashboard() {
     return this.request('/dashboard/member');
   }
+
+  // Chat endpoints
+  async getConversations(page = 1, pageSize = 20) {
+    return this.request(`/chat/conversations?page=${page}&pageSize=${pageSize}`);
+  }
+
+  async getMessages(conversationId, page = 1, pageSize = 50) {
+    return this.request(`/chat/conversations/${conversationId}/messages?page=${page}&pageSize=${pageSize}`);
+  }
+
+  async sendMessage(data) {
+    return this.request('/chat/send', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async markAsRead(conversationId) {
+    return this.request(`/chat/conversations/${conversationId}/read`, {
+      method: 'POST',
+    });
+  }
+
+  async getUnreadCount() {
+    return this.request('/chat/unread-count');
+  }
 }
 
 export const api = new ApiService();

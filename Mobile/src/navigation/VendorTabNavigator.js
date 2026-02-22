@@ -16,6 +16,8 @@ import CreateParkingScreen from '../screens/Vendor/CreateParkingScreen';
 import VendorBookingsScreen from '../screens/Vendor/VendorBookingsScreen';
 import BookingDetailScreen from '../screens/Booking/BookingDetailScreen';
 import ProfileScreen from '../screens/Profile/ProfileScreen';
+import ConversationListScreen from '../screens/Chat/ConversationListScreen';
+import ChatScreen from '../screens/Chat/ChatScreen';
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
@@ -55,6 +57,14 @@ const ProfileStack = () => (
     </Stack.Navigator>
 );
 
+// Messages Stack
+const MessagesStack = () => (
+    <Stack.Navigator screenOptions={stackOptions}>
+        <Stack.Screen name="ConversationList" component={ConversationListScreen} />
+        <Stack.Screen name="ChatScreen" component={ChatScreen} />
+    </Stack.Navigator>
+);
+
 const VendorTabNavigator = () => (
     <Tab.Navigator
         screenOptions={({ route }) => ({
@@ -64,6 +74,7 @@ const VendorTabNavigator = () => (
                     DashboardTab: focused ? 'analytics' : 'analytics-outline',
                     ListingsTab: focused ? 'location' : 'location-outline',
                     BookingsTab: focused ? 'calendar' : 'calendar-outline',
+                    MessagesTab: focused ? 'chatbubbles' : 'chatbubbles-outline',
                     ProfileTab: focused ? 'person' : 'person-outline',
                 };
                 return <Ionicons name={icons[route.name]} size={size} color={color} />;
@@ -86,6 +97,7 @@ const VendorTabNavigator = () => (
         <Tab.Screen name="DashboardTab" component={DashboardStack} options={{ tabBarLabel: 'Dashboard' }} />
         <Tab.Screen name="ListingsTab" component={ListingsStack} options={{ tabBarLabel: 'Listings' }} />
         <Tab.Screen name="BookingsTab" component={BookingsStack} options={{ tabBarLabel: 'Bookings' }} />
+        <Tab.Screen name="MessagesTab" component={MessagesStack} options={{ tabBarLabel: 'Messages' }} />
         <Tab.Screen name="ProfileTab" component={ProfileStack} options={{ tabBarLabel: 'Profile' }} />
     </Tab.Navigator>
 );

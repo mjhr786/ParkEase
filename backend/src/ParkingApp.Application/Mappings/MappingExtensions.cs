@@ -196,6 +196,34 @@ public static class MappingExtensions
         review.CreatedAt
     );
 
+    // Chat mappings
+    public static ChatMessageDto ToDto(this ChatMessage message) => new(
+        message.Id,
+        message.ConversationId,
+        message.SenderId,
+        message.Sender?.FullName ?? "Unknown",
+        message.Content,
+        message.IsRead,
+        message.CreatedAt
+    );
+
+    public static ConversationDto ToDto(this Conversation conversation, Guid currentUserId, int unreadCount = 0)
+    {
+        var isVendor = conversation.VendorId == currentUserId;
+        var otherParticipant = isVendor ? conversation.User : conversation.Vendor;
+        return new ConversationDto(
+            conversation.Id,
+            conversation.ParkingSpaceId,
+            conversation.ParkingSpace?.Title ?? "Unknown",
+            otherParticipant?.Id ?? Guid.Empty,
+            otherParticipant?.FullName ?? "Unknown",
+            conversation.LastMessagePreview,
+            conversation.LastMessageAt,
+            unreadCount,
+            conversation.CreatedAt
+        );
+    }
+
     // Helper methods
     private static List<string> ParseCommaSeparated(string? value)
     {

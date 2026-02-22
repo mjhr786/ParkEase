@@ -246,6 +246,7 @@ app.MapGet("/health", () => Results.Ok(new { status = "healthy", timestamp = Dat
 
 // Map SignalR hub for notifications
 app.MapHub<ParkingApp.Notifications.Hubs.NotificationHub>("/hubs/notifications");
+app.MapHub<ParkingApp.Notifications.Hubs.ChatHub>("/hubs/chat");
 
 // SPA fallback - serve index.html for any unmatched routes (must be last!)
 app.MapFallbackToFile("index.html");

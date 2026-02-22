@@ -1,0 +1,10 @@
+﻿F:\ParkingApp\ParkEase\backend\tests\ParkingApp.UnitTests\ControllerTests.cs(170,57): error CS0246: The type or namespace name 'SendMessageCommand' could not be found (are you missing a using directive or an assembly reference?) [F:\ParkingApp\ParkEase\backend\tests\ParkingApp.UnitTests\ParkingApp.UnitTests.csproj]
+F:\ParkingApp\ParkEase\backend\tests\ParkingApp.UnitTests\ControllerTests.cs(173,132): error CS7036: There is no argument given that corresponds to the required parameter 'UnreadCount' of 'ConversationDto.ConversationDto(Guid, Guid, string, Guid, string, string?, DateTime?, int, DateTime)' [F:\ParkingApp\ParkEase\backend\tests\ParkingApp.UnitTests\ParkingApp.UnitTests.csproj]
+F:\ParkingApp\ParkEase\backend\tests\ParkingApp.UnitTests\ControllerTests.cs(204,57): error CS0246: The type or namespace name 'MarkMessagesReadCommand' could not be found (are you missing a using directive or an assembly reference?) [F:\ParkingApp\ParkEase\backend\tests\ParkingApp.UnitTests\ParkingApp.UnitTests.csproj]
+F:\ParkingApp\ParkEase\backend\tests\ParkingApp.UnitTests\ControllerTests.cs(207,132): error CS7036: There is no argument given that corresponds to the required parameter 'UnreadCount' of 'ConversationDto.ConversationDto(Guid, Guid, string, Guid, string, string?, DateTime?, int, DateTime)' [F:\ParkingApp\ParkEase\backend\tests\ParkingApp.UnitTests\ParkingApp.UnitTests.csproj]
+
+Build FAILED.
+    3 Warning(s)
+    4 Error(s)
+
+Time Elapsed 00:00:02.68

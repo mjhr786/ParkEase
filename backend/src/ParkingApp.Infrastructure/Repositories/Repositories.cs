@@ -417,11 +417,86 @@ public class ReviewRepository : Repository<Review>, IReviewRepository
 
     public async Task<double> GetAverageRatingAsync(Guid parkingSpaceId, CancellationToken cancellationToken = default)
     {
-        var ratings = await _dbSet
-            .Where(r => r.ParkingSpaceId == parkingSpaceId && r.IsApproved)
-            .Select(r => r.Rating)
+        var reviews = await _dbSet
+            .Where(r => r.ParkingSpaceId == parkingSpaceId)
             .ToListAsync(cancellationToken);
 
-        return ratings.Any() ? ratings.Average() : 0;
+        return reviews.Count > 0 ? reviews.Average(r => r.Rating) : 0;
+    }
+}
+
+public class ConversationRepository : Repository<Conversation>, IConversationRepository
+{
+    public ConversationRepository(ApplicationDbContext context) : base(context) { }
+
+    public async Task<Conversation?> GetByParticipantsAsync(Guid parkingSpaceId, Guid userId, CancellationToken cancellationToken = default)
+    {
+        return await _dbSet
+            .Include(c => c.User)
+            .Include(c => c.Vendor)
+            .Include(c => c.ParkingSpace)
+            .FirstOrDefaultAsync(c => c.ParkingSpaceId == parkingSpaceId && c.UserId == userId, cancellationToken);
+    }
+
+    public async Task<IEnumerable<Conversation>> GetByUserIdAsync(Guid userId, int page = 1, int pageSize = 20, CancellationToken cancellationToken = default)
+    {
+        return await _dbSet
+            .Include(c => c.User)
+            .Include(c => c.Vendor)
+            .Include(c => c.ParkingSpace)
+            .Where(c => c.UserId == userId || c.VendorId == userId)
+            .OrderByDescending(c => c.LastMessageAt ?? c.CreatedAt)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task<int> CountByUserIdAsync(Guid userId, CancellationToken cancellationToken = default)
+    {
+        return await _dbSet
+            .CountAsync(c => c.UserId == userId || c.VendorId == userId, cancellationToken);
+    }
+}
+
+public class ChatMessageRepository : Repository<ChatMessage>, IChatMessageRepository
+{
+    public ChatMessageRepository(ApplicationDbContext context) : base(context) { }
+
+    public async Task<IEnumerable<ChatMessage>> GetByConversationIdAsync(Guid conversationId, int page = 1, int pageSize = 50, CancellationToken cancellationToken = default)
+    {
+        return await _dbSet
+            .Include(m => m.Sender)
+            .Where(m => m.ConversationId == conversationId)
+            .OrderByDescending(m => m.CreatedAt)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task<int> GetUnreadCountAsync(Guid userId, CancellationToken cancellationToken = default)
+    {
+        return await _dbSet
+            .CountAsync(m => !m.IsRead && m.SenderId != userId &&
+                m.Conversation.UserId == userId || m.Conversation.VendorId == userId, cancellationToken);
+    }
+
+    public async Task<int> GetUnreadCountByConversationAsync(Guid conversationId, Guid userId, CancellationToken cancellationToken = default)
+    {
+        return await _dbSet
+            .CountAsync(m => m.ConversationId == conversationId && !m.IsRead && m.SenderId != userId, cancellationToken);
+    }
+
+    public async Task MarkAsReadAsync(Guid conversationId, Guid userId, CancellationToken cancellationToken = default)
+    {
+        var unreadMessages = await _dbSet
+            .Where(m => m.ConversationId == conversationId && !m.IsRead && m.SenderId != userId)
+            .ToListAsync(cancellationToken);
+
+        var now = DateTime.UtcNow;
+        foreach (var message in unreadMessages)
+        {
+            message.IsRead = true;
+            message.ReadAt = now;
+        }
     }
 }

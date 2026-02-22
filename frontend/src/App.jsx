@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate, Link, useNavigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { ChatProvider, useChatContext } from './contexts/ChatContext';
 import { NotificationProvider } from './context/NotificationContext';
 import toast, { Toaster } from 'react-hot-toast';
 import React, { Suspense } from 'react';
@@ -15,6 +16,7 @@ const Dashboard = React.lazy(() => import('./pages/Dashboard'));
 const MyBookings = React.lazy(() => import('./pages/MyBookings'));
 const VendorListings = React.lazy(() => import('./pages/VendorListings'));
 const VendorBookings = React.lazy(() => import('./pages/VendorBookings'));
+const Chat = React.lazy(() => import('./pages/Chat'));
 
 function Loading() {
   return (
@@ -26,6 +28,7 @@ function Loading() {
 
 function Header() {
   const { isAuthenticated, user, logout, isVendor } = useAuth();
+  const { unreadCount } = useChatContext();
   const navigate = useNavigate();
 
   const handleLogout = async () => {
@@ -43,6 +46,24 @@ function Header() {
             <>
               <Link to="/dashboard" className="nav-link">Dashboard</Link>
               <Link to="/bookings" className="nav-link">My Bookings</Link>
+              <Link to="/chat" className="nav-link" style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                Messages
+                {unreadCount > 0 && (
+                  <span style={{
+                    background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+                    color: 'white',
+                    borderRadius: '10px',
+                    padding: '1px 7px',
+                    fontSize: '0.7rem',
+                    fontWeight: '700',
+                    minWidth: '18px',
+                    textAlign: 'center',
+                    lineHeight: '1.4',
+                  }}>
+                    {unreadCount > 99 ? '99+' : unreadCount}
+                  </span>
+                )}
+              </Link>
               {isVendor && (
                 <>
                   <Link to="/vendor/listings" className="nav-link">My Listings</Link>
@@ -135,6 +156,14 @@ function AppRoutes() {
             </ProtectedRoute>
           }
         />
+        <Route
+          path="/chat/:conversationId?"
+          element={
+            <ProtectedRoute>
+              <Chat />
+            </ProtectedRoute>
+          }
+        />
         <Route path="*" element={<Navigate to="/" />} />
       </Routes>
     </Suspense>
@@ -164,50 +193,52 @@ function App() {
     <BrowserRouter>
       <AuthProvider>
         <NotificationProvider>
-          <Toaster
-            position="top-right"
-            reverseOrder={false}
-            gutter={12}
-            toastOptions={{
-              duration: 6000,
-              style: {
-                background: '#1e293b',
-                color: '#f1f5f9',
-                border: '1px solid #334155',
-                padding: '14px 16px',
-                borderRadius: '8px',
-                boxShadow: '0 10px 40px rgba(0,0,0,0.5)',
-                fontSize: '14px',
-                maxWidth: '420px',
-                cursor: 'pointer',
-              },
-              success: {
-                duration: 5000,
+          <ChatProvider>
+            <Toaster
+              position="top-right"
+              reverseOrder={false}
+              gutter={12}
+              toastOptions={{
+                duration: 6000,
                 style: {
-                  background: '#064e3b',
-                  border: '1px solid #10b981',
+                  background: '#1e293b',
+                  color: '#f1f5f9',
+                  border: '1px solid #334155',
+                  padding: '14px 16px',
+                  borderRadius: '8px',
+                  boxShadow: '0 10px 40px rgba(0,0,0,0.5)',
+                  fontSize: '14px',
+                  maxWidth: '420px',
+                  cursor: 'pointer',
                 },
-                iconTheme: {
-                  primary: '#10b981',
-                  secondary: 'white',
+                success: {
+                  duration: 5000,
+                  style: {
+                    background: '#064e3b',
+                    border: '1px solid #10b981',
+                  },
+                  iconTheme: {
+                    primary: '#10b981',
+                    secondary: 'white',
+                  },
                 },
-              },
-              error: {
-                duration: 8000,
-                style: {
-                  background: '#450a0a',
-                  border: '1px solid #ef4444',
+                error: {
+                  duration: 8000,
+                  style: {
+                    background: '#450a0a',
+                    border: '1px solid #ef4444',
+                  },
+                  iconTheme: {
+                    primary: '#ef4444',
+                    secondary: 'white',
+                  },
                 },
-                iconTheme: {
-                  primary: '#ef4444',
-                  secondary: 'white',
-                },
-              },
-            }}
-          />
-          <Header />
-          <AppRoutes />
-          <Footer />
+              }}
+            />
+            <Header />
+            <AppRoutes />
+            <Footer />
+          </ChatProvider>
         </NotificationProvider>
       </AuthProvider>
     </BrowserRouter>

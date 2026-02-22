@@ -17,6 +17,7 @@
   --color-success: #10b981;
   --color-warning: #f59e0b;
   --color-error: #ef4444;
+  --color-danger: #ef4444;
 
   --color-border: rgba(255, 255, 255, 0.08);
 
@@ -960,4 +961,147 @@ a:hover {
   .search-cards {
     overflow-y: visible;
   }
+}
+
+/* Chatscope overrides for dark theme */
+.cs-main-container {
+  border: none !important;
+  background-color: transparent !important;
+}
+
+.cs-conversation-list,
+.cs-message-list,
+.cs-chat-container,
+.cs-sidebar {
+  background-color: transparent !important;
+}
+
+.cs-conversation {
+  background-color: transparent !important;
+  border-bottom: 1px solid var(--color-border) !important;
+}
+
+.cs-conversation:hover {
+  background-color: var(--color-bg-glass) !important;
+}
+
+.cs-conversation--active,
+.cs-conversation.cs-conversation--active:hover {
+  background-color: var(--color-primary-alpha, rgba(99, 102, 241, 0.08)) !important;
+  border-left: 3px solid var(--color-primary, #6366f1) !important;
+}
+
+.cs-conversation__name,
+.cs-conversation__info,
+.cs-conversation__last-sender {
+  color: var(--color-text-primary) !important;
+}
+
+.cs-conversation__info {
+  color: var(--color-text-secondary) !important;
+}
+
+/* Global Chatscope Container Theme Overrides */
+body .cs-main-container {
+  background-color: transparent !important;
+  color: var(--color-text-primary) !important;
+  border: none !important;
+}
+
+.cs-conversation-header {
+  background-color: var(--color-bg-primary) !important;
+  border-bottom: 1px solid var(--color-border) !important;
+  color: var(--color-text-primary) !important;
+}
+
+/* Force Chatscope unread badges to render properly with ultra-high specificity */
+body .cs-conversation-list .cs-conversation__unread-dot,
+body .cs-conversation-list .cs-conversation__unread,
+body .cs-conversation-list .cs-conversation__info-content .cs-conversation__unread {
+  background-color: var(--color-danger) !important;
+  color: white !important;
+  font-weight: 700 !important;
+  padding: 2px 6px !important;
+  border-radius: 12px !important;
+  font-size: 0.75rem !important;
+  display: inline-block !important;
+  min-width: 18px !important;
+  text-align: center !important;
+  line-height: 1.3 !important;
+}
+
+.cs-conversation-header__user-name {
+  color: var(--color-text-primary) !important;
+  font-weight: 600 !important;
+}
+
+.cs-conversation-header__info {
+  color: var(--color-text-secondary) !important;
+}
+
+.cs-message__content {
+  background-color: var(--color-bg-tertiary) !important;
+  color: var(--color-text-primary) !important;
+  border: 1px solid var(--color-border) !important;
+}
+
+.cs-message--outgoing .cs-message__content {
+  background: var(--gradient-primary) !important;
+  color: white !important;
+  border: none !important;
+}
+
+.cs-message__sender-name {
+  color: var(--color-accent) !important;
+  font-weight: 600 !important;
+}
+
+.cs-message__sent-time {
+  color: var(--color-text-muted) !important;
+  margin-top: 4px;
+}
+
+.cs-message-input {
+  background-color: var(--color-bg-tertiary) !important;
+  border-top: 1px solid var(--color-border) !important;
+  border: none !important;
+}
+
+.cs-message-input__content-editor-wrapper,
+.cs-message-input__content-editor-container {
+  background-color: transparent !important;
+  border: none !important;
+}
+
+.cs-message-input__content-editor {
+  background-color: rgba(255, 255, 255, 0.05) !important;
+  color: var(--color-text-primary) !important;
+  border: 1px solid var(--color-border) !important;
+  border-radius: var(--radius-xl) !important;
+  padding: 0.5rem 1rem !important;
+}
+
+.cs-message-input__content-editor::placeholder {
+  color: var(--color-text-muted) !important;
+}
+
+.cs-message-input__content-editor:focus {
+  border-color: var(--color-accent) !important;
+}
+
+.cs-button--send {
+  color: var(--color-accent) !important;
+}
+
+.cs-typing-indicator {
+  background-color: transparent !important;
+}
+
+.cs-typing-indicator__text {
+  color: var(--color-text-muted) !important;
+}
+
+.cs-avatar {
+  background-color: transparent !important;
+  border: none !important;
 }
