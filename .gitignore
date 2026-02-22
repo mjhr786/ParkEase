@@ -426,4 +426,4 @@ backend/src/ParkingApp.API/.vscode/settings.json
 coveragereport/
 
 # wwwroot assets
-wwwroot/assets/
+backend/src/ParkingApp.API/wwwroot/assets/

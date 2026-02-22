@@ -32,5 +32,6 @@ public record ChatMessageDto(
 
 public record SendMessageDto(
     Guid ParkingSpaceId,
-    string Content
+    string Content,
+    Guid? ConversationId = null
 );

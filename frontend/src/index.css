@@ -1031,7 +1031,7 @@ body .cs-conversation-list .cs-conversation__info-content .cs-conversation__unre
 }
 
 .cs-conversation-header__user-name {
-  color: var(--color-text-primary) !important;
+  color: #000 !important;
   font-weight: 600 !important;
 }
 

@@ -44,17 +44,38 @@ public sealed class SendMessageHandler : ICommandHandler<SendMessageCommand, Api
         if (parkingSpace == null)
             return new ApiResponse<ChatMessageDto>(false, "Parking space not found", null);
 
-        // Get or create conversation
-        var conversation = await _unitOfWork.Conversations.GetByParticipantsAsync(
-            command.Dto.ParkingSpaceId, command.SenderId, cancellationToken);
+        Conversation? conversation = null;
 
-        // If sender is the vendor, try to find the conversation where they are the vendor
+        // If a specific conversation is specified
+        if (command.Dto.ConversationId.HasValue)
+        {
+            conversation = await _unitOfWork.Conversations.GetByIdAsync(command.Dto.ConversationId.Value, cancellationToken);
+            
+            // Validate participant
+            if (conversation != null && conversation.UserId != command.SenderId && conversation.VendorId != command.SenderId)
+                return new ApiResponse<ChatMessageDto>(false, "Unauthorized for this conversation", null);
+        }
+
+        // Fallback to searching if no specific conversation provided
         if (conversation == null)
         {
-            var vendorConversations = await _unitOfWork.Conversations.FindAsync(
-                c => c.ParkingSpaceId == command.Dto.ParkingSpaceId && c.VendorId == command.SenderId,
-                cancellationToken);
-            conversation = vendorConversations.FirstOrDefault();
+            conversation = await _unitOfWork.Conversations.GetByParticipantsAsync(
+                command.Dto.ParkingSpaceId, command.SenderId, cancellationToken);
+
+            // If sender is the vendor, try to find the conversation where they are the vendor
+            if (conversation == null)
+            {
+                var vendorConversations = await _unitOfWork.Conversations.FindAsync(
+                    c => c.ParkingSpaceId == command.Dto.ParkingSpaceId && c.VendorId == command.SenderId,
+                    cancellationToken);
+                
+                // Only assume the conversation if there's exactly one
+                var conversationsList = vendorConversations.ToList();
+                if (conversationsList.Count == 1)
+                {
+                    conversation = conversationsList.First();
+                }
+            }
         }
 
         if (conversation == null)

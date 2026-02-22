@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import toast from 'react-hot-toast';
 
 export default function Home() {
     const [searchCity, setSearchCity] = useState('');
@@ -12,6 +13,28 @@ export default function Home() {
         if (searchCity.trim()) {
             navigate(`/search?city=${encodeURIComponent(searchCity)}`);
         }
+    };
+
+    const handleNearMe = () => {
+        if (!navigator.geolocation) {
+            toast.error("Geolocation is not supported by your browser");
+            return;
+        }
+
+        const toastId = toast.loading("Getting your location...");
+        navigator.geolocation.getCurrentPosition(
+            (position) => {
+                toast.dismiss(toastId);
+                navigate(`/search?lat=${position.coords.latitude}&lng=${position.coords.longitude}`);
+            },
+            (error) => {
+                toast.dismiss(toastId);
+                let errorMessage = "Unable to retrieve your location";
+                if (error.code === 1) errorMessage = "Location access denied. Please allow location access in your browser.";
+                toast.error(errorMessage);
+            },
+            { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
+        );
     };
 
     return (
@@ -30,8 +53,8 @@ export default function Home() {
                     <div className="search-box">
                         <form onSubmit={handleSearch}>
                             <div className="search-row">
-                                <div className="form-group">
-                                    <label className="form-label">Location</label>
+                                <div className="form-group" style={{ flex: 1 }}>
+                                    <label className="form-label" style={{ textAlign: 'left' }}>Location</label>
                                     <input
                                         type="text"
                                         className="form-input"
@@ -40,9 +63,12 @@ export default function Home() {
                                         onChange={(e) => setSearchCity(e.target.value)}
                                     />
                                 </div>
-                                <div className="form-group" style={{ flex: 'none', alignSelf: 'flex-end' }}>
+                                <div className="form-group" style={{ flex: 'none', alignSelf: 'flex-end', display: 'flex', gap: '0.5rem' }}>
+                                    <button type="button" onClick={handleNearMe} className="btn btn-secondary" style={{ whiteSpace: 'nowrap' }} title="Use my current location">
+                                        📍 Near Me
+                                    </button>
                                     <button type="submit" className="btn btn-primary">
-                                        🔍 Search Parking
+                                        🔍 Search
                                     </button>
                                 </div>
                             </div>

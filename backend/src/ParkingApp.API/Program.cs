@@ -228,10 +228,22 @@ app.UseStaticFiles(new StaticFileOptions
     RequestPath = "",
     OnPrepareResponse = ctx =>
     {
-        // Cache static assets for 7 days, but not index.html
-        if (!ctx.Context.Request.Path.Value?.EndsWith(".html") ?? false)
+        // Cache static assets with hashes indefinitely, but NEVER cache index.html
+        if (ctx.Context.Request.Path.Value?.EndsWith(".html") == true)
         {
-            ctx.Context.Response.Headers.Append("Cache-Control", "public,max-age=604800");
+            ctx.Context.Response.Headers.Append("Cache-Control", "no-cache, no-store, must-revalidate");
+            ctx.Context.Response.Headers.Append("Pragma", "no-cache");
+            ctx.Context.Response.Headers.Append("Expires", "0");
+        }
+        else if (ctx.Context.Request.Path.Value?.Contains("/assets/") == true)
+        {
+            // Vite assets have content hashes in their filenames, so they can be cached safely for a long time
+            ctx.Context.Response.Headers.Append("Cache-Control", "public,max-age=31536000,immutable");
+        }
+        else 
+        {
+            // Shorter cache for other static files (images, etc)
+            ctx.Context.Response.Headers.Append("Cache-Control", "public,max-age=86400");
         }
     }
 });
