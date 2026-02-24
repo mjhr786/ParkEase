@@ -26,16 +26,16 @@ public sealed class ProcessPaymentHandler : ICommandHandler<ProcessPaymentComman
 {
     private readonly IUnitOfWork _unitOfWork;
     private readonly IPaymentService _paymentService;
-    private readonly INotificationService _notificationService;
+    private readonly INotificationCoordinator _notificationCoordinator;
     private readonly IEmailService _emailService;
     private readonly ILogger<ProcessPaymentHandler> _logger;
 
     public ProcessPaymentHandler(IUnitOfWork unitOfWork, IPaymentService paymentService,
-        INotificationService notificationService, IEmailService emailService, ILogger<ProcessPaymentHandler> logger)
+        INotificationCoordinator notificationCoordinator, IEmailService emailService, ILogger<ProcessPaymentHandler> logger)
     {
         _unitOfWork = unitOfWork;
         _paymentService = paymentService;
-        _notificationService = notificationService;
+        _notificationCoordinator = notificationCoordinator;
         _emailService = emailService;
         _logger = logger;
     }
@@ -123,10 +123,13 @@ public sealed class ProcessPaymentHandler : ICommandHandler<ProcessPaymentComman
             var payer = await _unitOfWork.Users.GetByIdAsync(payerId, cancellationToken);
             var payerName = payer?.FirstName ?? "A user";
 
-            await _notificationService.NotifyUserAsync(parkingSpace.OwnerId,
-                new NotificationDto("payment.completed", "Payment Received",
+            await _notificationCoordinator.SendAsync(parkingSpace.OwnerId,
+                new NotificationRequest(
+                    NotificationType.PaymentReceived.ToString(), 
+                    "Payment Received",
                     $"{payerName} has completed payment for booking {booking.BookingReference}",
-                    new { BookingId = booking.Id, BookingReference = booking.BookingReference, Amount = booking.TotalAmount }),
+                    NotificationChannels.InApp,
+                    new Dictionary<string, string> { { "BookingId", booking.Id.ToString() }, { "BookingReference", booking.BookingReference }, { "Amount", booking.TotalAmount.ToString() } }),
                 cancellationToken);
 
             // Email receipt to user
@@ -190,16 +193,16 @@ public sealed class VerifyPaymentHandler : ICommandHandler<VerifyPaymentCommand,
 {
     private readonly IUnitOfWork _unitOfWork;
     private readonly IPaymentService _paymentService;
-    private readonly INotificationService _notificationService;
+    private readonly INotificationCoordinator _notificationCoordinator;
     private readonly IEmailService _emailService;
     private readonly ILogger<VerifyPaymentHandler> _logger;
 
     public VerifyPaymentHandler(IUnitOfWork unitOfWork, IPaymentService paymentService,
-        INotificationService notificationService, IEmailService emailService, ILogger<VerifyPaymentHandler> logger)
+        INotificationCoordinator notificationCoordinator, IEmailService emailService, ILogger<VerifyPaymentHandler> logger)
     {
         _unitOfWork = unitOfWork;
         _paymentService = paymentService;
-        _notificationService = notificationService;
+        _notificationCoordinator = notificationCoordinator;
         _emailService = emailService;
         _logger = logger;
     }
@@ -260,10 +263,13 @@ public sealed class VerifyPaymentHandler : ICommandHandler<VerifyPaymentCommand,
                 var payer = await _unitOfWork.Users.GetByIdAsync(command.UserId, cancellationToken);
                 var payerName = payer?.FirstName ?? "A user";
 
-                await _notificationService.NotifyUserAsync(parkingSpace.OwnerId,
-                    new NotificationDto("payment.completed", "Payment Received",
+                await _notificationCoordinator.SendAsync(parkingSpace.OwnerId,
+                    new NotificationRequest(
+                        NotificationType.PaymentReceived.ToString(), 
+                        "Payment Received",
                         $"{payerName} has completed payment for booking {booking.BookingReference}",
-                        new { BookingId = booking.Id, BookingReference = booking.BookingReference, Amount = booking.TotalAmount }),
+                        NotificationChannels.InApp,
+                        new Dictionary<string, string> { { "BookingId", booking.Id.ToString() }, { "BookingReference", booking.BookingReference }, { "Amount", booking.TotalAmount.ToString() } }),
                     cancellationToken);
 
                 if (payer?.Email != null)

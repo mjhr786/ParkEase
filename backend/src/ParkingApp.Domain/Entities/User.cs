@@ -21,6 +21,8 @@ public class User : BaseEntity
     public virtual ICollection<ParkingSpace> ParkingSpaces { get; set; } = new List<ParkingSpace>();
     public virtual ICollection<Booking> Bookings { get; set; } = new List<Booking>();
     public virtual ICollection<Review> Reviews { get; set; } = new List<Review>();
+    public virtual ICollection<Favorite> Favorites { get; set; } = new List<Favorite>();
+    public virtual ICollection<Notification> Notifications { get; set; } = new List<Notification>();
     
     public string FullName => $"{FirstName} {LastName}".Trim();
 }

@@ -219,6 +219,92 @@ namespace ParkingApp.Infrastructure.Migrations
                     b.ToTable("Conversations");
                 });
 
+            modelBuilder.Entity("ParkingApp.Domain.Entities.Favorite", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<Guid>("ParkingSpaceId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ParkingSpaceId");
+
+                    b.HasIndex("UserId", "ParkingSpaceId")
+                        .IsUnique();
+
+                    b.ToTable("Favorites");
+                });
+
+            modelBuilder.Entity("ParkingApp.Domain.Entities.Notification", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Data")
+                        .HasColumnType("text");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsRead")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Message")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<int>("Priority")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime?>("ReadAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<int>("Type")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("UserId1")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId");
+
+                    b.HasIndex("UserId1");
+
+                    b.ToTable("Notifications");
+                });
+
             modelBuilder.Entity("ParkingApp.Domain.Entities.ParkingAvailability", b =>
                 {
                     b.Property<Guid>("Id")
@@ -694,6 +780,40 @@ namespace ParkingApp.Infrastructure.Migrations
                     b.Navigation("Vendor");
                 });
 
+            modelBuilder.Entity("ParkingApp.Domain.Entities.Favorite", b =>
+                {
+                    b.HasOne("ParkingApp.Domain.Entities.ParkingSpace", "ParkingSpace")
+                        .WithMany("FavoritedBy")
+                        .HasForeignKey("ParkingSpaceId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("ParkingApp.Domain.Entities.User", "User")
+                        .WithMany("Favorites")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("ParkingSpace");
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("ParkingApp.Domain.Entities.Notification", b =>
+                {
+                    b.HasOne("ParkingApp.Domain.Entities.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("ParkingApp.Domain.Entities.User", null)
+                        .WithMany("Notifications")
+                        .HasForeignKey("UserId1");
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("ParkingApp.Domain.Entities.ParkingAvailability", b =>
                 {
                     b.HasOne("ParkingApp.Domain.Entities.ParkingSpace", "ParkingSpace")
@@ -777,12 +897,18 @@ namespace ParkingApp.Infrastructure.Migrations
 
                     b.Navigation("Bookings");
 
+                    b.Navigation("FavoritedBy");
+
                     b.Navigation("Reviews");
                 });
 
             modelBuilder.Entity("ParkingApp.Domain.Entities.User", b =>
                 {
                     b.Navigation("Bookings");
+
+                    b.Navigation("Favorites");
+
+                    b.Navigation("Notifications");
 
                     b.Navigation("ParkingSpaces");
 

@@ -37,6 +37,7 @@ public interface IBookingService
     Task<ApiResponse<BookingListResultDto>> GetByUserAsync(Guid userId, BookingFilterDto? filter, CancellationToken cancellationToken = default);
     Task<ApiResponse<BookingListResultDto>> GetByParkingSpaceAsync(Guid parkingSpaceId, Guid ownerId, BookingFilterDto? filter, CancellationToken cancellationToken = default);
     Task<ApiResponse<BookingListResultDto>> GetVendorBookingsAsync(Guid vendorId, BookingFilterDto? filter, CancellationToken cancellationToken = default);
+    Task<ApiResponse<int>> GetPendingRequestsCountAsync(Guid vendorId, CancellationToken cancellationToken = default);
     Task<ApiResponse<PriceBreakdownDto>> CalculatePriceAsync(PriceCalculationDto dto, CancellationToken cancellationToken = default);
     Task<ApiResponse<BookingDto>> CreateAsync(Guid userId, CreateBookingDto dto, CancellationToken cancellationToken = default);
     Task<ApiResponse<BookingDto>> UpdateAsync(Guid id, Guid userId, UpdateBookingDto dto, CancellationToken cancellationToken = default);

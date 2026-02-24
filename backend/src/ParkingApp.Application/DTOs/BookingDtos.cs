@@ -30,7 +30,10 @@ public record BookingDto(
     DateTime? CheckOutTime,
     PaymentStatus? PaymentStatus,
     DateTime CreatedAt
-);
+)
+{
+    public BookingDto() : this(Guid.Empty, Guid.Empty, string.Empty, Guid.Empty, string.Empty, string.Empty, 0, 0, DateTime.MinValue, DateTime.MinValue, default, default, null, null, 0, 0, 0, 0, 0, null, default, null, null, null, null, DateTime.MinValue) { }
+}
 
 public record CreateBookingDto(
     [Required] Guid ParkingSpaceId,

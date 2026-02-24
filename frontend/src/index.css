@@ -81,9 +81,22 @@ a:hover {
   padding: 0 1.5rem;
 }
 
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 .page {
   flex: 1;
   padding: 2rem 0;
+  animation: fadeIn 0.4s ease-out forwards;
 }
 
 /* Header */
@@ -206,6 +219,10 @@ a:hover {
   opacity: 0.5;
   cursor: not-allowed;
   transform: none;
+}
+
+.btn:active:not(:disabled) {
+  transform: scale(0.97);
 }
 
 /* Cards */
@@ -534,7 +551,7 @@ a:hover {
   color: #6ee7b7;
 }
 
-/* Loading */
+/* Loading & Skeletons */
 .loading {
   display: flex;
   align-items: center;
@@ -557,16 +574,74 @@ a:hover {
   }
 }
 
+@keyframes shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+.skeleton-card {
+  background: var(--color-bg-tertiary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  position: relative;
+  overflow: hidden;
+  min-height: 380px;
+}
+
+.skeleton-card::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.08), transparent);
+  animation: shimmer 1.5s infinite;
+}
+
 /* Empty State */
 .empty-state {
   text-align: center;
-  padding: 3rem;
+  padding: 4rem 2rem;
   color: var(--color-text-secondary);
+  background: rgba(26, 26, 37, 0.4);
+  border-radius: var(--radius-lg);
+  border: 1px dashed var(--color-border);
+  max-width: 500px;
+  margin: 2rem auto;
 }
 
 .empty-icon {
   font-size: 4rem;
-  margin-bottom: 1rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100px;
+  height: 100px;
+  margin-bottom: 1.5rem;
+  background: var(--color-bg-tertiary);
+  border-radius: 50%;
+  box-shadow: var(--shadow-md);
+  animation: float 3s ease-in-out infinite;
+}
+
+@keyframes float {
+  0% {
+    transform: translateY(0px);
+  }
+
+  50% {
+    transform: translateY(-10px);
+  }
+
+  100% {
+    transform: translateY(0px);
+  }
 }
 
 /* Flex utilities */

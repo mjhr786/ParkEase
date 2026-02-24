@@ -61,7 +61,7 @@ export function NotificationProvider({ children }) {
 
         // Check if we've processed this recently
         if (processedRef.current.has(signature)) {
-            console.log(`Duplicate notification ignored: ${signature}`);
+            // console.log(`Duplicate notification ignored: ${signature}`);
             return;
         }
 
@@ -90,7 +90,7 @@ export function NotificationProvider({ children }) {
         // Trigger refresh callbacks for matching subscribers
         refreshCallbacksRef.current.forEach((subscription, subscriberId) => {
             if (subscription.types.includes(notification.type)) {
-                console.log(`🔄 Triggering refresh for ${subscriberId} due to ${notification.type}`);
+                // console.log(`🔄 Triggering refresh for ${subscriberId} due to ${notification.type}`);
                 // Use setTimeout to ensure UI updates don't block notification display
                 setTimeout(() => {
                     try {

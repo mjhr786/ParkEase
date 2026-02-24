@@ -47,7 +47,7 @@ export default function Dashboard() {
     // Subscribe to real-time refresh events
     useEffect(() => {
         const unsubscribe = subscribeToRefresh('Dashboard', REFRESH_TRIGGERS, () => {
-            console.log('🔄 Dashboard: Auto-refreshing due to notification');
+            // console.log('🔄 Dashboard: Auto-refreshing due to notification');
             fetchDashboard();
         });
         return unsubscribe;

@@ -12,7 +12,7 @@ namespace ParkingApp.Application.Services;
 public class BookingService : IBookingService
 {
     private readonly IUnitOfWork _unitOfWork;
-    private readonly INotificationService _notificationService;
+    private readonly INotificationCoordinator _notificationCoordinator;
     private readonly ICacheService _cache;
     private readonly ILogger<BookingService> _logger;
     private readonly IEmailService _emailService;
@@ -20,10 +20,10 @@ public class BookingService : IBookingService
     private const decimal TaxRate = 0.18m; // 18% tax
     private const decimal ServiceFeeRate = 0.05m; // 5% service fee
 
-    public BookingService(IUnitOfWork unitOfWork, INotificationService notificationService, ICacheService cache, ILogger<BookingService> logger, IEmailService emailService)
+    public BookingService(IUnitOfWork unitOfWork, INotificationCoordinator notificationCoordinator, ICacheService cache, ILogger<BookingService> logger, IEmailService emailService)
     {
         _unitOfWork = unitOfWork;
-        _notificationService = notificationService;
+        _notificationCoordinator = notificationCoordinator;
         _cache = cache;
         _logger = logger;
         _emailService = emailService;
@@ -279,13 +279,14 @@ public class BookingService : IBookingService
 
         // Notify parking owner of new booking request
         var memberName = booking?.User != null ? $"{booking.User.FirstName} {booking.User.LastName}" : "A member";
-        await _notificationService.NotifyUserAsync(
+        await _notificationCoordinator.SendAsync(
             parking.OwnerId,
-            new NotificationDto(
-                NotificationTypes.BookingRequested,
+            new NotificationRequest(
+                NotificationType.BookingRequest.ToString(),
                 "New Booking Request",
                 $"New booking request from {memberName} for {parking.Title}",
-                new { BookingId = booking!.Id, BookingReference = booking.BookingReference }
+                NotificationChannels.InApp,
+                new Dictionary<string, string> { { "BookingId", booking!.Id.ToString() }, { "BookingReference", booking.BookingReference } }
             ),
             cancellationToken);
 
@@ -448,13 +449,14 @@ public class BookingService : IBookingService
         var recipientId = booking.UserId == userId ? booking.ParkingSpace?.OwnerId : booking.UserId;
         if (recipientId.HasValue)
         {
-            await _notificationService.NotifyUserAsync(
+            await _notificationCoordinator.SendAsync(
                 recipientId.Value,
-                new NotificationDto(
-                    NotificationTypes.BookingCancelled,
+                new NotificationRequest(
+                    NotificationType.BookingRejected.ToString(),
                     "Booking Cancelled",
                     $"Booking {booking.BookingReference} has been cancelled",
-                    new { BookingId = id, BookingReference = booking.BookingReference }
+                    NotificationChannels.InApp,
+                    new Dictionary<string, string> { { "BookingId", id.ToString() }, { "BookingReference", booking.BookingReference } }
                 ),
                 cancellationToken);
         }
@@ -535,13 +537,14 @@ public class BookingService : IBookingService
         // Notify owner of check-in
         if (booking.ParkingSpace?.OwnerId != null)
         {
-            await _notificationService.NotifyUserAsync(
+            await _notificationCoordinator.SendAsync(
                 booking.ParkingSpace.OwnerId,
-                new NotificationDto(
-                    NotificationTypes.CheckIn,
+                new NotificationRequest(
+                    NotificationType.SystemAlert.ToString(),
                     "Guest Checked In",
                     $"{booking.User?.FirstName} has checked in at {booking.ParkingSpace.Title}",
-                    new { BookingId = id, BookingReference = booking.BookingReference }
+                    NotificationChannels.InApp,
+                    new Dictionary<string, string> { { "BookingId", id.ToString() }, { "BookingReference", booking.BookingReference } }
                 ),
                 cancellationToken);
         }
@@ -638,6 +641,23 @@ public class BookingService : IBookingService
         return new ApiResponse<BookingListResultDto>(true, null, result);
     }
 
+    public async Task<ApiResponse<int>> GetPendingRequestsCountAsync(Guid vendorId, CancellationToken cancellationToken = default)
+    {
+        // Get all parking spaces owned by this vendor
+        var parkingSpaces = await _unitOfWork.ParkingSpaces.GetByOwnerIdAsync(vendorId, cancellationToken);
+        var parkingSpaceIds = parkingSpaces.Select(p => p.Id).ToList();
+
+        // Count all pending bookings for these parking spaces
+        int pendingCount = 0;
+        foreach (var parkingSpaceId in parkingSpaceIds)
+        {
+            var bookings = await _unitOfWork.Bookings.GetByParkingSpaceIdAsync(parkingSpaceId, cancellationToken);
+            pendingCount += bookings.Count(b => b.Status == BookingStatus.Pending);
+        }
+
+        return new ApiResponse<int>(true, null, pendingCount);
+    }
+
     public async Task<ApiResponse<BookingDto>> ApproveAsync(Guid id, Guid vendorId, CancellationToken cancellationToken = default)
     {
         _logger.LogInformation("Vendor {VendorId} approving booking {BookingId}", vendorId, id);
@@ -667,13 +687,14 @@ public class BookingService : IBookingService
         _logger.LogInformation("Booking {BookingReference} approved by vendor {VendorId}", booking.BookingReference, vendorId);
 
         // Notify member that their booking was approved
-        await _notificationService.NotifyUserAsync(
+        await _notificationCoordinator.SendAsync(
             booking.UserId,
-            new NotificationDto(
-                NotificationTypes.BookingApproved,
+            new NotificationRequest(
+                NotificationType.BookingConfirmed.ToString(),
                 "Booking Approved!",
                 $"Your booking for {booking.ParkingSpace?.Title} has been approved. Please complete payment.",
-                new { BookingId = id, BookingReference = booking.BookingReference }
+                NotificationChannels.InApp,
+                new Dictionary<string, string> { { "BookingId", id.ToString() }, { "BookingReference", booking.BookingReference } }
             ),
             cancellationToken);
 
@@ -726,13 +747,14 @@ public class BookingService : IBookingService
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         // Notify member that their booking was rejected
-        await _notificationService.NotifyUserAsync(
+        await _notificationCoordinator.SendAsync(
             booking.UserId,
-            new NotificationDto(
-                NotificationTypes.BookingRejected,
+            new NotificationRequest(
+                NotificationType.BookingRejected.ToString(),
                 "Booking Rejected",
                 $"Your booking for {booking.ParkingSpace?.Title} was rejected. Reason: {booking.CancellationReason}",
-                new { BookingId = id, BookingReference = booking.BookingReference, Reason = booking.CancellationReason }
+                NotificationChannels.InApp,
+                new Dictionary<string, string> { { "BookingId", id.ToString() }, { "BookingReference", booking.BookingReference }, { "Reason", booking.CancellationReason! } }
             ),
             cancellationToken);
 

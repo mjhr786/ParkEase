@@ -13,7 +13,7 @@ namespace ParkingApp.API.Controllers;
 /// Bookings controller using CQRS pattern
 /// </summary>
 [ApiController]
-[Route("api/v2/[controller]")]
+[Route("api/v2/bookings")]
 [Authorize]
 [Produces("application/json")]
 public class BookingsV2Controller : ControllerBase
@@ -75,7 +75,7 @@ public class BookingsV2Controller : ControllerBase
     /// <summary>
     /// Get bookings for vendor's parking spaces
     /// </summary>
-    [HttpGet("vendor")]
+    [HttpGet("vendor-bookings")]
     [Authorize(Roles = "Vendor,Admin")]
     [ProducesResponseType(typeof(ApiResponse<BookingListResultDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetVendorBookings([FromQuery] BookingFilterDto? filter, CancellationToken cancellationToken)
@@ -87,6 +87,40 @@ public class BookingsV2Controller : ControllerBase
         var result = await _dispatcher.QueryAsync(query, cancellationToken);
 
         return Ok(result);
+    }
+
+    /// <summary>
+    /// Get the count of pending booking requests for the vendor
+    /// </summary>
+    [HttpGet("pending-count")]
+    [Authorize(Roles = "Vendor,Admin")]
+    [ProducesResponseType(typeof(ApiResponse<int>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetPendingRequestsCount(CancellationToken cancellationToken)
+    {
+        var userId = GetUserId();
+        if (userId == null) return Unauthorized();
+
+        var query = new GetPendingRequestsCountQuery(userId.Value);
+        var result = await _dispatcher.QueryAsync(query, cancellationToken);
+        
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// Get bookings for a specific parking space (vendor only)
+    /// </summary>
+    [HttpGet("parking-space/{parkingSpaceId:guid}")]
+    [Authorize(Roles = "Vendor,Admin")]
+    [ProducesResponseType(typeof(ApiResponse<BookingListResultDto>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetByParkingSpace(Guid parkingSpaceId, [FromQuery] BookingFilterDto? filter, CancellationToken cancellationToken)
+    {
+        var userId = GetUserId();
+        if (userId == null) return Unauthorized();
+
+        var query = new GetBookingsByParkingSpaceQuery(parkingSpaceId, userId.Value, filter);
+        var result = await _dispatcher.QueryAsync(query, cancellationToken);
+
+        return result.Success ? Ok(result) : BadRequest(result);
     }
 
     /// <summary>
@@ -138,6 +172,29 @@ public class BookingsV2Controller : ControllerBase
             return BadRequest(result);
 
         return CreatedAtAction(nameof(GetById), new { id = result.Data?.Id }, result);
+    }
+
+    /// <summary>
+    /// Update an existing booking
+    /// </summary>
+    [HttpPut("{id:guid}")]
+    [ProducesResponseType(typeof(ApiResponse<BookingDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<BookingDto>), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ApiResponse<BookingDto>), StatusCodes.Status403Forbidden)]
+    public async Task<IActionResult> Update(Guid id, [FromBody] UpdateBookingDto dto, CancellationToken cancellationToken)
+    {
+        var userId = GetUserId();
+        if (userId == null) return Unauthorized();
+
+        var command = new UpdateBookingCommand(id, userId.Value, dto);
+        var result = await _dispatcher.SendAsync(command, cancellationToken);
+
+        if (!result.Success)
+        {
+            return result.Message == "Unauthorized" ? Forbid() : BadRequest(result);
+        }
+
+        return Ok(result);
     }
 
     /// <summary>

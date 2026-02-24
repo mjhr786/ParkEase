@@ -63,7 +63,7 @@ export default function VendorBookings() {
     // Subscribe to real-time refresh events
     useEffect(() => {
         const unsubscribe = subscribeToRefresh('VendorBookings', REFRESH_TRIGGERS, () => {
-            console.log('🔄 VendorBookings: Auto-refreshing due to notification');
+            // console.log('🔄 VendorBookings: Auto-refreshing due to notification');
             fetchBookings();
         });
         return unsubscribe;

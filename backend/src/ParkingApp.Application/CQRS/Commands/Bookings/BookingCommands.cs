@@ -59,3 +59,12 @@ public record CheckOutCommand(
     Guid BookingId,
     Guid UserId
 ) : ICommand<ApiResponse<BookingDto>>;
+
+/// <summary>
+/// Command to update an existing booking
+/// </summary>
+public record UpdateBookingCommand(
+    Guid BookingId,
+    Guid UserId,
+    UpdateBookingDto Dto
+) : ICommand<ApiResponse<BookingDto>>;

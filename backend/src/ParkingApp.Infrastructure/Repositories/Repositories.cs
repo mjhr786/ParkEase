@@ -500,3 +500,39 @@ public class ChatMessageRepository : Repository<ChatMessage>, IChatMessageReposi
         }
     }
 }
+
+public class NotificationRepository : Repository<Notification>, INotificationRepository
+{
+    public NotificationRepository(ApplicationDbContext context) : base(context) { }
+
+    public async Task<int> GetUnreadCountAsync(Guid userId, CancellationToken cancellationToken = default)
+    {
+        return await _dbSet.CountAsync(n => n.UserId == userId && !n.IsRead, cancellationToken);
+    }
+
+    public async Task MarkAllAsReadAsync(Guid userId, CancellationToken cancellationToken = default)
+    {
+        var unread = await _dbSet.Where(n => n.UserId == userId && !n.IsRead).ToListAsync(cancellationToken);
+        foreach (var notification in unread)
+        {
+            notification.IsRead = true;
+            notification.ReadAt = DateTime.UtcNow;
+        }
+        _dbSet.UpdateRange(unread);
+    }
+
+    public async Task<IReadOnlyList<Notification>> GetPagedAsync(Guid userId, int page, int pageSize, CancellationToken cancellationToken = default)
+    {
+        return await _dbSet
+            .Where(n => n.UserId == userId)
+            .OrderByDescending(n => n.CreatedAt)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task<int> GetTotalCountAsync(Guid userId, CancellationToken cancellationToken = default)
+    {
+        return await _dbSet.CountAsync(n => n.UserId == userId, cancellationToken);
+    }
+}

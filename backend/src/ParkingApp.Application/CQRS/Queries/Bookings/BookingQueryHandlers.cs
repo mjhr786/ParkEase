@@ -182,3 +182,30 @@ public class CalculatePriceHandler : IQueryHandler<CalculatePriceQuery, ApiRespo
         return new ApiResponse<PriceBreakdownDto>(true, null, breakdown);
     }
 }
+
+public class GetPendingRequestsCountHandler : IQueryHandler<GetPendingRequestsCountQuery, ApiResponse<int>>
+{
+    private readonly IUnitOfWork _unitOfWork;
+
+    public GetPendingRequestsCountHandler(IUnitOfWork unitOfWork)
+    {
+        _unitOfWork = unitOfWork;
+    }
+
+    public async Task<ApiResponse<int>> HandleAsync(GetPendingRequestsCountQuery query, CancellationToken cancellationToken = default)
+    {
+        // Get all parking spaces owned by this vendor
+        var parkingSpaces = await _unitOfWork.ParkingSpaces.GetByOwnerIdAsync(query.VendorId, cancellationToken);
+        var parkingSpaceIds = parkingSpaces.Select(p => p.Id).ToList();
+
+        // Count all pending bookings for these parking spaces
+        int pendingCount = 0;
+        foreach (var parkingSpaceId in parkingSpaceIds)
+        {
+            var bookings = await _unitOfWork.Bookings.GetByParkingSpaceIdAsync(parkingSpaceId, cancellationToken);
+            pendingCount += bookings.Count(b => b.Status == BookingStatus.Pending);
+        }
+
+        return new ApiResponse<int>(true, null, pendingCount);
+    }
+}

@@ -18,6 +18,8 @@ public class ApplicationDbContext : DbContext
     public DbSet<Review> Reviews => Set<Review>();
     public DbSet<Conversation> Conversations => Set<Conversation>();
     public DbSet<ChatMessage> ChatMessages => Set<ChatMessage>();
+    public DbSet<Favorite> Favorites => Set<Favorite>();
+    public DbSet<Notification> Notifications => Set<Notification>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -34,6 +36,19 @@ public class ApplicationDbContext : DbContext
             entity.Property(e => e.LastName).HasMaxLength(100).IsRequired();
             entity.Property(e => e.PhoneNumber).HasMaxLength(20).IsRequired();
             entity.Property(e => e.RefreshToken).HasMaxLength(500);
+            entity.HasQueryFilter(e => !e.IsDeleted);
+        });
+
+        // Notification configuration
+        modelBuilder.Entity<Notification>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Title).HasMaxLength(200).IsRequired();
+            entity.Property(e => e.Message).HasMaxLength(1000).IsRequired();
+            entity.HasOne(e => e.User)
+                  .WithMany()
+                  .HasForeignKey(e => e.UserId)
+                  .OnDelete(DeleteBehavior.Cascade);
             entity.HasQueryFilter(e => !e.IsDeleted);
         });
 
@@ -226,6 +241,23 @@ public class ApplicationDbContext : DbContext
                 .WithMany()
                 .HasForeignKey(e => e.SenderId)
                 .OnDelete(DeleteBehavior.Restrict);
+        });
+        // Favorite configuration
+        modelBuilder.Entity<Favorite>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.HasIndex(e => new { e.UserId, e.ParkingSpaceId }).IsUnique();
+            entity.HasQueryFilter(e => !e.IsDeleted);
+
+            entity.HasOne(e => e.User)
+                .WithMany(u => u.Favorites)
+                .HasForeignKey(e => e.UserId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasOne(e => e.ParkingSpace)
+                .WithMany(p => p.FavoritedBy)
+                .HasForeignKey(e => e.ParkingSpaceId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
     }
 

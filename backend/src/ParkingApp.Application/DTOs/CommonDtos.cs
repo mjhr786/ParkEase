@@ -107,7 +107,10 @@ public record MemberDashboardDto(
 public record EarningsChartDataDto(
     string Label,
     decimal Amount
-);
+)
+{
+    public EarningsChartDataDto() : this(string.Empty, 0m) { }
+}
 
 // Common DTOs
 public record ApiResponse<T>(

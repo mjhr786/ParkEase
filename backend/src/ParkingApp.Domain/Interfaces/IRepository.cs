@@ -105,3 +105,17 @@ public interface IChatMessageRepository : IRepository<ChatMessage>
     Task<int> GetUnreadCountByConversationAsync(Guid conversationId, Guid userId, CancellationToken cancellationToken = default);
     Task MarkAsReadAsync(Guid conversationId, Guid userId, CancellationToken cancellationToken = default);
 }
+
+public interface IFavoriteRepository : IRepository<Favorite>
+{
+    Task<IEnumerable<Favorite>> GetByUserIdAsync(Guid userId, CancellationToken cancellationToken = default);
+    Task<Favorite?> GetByUserAndSpaceAsync(Guid userId, Guid parkingSpaceId, CancellationToken cancellationToken = default);
+}
+
+public interface INotificationRepository : IRepository<Notification>
+{
+    Task<int> GetUnreadCountAsync(Guid userId, CancellationToken cancellationToken = default);
+    Task MarkAllAsReadAsync(Guid userId, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<Notification>> GetPagedAsync(Guid userId, int page, int pageSize, CancellationToken cancellationToken = default);
+    Task<int> GetTotalCountAsync(Guid userId, CancellationToken cancellationToken = default);
+}

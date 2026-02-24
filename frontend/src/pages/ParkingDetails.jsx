@@ -24,6 +24,8 @@ export default function ParkingDetails() {
     const [reviews, setReviews] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(''); // Keep for initial page load errors
+    const [isFavorite, setIsFavorite] = useState(false);
+    const [favoritesLoading, setFavoritesLoading] = useState(false);
 
     const [booking, setBooking] = useState({
         startDateTime: '',
@@ -44,7 +46,47 @@ export default function ParkingDetails() {
 
     useEffect(() => {
         fetchParkingDetails();
-    }, [id]);
+        if (isAuthenticated) {
+            checkFavoriteStatus();
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [id, isAuthenticated]);
+
+    const checkFavoriteStatus = async () => {
+        try {
+            const res = await api.getMyFavorites();
+            if (res.success && res.data) {
+                const favIds = res.data.map(f => f.id);
+                setIsFavorite(favIds.includes(id));
+            }
+        } catch (err) {
+            console.error('Error checking favorite status:', err);
+        }
+    };
+
+    const toggleFavorite = async () => {
+        if (!isAuthenticated) {
+            showToast.error("Please log in to save favorites");
+            navigate('/login');
+            return;
+        }
+
+        if (favoritesLoading) return;
+        setFavoritesLoading(true);
+
+        try {
+            const res = await api.toggleFavorite(id);
+            if (res.success) {
+                setIsFavorite(res.data);
+                if (res.data) showToast.success("Added to favorites");
+                else showToast.success("Removed from favorites");
+            }
+        } catch (err) {
+            showToast.error("Failed to update favorite status");
+        } finally {
+            setFavoritesLoading(false);
+        }
+    };
 
     useEffect(() => {
         if (booking.startDateTime && booking.endDateTime && parking) {
@@ -61,7 +103,7 @@ export default function ParkingDetails() {
                 setError('Parking space not found');
             }
 
-            const reviewsRes = await api.getReviews(id);
+            const reviewsRes = await api.getReviewsByParkingSpace(id);
             if (reviewsRes.success && reviewsRes.data) {
                 setReviews(reviewsRes.data);
             }
@@ -200,7 +242,27 @@ export default function ParkingDetails() {
                         {/* Image Gallery */}
                         <ImageGallery images={parking.imageUrls} title={parking.title} />
 
-                        <h1 style={{ marginBottom: '0.5rem' }}>{parking.title}</h1>
+                        <div className="flex-between align-center" style={{ marginBottom: '0.5rem' }}>
+                            <h1 style={{ margin: 0 }}>{parking.title}</h1>
+                            <button
+                                className="btn btn-outline"
+                                onClick={toggleFavorite}
+                                disabled={favoritesLoading}
+                                style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '0.5rem',
+                                    fontSize: '1rem',
+                                    padding: '0.5rem 1rem',
+                                    borderRadius: 'var(--radius-full)',
+                                    borderColor: isFavorite ? 'var(--color-primary)' : 'var(--color-border)',
+                                    color: isFavorite ? 'var(--color-primary)' : 'inherit'
+                                }}
+                            >
+                                <span style={{ fontSize: '1.2rem' }}>{isFavorite ? '❤️' : '🤍'}</span>
+                                {isFavorite ? 'Saved' : 'Save'}
+                            </button>
+                        </div>
                         <div className="parking-location" style={{ fontSize: '1.1rem' }}>
                             📍 {parking.address}, {parking.city}, {parking.state}
                         </div>

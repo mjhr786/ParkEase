@@ -187,7 +187,7 @@ var app = builder.Build();
 using (var scope = app.Services.CreateScope())
 {
     var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-    context.Database.Migrate();
+    // context.Database.Migrate(); // Temporarily disabled to bypass lock
 }
 
 // Configure middleware pipeline
