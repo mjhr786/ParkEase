@@ -61,6 +61,7 @@ public class ParkingSpace : BaseEntity
     public virtual ICollection<Booking> Bookings { get; set; } = new List<Booking>();
     public virtual ICollection<Review> Reviews { get; set; } = new List<Review>();
     public virtual ICollection<ParkingAvailability> Availabilities { get; set; } = new List<ParkingAvailability>();
+    public virtual ICollection<Favorite> FavoritedBy { get; set; } = new List<Favorite>();
 }
 
 public class ParkingAvailability : BaseEntity

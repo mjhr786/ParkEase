@@ -142,7 +142,7 @@ export default function LocationMap({ parkingSpaces = [], singleLocation = null,
                         }}
                         eventHandlers={{
                             mouseover: () => onMarkerHover?.(parking.id),
-                            mouseout: () => onMarkerHover?.(null),
+                            out: () => onMarkerHover?.(null),
                         }}
                     >
                         <Popup>
@@ -164,7 +164,7 @@ export default function LocationMap({ parkingSpaces = [], singleLocation = null,
                                         rel="noopener noreferrer"
                                         className="map-popup-nav"
                                     >
-                                        🧭 Navigate
+                                        🧭 Get Directions
                                     </a>
                                 </div>
                             </div>

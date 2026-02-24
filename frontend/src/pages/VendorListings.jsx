@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotificationContext } from '../context/NotificationContext';
@@ -30,6 +30,7 @@ export default function VendorListings() {
     const [uploadingId, setUploadingId] = useState(null);
     const [uploadProgress, setUploadProgress] = useState('');
     const [bookings, setBookings] = useState([]);
+    const titleInputRef = useRef(null);
 
     const { subscribeToRefresh } = useNotificationContext();
 
@@ -95,7 +96,7 @@ export default function VendorListings() {
     // Subscribe to real-time refresh events
     useEffect(() => {
         const unsubscribe = subscribeToRefresh('VendorListings', REFRESH_TRIGGERS, () => {
-            console.log('🔄 VendorListings: Auto-refreshing due to notification');
+            // console.log('🔄 VendorListings: Auto-refreshing due to notification');
             fetchListings(false); // background refresh
             fetchBookings();
         });
@@ -179,6 +180,12 @@ export default function VendorListings() {
         });
         setEditingId(listing.id);
         setShowForm(true);
+        setTimeout(() => {
+            if (titleInputRef.current) {
+                titleInputRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                titleInputRef.current.focus();
+            }
+        }, 100);
     };
 
     const handleDelete = async (id) => {
@@ -339,9 +346,18 @@ export default function VendorListings() {
                     <button
                         className="btn btn-primary"
                         onClick={() => {
+                            const newShowForm = !showForm;
                             setForm(emptyForm);
                             setEditingId(null);
-                            setShowForm(!showForm);
+                            setShowForm(newShowForm);
+                            if (newShowForm) {
+                                setTimeout(() => {
+                                    if (titleInputRef.current) {
+                                        titleInputRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                        titleInputRef.current.focus();
+                                    }
+                                }, 100);
+                            }
                         }}
                     >
                         {showForm ? 'Cancel' : '+ Add Listing'}
@@ -358,6 +374,7 @@ export default function VendorListings() {
                                     <input
                                         type="text"
                                         className="form-input"
+                                        ref={titleInputRef}
                                         value={form.title}
                                         onChange={(e) => setForm({ ...form, title: e.target.value })}
                                         required

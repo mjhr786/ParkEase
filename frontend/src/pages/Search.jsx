@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useSearchParams, Link } from 'react-router-dom';
+import { useSearchParams, Link, useNavigate } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
 import api from '../services/api';
 import LocationMap from '../components/LocationMap';
 import INDIAN_STATES_CITIES, { STATES } from '../utils/indianStatesCities';
@@ -11,10 +12,14 @@ import { API_BASE_URL } from '../config';
 
 export default function Search() {
     const [searchParams] = useSearchParams();
+    const navigate = useNavigate();
+    const { isAuthenticated, user } = useAuth();
     const [parkingSpaces, setParkingSpaces] = useState([]);
     const [mapParkingSpaces, setMapParkingSpaces] = useState([]);
-    const [loading, setLoading] = useState(false);
+    const [loading, setLoading] = useState(true);
     const [hoveredId, setHoveredId] = useState(null);
+    const [favorites, setFavorites] = useState([]);
+    const [favoritesLoading, setFavoritesLoading] = useState(false);
     const [filters, setFilters] = useState({
         state: '',
         city: searchParams.get('city') || '',
@@ -60,16 +65,61 @@ export default function Search() {
         setLoading(false);
     }, [filters]);
 
+    const fetchFavorites = async () => {
+        try {
+            const res = await api.getMyFavorites();
+            if (res.success && res.data) {
+                setFavorites(res.data.map(f => f.id));
+            }
+        } catch (err) {
+            console.error('Error fetching favorites:', err);
+        }
+    };
+
+    const toggleFavorite = async (e, parkingId) => {
+        e.preventDefault(); // Prevent navigating to details
+        if (!isAuthenticated) {
+            toast.error("Please log in to save favorites");
+            navigate('/login');
+            return;
+        }
+
+        if (favoritesLoading) return;
+        setFavoritesLoading(true);
+
+        try {
+            const res = await api.toggleFavorite(parkingId);
+            if (res.success) {
+                if (res.data) {
+                    setFavorites(prev => [...prev, parkingId]);
+                    toast.success("Added to favorites");
+                } else {
+                    setFavorites(prev => prev.filter(id => id !== parkingId));
+                    toast.success("Removed from favorites");
+                }
+            }
+        } catch (err) {
+            toast.error("Failed to update favorites");
+        } finally {
+            setFavoritesLoading(false);
+        }
+    };
+
     // Fetch on initial load (show all parking)
     useEffect(() => {
-        fetchParkingSpaces();
-    }, []);
+        fetchParkingSpaces(filters);
+        if (isAuthenticated) {
+            fetchFavorites();
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isAuthenticated]);
 
     // Fetch when page changes
     useEffect(() => {
         if (filters.page > 1) {
-            fetchParkingSpaces();
+            fetchParkingSpaces(filters);
         }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [filters.page]);
 
     const handleSearch = (e) => {
@@ -249,8 +299,10 @@ export default function Search() {
                     {/* Left: Cards */}
                     <div className="search-cards">
                         {loading ? (
-                            <div className="loading">
-                                <div className="spinner"></div>
+                            <div className="search-card-list">
+                                {[1, 2, 3, 4, 5, 6].map(n => (
+                                    <div key={n} className="skeleton-card" />
+                                ))}
                             </div>
                         ) : parkingSpaces.length === 0 ? (
                             <div className="empty-state">
@@ -285,7 +337,33 @@ export default function Search() {
                                                 ) : (
                                                     <div className="parking-image">🅿️</div>
                                                 )}
-                                                <h3 className="card-title">{parking.title}</h3>
+                                                <button
+                                                    className="favorite-btn"
+                                                    onClick={(e) => toggleFavorite(e, parking.id)}
+                                                    style={{
+                                                        position: 'absolute',
+                                                        top: '1rem',
+                                                        right: '1rem',
+                                                        background: 'rgba(255, 255, 255, 0.9)',
+                                                        border: 'none',
+                                                        borderRadius: '50%',
+                                                        width: '36px',
+                                                        height: '36px',
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        justifyContent: 'center',
+                                                        cursor: 'pointer',
+                                                        boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                                                        zIndex: 2,
+                                                        fontSize: '1.2rem',
+                                                        transition: 'transform 0.2s',
+                                                    }}
+                                                    onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.1)'}
+                                                    onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
+                                                >
+                                                    {favorites.includes(parking.id) ? '❤️' : '🤍'}
+                                                </button>
+                                                <h3 className="card-title" style={{ marginTop: '0.5rem' }}>{parking.title}</h3>
                                                 <div className="parking-location">
                                                     📍 {parking.address}, {parking.city}
                                                 </div>

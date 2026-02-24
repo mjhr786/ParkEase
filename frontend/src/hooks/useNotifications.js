@@ -28,17 +28,17 @@ export function useNotifications(onNotification) {
     const connect = useCallback(async () => {
         // Don't create duplicate connections
         if (connectionRef.current) {
-            console.log('SignalR connection already exists');
+            // console.log('SignalR connection already exists');
             return;
         }
 
         const token = getAccessToken();
         if (!token) {
-            console.log('No token available, skipping SignalR connection');
+            // console.log('No token available, skipping SignalR connection');
             return;
         }
 
-        console.log('Connecting to SignalR hub at:', `${API_URL}/hubs/notifications`);
+        // console.log('Connecting to SignalR hub at:', `${API_URL}/hubs/notifications`);
 
         // Build connection with JWT authentication
         const connection = new signalR.HubConnectionBuilder()
@@ -53,7 +53,7 @@ export function useNotifications(onNotification) {
 
         // Handle notifications - use ref to avoid stale closure
         connection.on('ReceiveNotification', (notification) => {
-            console.log('📬 Notification received:', notification);
+            // console.log('📬 Notification received:', notification);
             if (onNotificationRef.current) {
                 onNotificationRef.current(notification);
             }
@@ -61,7 +61,7 @@ export function useNotifications(onNotification) {
 
         // Connection state handlers
         connection.onclose((error) => {
-            console.log('SignalR disconnected', error);
+            // console.log('SignalR disconnected', error);
             connectionRef.current = null;
             setIsConnected(false);
             if (error) {
@@ -70,19 +70,19 @@ export function useNotifications(onNotification) {
         });
 
         connection.onreconnecting((error) => {
-            console.log('SignalR reconnecting...', error);
+            // console.log('SignalR reconnecting...', error);
             setIsConnected(false);
         });
 
         connection.onreconnected((connectionId) => {
-            console.log('SignalR reconnected', connectionId);
+            // console.log('SignalR reconnected', connectionId);
             setIsConnected(true);
             setConnectionError(null);
         });
 
         try {
             await connection.start();
-            console.log('✅ SignalR connected successfully');
+            // console.log('✅ SignalR connected successfully');
             connectionRef.current = connection;
             setIsConnected(true);
             setConnectionError(null);
@@ -97,7 +97,7 @@ export function useNotifications(onNotification) {
         if (connectionRef.current) {
             try {
                 await connectionRef.current.stop();
-                console.log('SignalR disconnected');
+                // console.log('SignalR disconnected');
             } catch (err) {
                 console.error('Error disconnecting SignalR:', err);
             }

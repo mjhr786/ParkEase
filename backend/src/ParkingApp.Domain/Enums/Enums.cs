@@ -62,5 +62,22 @@ public enum PaymentMethod
     UPI = 2,
     NetBanking = 3,
     Wallet = 4,
-    Cash = 5
+}
+
+public enum NotificationType
+{
+    BookingRequest = 0,
+    BookingConfirmed = 1,
+    BookingRejected = 2,
+    PaymentReceived = 3,
+    NewMessage = 4,
+    SystemAlert = 5
+}
+
+public enum NotificationPriority
+{
+    Low = 0,
+    Normal = 1,
+    High = 2,
+    Critical = 3
 }

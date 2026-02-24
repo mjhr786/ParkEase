@@ -14,7 +14,7 @@ namespace ParkingApp.UnitTests;
 public class ServiceTests
 {
     private readonly Mock<IUnitOfWork> _mockUnitOfWork;
-    private readonly Mock<INotificationService> _mockNotification;
+    private readonly Mock<INotificationCoordinator> _mockNotification;
     private readonly Mock<ICacheService> _mockCache;
     private readonly Mock<ILogger<BookingService>> _mockLogger;
     private readonly Mock<IEmailService> _mockEmail;
@@ -23,7 +23,7 @@ public class ServiceTests
     public ServiceTests()
     {
         _mockUnitOfWork = new Mock<IUnitOfWork>();
-        _mockNotification = new Mock<INotificationService>();
+        _mockNotification = new Mock<INotificationCoordinator>();
         _mockCache = new Mock<ICacheService>();
         _mockLogger = new Mock<ILogger<BookingService>>();
         _mockEmail = new Mock<IEmailService>();

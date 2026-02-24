@@ -19,7 +19,7 @@ public class PaymentTests
     private readonly Mock<IUserRepository> _mockUserRepository;
     private readonly Mock<IParkingSpaceRepository> _mockParkingRepository;
     private readonly Mock<IPaymentService> _mockPaymentService;
-    private readonly Mock<INotificationService> _mockNotificationService;
+    private readonly Mock<INotificationCoordinator> _mockNotificationService;
     private readonly Mock<IEmailService> _mockEmailService;
     private readonly Mock<ILogger<ProcessPaymentHandler>> _mockProcessLogger;
     private readonly Mock<ILogger<VerifyPaymentHandler>> _mockVerifyLogger;
@@ -32,7 +32,7 @@ public class PaymentTests
         _mockUserRepository = new Mock<IUserRepository>();
         _mockParkingRepository = new Mock<IParkingSpaceRepository>();
         _mockPaymentService = new Mock<IPaymentService>();
-        _mockNotificationService = new Mock<INotificationService>();
+        _mockNotificationService = new Mock<INotificationCoordinator>();
         _mockEmailService = new Mock<IEmailService>();
         _mockProcessLogger = new Mock<ILogger<ProcessPaymentHandler>>();
         _mockVerifyLogger = new Mock<ILogger<VerifyPaymentHandler>>();

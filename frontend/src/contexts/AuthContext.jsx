@@ -52,7 +52,7 @@ export function AuthProvider({ children }) {
         try {
             await api.logout();
         } catch (error) {
-            console.log('Logout error:', error);
+            // console.log('Logout error:', error);
         }
         api.clearTokens();
         setUser(null);

@@ -43,3 +43,19 @@ public record CalculatePriceQuery(
     int PricingType,
     string? DiscountCode
 ) : IQuery<ApiResponse<PriceBreakdownDto>>;
+
+/// <summary>
+/// Query to get the count of pending booking requests for a vendor
+/// </summary>
+public record GetPendingRequestsCountQuery(
+    Guid VendorId
+) : IQuery<ApiResponse<int>>;
+
+/// <summary>
+/// Query to get all bookings for a specific parking space (vendor only)
+/// </summary>
+public record GetBookingsByParkingSpaceQuery(
+    Guid ParkingSpaceId,
+    Guid VendorId,
+    BookingFilterDto? Filter
+) : IQuery<ApiResponse<BookingListResultDto>>;

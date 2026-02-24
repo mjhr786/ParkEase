@@ -4,6 +4,8 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using ParkingApp.Application.DTOs;
 using ParkingApp.Application.Interfaces;
+using ParkingApp.Application.CQRS;
+using ParkingApp.Application.CQRS.Queries.Bookings;
 
 namespace ParkingApp.API.Controllers;
 
@@ -206,6 +208,22 @@ public class BookingsController : ControllerBase
         }
 
         var result = await _bookingService.GetVendorBookingsAsync(userId.Value, filter, cancellationToken);
+        return Ok(result);
+    }
+
+    [HttpGet("pending-count")]
+    [Authorize(Roles = "Vendor,Admin")]
+    public async Task<IActionResult> GetPendingRequestsCount([FromServices] IDispatcher dispatcher, CancellationToken cancellationToken)
+    {
+        var userId = GetUserId();
+        if (userId == null)
+        {
+            return Unauthorized();
+        }
+
+        var query = new GetPendingRequestsCountQuery(userId.Value);
+        var result = await dispatcher.QueryAsync(query, cancellationToken);
+        
         return Ok(result);
     }
 

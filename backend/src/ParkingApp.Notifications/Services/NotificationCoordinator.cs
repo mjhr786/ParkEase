@@ -36,13 +36,32 @@ public class NotificationCoordinator : INotificationCoordinator
         _logger.LogInformation(
             "Sending notification to user {UserId}: Type={Type}, Channels={Channels}",
             userId, request.Type, request.Channels);
+        // Save to DB first
+        var notificationEntity = new ParkingApp.Domain.Entities.Notification
+        {
+            UserId = userId,
+            Type = Enum.TryParse<ParkingApp.Domain.Enums.NotificationType>(request.Type, true, out var parsedType)
+                ? parsedType
+                : ParkingApp.Domain.Enums.NotificationType.SystemAlert,
+            Priority = (ParkingApp.Domain.Enums.NotificationPriority)(int)request.Priority,
+            Title = request.Title,
+            Message = request.Message,
+            Data = request.Data != null
+                ? System.Text.Json.JsonSerializer.Serialize(request.Data)
+                : null,
+            IsRead = false,
+            CreatedAt = DateTime.UtcNow
+        };
+        
+        await _unitOfWork.Notifications.AddAsync(notificationEntity, cancellationToken);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
         
         var tasks = new List<Task>();
         
         // In-App notification (SignalR)
         if (request.Channels.HasFlag(NotificationChannels.InApp))
         {
-            tasks.Add(SendInAppAsync(userId, request, cancellationToken));
+            tasks.Add(SendInAppAsync(userId, notificationEntity, cancellationToken));
         }
         
         // Push notification
@@ -83,18 +102,20 @@ public class NotificationCoordinator : INotificationCoordinator
         _logger.LogInformation("Bulk notification completed for {UserCount} users", userIdList.Count);
     }
     
-    private async Task SendInAppAsync(Guid userId, NotificationRequest request, CancellationToken cancellationToken)
+    private async Task SendInAppAsync(Guid userId, ParkingApp.Domain.Entities.Notification entity, CancellationToken cancellationToken)
     {
         try
         {
-            var notification = new NotificationDto(
-                Type: request.Type,
-                Title: request.Title,
-                Message: request.Message,
-                Data: request.Data
+            // Use the real-time NotificationDto (from INotificationService) for SignalR dispatch.
+            // The persisted entity is already saved; this DTO carries the real-time payload.
+            var notificationDto = new ParkingApp.Application.Interfaces.NotificationDto(
+                Type: entity.Type.ToString(),
+                Title: entity.Title,
+                Message: entity.Message,
+                Data: (object?)entity.Data
             );
             
-            await _inAppNotificationService.NotifyUserAsync(userId, notification, cancellationToken);
+            await _inAppNotificationService.NotifyUserAsync(userId, notificationDto, cancellationToken);
         }
         catch (Exception ex)
         {

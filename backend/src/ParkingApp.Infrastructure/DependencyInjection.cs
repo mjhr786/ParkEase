@@ -38,6 +38,7 @@ public static class DependencyInjection
         services.AddScoped<IReviewRepository, ReviewRepository>();
         services.AddScoped<IConversationRepository, ConversationRepository>();
         services.AddScoped<IChatMessageRepository, ChatMessageRepository>();
+        services.AddScoped<IDashboardRepository, DashboardRepository>();
 
         // Services
         services.AddScoped<ITokenService, JwtTokenService>();

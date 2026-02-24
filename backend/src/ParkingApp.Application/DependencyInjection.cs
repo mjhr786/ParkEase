@@ -6,20 +6,22 @@ using ParkingApp.Application.Interfaces;
 using ParkingApp.Application.Services;
 using ParkingApp.Application.Validators;
 
+using ParkingApp.Application.CQRS.Commands.Favorites;
+using ParkingApp.Application.CQRS.Queries.Favorites;
+
 namespace ParkingApp.Application;
 
 public static class DependencyInjection
 {
     public static IServiceCollection AddApplication(this IServiceCollection services)
     {
-        // Validators
+        // ... existing validators and services ...
         services.AddScoped<IValidator<RegisterDto>, RegisterDtoValidator>();
         services.AddScoped<IValidator<LoginDto>, LoginDtoValidator>();
         services.AddScoped<IValidator<CreateParkingSpaceDto>, CreateParkingSpaceDtoValidator>();
         services.AddScoped<IValidator<CreateBookingDto>, CreateBookingDtoValidator>();
         services.AddScoped<IValidator<CreateReviewDto>, CreateReviewDtoValidator>();
 
-        // Services
         services.AddScoped<IAuthService, AuthService>();
         services.AddScoped<IUserService, UserService>();
         services.AddScoped<IParkingSpaceService, ParkingSpaceService>();
