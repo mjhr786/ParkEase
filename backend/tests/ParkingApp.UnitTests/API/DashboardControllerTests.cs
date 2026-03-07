@@ -39,7 +39,7 @@ public class DashboardControllerTests
     public async Task GetVendorDashboard_ShouldReturnOkWithData()
     {
         // Arrange
-        var dashboardDto = new VendorDashboardDto(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, new List<BookingDto>(), new List<EarningsChartDataDto>());
+        var dashboardDto = new VendorDashboardDto(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, new List<BookingDto>(), new List<DashboardChartDataDto>());
         var apiResponse = new ApiResponse<VendorDashboardDto>(true, null, dashboardDto);
         
         _mockDispatcher.Setup(d => d.QueryAsync(It.IsAny<GetVendorDashboardQuery>(), It.IsAny<CancellationToken>()))

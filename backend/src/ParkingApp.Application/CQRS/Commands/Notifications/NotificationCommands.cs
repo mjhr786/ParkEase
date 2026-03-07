@@ -83,3 +83,24 @@ public sealed class DeleteNotificationCommandHandler : ICommandHandler<DeleteNot
         return new ApiResponse<bool>(true, "Notification deleted successfully", true);
     }
 }
+
+// --- Clear All Notifications ---
+
+public sealed record ClearAllNotificationsCommand(Guid UserId) : ICommand<ApiResponse<bool>>;
+
+public sealed class ClearAllNotificationsCommandHandler : ICommandHandler<ClearAllNotificationsCommand, ApiResponse<bool>>
+{
+    private readonly IUnitOfWork _unitOfWork;
+
+    public ClearAllNotificationsCommandHandler(IUnitOfWork unitOfWork)
+    {
+        _unitOfWork = unitOfWork;
+    }
+
+    public async Task<ApiResponse<bool>> HandleAsync(ClearAllNotificationsCommand command, CancellationToken cancellationToken = default)
+    {
+        await _unitOfWork.Notifications.DeleteAllAsync(command.UserId, cancellationToken);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+        return new ApiResponse<bool>(true, "All notifications cleared successfully", true);
+    }
+}

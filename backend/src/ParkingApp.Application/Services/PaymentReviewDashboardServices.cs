@@ -676,11 +676,12 @@ public class DashboardService : IDashboardService
         var weeklyEarnings = completedBookings.Where(b => b.CheckOutTime >= startOfWeek).Sum(b => b.TotalAmount);
 
         // Earnings chart (last 7 days)
-        var earningsChart = Enumerable.Range(0, 7)
+        var chartData = Enumerable.Range(0, 7)
             .Select(i => now.Date.AddDays(-6 + i))
-            .Select(date => new EarningsChartDataDto(
+            .Select(date => new DashboardChartDataDto(
                 date.ToString("ddd"),
-                completedBookings.Where(b => b.CheckOutTime?.Date == date).Sum(b => b.TotalAmount)
+                completedBookings.Where(b => b.CheckOutTime?.Date == date).Sum(b => b.TotalAmount),
+                completedBookings.Count(b => b.CheckOutTime?.Date == date)
             ))
             .ToList();
 
@@ -704,7 +705,7 @@ public class DashboardService : IDashboardService
             AverageRating: parkingSpaces.Any() ? parkingSpaces.Average(p => p.AverageRating) : 0,
             TotalReviews: parkingSpaces.Sum(p => p.TotalReviews),
             RecentBookings: recentBookings,
-            EarningsChart: earningsChart
+            ChartData: chartData
         );
 
         // Cache the result

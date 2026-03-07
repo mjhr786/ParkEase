@@ -14,8 +14,48 @@ const NOTIFICATION_STYLES = {
     'payment.completed': { icon: '💰', bg: 'rgba(16, 185, 129, 0.95)', title: 'Payment' },
     'booking.checkin': { icon: '🚗', bg: 'rgba(59, 130, 246, 0.95)', title: 'Check In' },
     'booking.checkout': { icon: '👋', bg: 'rgba(107, 114, 128, 0.95)', title: 'Check Out' },
+    'extension.requested': { icon: '⏳', bg: 'rgba(245, 158, 11, 0.95)', title: 'Extension Request' },
+    'extension.approved': { icon: '✅', bg: 'rgba(16, 185, 129, 0.95)', title: 'Extension Approved' },
+    'extension.rejected': { icon: '❌', bg: 'rgba(239, 68, 68, 0.95)', title: 'Extension Rejected' },
     default: { icon: '🔔', bg: 'rgba(75, 85, 99, 0.95)', title: 'Notification' }
 };
+
+function parseNotificationData(rawData) {
+    if (!rawData) return null;
+    if (typeof rawData === 'object') return rawData;
+    if (typeof rawData === 'string') {
+        try {
+            return JSON.parse(rawData);
+        } catch {
+            return null;
+        }
+    }
+    return null;
+}
+
+function normalizeNotificationType(type, data, title = '') {
+    const eventType = (type || '').toString();
+    const dataType = (data?.Type || data?.type || '').toString().toLowerCase();
+    const lowerTitle = (title || '').toLowerCase();
+    const isExtension = dataType === 'extension' || lowerTitle.includes('extension');
+
+    if (eventType.includes('.')) return eventType;
+
+    switch (eventType) {
+        case 'BookingRequest':
+            return isExtension ? 'extension.requested' : 'booking.requested';
+        case 'BookingConfirmed':
+            return isExtension ? 'extension.approved' : 'booking.approved';
+        case 'BookingRejected':
+            return isExtension ? 'extension.rejected' : 'booking.rejected';
+        case 'PaymentReceived':
+            return 'payment.completed';
+        case 'SystemAlert':
+            return 'system.alert';
+        default:
+            return eventType;
+    }
+}
 
 /**
  * Provider component for app-wide notifications.
@@ -55,9 +95,12 @@ export function NotificationProvider({ children }) {
     const handleNotification = useCallback((notification) => {
         // Create a unique signature for deduplication
         // Use type, title, and data (specifically IDs) to identify duplicates
-        const dataStr = notification.data ?
-            (notification.data.BookingId || notification.data.bookingId || JSON.stringify(notification.data)) : '';
-        const signature = `${notification.type}-${dataStr}-${notification.title}`;
+        const parsedData = parseNotificationData(notification.data);
+        const normalizedType = normalizeNotificationType(notification.type, parsedData, notification.title);
+        const dataStr = parsedData
+            ? (parsedData.BookingId || parsedData.bookingId || JSON.stringify(parsedData))
+            : (notification.data || '');
+        const signature = `${normalizedType}-${dataStr}-${notification.title}`;
 
         // Check if we've processed this recently
         if (processedRef.current.has(signature)) {
@@ -74,27 +117,36 @@ export function NotificationProvider({ children }) {
         }, 2000);
 
         const id = Date.now().toString();
-        const newNotification = { ...notification, id, read: false };
+        const newNotification = {
+            ...notification,
+            type: normalizedType,
+            data: parsedData ?? notification.data,
+            id,
+            read: false
+        };
 
         // Add to notifications list
         setNotifications(prev => [newNotification, ...prev].slice(0, 50)); // Keep last 50
 
-        // Show toast
-        setToasts(prev => [...prev, { ...newNotification, id }]);
+        // Show toast if not silent
+        const isSilent = parsedData?.Silent === 'true' || parsedData?.silent === true || parsedData?.isSilent === true;
+        if (!isSilent) {
+            setToasts(prev => [...prev, { ...newNotification, id }]);
 
-        // Auto-remove toast after 5 seconds
-        setTimeout(() => {
-            setToasts(prev => prev.filter(t => t.id !== id));
-        }, 5000);
+            // Auto-remove toast after 5 seconds
+            setTimeout(() => {
+                setToasts(prev => prev.filter(t => t.id !== id));
+            }, 5000);
+        }
 
         // Trigger refresh callbacks for matching subscribers
         refreshCallbacksRef.current.forEach((subscription, subscriberId) => {
-            if (subscription.types.includes(notification.type)) {
+            if (subscription.types.includes(normalizedType)) {
                 // console.log(`🔄 Triggering refresh for ${subscriberId} due to ${notification.type}`);
                 // Use setTimeout to ensure UI updates don't block notification display
                 setTimeout(() => {
                     try {
-                        subscription.callback(notification);
+                        subscription.callback(newNotification);
                     } catch (err) {
                         console.error(`Error in refresh callback for ${subscriberId}:`, err);
                     }
@@ -238,3 +290,4 @@ export function useNotificationContext() {
 }
 
 export default NotificationContext;
+

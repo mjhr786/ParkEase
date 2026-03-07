@@ -98,11 +98,60 @@ public sealed class DeleteUserHandler : ICommandHandler<DeleteUserCommand, ApiRe
         if (user == null)
             return new ApiResponse<bool>(false, "User not found", false);
 
-        _unitOfWork.Users.Remove(user);
-        await _unitOfWork.SaveChangesAsync(cancellationToken);
-        await _cache.RemoveAsync($"user:{command.UserId}", cancellationToken);
+        await _unitOfWork.BeginTransactionAsync(cancellationToken);
+        try
+        {
+            // 1. Delete payments linked to user's bookings
+            var bookings = await _unitOfWork.Bookings.FindAsync(b => b.UserId == command.UserId, cancellationToken);
+            var bookingList = bookings.ToList();
+            foreach (var booking in bookingList)
+            {
+                var payments = await _unitOfWork.Payments.FindAsync(p => p.BookingId == booking.Id, cancellationToken);
+                _unitOfWork.Payments.HardDeleteRange(payments);
+            }
 
-        _logger.LogWarning("User account deleted: {UserId}", command.UserId);
-        return new ApiResponse<bool>(true, "Account deleted", true);
+            // 2. Delete bookings
+            _unitOfWork.Bookings.HardDeleteRange(bookingList);
+
+            // 3. Delete reviews
+            var reviews = await _unitOfWork.Reviews.FindAsync(r => r.UserId == command.UserId, cancellationToken);
+            _unitOfWork.Reviews.HardDeleteRange(reviews);
+
+            // 4. Delete favorites
+            var favorites = await _unitOfWork.Favorites.FindAsync(f => f.UserId == command.UserId, cancellationToken);
+            _unitOfWork.Favorites.HardDeleteRange(favorites);
+
+            // 5. Delete notifications
+            var notifications = await _unitOfWork.Notifications.FindAsync(n => n.UserId == command.UserId, cancellationToken);
+            _unitOfWork.Notifications.HardDeleteRange(notifications);
+
+            // 6. Delete vehicles
+            var vehicles = await _unitOfWork.Vehicles.FindAsync(v => v.UserId == command.UserId, cancellationToken);
+            _unitOfWork.Vehicles.HardDeleteRange(vehicles);
+
+            // 7. Delete conversations and their messages (messages cascade via FK)
+            var conversations = await _unitOfWork.Conversations.FindAsync(c => c.UserId == command.UserId || c.VendorId == command.UserId, cancellationToken);
+            foreach (var conversation in conversations)
+            {
+                var messages = await _unitOfWork.ChatMessages.FindAsync(m => m.ConversationId == conversation.Id, cancellationToken);
+                _unitOfWork.ChatMessages.HardDeleteRange(messages);
+            }
+            _unitOfWork.Conversations.HardDeleteRange(conversations);
+
+            // 8. Delete the user
+            _unitOfWork.Users.HardDelete(user);
+
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
+            await _unitOfWork.CommitTransactionAsync(cancellationToken);
+            await _cache.RemoveAsync($"user:{command.UserId}", cancellationToken);
+
+            _logger.LogWarning("User account permanently deleted: {UserId}", command.UserId);
+            return new ApiResponse<bool>(true, "Account deleted", true);
+        }
+        catch
+        {
+            await _unitOfWork.RollbackTransactionAsync(cancellationToken);
+            throw;
+        }
     }
 }

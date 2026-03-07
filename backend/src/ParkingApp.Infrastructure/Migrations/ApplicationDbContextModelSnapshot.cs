@@ -71,6 +71,15 @@ namespace ParkingApp.Infrastructure.Migrations
                     b.Property<Guid>("ParkingSpaceId")
                         .HasColumnType("uuid");
 
+                    b.Property<decimal?>("PendingExtensionAmount")
+                        .HasColumnType("numeric");
+
+                    b.Property<DateTime?>("PendingExtensionEndDateTime")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("PreExtensionStatus")
+                        .HasColumnType("integer");
+
                     b.Property<int>("PricingType")
                         .HasColumnType("integer");
 
@@ -85,6 +94,9 @@ namespace ParkingApp.Infrastructure.Migrations
                     b.Property<decimal>("ServiceFee")
                         .HasPrecision(18, 2)
                         .HasColumnType("numeric(18,2)");
+
+                    b.Property<int?>("SlotNumber")
+                        .HasColumnType("integer");
 
                     b.Property<DateTime>("StartDateTime")
                         .HasColumnType("timestamp with time zone");
@@ -105,6 +117,10 @@ namespace ParkingApp.Infrastructure.Migrations
 
                     b.Property<Guid>("UserId")
                         .HasColumnType("uuid");
+
+                    b.Property<string>("VehicleColor")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
 
                     b.Property<string>("VehicleModel")
                         .HasMaxLength(100)
@@ -715,6 +731,57 @@ namespace ParkingApp.Infrastructure.Migrations
                     b.ToTable("Users");
                 });
 
+            modelBuilder.Entity("ParkingApp.Domain.Entities.Vehicle", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Color")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsDefault")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("LicensePlate")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("Make")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("Model")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<int>("Type")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("Vehicles");
+                });
+
             modelBuilder.Entity("ParkingApp.Domain.Entities.Booking", b =>
                 {
                     b.HasOne("ParkingApp.Domain.Entities.ParkingSpace", "ParkingSpace")
@@ -881,6 +948,17 @@ namespace ParkingApp.Infrastructure.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("ParkingApp.Domain.Entities.Vehicle", b =>
+                {
+                    b.HasOne("ParkingApp.Domain.Entities.User", "User")
+                        .WithMany("Vehicles")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("ParkingApp.Domain.Entities.Booking", b =>
                 {
                     b.Navigation("Payment");
@@ -913,6 +991,8 @@ namespace ParkingApp.Infrastructure.Migrations
                     b.Navigation("ParkingSpaces");
 
                     b.Navigation("Reviews");
+
+                    b.Navigation("Vehicles");
                 });
 #pragma warning restore 612, 618
         }

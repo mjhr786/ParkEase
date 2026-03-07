@@ -44,6 +44,7 @@ public static class DependencyInjection
         services.AddScoped<ITokenService, JwtTokenService>();
         services.AddScoped<IPaymentService, StripePaymentService>();
         services.AddHttpClient<IEmailService, ResendEmailService>();
+        services.AddHttpClient<IRoutingService, OSRMService>();
         
         // Cache Registration (Redis or In-Memory)
         var redisConnection = configuration.GetConnectionString("Redis");

@@ -49,20 +49,16 @@ public class DashboardHandlerTests
             WeeklyEarnings = 200m
         };
 
-        // Mock earnings chart
-        var chartData = new List<EarningsChartDataDto> { new EarningsChartDataDto("Mon", 100m) };
+        // Mock chart data
+        var chartData = new List<DashboardChartDataDto> { new DashboardChartDataDto("Mon", 100m, 5) };
 
         // Mock recent bookings
-        var recentBookings = new List<BookingDto> { new BookingDto(
-            Guid.NewGuid(), Guid.NewGuid(), "User", Guid.NewGuid(), "Space", "Addr", 0, 0,
-            DateTime.UtcNow, DateTime.UtcNow.AddHours(1), PricingType.Hourly, VehicleType.Car,
-            null, null, 10, 1.8m, 1, 0, 12.8m, null, BookingStatus.Pending, "REF",
-            null, null, null, DateTime.UtcNow) };
+        var recentBookings = new List<BookingDto> { new BookingDto { Id = Guid.NewGuid() } };
 
         _mockRepo.Setup(r => r.GetVendorAggregatesAsync(vendorId, It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(aggregateRow);
 
-        _mockRepo.Setup(r => r.GetEarningsChartDataAsync(vendorId, It.IsAny<CancellationToken>()))
+        _mockRepo.Setup(r => r.GetChartDataAsync(vendorId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(chartData);
 
         _mockRepo.Setup(r => r.GetRecentVendorBookingsAsync(vendorId, It.IsAny<CancellationToken>()))
@@ -100,11 +96,7 @@ public class DashboardHandlerTests
         };
 
         // Mock upcoming & recent bookings
-        var bookings = new List<BookingDto> { new BookingDto(
-            Guid.NewGuid(), memberId, "User", Guid.NewGuid(), "Space", "Addr", 0, 0,
-            DateTime.UtcNow, DateTime.UtcNow.AddHours(1), PricingType.Hourly, VehicleType.Car,
-            null, null, 10, 1.8m, 1, 0, 12.8m, null, BookingStatus.Pending, "REF",
-            null, null, null, DateTime.UtcNow) };
+        var bookings = new List<BookingDto> { new BookingDto { Id = Guid.NewGuid(), UserId = memberId } };
 
         _mockRepo.Setup(r => r.GetMemberAggregatesAsync(memberId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(aggRow);

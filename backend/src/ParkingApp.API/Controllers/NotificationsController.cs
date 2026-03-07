@@ -75,6 +75,21 @@ public class NotificationsController : ControllerBase
         return BadRequest(result.Message);
     }
 
+    [HttpDelete("clear-all")]
+    public async Task<IActionResult> ClearAll(CancellationToken cancellationToken = default)
+    {
+        var userId = GetUserId();
+        if (userId == null) return Unauthorized();
+
+        var command = new ClearAllNotificationsCommand(userId.Value);
+        var result = await _dispatcher.SendAsync(command, cancellationToken);
+        
+        if (result.Success)
+            return Ok();
+            
+        return BadRequest(result.Message);
+    }
+
     private Guid? GetUserId()
     {
         var userIdClaim = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;

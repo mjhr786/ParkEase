@@ -64,6 +64,10 @@ builder.Services.AddCors(options =>
         policy.WithOrigins(
                 "http://localhost:5173", 
                 "https://localhost:5173",
+                "http://localhost:3000",
+                "http://127.0.0.1:5173",
+                "http://localhost:5174",
+                "https://localhost:5174",
                 "https://parkease.azurewebsites.net" // Add Azure URL
               )
               .AllowAnyHeader()
@@ -133,7 +137,7 @@ builder.Services.AddAuthentication(options =>
 })
 .AddJwtBearer(options =>
 {
-    options.RequireHttpsMetadata = false; // Set to true in production
+    options.RequireHttpsMetadata = builder.Environment.IsProduction();
     options.SaveToken = true;
     options.TokenValidationParameters = new TokenValidationParameters
     {
@@ -165,21 +169,6 @@ builder.Services.AddAuthentication(options =>
 
 builder.Services.AddAuthorization();
 
-// Configure CORS
-builder.Services.AddCors(options =>
-{
-    options.AddPolicy("AllowFrontend", policy =>
-    {
-        policy.WithOrigins(
-            "http://localhost:5173",
-            "http://localhost:3000",
-            "http://127.0.0.1:5173"
-        )
-        .AllowAnyMethod()
-        .AllowAnyHeader()
-        .AllowCredentials();
-    });
-});
 
 var app = builder.Build();
 
@@ -206,9 +195,9 @@ app.UseSerilogRequestLogging(options =>
     };
 });
 
-app.UseMiddleware<RateLimitingMiddleware>();
-
 app.UseCors("AllowFrontend");
+
+app.UseMiddleware<RateLimitingMiddleware>();
 
 // Add Image Resizing Middleware (Before Static Files)
 app.UseMiddleware<ImageResizingMiddleware>();

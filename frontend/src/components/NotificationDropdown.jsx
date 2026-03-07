@@ -144,6 +144,18 @@ export default function NotificationDropdown() {
         }
     };
 
+    const handleClearAll = async () => {
+        if (!window.confirm('Are you sure you want to clear all notifications?')) return;
+        try {
+            await api.clearAllNotifications();
+            setDbNotifications([]);
+            setUnreadCount(0);
+            setHasMore(false);
+        } catch (err) {
+            console.error('Failed to clear all notifications:', err);
+        }
+    };
+
     const handleDelete = async (e, notificationId) => {
         e.stopPropagation(); // Prevent triggering mark as read
         try {
@@ -255,23 +267,46 @@ export default function NotificationDropdown() {
                                 </span>
                             )}
                         </div>
-                        {unreadCount > 0 && (
-                            <button
-                                onClick={handleMarkAllRead}
-                                style={{
-                                    background: 'transparent',
-                                    border: 'none',
-                                    color: '#60a5fa',
-                                    fontSize: '0.8rem',
-                                    cursor: 'pointer',
-                                    padding: '0.25rem 0.5rem',
-                                    borderRadius: '6px',
-                                    textDecoration: 'underline',
-                                }}
-                            >
-                                Mark all read
-                            </button>
-                        )}
+                        <div style={{ display: 'flex', gap: '0.4rem' }}>
+                            {unreadCount > 0 && (
+                                <button
+                                    onClick={handleMarkAllRead}
+                                    style={{
+                                        background: 'transparent',
+                                        border: 'none',
+                                        color: '#60a5fa',
+                                        fontSize: '0.75rem',
+                                        cursor: 'pointer',
+                                        padding: '0.25rem 0.4rem',
+                                        borderRadius: '6px',
+                                        textDecoration: 'none',
+                                    }}
+                                    onMouseEnter={e => e.currentTarget.style.background = 'rgba(96,165,250,0.1)'}
+                                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                                >
+                                    Mark all read
+                                </button>
+                            )}
+                            {dbNotifications.length > 0 && (
+                                <button
+                                    onClick={handleClearAll}
+                                    style={{
+                                        background: 'transparent',
+                                        border: 'none',
+                                        color: '#94a3b8',
+                                        fontSize: '0.75rem',
+                                        cursor: 'pointer',
+                                        padding: '0.25rem 0.4rem',
+                                        borderRadius: '6px',
+                                        textDecoration: 'none',
+                                    }}
+                                    onMouseEnter={e => e.currentTarget.style.background = 'rgba(148,163,184,0.1)'}
+                                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                                >
+                                    Clear all
+                                </button>
+                            )}
+                        </div>
                     </div>
 
                     {/* Notification List */}

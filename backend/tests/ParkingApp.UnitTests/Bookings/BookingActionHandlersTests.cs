@@ -16,6 +16,7 @@ public class BookingActionHandlersTests
     private readonly Mock<IBookingRepository> _mockBookingRepo;
     private readonly Mock<INotificationCoordinator> _mockNotificationCoordinator;
     private readonly Mock<IEmailService> _mockEmailService;
+    private readonly Mock<ICacheService> _mockCacheService;
 
     public BookingActionHandlersTests()
     {
@@ -23,6 +24,7 @@ public class BookingActionHandlersTests
         _mockBookingRepo = new Mock<IBookingRepository>();
         _mockNotificationCoordinator = new Mock<INotificationCoordinator>();
         _mockEmailService = new Mock<IEmailService>();
+        _mockCacheService = new Mock<ICacheService>();
 
         _mockUnitOfWork.Setup(u => u.Bookings).Returns(_mockBookingRepo.Object);
     }
@@ -31,7 +33,7 @@ public class BookingActionHandlersTests
     public async Task CancelBookingHandler_WhenAuthorized_ShouldCancelSuccessfully()
     {
         // Arrange
-        var handler = new CancelBookingHandler(_mockUnitOfWork.Object, _mockNotificationCoordinator.Object, _mockEmailService.Object);
+        var handler = new CancelBookingHandler(_mockUnitOfWork.Object, _mockNotificationCoordinator.Object, _mockEmailService.Object, _mockCacheService.Object);
         var userId = Guid.NewGuid();
         var booking = new Booking 
         { 
@@ -61,7 +63,7 @@ public class BookingActionHandlersTests
     public async Task ApproveBookingHandler_WhenVendor_ShouldSetToAwaitingPayment()
     {
         // Arrange
-        var handler = new ApproveBookingHandler(_mockUnitOfWork.Object, _mockNotificationCoordinator.Object, _mockEmailService.Object);
+        var handler = new ApproveBookingHandler(_mockUnitOfWork.Object, _mockNotificationCoordinator.Object, _mockEmailService.Object, _mockCacheService.Object);
         var vendorId = Guid.NewGuid();
         var booking = new Booking 
         { 
@@ -87,7 +89,7 @@ public class BookingActionHandlersTests
     public async Task RejectBookingHandler_WhenVendor_ShouldRejectSuccessfully()
     {
         // Arrange
-        var handler = new RejectBookingHandler(_mockUnitOfWork.Object, _mockNotificationCoordinator.Object, _mockEmailService.Object);
+        var handler = new RejectBookingHandler(_mockUnitOfWork.Object, _mockNotificationCoordinator.Object, _mockEmailService.Object, _mockCacheService.Object);
         var vendorId = Guid.NewGuid();
         var booking = new Booking 
         { 

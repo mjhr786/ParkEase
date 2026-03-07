@@ -39,7 +39,7 @@ const createToast = (message, type = 'default') => {
                 </button>
             </div>
         ),
-        { id: `toast-${Date.now()}` }
+        { id: `toast-${Date.now()}`, icon: false }
     );
 };
 

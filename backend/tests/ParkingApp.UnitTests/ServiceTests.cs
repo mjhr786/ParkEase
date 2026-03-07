@@ -75,7 +75,7 @@ public class ServiceTests
         mockBookingRepo.Setup(r => r.GetActiveBookingsCountAsync(It.IsAny<Guid>(), It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(1); // Already 1 spot taken
 
-        var dto = new CreateBookingDto(parkingId, DateTime.UtcNow.AddHours(1), DateTime.UtcNow.AddHours(2), PricingType.Hourly, VehicleType.Car, "XYZ", "Model", null);
+        var dto = new CreateBookingDto(parkingId, DateTime.UtcNow.AddHours(1), DateTime.UtcNow.AddHours(2), PricingType.Hourly, VehicleType.Car, null, "XYZ", "Model", null, null);
 
         // Act
         var result = await service.CreateAsync(Guid.NewGuid(), dto);

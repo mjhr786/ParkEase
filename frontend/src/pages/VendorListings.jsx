@@ -103,19 +103,39 @@ export default function VendorListings() {
         return unsubscribe;
     }, [subscribeToRefresh, fetchListings, fetchBookings]);
 
-    const getActiveBookingsForListing = (listingId) => {
+    const getActiveBookingsForListing = (listingId, listingReservations = []) => {
         const now = new Date();
         // Status values: 0=Pending, 1=Confirmed, 2=InProgress, 6=AwaitingPayment
-        const activeStatuses = [0, 1, 2, 6, 'Pending', 'Confirmed', 'InProgress', 'AwaitingPayment'];
-        return bookings.filter(b =>
-            b.parkingSpaceId === listingId &&
-            activeStatuses.includes(b.status) &&
-            new Date(b.endDateTime) > now
-        ).sort((a, b) => new Date(a.startDateTime) - new Date(b.startDateTime));
+        const activeStatuses = [0, 1, 2, 6, 8, 9, 'Pending', 'Confirmed', 'InProgress', 'AwaitingPayment', 'Awaitingpayment', 'PendingExtension', 'AwaitingExtensionPayment'];
+
+        // Try to get full booking objects first (contains userName)
+        const detailedBookings = bookings.filter(b => {
+            const bParkingId = (b.parkingSpaceId || b.ParkingSpaceId || '').toString().toLowerCase();
+            const lId = (listingId || '').toString().toLowerCase();
+            return bParkingId === lId &&
+                activeStatuses.includes(b.status) &&
+                new Date(b.endDateTime) > now;
+        }).sort((a, b) => new Date(a.startDateTime) - new Date(b.startDateTime));
+
+        if (detailedBookings.length > 0) return detailedBookings;
+
+        // Fallback to basic reservations from listing DTO if detailed bookings not loaded/available
+        if (listingReservations && listingReservations.length > 0) {
+            return listingReservations.map(r => ({
+                id: `res-${r.startDateTime}`,
+                userName: r.userName || 'Reserved',
+                startDateTime: r.startDateTime,
+                endDateTime: r.endDateTime,
+                slotNumber: r.slotNumber,
+                isBasic: true
+            }));
+        }
+
+        return [];
     };
 
     const getStatusLabel = (status) => {
-        const labels = { 0: 'Pending', 1: 'Confirmed', 2: 'InProgress', 6: 'AwaitingPayment' };
+        const labels = { 0: 'Pending', 1: 'Confirmed', 2: 'InProgress', 6: 'AwaitingPayment', 8: 'Extension Pending', 9: 'Extension Payment Due' };
         return labels[status] || status;
     };
 
@@ -580,7 +600,7 @@ export default function VendorListings() {
 
                                 {/* Active Reservations */}
                                 {(() => {
-                                    const activeBookings = getActiveBookingsForListing(listing.id);
+                                    const activeBookings = getActiveBookingsForListing(listing.id, listing.activeReservations);
                                     if (activeBookings.length === 0) return null;
                                     return (
                                         <div style={{
@@ -596,8 +616,8 @@ export default function VendorListings() {
                                                     Active Reservations ({activeBookings.length})
                                                 </strong>
                                             </div>
-                                            <div style={{ maxHeight: '180px', overflowY: 'auto' }}>
-                                                {activeBookings.slice(0, 5).map(booking => (
+                                            <div style={{ maxHeight: '260px', overflowY: 'auto' }}>
+                                                {activeBookings.map(booking => (
                                                     <div key={booking.id} style={{
                                                         padding: '0.5rem',
                                                         marginBottom: '0.4rem',
@@ -618,7 +638,7 @@ export default function VendorListings() {
                                                                 {formatDateTime(booking.startDateTime)} → {formatDateTime(booking.endDateTime)}
                                                             </span>
                                                         </div>
-                                                        <div style={{ display: 'flex', gap: '0.75rem', marginTop: '0.3rem' }}>
+                                                        <div style={{ display: 'flex', gap: '0.75rem', marginTop: '0.3rem', flexWrap: 'wrap', alignItems: 'center' }}>
                                                             <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
                                                                 <span style={{ fontSize: '0.85rem' }}>👤</span>
                                                                 <span style={{ fontWeight: '500' }}>{booking.userName || 'Unknown'}</span>
@@ -630,14 +650,23 @@ export default function VendorListings() {
                                                                     {booking.vehicleModel && <span style={{ color: 'var(--color-text-muted)' }}>({booking.vehicleModel})</span>}
                                                                 </div>
                                                             )}
+                                                            {booking.slotNumber && (
+                                                                <span style={{
+                                                                    display: 'inline-flex',
+                                                                    alignItems: 'center',
+                                                                    gap: '0.2rem',
+                                                                    background: 'rgba(99,102,241,0.15)',
+                                                                    color: '#818cf8',
+                                                                    border: '1px solid rgba(99,102,241,0.35)',
+                                                                    borderRadius: '5px',
+                                                                    padding: '1px 6px',
+                                                                    fontWeight: 600,
+                                                                    fontSize: '0.75rem',
+                                                                }}>🅿️ P{booking.slotNumber}</span>
+                                                            )}
                                                         </div>
                                                     </div>
                                                 ))}
-                                                {activeBookings.length > 5 && (
-                                                    <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', paddingTop: '0.3rem' }}>
-                                                        +{activeBookings.length - 5} more...
-                                                    </div>
-                                                )}
                                             </div>
                                         </div>
                                     );

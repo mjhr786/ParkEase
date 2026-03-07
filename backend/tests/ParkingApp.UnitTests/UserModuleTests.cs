@@ -1,3 +1,4 @@
+using System.Linq.Expressions;
 using Moq;
 using FluentAssertions;
 using Xunit;
@@ -28,6 +29,38 @@ public class UserModuleTests
         _mockDeleteLogger = new Mock<ILogger<DeleteUserHandler>>();
 
         _mockUnitOfWork.Setup(u => u.Users).Returns(_mockUserRepository.Object);
+
+        // Setup related repositories for delete handler
+        var mockBookingRepo = new Mock<IBookingRepository>();
+        var mockPaymentRepo = new Mock<IPaymentRepository>();
+        var mockReviewRepo = new Mock<IReviewRepository>();
+        var mockFavoriteRepo = new Mock<IFavoriteRepository>();
+        var mockNotificationRepo = new Mock<INotificationRepository>();
+        var mockVehicleRepo = new Mock<IVehicleRepository>();
+        var mockConversationRepo = new Mock<IConversationRepository>();
+        var mockChatMessageRepo = new Mock<IChatMessageRepository>();
+
+        mockBookingRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<Booking, bool>>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<Booking>());
+        mockReviewRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<Review, bool>>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<Review>());
+        mockFavoriteRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<Favorite, bool>>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<Favorite>());
+        mockNotificationRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<Notification, bool>>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<Notification>());
+        mockVehicleRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<Vehicle, bool>>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<Vehicle>());
+        mockConversationRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<Conversation, bool>>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<Conversation>());
+
+        _mockUnitOfWork.Setup(u => u.Bookings).Returns(mockBookingRepo.Object);
+        _mockUnitOfWork.Setup(u => u.Payments).Returns(mockPaymentRepo.Object);
+        _mockUnitOfWork.Setup(u => u.Reviews).Returns(mockReviewRepo.Object);
+        _mockUnitOfWork.Setup(u => u.Favorites).Returns(mockFavoriteRepo.Object);
+        _mockUnitOfWork.Setup(u => u.Notifications).Returns(mockNotificationRepo.Object);
+        _mockUnitOfWork.Setup(u => u.Vehicles).Returns(mockVehicleRepo.Object);
+        _mockUnitOfWork.Setup(u => u.Conversations).Returns(mockConversationRepo.Object);
+        _mockUnitOfWork.Setup(u => u.ChatMessages).Returns(mockChatMessageRepo.Object);
     }
 
     [Fact]
@@ -78,7 +111,7 @@ public class UserModuleTests
         var result = await handler.HandleAsync(new DeleteUserCommand(userId));
 
         result.Success.Should().BeTrue();
-        _mockUserRepository.Verify(r => r.Remove(user), Times.Once);
+        _mockUserRepository.Verify(r => r.HardDelete(user), Times.Once);
         _mockCache.Verify(c => c.RemoveAsync($"user:{userId}", It.IsAny<CancellationToken>()), Times.Once);
         _mockUnitOfWork.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
     }

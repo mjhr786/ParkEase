@@ -13,8 +13,10 @@ public record CreateBookingCommand(
     DateTime EndDateTime,
     PricingType PricingType,
     VehicleType VehicleType,
+    int? SlotNumber,
     string? VehicleNumber,
     string? VehicleModel,
+    string? VehicleColor,
     string? DiscountCode
 ) : ICommand<ApiResponse<BookingDto>>;
 
@@ -67,4 +69,39 @@ public record UpdateBookingCommand(
     Guid BookingId,
     Guid UserId,
     UpdateBookingDto Dto
+) : ICommand<ApiResponse<BookingDto>>;
+
+/// <summary>
+/// Command to extend an existing booking — creates a pending extension request
+/// that must be approved by the vendor before payment.
+/// </summary>
+public record RequestExtensionCommand(
+    Guid BookingId,
+    Guid UserId,
+    DateTime NewEndDateTime
+) : ICommand<ApiResponse<BookingDto>>;
+
+/// <summary>
+/// Vendor approves a pending extension request — moves to AwaitingExtensionPayment.
+/// </summary>
+public record ApproveExtensionCommand(
+    Guid BookingId,
+    Guid VendorId
+) : ICommand<ApiResponse<BookingDto>>;
+
+/// <summary>
+/// Vendor rejects a pending extension request — reverts to previous booking status.
+/// </summary>
+public record RejectExtensionCommand(
+    Guid BookingId,
+    Guid VendorId,
+    string? Reason
+) : ICommand<ApiResponse<BookingDto>>;
+
+/// <summary>
+/// Called after successful extension payment — updates EndDateTime and confirms the extension.
+/// </summary>
+public record ConfirmExtensionPaymentCommand(
+    Guid BookingId,
+    Guid UserId
 ) : ICommand<ApiResponse<BookingDto>>;

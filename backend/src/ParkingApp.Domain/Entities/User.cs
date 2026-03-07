@@ -23,6 +23,7 @@ public class User : BaseEntity
     public virtual ICollection<Review> Reviews { get; set; } = new List<Review>();
     public virtual ICollection<Favorite> Favorites { get; set; } = new List<Favorite>();
     public virtual ICollection<Notification> Notifications { get; set; } = new List<Notification>();
+    public virtual ICollection<Vehicle> Vehicles { get; set; } = new List<Vehicle>();
     
     public string FullName => $"{FirstName} {LastName}".Trim();
 }

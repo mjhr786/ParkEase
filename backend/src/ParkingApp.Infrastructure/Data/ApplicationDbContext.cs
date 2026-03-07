@@ -20,6 +20,7 @@ public class ApplicationDbContext : DbContext
     public DbSet<ChatMessage> ChatMessages => Set<ChatMessage>();
     public DbSet<Favorite> Favorites => Set<Favorite>();
     public DbSet<Notification> Notifications => Set<Notification>();
+    public DbSet<Vehicle> Vehicles => Set<Vehicle>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -50,6 +51,23 @@ public class ApplicationDbContext : DbContext
                   .HasForeignKey(e => e.UserId)
                   .OnDelete(DeleteBehavior.Cascade);
             entity.HasQueryFilter(e => !e.IsDeleted);
+        });
+
+        // Vehicle configuration
+        modelBuilder.Entity<Vehicle>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.LicensePlate).HasMaxLength(20).IsRequired();
+            entity.Property(e => e.Make).HasMaxLength(100).IsRequired();
+            entity.Property(e => e.Model).HasMaxLength(100).IsRequired();
+            entity.Property(e => e.Color).HasMaxLength(50).IsRequired();
+            entity.HasIndex(e => e.UserId);
+            entity.HasQueryFilter(e => !e.IsDeleted);
+
+            entity.HasOne(e => e.User)
+                  .WithMany(u => u.Vehicles)
+                  .HasForeignKey(e => e.UserId)
+                  .OnDelete(DeleteBehavior.Cascade);
         });
 
         // ParkingSpace configuration
@@ -112,6 +130,7 @@ public class ApplicationDbContext : DbContext
             entity.Property(e => e.QRCode).HasMaxLength(2000);
             entity.Property(e => e.VehicleNumber).HasMaxLength(20);
             entity.Property(e => e.VehicleModel).HasMaxLength(100);
+            entity.Property(e => e.VehicleColor).HasMaxLength(50);
             entity.Property(e => e.DiscountCode).HasMaxLength(50);
             entity.Property(e => e.CancellationReason).HasMaxLength(500);
             entity.Property(e => e.BaseAmount).HasPrecision(18, 2);

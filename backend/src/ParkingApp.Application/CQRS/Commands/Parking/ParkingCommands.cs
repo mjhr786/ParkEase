@@ -156,9 +156,14 @@ public sealed class DeleteParkingHandler : ICommandHandler<DeleteParkingCommand,
         if (parking.OwnerId != command.OwnerId)
             return new ApiResponse<bool>(false, "Unauthorized", false);
 
+        var now = DateTime.UtcNow;
         var hasActiveBookings = await _unitOfWork.Bookings.AnyAsync(b =>
             b.ParkingSpaceId == command.ParkingId &&
-            (b.Status == Domain.Enums.BookingStatus.Confirmed || b.Status == Domain.Enums.BookingStatus.InProgress),
+            (b.Status == Domain.Enums.BookingStatus.Confirmed || 
+             b.Status == Domain.Enums.BookingStatus.InProgress ||
+             b.Status == Domain.Enums.BookingStatus.Pending ||
+             b.Status == Domain.Enums.BookingStatus.AwaitingPayment) &&
+            b.EndDateTime > now,
             cancellationToken);
 
         if (hasActiveBookings)

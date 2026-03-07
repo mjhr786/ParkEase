@@ -5,7 +5,9 @@ namespace ParkingApp.Application.DTOs;
 
 public record ReservationPeriodDto(
     DateTime StartDateTime,
-    DateTime EndDateTime
+    DateTime EndDateTime,
+    int? SlotNumber = null,
+    string? UserName = null
 );
 
 public record ParkingSpaceDto(
@@ -40,6 +42,8 @@ public record ParkingSpaceDto(
     int TotalReviews,
     string? SpecialInstructions,
     DateTime CreatedAt,
+    double? DistanceKm = null,
+    int? EstimatedTimeMinutes = null,
     List<ReservationPeriodDto>? ActiveReservations = null
 );
 

@@ -16,8 +16,10 @@ public record BookingDto(
     DateTime EndDateTime,
     PricingType PricingType,
     VehicleType VehicleType,
+    int? SlotNumber,
     string? VehicleNumber,
     string? VehicleModel,
+    string? VehicleColor,
     decimal BaseAmount,
     decimal TaxAmount,
     decimal ServiceFee,
@@ -29,10 +31,14 @@ public record BookingDto(
     DateTime? CheckInTime,
     DateTime? CheckOutTime,
     PaymentStatus? PaymentStatus,
-    DateTime CreatedAt
+    DateTime CreatedAt,
+    // Extension request fields
+    DateTime? PendingExtensionEndDateTime,
+    decimal? PendingExtensionAmount,
+    bool HasPendingExtension
 )
 {
-    public BookingDto() : this(Guid.Empty, Guid.Empty, string.Empty, Guid.Empty, string.Empty, string.Empty, 0, 0, DateTime.MinValue, DateTime.MinValue, default, default, null, null, 0, 0, 0, 0, 0, null, default, null, null, null, null, DateTime.MinValue) { }
+    public BookingDto() : this(Guid.Empty, Guid.Empty, string.Empty, Guid.Empty, string.Empty, string.Empty, 0, 0, DateTime.MinValue, DateTime.MinValue, default, default, null, null, null, null, 0, 0, 0, 0, 0, null, default, null, null, null, null, DateTime.MinValue, null, null, false) { }
 }
 
 public record CreateBookingDto(
@@ -41,8 +47,10 @@ public record CreateBookingDto(
     [Required] DateTime EndDateTime,
     [Required] PricingType PricingType,
     [Required] VehicleType VehicleType,
+    [Range(1, 1000)] int? SlotNumber,
     string? VehicleNumber,
     string? VehicleModel,
+    string? VehicleColor,
     string? DiscountCode
 );
 
@@ -101,4 +109,13 @@ public record PriceBreakdownDto(
     string PricingDescription,
     int Duration,
     string DurationUnit
+);
+
+public record ExtendBookingDto(
+    [Required] DateTime NewEndDateTime
+);
+
+/// <summary>Alias for backwards compatibility — same as ExtendBookingDto.</summary>
+public record RequestExtensionDto(
+    [Required] DateTime NewEndDateTime
 );

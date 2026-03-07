@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Logging;
 using ParkingApp.Application.Interfaces;
 
 namespace ParkingApp.Infrastructure.Services;
@@ -11,11 +12,13 @@ namespace ParkingApp.Infrastructure.Services;
 public class InMemoryCacheService : ICacheService
 {
     private readonly IMemoryCache _cache;
+    private readonly ILogger<InMemoryCacheService> _logger;
     private readonly ConcurrentDictionary<string, byte> _keys = new(); // To track keys for pattern matching (simulated)
 
-    public InMemoryCacheService(IMemoryCache cache)
+    public InMemoryCacheService(IMemoryCache cache, ILogger<InMemoryCacheService> logger)
     {
         _cache = cache;
+        _logger = logger;
     }
 
     public Task<T?> GetAsync<T>(string key, CancellationToken cancellationToken = default)
@@ -52,20 +55,22 @@ public class InMemoryCacheService : ICacheService
 
     public Task RemoveByPatternAsync(string pattern, CancellationToken cancellationToken = default)
     {
-        // Simple pattern matching: starts with, ends with, or contains
-        // Note: This is an approximation for Redis pattern matching
-        var searchPattern = pattern.Replace("*", "");
+        // Simple regex-based pattern matching: converts * to .*
+        var regexPattern = "^" + System.Text.RegularExpressions.Regex.Escape(pattern).Replace("\\*", ".*") + "$";
+        var regex = new System.Text.RegularExpressions.Regex(regexPattern);
+        
         var keysToRemove = new List<string>();
 
         foreach (var key in _keys.Keys)
         {
-            bool match = false;
-            if (pattern.StartsWith("*") && pattern.EndsWith("*")) match = key.Contains(searchPattern);
-            else if (pattern.StartsWith("*")) match = key.EndsWith(searchPattern);
-            else if (pattern.EndsWith("*")) match = key.StartsWith(searchPattern);
-            else match = key == pattern;
+            // Clean up expired keys while we are at it
+            if (!_cache.TryGetValue(key, out _))
+            {
+                _keys.TryRemove(key, out _);
+                continue;
+            }
 
-            if (match)
+            if (regex.IsMatch(key))
             {
                 keysToRemove.Add(key);
             }
