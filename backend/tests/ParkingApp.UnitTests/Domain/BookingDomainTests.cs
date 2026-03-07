@@ -127,4 +127,52 @@ public class BookingDomainTests
         var act = () => booking.ApplyDiscount("CHEAT", 200);
         act.Should().Throw<ArgumentException>().WithMessage("Invalid discount amount");
     }
+
+    [Fact]
+    public void ApplyDiscount_WhenNegativeAmount_ShouldThrowArgumentException()
+    {
+        var booking = new Booking { Status = BookingStatus.Pending };
+        var act = () => booking.ApplyDiscount("CHEAT", -10);
+        act.Should().Throw<ArgumentException>().WithMessage("Invalid discount amount");
+    }
+
+    [Fact]
+    public void Actions_OnInvalidStates_ShouldThrowExceptions()
+    {
+        var b1 = new Booking { Status = BookingStatus.Confirmed };
+        Action a1 = () => b1.AwaitPayment();
+        a1.Should().Throw<InvalidOperationException>();
+
+        var b2 = new Booking { Status = BookingStatus.Confirmed };
+        Action a2 = () => b2.Reject("reason");
+        a2.Should().Throw<InvalidOperationException>();
+
+        var b3 = new Booking { Status = BookingStatus.Completed };
+        Action a3 = () => b3.Cancel("reason");
+        a3.Should().Throw<InvalidOperationException>();
+
+        var b4 = new Booking { Status = BookingStatus.Pending };
+        Action a4 = () => b4.CheckIn();
+        a4.Should().Throw<InvalidOperationException>();
+    }
+
+    [Fact]
+    public void Actions_OnValidStates_ShouldSucceed()
+    {
+        var b1 = new Booking { Status = BookingStatus.Pending };
+        b1.Reject("reason");
+        b1.Status.Should().Be(BookingStatus.Rejected);
+
+        var b2 = new Booking { Status = BookingStatus.Confirmed };
+        b2.Cancel("reason");
+        b2.Status.Should().Be(BookingStatus.Cancelled);
+
+        var b3 = new Booking { Status = BookingStatus.Confirmed, StartDateTime = DateTime.UtcNow.AddMinutes(30) };
+        b3.CheckIn();
+        b3.Status.Should().Be(BookingStatus.InProgress);
+
+        var b4 = new Booking { Status = BookingStatus.InProgress };
+        b4.CheckOut();
+        b4.Status.Should().Be(BookingStatus.Completed);
+    }
 }

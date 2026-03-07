@@ -1,7 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate, Link, useNavigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { ChatProvider, useChatContext } from './contexts/ChatContext';
-import { NotificationProvider } from './context/NotificationContext';
+import { NotificationProvider, useNotificationContext } from './context/NotificationContext';
 import NotificationDropdown from './components/NotificationDropdown';
 import toast, { Toaster } from 'react-hot-toast';
 import React, { Suspense } from 'react';
@@ -20,6 +20,8 @@ const VendorListings = React.lazy(() => import('./pages/VendorListings'));
 const VendorBookings = React.lazy(() => import('./pages/VendorBookings'));
 const Chat = React.lazy(() => import('./pages/Chat'));
 const MyFavorites = React.lazy(() => import('./pages/MyFavorites'));
+const MyGarage = React.lazy(() => import('./pages/MyGarage'));
+const Profile = React.lazy(() => import('./pages/Profile'));
 
 function Loading() {
   return (
@@ -54,15 +56,15 @@ function Header() {
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
+  const { subscribeToRefresh } = useNotificationContext();
+
   React.useEffect(() => {
     let mounted = true;
     const fetchPendingCount = async () => {
       if (isAuthenticated && isVendor) {
         try {
           const response = await api.getPendingRequestsCount();
-          // console.log('[DEBUG] getPendingRequestsCount response:', response);
           if (response?.success && mounted) {
-            // console.log('[DEBUG] Setting pendingRequests to:', response.data);
             setPendingRequests(response.data);
           }
         } catch (error) {
@@ -72,14 +74,30 @@ function Header() {
     };
 
     fetchPendingCount();
-    // Poll every 30 seconds for new counts
-    const intervalId = setInterval(fetchPendingCount, 30000);
+
+    let unsubscribe = () => { };
+    if (isAuthenticated && isVendor && subscribeToRefresh) {
+      unsubscribe = subscribeToRefresh(
+        'HeaderPendingCount',
+        [
+          'booking.requested',
+          'booking.approved',
+          'booking.rejected',
+          'extension.requested',
+          'extension.approved',
+          'extension.rejected'
+        ],
+        () => {
+          fetchPendingCount();
+        }
+      );
+    }
 
     return () => {
       mounted = false;
-      clearInterval(intervalId);
+      unsubscribe();
     };
-  }, [isAuthenticated, isVendor]);
+  }, [isAuthenticated, isVendor, subscribeToRefresh]);
 
   const initials = user
     ? `${user.firstName?.[0] ?? ''}${user.lastName?.[0] ?? ''}`.toUpperCase()
@@ -193,7 +211,9 @@ function Header() {
                     {[
                       { to: '/dashboard', icon: '🏠', label: 'Dashboard' },
                       { to: '/bookings', icon: '📅', label: 'My Bookings' },
+                      { to: '/garage', icon: '🚗', label: 'My Garage' },
                       { to: '/favorites', icon: '❤️', label: 'Favorites' },
+                      { to: '/profile', icon: '👤', label: 'My Profile' },
                       ...(isVendor ? [
                         { to: '/vendor/listings', icon: '🅿️', label: 'My Listings' },
                         { to: '/vendor/bookings', icon: '📋', label: 'Requests', badge: pendingRequests > 0 ? pendingRequests : null },
@@ -341,6 +361,14 @@ function AppRoutes() {
           }
         />
         <Route
+          path="/garage"
+          element={
+            <ProtectedRoute>
+              <MyGarage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
           path="/vendor/listings"
           element={
             <ProtectedRoute vendorOnly>
@@ -361,6 +389,14 @@ function AppRoutes() {
           element={
             <ProtectedRoute>
               <Chat />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/profile"
+          element={
+            <ProtectedRoute>
+              <Profile />
             </ProtectedRoute>
           }
         />

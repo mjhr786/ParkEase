@@ -45,9 +45,18 @@ public class LocalFileStorage : IFileStorage
         var relativePath = fileName.TrimStart('/');
         var filePath = Path.Combine(_webRootPath, relativePath.Replace('/', Path.DirectorySeparatorChar));
         
-        if (File.Exists(filePath))
+        var fullPath = Path.GetFullPath(filePath);
+        var expectedRoot = Path.GetFullPath(Path.Combine(_webRootPath, "uploads"));
+        
+        // Path Traversal Protection
+        if (!fullPath.StartsWith(expectedRoot, StringComparison.OrdinalIgnoreCase))
         {
-            File.Delete(filePath);
+            return Task.CompletedTask; // Silently ignore invalid paths to prevent info leakage
+        }
+
+        if (File.Exists(fullPath))
+        {
+            File.Delete(fullPath);
         }
         return Task.CompletedTask;
     }

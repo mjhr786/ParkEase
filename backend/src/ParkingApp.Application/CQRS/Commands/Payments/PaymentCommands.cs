@@ -49,7 +49,7 @@ public sealed class ProcessPaymentHandler : ICommandHandler<ProcessPaymentComman
         if (booking.UserId != command.UserId)
             return new ApiResponse<PaymentResultDto>(false, "Unauthorized", null);
 
-        if (booking.Status != BookingStatus.AwaitingPayment)
+        if (booking.Status != BookingStatus.AwaitingPayment && booking.Status != BookingStatus.AwaitingExtensionPayment)
             return new ApiResponse<PaymentResultDto>(false, "Booking must be approved by the owner before payment", null);
 
         var existingPayment = await _unitOfWork.Payments.GetByBookingIdAsync(command.Dto.BookingId, cancellationToken);
@@ -88,7 +88,13 @@ public sealed class ProcessPaymentHandler : ICommandHandler<ProcessPaymentComman
         {
             payment.PaidAt = DateTime.UtcNow;
             payment.InvoiceNumber = $"INV-{DateTime.UtcNow:yyyyMMdd}-{Guid.NewGuid().ToString()[..6].ToUpper()}";
-            booking.Status = BookingStatus.Confirmed;
+
+            // Extension payment: finalize end datetime; regular payment: confirm the booking
+            if (booking.Status == BookingStatus.AwaitingExtensionPayment)
+                booking.ConfirmExtension();
+            else
+                booking.Status = BookingStatus.Confirmed;
+
             _unitOfWork.Bookings.Update(booking);
         }
         else
@@ -129,7 +135,7 @@ public sealed class ProcessPaymentHandler : ICommandHandler<ProcessPaymentComman
                     "Payment Received",
                     $"{payerName} has completed payment for booking {booking.BookingReference}",
                     NotificationChannels.InApp,
-                    new Dictionary<string, string> { { "BookingId", booking.Id.ToString() }, { "BookingReference", booking.BookingReference }, { "Amount", booking.TotalAmount.ToString() } }),
+                    new Dictionary<string, string> { { "BookingId", booking.Id.ToString() }, { "BookingReference", booking.BookingReference ?? string.Empty }, { "Amount", booking.TotalAmount.ToString() } }),
                 cancellationToken);
 
             // Email receipt to user
@@ -174,11 +180,18 @@ public sealed class CreatePaymentOrderHandler : ICommandHandler<CreatePaymentOrd
         var booking = await _unitOfWork.Bookings.GetByIdAsync(command.BookingId, cancellationToken);
         if (booking == null) return new ApiResponse<string>(false, "Booking not found", null);
         if (booking.UserId != command.UserId) return new ApiResponse<string>(false, "Unauthorized", null);
-        if (booking.Status != BookingStatus.AwaitingPayment) return new ApiResponse<string>(false, "Booking is not awaiting payment", null);
+        if (booking.Status != BookingStatus.AwaitingPayment &&
+            booking.Status != BookingStatus.AwaitingExtensionPayment)
+            return new ApiResponse<string>(false, "Booking is not awaiting payment", null);
+
+        // For extension payments use the pending extension amount; otherwise use the full booking amount
+        var amount = booking.Status == BookingStatus.AwaitingExtensionPayment
+            ? (booking.PendingExtensionAmount ?? booking.TotalAmount)
+            : booking.TotalAmount;
 
         try
         {
-            var orderId = await _paymentService.CreateOrderAsync(booking.TotalAmount, "INR", null, cancellationToken);
+            var orderId = await _paymentService.CreateOrderAsync(amount, "INR", null, cancellationToken);
             return new ApiResponse<string>(true, null, orderId);
         }
         catch (Exception ex)
@@ -213,9 +226,24 @@ public sealed class VerifyPaymentHandler : ICommandHandler<VerifyPaymentCommand,
         if (booking == null) return new ApiResponse<PaymentResultDto>(false, "Booking not found", null);
         if (booking.UserId != command.UserId) return new ApiResponse<PaymentResultDto>(false, "Unauthorized", null);
 
+        var isExtensionPayment = booking.Status == BookingStatus.AwaitingExtensionPayment;
+        var extensionAmount = booking.PendingExtensionAmount;
         var existingPayment = await _unitOfWork.Payments.GetByBookingIdAsync(command.Dto.BookingId, cancellationToken);
         if (existingPayment != null && existingPayment.Status == PaymentStatus.Completed)
         {
+            // Idempotent recovery path:
+            // if extension payment already completed but booking is still awaiting extension payment,
+            // finalize the extension now so UI doesn't keep showing "Extension Payment Due".
+            if (isExtensionPayment)
+            {
+                booking.ConfirmExtension();
+                _unitOfWork.Bookings.Update(booking);
+                await _unitOfWork.SaveChangesAsync(cancellationToken);
+                await NotifyOwnerPaymentAsync(booking, command.UserId, true, extensionAmount, cancellationToken);
+                return new ApiResponse<PaymentResultDto>(true, "Extension payment already completed", new PaymentResultDto(
+                    true, existingPayment.TransactionId, PaymentStatus.Completed, "Extension confirmed", existingPayment.ReceiptUrl));
+            }
+
             return new ApiResponse<PaymentResultDto>(true, "Payment already completed", new PaymentResultDto(
                 true, existingPayment.TransactionId, PaymentStatus.Completed, "Payment already completed", existingPayment.ReceiptUrl));
         }
@@ -228,14 +256,31 @@ public sealed class VerifyPaymentHandler : ICommandHandler<VerifyPaymentCommand,
             return new ApiResponse<PaymentResultDto>(false, "Invalid payment signature", null);
         }
 
-        var payment = existingPayment ?? new Payment
+        var paymentAmount = isExtensionPayment
+            ? (booking.PendingExtensionAmount ?? booking.TotalAmount)
+            : booking.TotalAmount;
+
+        // Booking has a 1-to-1 relationship with Payment, so we always update the existing record.
+        // For extension payments the existing record is from the original booking — we update it
+        // with the new transaction details and the extension amount.
+        Payment payment;
+        bool isNewPayment;
+        if (existingPayment != null)
         {
-            BookingId = command.Dto.BookingId,
-            UserId = command.UserId,
-            Amount = booking.TotalAmount,
-            Currency = "INR",
-            PaymentMethod = PaymentMethod.CreditCard
-        };
+            payment = existingPayment;
+            isNewPayment = false;
+        }
+        else
+        {
+            payment = new Payment
+            {
+                BookingId = command.Dto.BookingId,
+                UserId = command.UserId,
+                Currency = "INR",
+                PaymentMethod = PaymentMethod.CreditCard
+            };
+            isNewPayment = true;
+        }
 
         payment.Status = PaymentStatus.Completed;
         payment.TransactionId = command.Dto.RazorpayPaymentId;
@@ -243,41 +288,34 @@ public sealed class VerifyPaymentHandler : ICommandHandler<VerifyPaymentCommand,
         payment.PaymentGateway = "Razorpay";
         payment.PaidAt = DateTime.UtcNow;
         payment.InvoiceNumber = $"INV-{DateTime.UtcNow:yyyyMMdd}-{Guid.NewGuid().ToString("N")[..6].ToUpper()}";
+        payment.Amount = paymentAmount;
 
-        booking.Status = BookingStatus.Confirmed;
+        // Extension payment: finalize end datetime; regular: confirm the booking
+        if (isExtensionPayment)
+            booking.ConfirmExtension();
+        else
+            booking.Status = BookingStatus.Confirmed;
+
         _unitOfWork.Bookings.Update(booking);
 
-        if (existingPayment == null)
+        if (isNewPayment)
             await _unitOfWork.Payments.AddAsync(payment, cancellationToken);
         else
             _unitOfWork.Payments.Update(payment);
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
-        // Notifications
+                // Notifications
         try
         {
-            var parkingSpace = booking.ParkingSpace ?? await _unitOfWork.ParkingSpaces.GetByIdAsync(booking.ParkingSpaceId, cancellationToken);
-            if (parkingSpace != null)
+            await NotifyOwnerPaymentAsync(booking, command.UserId, isExtensionPayment, extensionAmount, cancellationToken);
+
+            var payer = await _unitOfWork.Users.GetByIdAsync(command.UserId, cancellationToken);
+            if (payer?.Email != null)
             {
-                var payer = await _unitOfWork.Users.GetByIdAsync(command.UserId, cancellationToken);
-                var payerName = payer?.FirstName ?? "A user";
-
-                await _notificationCoordinator.SendAsync(parkingSpace.OwnerId,
-                    new NotificationRequest(
-                        NotificationType.PaymentReceived.ToString(), 
-                        "Payment Received",
-                        $"{payerName} has completed payment for booking {booking.BookingReference}",
-                        NotificationChannels.InApp,
-                        new Dictionary<string, string> { { "BookingId", booking.Id.ToString() }, { "BookingReference", booking.BookingReference }, { "Amount", booking.TotalAmount.ToString() } }),
-                    cancellationToken);
-
-                if (payer?.Email != null)
-                {
-                    await _emailService.SendEmailAsync(payer.Email,
-                        $"Payment Receipt: {booking.BookingReference}",
-                        $"<p>Hello {payer.FirstName},</p><p>Thank you for your payment of <strong>₹{booking.TotalAmount}</strong> for booking {booking.BookingReference}.</p><p>Your booking is now <strong>Confirmed</strong>.</p>");
-                }
+                await _emailService.SendEmailAsync(payer.Email,
+                    $"Payment Receipt: {booking.BookingReference}",
+                    $"<p>Hello {payer.FirstName},</p><p>Thank you for your payment of <strong>INR {booking.TotalAmount}</strong> for booking {booking.BookingReference}.</p><p>Your booking is now <strong>Confirmed</strong>.</p>");
             }
         }
         catch (Exception ex)
@@ -287,6 +325,39 @@ public sealed class VerifyPaymentHandler : ICommandHandler<VerifyPaymentCommand,
 
         return new ApiResponse<PaymentResultDto>(true, "Payment verified successfully", new PaymentResultDto(
             true, payment.TransactionId, PaymentStatus.Completed, "Payment verified successfully", null));
+    }
+    private async Task NotifyOwnerPaymentAsync(
+        Booking booking,
+        Guid payerId,
+        bool isExtensionPayment,
+        decimal? extensionAmount,
+        CancellationToken cancellationToken)
+    {
+        var parkingSpace = booking.ParkingSpace ?? await _unitOfWork.ParkingSpaces.GetByIdAsync(booking.ParkingSpaceId, cancellationToken);
+        if (parkingSpace == null) return;
+
+        var payer = await _unitOfWork.Users.GetByIdAsync(payerId, cancellationToken);
+        var payerName = payer?.FirstName ?? "A user";
+        var amountText = isExtensionPayment
+            ? (extensionAmount ?? 0m).ToString("F2")
+            : booking.TotalAmount.ToString("F2");
+
+        await _notificationCoordinator.SendAsync(parkingSpace.OwnerId,
+            new NotificationRequest(
+                NotificationType.PaymentReceived.ToString(),
+                isExtensionPayment ? "Extension Payment Received" : "Payment Received",
+                isExtensionPayment
+                    ? $"{payerName} paid INR {amountText} for extension on booking {booking.BookingReference}"
+                    : $"{payerName} has completed payment for booking {booking.BookingReference}",
+                NotificationChannels.InApp,
+                new Dictionary<string, string>
+                {
+                    { "BookingId", booking.Id.ToString() },
+                    { "BookingReference", booking.BookingReference ?? string.Empty },
+                    { "Amount", amountText },
+                    { "Type", isExtensionPayment ? "Extension" : "Booking" }
+                }),
+            cancellationToken);
     }
 }
 
@@ -332,3 +403,4 @@ public sealed class ProcessRefundHandler : ICommandHandler<ProcessRefundCommand,
             result.Success ? "Refund processed successfully" : result.ErrorMessage));
     }
 }
+

@@ -9,14 +9,16 @@ public enum UserRole
 
 public enum BookingStatus
 {
-    Pending = 0,          // Waiting for owner approval
-    Confirmed = 1,        // Owner approved AND payment completed
-    InProgress = 2,       // Checked in
-    Completed = 3,        // Checked out
-    Cancelled = 4,        // Cancelled by user or owner
-    Expired = 5,          // Booking expired
-    AwaitingPayment = 6,  // Owner approved, waiting for member payment
-    Rejected = 7          // Rejected by owner
+    Pending = 0,                   // Waiting for owner approval
+    Confirmed = 1,                 // Owner approved AND payment completed
+    InProgress = 2,                // Checked in
+    Completed = 3,                 // Checked out
+    Cancelled = 4,                 // Cancelled by user or owner
+    Expired = 5,                   // Booking expired
+    AwaitingPayment = 6,           // Owner approved initial booking, waiting for member payment
+    Rejected = 7,                  // Rejected by owner
+    PendingExtension = 8,          // Extension requested by user, awaiting owner approval
+    AwaitingExtensionPayment = 9   // Owner approved extension, waiting for member payment
 }
 
 public enum PaymentStatus

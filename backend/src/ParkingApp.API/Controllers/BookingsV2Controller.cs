@@ -161,8 +161,10 @@ public class BookingsV2Controller : ControllerBase
             dto.EndDateTime,
             dto.PricingType,
             dto.VehicleType,
+            dto.SlotNumber,
             dto.VehicleNumber,
             dto.VehicleModel,
+            dto.VehicleColor,
             dto.DiscountCode
         );
 
@@ -279,6 +281,59 @@ public class BookingsV2Controller : ControllerBase
         if (userId == null) return Unauthorized();
 
         var command = new CheckOutCommand(id, userId.Value);
+        var result = await _dispatcher.SendAsync(command, cancellationToken);
+
+        return result.Success ? Ok(result) : BadRequest(result);
+    }
+
+    /// <summary>
+    /// Request an extension for a booking (creates pending extension request for vendor approval)
+    /// </summary>
+    [HttpPost("{id:guid}/extend")]
+    [ProducesResponseType(typeof(ApiResponse<BookingDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<BookingDto>), StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> RequestExtension(Guid id, [FromBody] ExtendBookingDto dto, CancellationToken cancellationToken)
+    {
+        var userId = GetUserId();
+        if (userId == null) return Unauthorized();
+
+        var command = new RequestExtensionCommand(id, userId.Value, dto.NewEndDateTime);
+        var result = await _dispatcher.SendAsync(command, cancellationToken);
+
+        return result.Success ? Ok(result) : BadRequest(result);
+    }
+
+    /// <summary>
+    /// Approve a pending extension request (vendor only)
+    /// </summary>
+    [HttpPost("{id:guid}/approve-extension")]
+    [Authorize(Roles = "Vendor,Admin")]
+    [ProducesResponseType(typeof(ApiResponse<BookingDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<BookingDto>), StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> ApproveExtension(Guid id, CancellationToken cancellationToken)
+    {
+        var userId = GetUserId();
+        if (userId == null) return Unauthorized();
+
+        var command = new ApproveExtensionCommand(id, userId.Value);
+        var result = await _dispatcher.SendAsync(command, cancellationToken);
+
+        return result.Success ? Ok(result) : BadRequest(result);
+    }
+
+    /// <summary>
+    /// Reject a pending extension request (vendor only)
+    /// </summary>
+    [HttpPost("{id:guid}/reject-extension")]
+    [Authorize(Roles = "Vendor,Admin")]
+    [ProducesResponseType(typeof(ApiResponse<BookingDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<BookingDto>), StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> RejectExtension(Guid id, [FromBody] RejectBookingDto? dto, CancellationToken cancellationToken)
+    {
+        var userId = GetUserId();
+        if (userId == null) return Unauthorized();
+
+        var command = new RejectExtensionCommand(id, userId.Value, dto?.Reason);
         var result = await _dispatcher.SendAsync(command, cancellationToken);
 
         return result.Success ? Ok(result) : BadRequest(result);

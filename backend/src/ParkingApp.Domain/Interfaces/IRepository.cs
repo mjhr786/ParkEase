@@ -16,6 +16,8 @@ public interface IRepository<T> where T : BaseEntity
     void Update(T entity);
     void Remove(T entity);
     void RemoveRange(IEnumerable<T> entities);
+    void HardDelete(T entity);
+    void HardDeleteRange(IEnumerable<T> entities);
     IQueryable<T> Query();
 }
 
@@ -42,6 +44,8 @@ public interface IParkingSpaceRepository : IRepository<ParkingSpace>
         string? vehicleType = null,
         string? amenities = null,
         double? minRating = null,
+        string? sortBy = null,
+        bool sortDescending = false,
         int page = 1,
         int pageSize = 20,
         CancellationToken cancellationToken = default);
@@ -116,6 +120,13 @@ public interface INotificationRepository : IRepository<Notification>
 {
     Task<int> GetUnreadCountAsync(Guid userId, CancellationToken cancellationToken = default);
     Task MarkAllAsReadAsync(Guid userId, CancellationToken cancellationToken = default);
+    Task DeleteAllAsync(Guid userId, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<Notification>> GetPagedAsync(Guid userId, int page, int pageSize, CancellationToken cancellationToken = default);
     Task<int> GetTotalCountAsync(Guid userId, CancellationToken cancellationToken = default);
+}
+
+public interface IVehicleRepository : IRepository<Vehicle>
+{
+    Task<IEnumerable<Vehicle>> GetByUserIdAsync(Guid userId, CancellationToken cancellationToken = default);
+    Task<Vehicle?> GetDefaultVehicleAsync(Guid userId, CancellationToken cancellationToken = default);
 }

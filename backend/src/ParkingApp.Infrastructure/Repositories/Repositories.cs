@@ -82,6 +82,16 @@ public class Repository<T> : IRepository<T> where T : BaseEntity
         _dbSet.UpdateRange(entities);
     }
 
+    public virtual void HardDelete(T entity)
+    {
+        _dbSet.Remove(entity);
+    }
+
+    public virtual void HardDeleteRange(IEnumerable<T> entities)
+    {
+        _dbSet.RemoveRange(entities);
+    }
+
     public IQueryable<T> Query()
     {
         return _dbSet.AsQueryable();
@@ -130,6 +140,8 @@ public class ParkingSpaceRepository : Repository<ParkingSpace>, IParkingSpaceRep
         string? vehicleType = null,
         string? amenities = null,
         double? minRating = null,
+        string? sortBy = null,
+        bool sortDescending = false,
         int page = 1,
         int pageSize = 20,
         CancellationToken cancellationToken = default)
@@ -138,7 +150,18 @@ public class ParkingSpaceRepository : Repository<ParkingSpace>, IParkingSpaceRep
         query = ApplySearchFilters(query, state, city, address, latitude, longitude, radiusKm, minPrice, maxPrice, parkingType, vehicleType, amenities, minRating);
 
         // Sorting
-        if (latitude.HasValue && longitude.HasValue)
+        if (!string.IsNullOrEmpty(sortBy))
+        {
+            query = sortBy.ToLower() switch
+            {
+                "price" => sortDescending ? query.OrderByDescending(p => p.HourlyRate) : query.OrderBy(p => p.HourlyRate),
+                "rating" => sortDescending ? query.OrderByDescending(p => p.AverageRating) : query.OrderBy(p => p.AverageRating),
+                "distance" when latitude.HasValue && longitude.HasValue => 
+                    query.OrderBy(p => p.Location != null ? p.Location.Distance(new Point(longitude.Value, latitude.Value) { SRID = 4326 }) : double.MaxValue),
+                _ => query.OrderByDescending(p => p.CreatedAt)
+            };
+        }
+        else if (latitude.HasValue && longitude.HasValue)
         {
             var orderPoint = new Point(longitude.Value, latitude.Value) { SRID = 4326 };
             query = query.OrderBy(p => p.Location != null ? p.Location.Distance(orderPoint) : double.MaxValue);
@@ -360,8 +383,14 @@ public class BookingRepository : Repository<Booking>, IBookingRepository
     {
         return await _dbSet
             .AsNoTracking()
+            .Include(b => b.User)
             .Where(b => parkingSpaceIds.Contains(b.ParkingSpaceId) &&
-                       (b.Status == BookingStatus.Confirmed || b.Status == BookingStatus.InProgress) &&
+                       (b.Status == BookingStatus.Confirmed || 
+                        b.Status == BookingStatus.InProgress ||
+                        b.Status == BookingStatus.Pending ||
+                        b.Status == BookingStatus.AwaitingPayment ||
+                        b.Status == BookingStatus.PendingExtension ||
+                        b.Status == BookingStatus.AwaitingExtensionPayment) &&
                        b.EndDateTime > DateTime.UtcNow)
             .ToListAsync(cancellationToken);
     }
@@ -519,6 +548,12 @@ public class NotificationRepository : Repository<Notification>, INotificationRep
             notification.ReadAt = DateTime.UtcNow;
         }
         _dbSet.UpdateRange(unread);
+    }
+
+    public async Task DeleteAllAsync(Guid userId, CancellationToken cancellationToken = default)
+    {
+        var notifications = await _dbSet.Where(n => n.UserId == userId).ToListAsync(cancellationToken);
+        _dbSet.RemoveRange(notifications);
     }
 
     public async Task<IReadOnlyList<Notification>> GetPagedAsync(Guid userId, int page, int pageSize, CancellationToken cancellationToken = default)

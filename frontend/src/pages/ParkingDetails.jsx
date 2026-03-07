@@ -1,9 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../services/api';
 import LocationMap from '../components/LocationMap';
+import BookedSlots from '../components/BookedSlots';
 import ImageGallery from '../components/ImageGallery';
+import ParkingSlotModal from '../components/ParkingSlotModal';
 import { getErrorMessage, handleApiError } from '../utils/errorHandler';
 import showToast from '../utils/toast.jsx';
 
@@ -32,8 +34,10 @@ export default function ParkingDetails() {
         endDateTime: '',
         pricingType: 0,
         vehicleType: 0,
+        slotNumber: '',
         vehicleNumber: '',
         vehicleModel: '',
+        vehicleColor: '',
         discountCode: '',
     });
 
@@ -43,14 +47,56 @@ export default function ParkingDetails() {
     const [showPayment, setShowPayment] = useState(false);
     const [pendingBooking, setPendingBooking] = useState(null);
     const [paymentMethod, setPaymentMethod] = useState(0);
+    const [savedVehicles, setSavedVehicles] = useState([]);
+    const [selectedVehicleId, setSelectedVehicleId] = useState('');
+    const [showSlotModal, setShowSlotModal] = useState(false);
 
     useEffect(() => {
         fetchParkingDetails();
         if (isAuthenticated) {
             checkFavoriteStatus();
+            fetchUserVehicles();
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [id, isAuthenticated]);
+
+    const fetchUserVehicles = async () => {
+        try {
+            const data = await api.getMyVehicles();
+            if (data && data.length > 0) {
+                setSavedVehicles(data);
+                const defaultVeh = data.find(v => v.isDefault) || data[0];
+                handleSelectSavedVehicle(defaultVeh.id, data);
+            }
+        } catch (err) {
+            console.error('Failed to load saved vehicles', err);
+        }
+    };
+
+    const handleSelectSavedVehicle = (vehicleId, vehiclesList = savedVehicles) => {
+        setSelectedVehicleId(vehicleId);
+        if (!vehicleId) {
+            setBooking(prev => ({
+                ...prev,
+                vehicleType: 0,
+                vehicleNumber: '',
+                vehicleModel: '',
+                vehicleColor: ''
+            }));
+            return;
+        }
+
+        const vehicle = vehiclesList.find(v => v.id === vehicleId);
+        if (vehicle) {
+            setBooking(prev => ({
+                ...prev,
+                vehicleType: vehicle.type,
+                vehicleNumber: vehicle.licensePlate,
+                vehicleModel: `${vehicle.make} ${vehicle.model}`.trim(),
+                vehicleColor: vehicle.color || ''
+            }));
+        }
+    };
 
     const checkFavoriteStatus = async () => {
         try {
@@ -93,6 +139,44 @@ export default function ParkingDetails() {
             calculatePrice();
         }
     }, [booking.startDateTime, booking.endDateTime, booking.pricingType, booking.discountCode]);
+
+    const slotAvailability = useMemo(() => {
+        if (!parking || parking.totalSpots <= 1) return [];
+        const reservations = parking.activeReservations || [];
+        const hasTimeRange = Boolean(booking.startDateTime && booking.endDateTime);
+        const selectedStart = hasTimeRange ? new Date(booking.startDateTime) : null;
+        const selectedEnd = hasTimeRange ? new Date(booking.endDateTime) : null;
+
+        return Array.from({ length: parking.totalSpots }, (_, i) => {
+            const slotNumber = i + 1;
+            const slotReservations = reservations.filter(r => r.slotNumber === slotNumber);
+            const blockedForSelection = hasTimeRange
+                ? slotReservations.some(r => {
+                    const reservedStart = new Date(r.startDateTime);
+                    const reservedEnd = new Date(r.endDateTime);
+                    return selectedStart < reservedEnd && selectedEnd > reservedStart;
+                })
+                : false;
+
+            return {
+                slotNumber,
+                blockedForSelection,
+                reservations: slotReservations
+            };
+        });
+    }, [parking, booking.startDateTime, booking.endDateTime]);
+
+    // Auto-clear slot selection if it becomes blocked by the chosen time range
+    useEffect(() => {
+        if (!booking.slotNumber || slotAvailability.length === 0) return;
+        const selectedSlotData = slotAvailability.find(
+            s => String(s.slotNumber) === String(booking.slotNumber)
+        );
+        if (selectedSlotData?.blockedForSelection) {
+            setBooking(prev => ({ ...prev, slotNumber: '' }));
+            showToast.error(`Slot ${booking.slotNumber} is already booked for your selected time. Please choose another slot.`);
+        }
+    }, [slotAvailability]);
 
     const fetchParkingDetails = async () => {
         try {
@@ -141,6 +225,20 @@ export default function ParkingDetails() {
             return;
         }
 
+        if (parking?.totalSpots > 1 && !booking.slotNumber) {
+            showToast.error('Please select a parking slot');
+            return;
+        }
+
+        if (parking?.totalSpots > 1 && booking.slotNumber && booking.startDateTime && booking.endDateTime) {
+            const selectedSlotNumber = parseInt(booking.slotNumber, 10);
+            const selectedSlot = slotAvailability.find(s => s.slotNumber === selectedSlotNumber);
+            if (selectedSlot?.blockedForSelection) {
+                showToast.error(`Slot ${selectedSlotNumber} is already booked for the selected time`);
+                return;
+            }
+        }
+
         setBookingLoading(true);
 
         try {
@@ -150,8 +248,10 @@ export default function ParkingDetails() {
                 endDateTime: new Date(booking.endDateTime).toISOString(),
                 pricingType: booking.pricingType,
                 vehicleType: booking.vehicleType,
+                slotNumber: booking.slotNumber ? parseInt(booking.slotNumber, 10) : null,
                 vehicleNumber: booking.vehicleNumber || null,
                 vehicleModel: booking.vehicleModel || null,
+                vehicleColor: booking.vehicleColor || null,
                 discountCode: booking.discountCode || null,
             });
 
@@ -164,6 +264,11 @@ export default function ParkingDetails() {
                     isPending: true,
                 });
                 showToast.success('Booking request submitted! Waiting for owner approval.');
+
+                // Clear slot selection before refresh so the validation effect doesn't false-fire
+                setBooking(prev => ({ ...prev, slotNumber: '' }));
+                // Re-fetch parking details to update reservation list
+                fetchParkingDetails();
             } else {
                 showToast.error(getErrorMessage(response));
             }
@@ -198,6 +303,12 @@ export default function ParkingDetails() {
         }
 
         setBookingLoading(false);
+    };
+
+    const formatDateTime = (dateStr) => {
+        const d = new Date(dateStr);
+        return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) +
+            ' ' + d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
     };
 
     if (loading) {
@@ -266,6 +377,17 @@ export default function ParkingDetails() {
                         <div className="parking-location" style={{ fontSize: '1.1rem' }}>
                             📍 {parking.address}, {parking.city}, {parking.state}
                         </div>
+                        <div style={{ marginTop: '0.75rem' }}>
+                            <a
+                                href={`https://www.google.com/maps/dir/?api=1&destination=${parking.latitude},${parking.longitude}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="btn-navigate"
+                                style={{ padding: '0.4rem 0.8rem', fontSize: '0.85rem' }}
+                            >
+                                🗺️ Get Directions
+                            </a>
+                        </div>
 
                         <div className="flex gap-2 mt-2">
                             <span className="parking-tag">{PARKING_TYPES[parking.parkingType]}</span>
@@ -293,6 +415,9 @@ export default function ParkingDetails() {
                             <h3 className="card-title">Description</h3>
                             <p>{parking.description}</p>
                         </div>
+
+                        {/* Current Reservations Section */}
+                        <BookedSlots reservations={parking.activeReservations} totalSpots={parking.totalSpots} />
 
                         <div className="card mt-2">
                             <h3 className="card-title">Pricing</h3>
@@ -453,6 +578,58 @@ export default function ParkingDetails() {
                                         />
                                     </div>
 
+                                    {parking.totalSpots > 1 && (
+                                        <div className="form-group">
+                                            <label className="form-label">Parking Slot</label>
+                                            {/* Selected slot preview */}
+                                            {booking.slotNumber && (
+                                                <div style={{
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    gap: '0.75rem',
+                                                    background: 'rgba(99,102,241,0.12)',
+                                                    border: '1px solid rgba(99,102,241,0.4)',
+                                                    borderRadius: '10px',
+                                                    padding: '0.75rem 1rem',
+                                                    marginBottom: '0.75rem',
+                                                }}>
+                                                    <span style={{ fontSize: '1.4rem' }}>🅿️</span>
+                                                    <div>
+                                                        <div style={{ fontWeight: 700, color: '#818cf8' }}>Slot {booking.slotNumber} Selected</div>
+                                                        <div style={{ fontSize: '0.8rem', color: '#a0a0b0' }}>Click below to change</div>
+                                                    </div>
+                                                </div>
+                                            )}
+                                            <button
+                                                type="button"
+                                                onClick={() => setShowSlotModal(true)}
+                                                style={{
+                                                    width: '100%',
+                                                    padding: '0.875rem 1rem',
+                                                    background: 'var(--color-bg-tertiary)',
+                                                    border: '1px dashed rgba(99,102,241,0.5)',
+                                                    borderRadius: 'var(--radius-md)',
+                                                    color: booking.slotNumber ? '#818cf8' : 'var(--color-text-muted)',
+                                                    fontWeight: 600,
+                                                    cursor: 'pointer',
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    justifyContent: 'center',
+                                                    gap: '0.5rem',
+                                                    fontSize: '0.95rem',
+                                                    transition: 'all 0.2s',
+                                                }}
+                                            >
+                                                🗺️ {booking.slotNumber ? `Change Slot (Currently: P${booking.slotNumber})` : `View Parking Map & Choose Slot (${parking.totalSpots} slots)`}
+                                            </button>
+                                            <small style={{ display: 'block', marginTop: '0.4rem', color: 'var(--color-text-muted)', fontSize: '0.78rem' }}>
+                                                {booking.startDateTime && booking.endDateTime
+                                                    ? '✓ Availability shown in real-time for your selected time range.'
+                                                    : '⚠ Select start & end time first to see live availability.'}
+                                            </small>
+                                        </div>
+                                    )}
+
                                     <div className="form-group">
                                         <label className="form-label">Pricing Type</label>
                                         <select
@@ -467,11 +644,30 @@ export default function ParkingDetails() {
                                     </div>
 
                                     <div className="form-group">
+                                        <label className="form-label">Saved Vehicles</label>
+                                        <select
+                                            className="form-select"
+                                            value={selectedVehicleId}
+                                            onChange={(e) => handleSelectSavedVehicle(e.target.value)}
+                                        >
+                                            <option value="">-- Enter Details Manually --</option>
+                                            {savedVehicles.map(v => (
+                                                <option key={v.id} value={v.id}>
+                                                    {v.make} {v.model} ({v.licensePlate})
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </div>
+
+                                    <div className="form-group">
                                         <label className="form-label">Vehicle Type</label>
                                         <select
                                             className="form-select"
                                             value={booking.vehicleType}
-                                            onChange={(e) => setBooking(prev => ({ ...prev, vehicleType: parseInt(e.target.value) }))}
+                                            onChange={(e) => {
+                                                setBooking(prev => ({ ...prev, vehicleType: parseInt(e.target.value) }));
+                                                setSelectedVehicleId('');
+                                            }}
                                         >
                                             {VEHICLE_TYPES.map((type, i) => (
                                                 <option key={i} value={i}>{type}</option>
@@ -486,7 +682,24 @@ export default function ParkingDetails() {
                                             className="form-input"
                                             placeholder="e.g., MH12AB1234"
                                             value={booking.vehicleNumber}
-                                            onChange={(e) => setBooking(prev => ({ ...prev, vehicleNumber: e.target.value }))}
+                                            onChange={(e) => {
+                                                setBooking(prev => ({ ...prev, vehicleNumber: e.target.value }));
+                                                setSelectedVehicleId('');
+                                            }}
+                                        />
+                                    </div>
+
+                                    <div className="form-group">
+                                        <label className="form-label">Vehicle Color (Optional)</label>
+                                        <input
+                                            type="text"
+                                            className="form-input"
+                                            placeholder="e.g., Red, Blue"
+                                            value={booking.vehicleColor}
+                                            onChange={(e) => {
+                                                setBooking(prev => ({ ...prev, vehicleColor: e.target.value }));
+                                                setSelectedVehicleId('');
+                                            }}
                                         />
                                     </div>
 
@@ -543,6 +756,18 @@ export default function ParkingDetails() {
                     </div>
                 </div>
             </div>
+
+            {/* Slot selection modal */}
+            {parking?.totalSpots > 1 && (
+                <ParkingSlotModal
+                    isOpen={showSlotModal}
+                    onClose={() => setShowSlotModal(false)}
+                    slotAvailability={slotAvailability}
+                    selectedSlot={booking.slotNumber}
+                    onSelect={(slotNum) => setBooking(prev => ({ ...prev, slotNumber: slotNum }))}
+                    hasTimeRange={Boolean(booking.startDateTime && booking.endDateTime)}
+                />
+            )}
         </div>
     );
 }

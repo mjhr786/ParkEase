@@ -61,10 +61,12 @@ public static class MappingExtensions
             .Where(b => b.Status == BookingStatus.Confirmed || 
                         b.Status == BookingStatus.AwaitingPayment || 
                         b.Status == BookingStatus.Pending ||
-                        b.Status == BookingStatus.InProgress)
+                        b.Status == BookingStatus.InProgress ||
+                        b.Status == BookingStatus.PendingExtension ||
+                        b.Status == BookingStatus.AwaitingExtensionPayment)
             .Where(b => b.EndDateTime > DateTime.UtcNow)
             .OrderBy(b => b.StartDateTime)
-            .Select(b => new ReservationPeriodDto(b.StartDateTime, b.EndDateTime))
+            .Select(b => new ReservationPeriodDto(b.StartDateTime, b.EndDateTime, b.SlotNumber, b.User?.FullName))
             .ToList();
 
         return new ParkingSpaceDto(
@@ -99,6 +101,64 @@ public static class MappingExtensions
             parking.TotalReviews,
             parking.SpecialInstructions,
             parking.CreatedAt,
+            null, // DistanceKm
+            null, // EstimatedTimeMinutes
+            reservations
+        );
+    }
+
+    public static ParkingSpaceDto ToDtoWithFullDetails(
+        this ParkingSpace parking, 
+        IEnumerable<Booking> activeBookings,
+        double? distanceKm = null,
+        int? durationMinutes = null)
+    {
+        var reservations = activeBookings
+            .Where(b => b.Status == BookingStatus.Confirmed || 
+                        b.Status == BookingStatus.AwaitingPayment || 
+                        b.Status == BookingStatus.Pending ||
+                        b.Status == BookingStatus.InProgress ||
+                        b.Status == BookingStatus.PendingExtension ||
+                        b.Status == BookingStatus.AwaitingExtensionPayment)
+            .Where(b => b.EndDateTime > DateTime.UtcNow)
+            .OrderBy(b => b.StartDateTime)
+            .Select(b => new ReservationPeriodDto(b.StartDateTime, b.EndDateTime, b.SlotNumber, b.User?.FullName))
+            .ToList();
+
+        return new ParkingSpaceDto(
+            parking.Id,
+            parking.OwnerId,
+            parking.Owner?.FullName ?? "Unknown",
+            parking.Title,
+            parking.Description,
+            parking.Address,
+            parking.City,
+            parking.State,
+            parking.Country,
+            parking.PostalCode,
+            parking.Latitude,
+            parking.Longitude,
+            parking.ParkingType,
+            parking.TotalSpots,
+            parking.AvailableSpots,
+            parking.HourlyRate,
+            parking.DailyRate,
+            parking.WeeklyRate,
+            parking.MonthlyRate,
+            parking.OpenTime,
+            parking.CloseTime,
+            parking.Is24Hours,
+            ParseCommaSeparated(parking.Amenities),
+            ParseVehicleTypes(parking.AllowedVehicleTypes),
+            ParseCommaSeparated(parking.ImageUrls),
+            parking.IsActive,
+            parking.IsVerified,
+            parking.AverageRating,
+            parking.TotalReviews,
+            parking.SpecialInstructions,
+            parking.CreatedAt,
+            distanceKm,
+            durationMinutes,
             reservations
         );
     }
@@ -148,8 +208,10 @@ public static class MappingExtensions
         booking.EndDateTime,
         booking.PricingType,
         booking.VehicleType,
+        booking.SlotNumber,
         booking.VehicleNumber,
         booking.VehicleModel,
+        booking.VehicleColor,
         booking.BaseAmount,
         booking.TaxAmount,
         booking.ServiceFee,
@@ -161,7 +223,10 @@ public static class MappingExtensions
         booking.CheckInTime,
         booking.CheckOutTime,
         booking.Payment?.Status,
-        booking.CreatedAt
+        booking.CreatedAt,
+        booking.PendingExtensionEndDateTime,
+        booking.PendingExtensionAmount,
+        booking.HasPendingExtension
     );
 
     // Payment mappings

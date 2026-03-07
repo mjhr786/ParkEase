@@ -54,7 +54,7 @@ public class GetVendorDashboardHandler : IQueryHandler<GetVendorDashboardQuery, 
         var startOfWeek = now.AddDays(-(int)now.DayOfWeek);
 
         var aggregate = await _repository.GetVendorAggregatesAsync(query.VendorId, startOfMonth, startOfWeek, cancellationToken);
-        var earningsChart = await _repository.GetEarningsChartDataAsync(query.VendorId, cancellationToken);
+        var chartData = await _repository.GetChartDataAsync(query.VendorId, cancellationToken);
         var recentBookings = await _repository.GetRecentVendorBookingsAsync(query.VendorId, cancellationToken);
 
         var dashboard = new VendorDashboardDto(
@@ -70,7 +70,7 @@ public class GetVendorDashboardHandler : IQueryHandler<GetVendorDashboardQuery, 
             AverageRating: aggregate.AverageRating,
             TotalReviews: aggregate.TotalReviews,
             RecentBookings: recentBookings,
-            EarningsChart: earningsChart);
+            ChartData: chartData);
 
         await _cache.SetAsync(cacheKey, dashboard, TimeSpan.FromMinutes(5), cancellationToken);
         return new ApiResponse<VendorDashboardDto>(true, null, dashboard);

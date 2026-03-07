@@ -198,12 +198,14 @@ public class GetPendingRequestsCountHandler : IQueryHandler<GetPendingRequestsCo
         var parkingSpaces = await _unitOfWork.ParkingSpaces.GetByOwnerIdAsync(query.VendorId, cancellationToken);
         var parkingSpaceIds = parkingSpaces.Select(p => p.Id).ToList();
 
-        // Count all pending bookings for these parking spaces
+        // Count all pending bookings (regular + extension requests) for these parking spaces
         int pendingCount = 0;
         foreach (var parkingSpaceId in parkingSpaceIds)
         {
             var bookings = await _unitOfWork.Bookings.GetByParkingSpaceIdAsync(parkingSpaceId, cancellationToken);
-            pendingCount += bookings.Count(b => b.Status == BookingStatus.Pending);
+            pendingCount += bookings.Count(b =>
+                b.Status == BookingStatus.Pending ||
+                b.Status == BookingStatus.PendingExtension);
         }
 
         return new ApiResponse<int>(true, null, pendingCount);

@@ -6,7 +6,7 @@ namespace ParkingApp.Application.Interfaces;
 public interface IDashboardRepository
 {
     Task<VendorAggregateRow> GetVendorAggregatesAsync(Guid vendorId, DateTime startOfMonth, DateTime startOfWeek, CancellationToken ct = default);
-    Task<List<EarningsChartDataDto>> GetEarningsChartDataAsync(Guid vendorId, CancellationToken ct = default);
+    Task<List<DashboardChartDataDto>> GetChartDataAsync(Guid vendorId, CancellationToken ct = default);
     Task<List<BookingDto>> GetRecentVendorBookingsAsync(Guid vendorId, CancellationToken ct = default);
     
     Task<MemberAggregateRow> GetMemberAggregatesAsync(Guid memberId, CancellationToken ct = default);

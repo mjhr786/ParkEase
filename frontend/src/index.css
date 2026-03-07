@@ -296,6 +296,12 @@ a:hover {
   cursor: pointer;
 }
 
+.form-select option {
+  background-color: var(--color-bg-secondary);
+  color: var(--color-text-primary);
+  padding: 0.5rem;
+}
+
 .form-error {
   color: var(--color-error);
   font-size: 0.85rem;
@@ -1179,4 +1185,68 @@ body .cs-conversation-list .cs-conversation__info-content .cs-conversation__unre
 .cs-avatar {
   background-color: transparent !important;
   border: none !important;
+}
+
+/* Amenities Filters */
+.amenities-group {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--color-border);
+}
+
+.amenity-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.9rem;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  padding: 0.4rem 0.8rem;
+  background: var(--color-bg-tertiary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  transition: all var(--transition-fast);
+  user-select: none;
+}
+
+.amenity-checkbox:hover {
+  border-color: var(--color-accent);
+  background: var(--color-bg-glass);
+}
+
+.amenity-checkbox.active {
+  background: rgba(99, 102, 241, 0.1);
+  border-color: var(--color-accent);
+  color: var(--color-text-primary);
+}
+
+.amenity-checkbox input {
+  display: none;
+}
+
+/* Navigation Button */
+.btn-navigate {
+  background: #4285F4;
+  color: white !important;
+  padding: 0.6rem 1rem;
+  border-radius: var(--radius-md);
+  text-decoration: none;
+  font-size: 0.9rem;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  transition: all var(--transition-fast);
+  border: none;
+  cursor: pointer;
+}
+
+.btn-navigate:hover {
+  background: #3367D6;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(66, 133, 244, 0.3);
 }

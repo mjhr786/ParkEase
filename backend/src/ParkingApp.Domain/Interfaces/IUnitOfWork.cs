@@ -11,6 +11,7 @@ public interface IUnitOfWork : IDisposable
     IChatMessageRepository ChatMessages { get; }
     IFavoriteRepository Favorites { get; }
     INotificationRepository Notifications { get; }
+    IVehicleRepository Vehicles { get; }
     
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
     Task BeginTransactionAsync(CancellationToken cancellationToken = default);

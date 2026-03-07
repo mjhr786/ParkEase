@@ -52,7 +52,8 @@ public sealed class GetParkingByIdHandler : IQueryHandler<GetParkingByIdQuery, A
         if (parking == null)
             return new ApiResponse<ParkingSpaceDto>(false, "Parking space not found", null);
 
-        var dto = parking.ToDto();
+        var bookings = await _unitOfWork.Bookings.GetActiveBookingsForSpacesAsync(new[] { parking.Id }, cancellationToken);
+        var dto = parking.ToDtoWithReservations(bookings);
         await _cache.SetAsync(cacheKey, dto, TimeSpan.FromMinutes(5), cancellationToken);
 
         return new ApiResponse<ParkingSpaceDto>(true, null, dto);
@@ -71,7 +72,19 @@ public sealed class GetOwnerParkingsHandler : IQueryHandler<GetOwnerParkingsQuer
     public async Task<ApiResponse<List<ParkingSpaceDto>>> HandleAsync(GetOwnerParkingsQuery query, CancellationToken cancellationToken = default)
     {
         var parkingSpaces = await _unitOfWork.ParkingSpaces.GetByOwnerIdAsync(query.OwnerId, cancellationToken);
-        var dtos = parkingSpaces.Select(p => p.ToDto()).ToList();
+        var parkingList = parkingSpaces.ToList();
+
+        // Batch fetch active bookings for all parking spaces
+        var parkingIds = parkingList.Select(p => p.Id).ToList();
+        var allBookings = await _unitOfWork.Bookings.GetActiveBookingsForSpacesAsync(parkingIds, cancellationToken);
+        var bookingsByParkingId = allBookings.GroupBy(b => b.ParkingSpaceId).ToDictionary(g => g.Key, g => g.ToList());
+
+        var dtos = parkingList.Select(p => 
+        {
+            var bookings = bookingsByParkingId.GetValueOrDefault(p.Id) ?? new List<Domain.Entities.Booking>();
+            return p.ToDtoWithReservations(bookings);
+        }).ToList();
+
         return new ApiResponse<List<ParkingSpaceDto>>(true, null, dtos);
     }
 }
@@ -80,19 +93,22 @@ public sealed class SearchParkingHandler : IQueryHandler<SearchParkingQuery, Api
 {
     private readonly IUnitOfWork _unitOfWork;
     private readonly ICacheService _cache;
+    private readonly IRoutingService _routing;
     private readonly ILogger<SearchParkingHandler> _logger;
 
-    public SearchParkingHandler(IUnitOfWork unitOfWork, ICacheService cache, ILogger<SearchParkingHandler> logger)
+    public SearchParkingHandler(IUnitOfWork unitOfWork, ICacheService cache, IRoutingService routing, ILogger<SearchParkingHandler> logger)
     {
         _unitOfWork = unitOfWork;
         _cache = cache;
+        _routing = routing;
         _logger = logger;
     }
 
     public async Task<ApiResponse<ParkingSearchResultDto>> HandleAsync(SearchParkingQuery query, CancellationToken cancellationToken = default)
     {
         var dto = query.Dto;
-        var cacheKey = $"search:{dto.State}:{dto.City}:{dto.Address}:{dto.ParkingType}:{dto.VehicleType}:{dto.MinPrice}:{dto.MaxPrice}:{dto.Page}:{dto.PageSize}";
+        var amenitiesKey = dto.Amenities != null ? string.Join(",", dto.Amenities.OrderBy(a => a)) : "";
+        var cacheKey = $"search:{dto.State}:{dto.City}:{dto.Address}:{dto.ParkingType}:{dto.VehicleType}:{dto.MinPrice}:{dto.MaxPrice}:{amenitiesKey}:{dto.Page}:{dto.PageSize}";
         var cached = await _cache.GetAsync<ParkingSearchResultDto>(cacheKey, cancellationToken);
         if (cached != null)
         {
@@ -107,9 +123,11 @@ public sealed class SearchParkingHandler : IQueryHandler<SearchParkingQuery, Api
             latitude: dto.Latitude, longitude: dto.Longitude, radiusKm: dto.RadiusKm,
             startDate: dto.StartDateTime, endDate: dto.EndDateTime,
             minPrice: dto.MinPrice, maxPrice: dto.MaxPrice,
-            parkingType: dto.ParkingType?.ToString(), vehicleType: dto.VehicleType?.ToString(),
             amenities: dto.Amenities != null ? string.Join(",", dto.Amenities) : null,
-            minRating: dto.MinRating, page: dto.Page, pageSize: dto.PageSize,
+            minRating: dto.MinRating,
+            sortBy: dto.SortBy,
+            sortDescending: dto.SortDescending,
+            page: dto.Page, pageSize: dto.PageSize,
             cancellationToken: cancellationToken);
 
         var parkingList = parkingSpaces.ToList();
@@ -120,11 +138,37 @@ public sealed class SearchParkingHandler : IQueryHandler<SearchParkingQuery, Api
         var allBookings = await _unitOfWork.Bookings.GetActiveBookingsForSpacesAsync(parkingIds, cancellationToken);
         var bookingsByParkingId = allBookings.GroupBy(b => b.ParkingSpaceId).ToDictionary(g => g.Key, g => g.ToList());
 
-        var parkingDtos = new List<ParkingSpaceDto>();
-        foreach (var parking in parkingList)
+        // Batch fetch routing data if coordinates provided
+        List<(double Distance, int Duration)>? routings = null;
+        if (dto.Latitude.HasValue && dto.Longitude.HasValue && parkingList.Any())
         {
+            var destinations = parkingList.Select(p => (p.Latitude, p.Longitude)).ToList();
+            routings = await _routing.GetBatchRoutingAsync(dto.Latitude.Value, dto.Longitude.Value, destinations, cancellationToken);
+        }
+
+        var parkingDtos = new List<ParkingSpaceDto>();
+        for (int i = 0; i < parkingList.Count; i++)
+        {
+            var parking = parkingList[i];
             var bookings = bookingsByParkingId.GetValueOrDefault(parking.Id) ?? new List<Booking>();
-            parkingDtos.Add(parking.ToDtoWithReservations(bookings));
+            double? distance = null;
+            int? duration = null;
+
+            if (routings != null && i < routings.Count)
+            {
+                distance = routings[i].Distance;
+                duration = routings[i].Duration;
+            }
+            
+            parkingDtos.Add(parking.ToDtoWithFullDetails(bookings, distance, duration));
+        }
+
+        // Apply sorting by distance if requested
+        if (dto.SortBy?.ToLower() == "distance" && dto.Latitude.HasValue && dto.Longitude.HasValue)
+        {
+            parkingDtos = dto.SortDescending 
+                ? parkingDtos.OrderByDescending(p => p.DistanceKm ?? double.MaxValue).ToList()
+                : parkingDtos.OrderBy(p => p.DistanceKm ?? double.MaxValue).ToList();
         }
 
         var result = new ParkingSearchResultDto(
@@ -155,7 +199,8 @@ public sealed class GetMapCoordinatesHandler : IQueryHandler<GetMapCoordinatesQu
     public async Task<ApiResponse<List<ParkingMapDto>>> HandleAsync(GetMapCoordinatesQuery query, CancellationToken cancellationToken = default)
     {
         var dto = query.Dto;
-        var cacheKey = $"map:{dto.State}:{dto.City}:{dto.Address}:{dto.ParkingType}:{dto.VehicleType}:{dto.MinPrice}:{dto.MaxPrice}:{dto.RadiusKm}:{dto.Latitude}:{dto.Longitude}";
+        var amenitiesKey = dto.Amenities != null ? string.Join(",", dto.Amenities.OrderBy(a => a)) : "";
+        var cacheKey = $"map:{dto.State}:{dto.City}:{dto.Address}:{dto.ParkingType}:{dto.VehicleType}:{dto.MinPrice}:{dto.MaxPrice}:{dto.RadiusKm}:{dto.Latitude}:{dto.Longitude}:{amenitiesKey}";
         var cached = await _cache.GetAsync<List<ParkingMapDto>>(cacheKey, cancellationToken);
         if (cached != null)
             return new ApiResponse<List<ParkingMapDto>>(true, null, cached);
@@ -217,6 +262,15 @@ public sealed class GetMapCoordinatesHandler : IQueryHandler<GetMapCoordinatesQu
         {
             sql.Append(""" AND "AverageRating" >= @MinRating""");
             parameters.Add("MinRating", dto.MinRating.Value);
+        }
+        if (dto.Amenities != null && dto.Amenities.Any())
+        {
+            for (int i = 0; i < dto.Amenities.Count; i++)
+            {
+                var paramName = $"Amenity{i}";
+                sql.Append($""" AND "Amenities" LIKE '%' || @{paramName} || '%'""");
+                parameters.Add(paramName, dto.Amenities[i]);
+            }
         }
 
         sql.Append(" LIMIT 2000");

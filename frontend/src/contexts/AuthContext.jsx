@@ -58,6 +58,12 @@ export function AuthProvider({ children }) {
         setUser(null);
     };
 
+    const updateUser = (userData) => {
+        const updated = { ...user, ...userData };
+        localStorage.setItem('user', JSON.stringify(updated));
+        setUser(updated);
+    };
+
     const isVendor = user?.role === 1 || user?.role === 'Vendor';
     const isAdmin = user?.role === 0 || user?.role === 'Admin';
     const isMember = user?.role === 2 || user?.role === 'Member';
@@ -68,6 +74,7 @@ export function AuthProvider({ children }) {
             login,
             register,
             logout,
+            updateUser,
             loading,
             isVendor,
             isAdmin,

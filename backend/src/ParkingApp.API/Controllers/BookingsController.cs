@@ -265,6 +265,24 @@ public class BookingsController : ControllerBase
         return Ok(result);
     }
 
+    [HttpPost("{id:guid}/extend")]
+    public async Task<IActionResult> Extend(Guid id, [FromBody] ExtendBookingDto dto, CancellationToken cancellationToken)
+    {
+        var userId = GetUserId();
+        if (userId == null)
+        {
+            return Unauthorized();
+        }
+
+        var result = await _bookingService.ExtendAsync(id, userId.Value, dto, cancellationToken);
+        if (!result.Success)
+        {
+            return BadRequest(result);
+        }
+
+        return Ok(result);
+    }
+
     private Guid? GetUserId()
     {
         var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;

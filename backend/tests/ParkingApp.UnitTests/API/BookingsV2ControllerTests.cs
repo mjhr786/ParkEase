@@ -210,11 +210,7 @@ public class BookingsV2ControllerTests
 
     private BookingDto CreateDummyBookingDto(Guid id)
     {
-        return new BookingDto(
-            id, Guid.NewGuid(), "User", Guid.NewGuid(), "Space", "Address", 0, 0,
-            DateTime.UtcNow, DateTime.UtcNow.AddHours(1), PricingType.Hourly, VehicleType.Car,
-            null, null, 10, 1.8m, 1, 0, 12.8m, null, BookingStatus.Pending, "REF",
-            null, null, null, DateTime.UtcNow);
+        return new BookingDto { Id = id };
     }
 }
 

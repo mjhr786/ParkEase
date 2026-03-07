@@ -2,6 +2,7 @@ using System.Security.Claims;
 using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using ParkingApp.Application.CQRS;
 using ParkingApp.Application.CQRS.Commands.Parking;
 using ParkingApp.Application.CQRS.Queries.Parking;
@@ -135,5 +136,56 @@ public class ParkingController : ControllerBase
         var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
         return Guid.TryParse(userIdClaim, out var userId) ? userId : null;
     }
-}
 
+    [HttpGet("debug-bookings")]
+    [AllowAnonymous]
+    public async Task<IActionResult> DebugBookings([FromServices] ParkingApp.Domain.Interfaces.IUnitOfWork uow, CancellationToken ct)
+    {
+        var allBookings = await uow.Bookings.Query().IgnoreQueryFilters().ToListAsync(ct);
+        var recent = allBookings.OrderByDescending(b => b.CreatedAt).Take(20).Select(b => new {
+            b.Id,
+            b.ParkingSpaceId,
+            b.StartDateTime,
+            b.EndDateTime,
+            UtcNow = DateTime.UtcNow,
+            b.Status,
+            b.IsDeleted,
+            IsActive = b.EndDateTime > DateTime.UtcNow && !b.IsDeleted
+        }).ToList();
+        
+        var json = System.Text.Json.JsonSerializer.Serialize(recent, new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
+        System.IO.File.WriteAllText("debug_output_json.txt", json);
+        
+        return Ok(recent);
+    }
+
+    [HttpGet("debug-space/{id}")]
+    [AllowAnonymous]
+    public async Task<IActionResult> GetDebugSpace(Guid id, [FromServices] ParkingApp.Domain.Interfaces.IUnitOfWork unitOfWork)
+    {
+        try
+        {
+            var bookings = await unitOfWork.Bookings.Query()
+                .IgnoreQueryFilters()
+                .Where(b => b.ParkingSpaceId == id)
+                .ToListAsync();
+            
+            var result = bookings.Select(b => new
+            {
+                b.Id,
+                b.Status,
+                b.IsDeleted,
+                b.StartDateTime,
+                b.EndDateTime,
+                b.UserId,
+                CreatedAt = b.CreatedAt
+            }).ToList();
+
+            return Ok(result);
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(ex.Message);
+        }
+    }
+}

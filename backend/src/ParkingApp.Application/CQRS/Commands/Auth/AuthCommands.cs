@@ -39,7 +39,7 @@ public sealed class RegisterHandler : ICommandHandler<RegisterCommand, ApiRespon
 
     public async Task<ApiResponse<TokenDto>> HandleAsync(RegisterCommand command, CancellationToken cancellationToken = default)
     {
-        var existingUser = await _unitOfWork.Users.GetByEmailAsync(command.Dto.Email, cancellationToken);
+        var existingUser = await _unitOfWork.Users.GetByEmailAsync(command.Dto.Email.ToLower().Trim(), cancellationToken);
         if (existingUser != null)
         {
             _logger.LogWarning("Registration failed: Email {Email} already exists", command.Dto.Email);

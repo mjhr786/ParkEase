@@ -37,11 +37,11 @@ public class DashboardRepository : IDashboardRepository
         return result ?? new VendorAggregateRow();
     }
 
-    public async Task<List<EarningsChartDataDto>> GetEarningsChartDataAsync(Guid vendorId, CancellationToken ct = default)
+    public async Task<List<DashboardChartDataDto>> GetChartDataAsync(Guid vendorId, CancellationToken ct = default)
     {
         using var connection = _sqlConnectionFactory.CreateConnection();
         const string sql = """
-            SELECT TO_CHAR(date_trunc('day', b."CreatedAt"), 'Dy') AS "Label", SUM("TotalAmount") AS "Amount"
+            SELECT TO_CHAR(date_trunc('day', b."CreatedAt"), 'Dy') AS "Label", SUM("TotalAmount") AS "Earnings", COUNT(b."Id") AS "Volume"
             FROM "Bookings" b
             INNER JOIN "ParkingSpaces" ps ON b."ParkingSpaceId" = ps."Id"
             WHERE ps."OwnerId" = @VendorId AND b."Status" = 3 AND b."CreatedAt" >= CURRENT_DATE - INTERVAL '7 days'
@@ -49,7 +49,7 @@ public class DashboardRepository : IDashboardRepository
             ORDER BY date_trunc('day', b."CreatedAt")
             """;
         
-        return (await connection.QueryAsync<EarningsChartDataDto>(sql, new { VendorId = vendorId }) ?? Enumerable.Empty<EarningsChartDataDto>()).ToList();
+        return (await connection.QueryAsync<DashboardChartDataDto>(sql, new { VendorId = vendorId }) ?? Enumerable.Empty<DashboardChartDataDto>()).ToList();
     }
 
     public async Task<List<BookingDto>> GetRecentVendorBookingsAsync(Guid vendorId, CancellationToken ct = default)

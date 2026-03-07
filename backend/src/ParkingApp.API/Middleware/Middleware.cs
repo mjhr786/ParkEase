@@ -79,6 +79,13 @@ public class RateLimitingMiddleware
 
     public async Task InvokeAsync(HttpContext context)
     {
+        // CORS preflight must pass through without rate-limit short-circuiting.
+        if (HttpMethods.IsOptions(context.Request.Method))
+        {
+            await _next(context);
+            return;
+        }
+
         var clientId = context.Connection.RemoteIpAddress?.ToString() ?? "unknown";
         
         if (!IsRequestAllowed(clientId))

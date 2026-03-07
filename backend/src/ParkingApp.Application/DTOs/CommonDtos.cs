@@ -92,7 +92,7 @@ public record VendorDashboardDto(
     double AverageRating,
     int TotalReviews,
     List<BookingDto> RecentBookings,
-    List<EarningsChartDataDto> EarningsChart
+    List<DashboardChartDataDto> ChartData
 );
 
 public record MemberDashboardDto(
@@ -104,12 +104,13 @@ public record MemberDashboardDto(
     List<BookingDto> RecentBookings
 );
 
-public record EarningsChartDataDto(
+public record DashboardChartDataDto(
     string Label,
-    decimal Amount
+    decimal Earnings,
+    int Volume
 )
 {
-    public EarningsChartDataDto() : this(string.Empty, 0m) { }
+    public DashboardChartDataDto() : this(string.Empty, 0m, 0) { }
 }
 
 // Common DTOs

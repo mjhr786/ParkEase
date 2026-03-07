@@ -1,5 +1,5 @@
-
 import { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { API_BASE_URL } from '../config';
 
 export default function ImageGallery({ images, title }) {
@@ -63,7 +63,7 @@ export default function ImageGallery({ images, title }) {
             </div>
 
             {/* Lightbox Modal */}
-            {selectedImageIndex !== null && (
+            {selectedImageIndex !== null && createPortal(
                 <div
                     style={{
                         position: 'fixed',
@@ -72,7 +72,7 @@ export default function ImageGallery({ images, title }) {
                         right: 0,
                         bottom: 0,
                         background: 'rgba(0, 0, 0, 0.9)',
-                        zIndex: 2000,
+                        zIndex: 999999, // Ensure it's above everything
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
@@ -160,7 +160,8 @@ export default function ImageGallery({ images, title }) {
                     }}>
                         {selectedImageIndex + 1} / {images.length}
                     </div>
-                </div>
+                </div>,
+                document.body
             )}
         </div>
     );

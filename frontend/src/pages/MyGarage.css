@@ -1,0 +1,142 @@
+.my-garage-container {
+    padding: 0 1.5rem;
+    width: 100%;
+    margin: 0 auto;
+}
+
+.my-garage-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 24px;
+}
+
+.vehicles-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 1.5rem;
+    padding-bottom: 3rem;
+}
+
+.vehicle-card {
+    display: flex;
+    flex-direction: column;
+    background: var(--gradient-card);
+    border: 1px solid var(--color-border);
+    transition: all 0.3s ease;
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+}
+
+.vehicle-card.border-primary {
+    border-color: var(--color-accent);
+    box-shadow: 0 0 15px rgba(99, 102, 241, 0.2);
+}
+
+.vehicle-card .card-body {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    padding: 1.5rem;
+}
+
+.vehicle-title {
+    font-size: 1.25rem;
+    font-weight: 600;
+}
+
+.vehicle-details {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    flex-grow: 1;
+}
+
+.detail-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.95rem;
+    padding: 0.5rem 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.detail-item:last-child {
+    border-bottom: none;
+}
+
+.vehicle-plate {
+    background: rgba(255, 255, 255, 0.1);
+    letter-spacing: 1px;
+    font-family: monospace;
+    color: var(--color-accent-light);
+}
+
+.vehicle-color-tag {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 12px;
+    background: var(--color-bg-tertiary);
+    font-size: 0.85rem;
+}
+
+.text-sm {
+    font-size: 0.85rem;
+}
+
+.vehicle-actions {
+    display: flex;
+    gap: 1rem;
+    margin-top: auto;
+    padding-top: 1.25rem;
+    border-top: 1px solid var(--color-border);
+}
+
+.flex-1 {
+    flex: 1;
+}
+
+.my-garage-form-card {
+    max-width: 800px;
+    margin: 0 auto;
+    margin-bottom: 1.25rem;
+}
+
+.form-select {
+    display: block;
+    width: 100%;
+    padding: 0.75rem 1rem;
+    font-size: 1rem;
+    font-weight: 400;
+    line-height: 1.5;
+    color: var(--color-text);
+    background-color: var(--color-surface);
+    background-clip: padding-box;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    transition: var(--transition-base);
+}
+
+.form-select:focus {
+    border-color: var(--color-primary);
+    outline: 0;
+    box-shadow: 0 0 0 0.2rem rgba(63, 114, 175, 0.25);
+}
+
+.border-top {
+    border-top: 1px solid var(--color-border);
+}
+
+.badge-success {
+    background-color: rgba(40, 167, 69, 0.15);
+    color: #28a745;
+}
+
+.badge-secondary {
+    background-color: var(--color-bg-tertiary);
+    color: var(--color-text-secondary);
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 0.85rem;
+    border: 1px solid var(--color-border);
+}

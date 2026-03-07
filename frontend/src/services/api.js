@@ -146,10 +146,21 @@ class ApiService {
   }
 
   async updateProfile(data) {
-    return this.request('/users/profile', {
+    return this.request('/users/me', {
       method: 'PUT',
       body: JSON.stringify(data),
     });
+  }
+
+  async changePassword(data) {
+    return this.request('/auth/change-password', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteProfile() {
+    return this.request('/users/me', { method: 'DELETE' });
   }
 
   // Payment endpoints
@@ -323,6 +334,32 @@ class ApiService {
     });
   }
 
+  // Request an extension (creates a pending extension request for vendor approval)
+  async requestExtension(id, data) {
+    return this.request(`/v2/bookings/${id}/extend`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  // Keep alias for backwards compatibility
+  async extendBooking(id, data) {
+    return this.requestExtension(id, data);
+  }
+
+  // Vendor: approve a pending extension request
+  async approveExtension(id) {
+    return this.request(`/v2/bookings/${id}/approve-extension`, { method: 'POST' });
+  }
+
+  // Vendor: reject a pending extension request
+  async rejectExtension(id, reason) {
+    return this.request(`/v2/bookings/${id}/reject-extension`, {
+      method: 'POST',
+      body: JSON.stringify({ reason }),
+    });
+  }
+
   async checkIn(id) {
     return this.request(`/v2/bookings/${id}/check-in`, { method: 'POST' });
   }
@@ -427,6 +464,35 @@ class ApiService {
     return this.request(`/notifications/${notificationId}`, {
       method: 'DELETE',
     });
+  }
+
+  async clearAllNotifications() {
+    return this.request('/notifications/clear-all', {
+      method: 'DELETE',
+    });
+  }
+
+  // Vehicle endpoints
+  async getMyVehicles() {
+    return this.request('/vehicles');
+  }
+
+  async addVehicle(data) {
+    return this.request('/vehicles', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updateVehicle(id, data) {
+    return this.request(`/vehicles/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteVehicle(id) {
+    return this.request(`/vehicles/${id}`, { method: 'DELETE' });
   }
 }
 

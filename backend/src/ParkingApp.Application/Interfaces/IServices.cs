@@ -46,6 +46,7 @@ public interface IBookingService
     Task<ApiResponse<BookingDto>> RejectAsync(Guid id, Guid vendorId, string? reason, CancellationToken cancellationToken = default);
     Task<ApiResponse<BookingDto>> CheckInAsync(Guid id, Guid userId, CancellationToken cancellationToken = default);
     Task<ApiResponse<BookingDto>> CheckOutAsync(Guid id, Guid userId, CancellationToken cancellationToken = default);
+    Task<ApiResponse<BookingDto>> ExtendAsync(Guid id, Guid userId, ExtendBookingDto dto, CancellationToken cancellationToken = default);
 }
 
 public interface IPaymentAppService
