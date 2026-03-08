@@ -263,7 +263,7 @@ export default function NotificationDropdown() {
                                     borderRadius: '999px',
                                     padding: '1px 7px',
                                 }}>
-                                    {unreadCount} unread
+                                    {unreadCount}
                                 </span>
                             )}
                         </div>
