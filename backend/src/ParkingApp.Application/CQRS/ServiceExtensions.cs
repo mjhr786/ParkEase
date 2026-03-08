@@ -134,6 +134,7 @@ public static class CQRSServiceExtensions
         services.AddScoped<ICommandHandler<MarkNotificationAsReadCommand, ApiResponse<bool>>, MarkNotificationAsReadCommandHandler>();
         services.AddScoped<ICommandHandler<MarkAllNotificationsAsReadCommand, ApiResponse<bool>>, MarkAllNotificationsAsReadCommandHandler>();
         services.AddScoped<ICommandHandler<DeleteNotificationCommand, ApiResponse<bool>>, DeleteNotificationCommandHandler>();
+        services.AddScoped<ICommandHandler<ClearAllNotificationsCommand, ApiResponse<bool>>, ClearAllNotificationsCommandHandler>();
 
         // ── Vehicles ──
         services.AddScoped<IQueryHandler<GetMyVehiclesQuery, ApiResponse<IEnumerable<VehicleDto>>>, GetMyVehiclesQueryHandler>();
