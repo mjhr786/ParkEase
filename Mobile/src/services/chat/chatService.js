@@ -60,6 +60,38 @@ const chatService = {
             throw error;
         }
     },
+
+    /**
+     * Start a new conversation or continue existing one for a parking space
+     * Sends an initial message and returns the conversation data
+     */
+    async startConversation(parkingSpaceId, content) {
+        try {
+            const response = await apiClient.post('/chat/send', { parkingSpaceId, content });
+            return response.data;
+        } catch (error) {
+            logger.error(TAG, 'Failed to start conversation', error);
+            throw error;
+        }
+    },
+
+    /**
+     * Find an existing conversation for a specific parking space
+     * Returns the conversation object or null if none exists
+     */
+    async findConversationByParkingSpace(parkingSpaceId) {
+        try {
+            const response = await apiClient.get('/chat/conversations?page=1&pageSize=100');
+            if (response.data?.success) {
+                const conversations = response.data.data?.conversations || [];
+                return conversations.find((c) => c.parkingSpaceId === parkingSpaceId) || null;
+            }
+            return null;
+        } catch (error) {
+            logger.error(TAG, 'Failed to find conversation by parking space', error);
+            return null;
+        }
+    },
 };
 
 export default chatService;
