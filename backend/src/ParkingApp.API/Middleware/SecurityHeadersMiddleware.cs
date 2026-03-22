@@ -27,7 +27,7 @@ public class SecurityHeadersMiddleware
         // Using a single string to ensure no concatenation errors and easy readability
         const string csp = "default-src 'self'; " +
                            "img-src 'self' data: blob: https: http:; " +
-                           "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://js.stripe.com; " +
+                           "script-src 'self' 'unsafe-inline' https://js.stripe.com; " +
                            "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
                            "font-src 'self' https://fonts.gstatic.com; " +
                            "frame-src https://js.stripe.com; " +

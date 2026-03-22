@@ -37,6 +37,7 @@ public interface IBookingService
     Task<ApiResponse<BookingListResultDto>> GetByUserAsync(Guid userId, BookingFilterDto? filter, CancellationToken cancellationToken = default);
     Task<ApiResponse<BookingListResultDto>> GetByParkingSpaceAsync(Guid parkingSpaceId, Guid ownerId, BookingFilterDto? filter, CancellationToken cancellationToken = default);
     Task<ApiResponse<BookingListResultDto>> GetVendorBookingsAsync(Guid vendorId, BookingFilterDto? filter, CancellationToken cancellationToken = default);
+    Task<ApiResponse<int>> GetPendingRequestsCountAsync(Guid vendorId, CancellationToken cancellationToken = default);
     Task<ApiResponse<PriceBreakdownDto>> CalculatePriceAsync(PriceCalculationDto dto, CancellationToken cancellationToken = default);
     Task<ApiResponse<BookingDto>> CreateAsync(Guid userId, CreateBookingDto dto, CancellationToken cancellationToken = default);
     Task<ApiResponse<BookingDto>> UpdateAsync(Guid id, Guid userId, UpdateBookingDto dto, CancellationToken cancellationToken = default);
@@ -45,6 +46,7 @@ public interface IBookingService
     Task<ApiResponse<BookingDto>> RejectAsync(Guid id, Guid vendorId, string? reason, CancellationToken cancellationToken = default);
     Task<ApiResponse<BookingDto>> CheckInAsync(Guid id, Guid userId, CancellationToken cancellationToken = default);
     Task<ApiResponse<BookingDto>> CheckOutAsync(Guid id, Guid userId, CancellationToken cancellationToken = default);
+    Task<ApiResponse<BookingDto>> ExtendAsync(Guid id, Guid userId, ExtendBookingDto dto, CancellationToken cancellationToken = default);
 }
 
 public interface IPaymentAppService

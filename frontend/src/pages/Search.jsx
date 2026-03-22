@@ -1,7 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useSearchParams, Link } from 'react-router-dom';
+import { useSearchParams, Link, useNavigate } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
 import api from '../services/api';
 import LocationMap from '../components/LocationMap';
+import BookedSlots from '../components/BookedSlots';
 import INDIAN_STATES_CITIES, { STATES } from '../utils/indianStatesCities';
 import toast from 'react-hot-toast';
 
@@ -11,10 +13,14 @@ import { API_BASE_URL } from '../config';
 
 export default function Search() {
     const [searchParams] = useSearchParams();
+    const navigate = useNavigate();
+    const { isAuthenticated, user } = useAuth();
     const [parkingSpaces, setParkingSpaces] = useState([]);
     const [mapParkingSpaces, setMapParkingSpaces] = useState([]);
-    const [loading, setLoading] = useState(false);
+    const [loading, setLoading] = useState(true);
     const [hoveredId, setHoveredId] = useState(null);
+    const [favorites, setFavorites] = useState([]);
+    const [favoritesLoading, setFavoritesLoading] = useState(false);
     const [filters, setFilters] = useState({
         state: '',
         city: searchParams.get('city') || '',
@@ -27,6 +33,9 @@ export default function Search() {
         parkingType: '',
         vehicleType: '',
         minRating: '',
+        amenities: [], // Added array for amenities
+        sortBy: 'distance', // Default to distance if location available
+        sortDescending: false,
         page: 1,
         pageSize: 12,
     });
@@ -37,8 +46,13 @@ export default function Search() {
         try {
             const filtersToUse = searchFilters || filters;
             const params = Object.fromEntries(
-                Object.entries(filtersToUse).filter(([, v]) => v !== '')
+                Object.entries(filtersToUse).filter(([, v]) => v !== '' && (Array.isArray(v) ? v.length > 0 : true))
             );
+
+            // Special handling for amenities array (convert to comma-separated string)
+            if (params.amenities) {
+                params.amenities = params.amenities.join(',');
+            }
 
             // Fetch list and map data in parallel
             const [listResponse, mapResponse] = await Promise.all([
@@ -60,17 +74,72 @@ export default function Search() {
         setLoading(false);
     }, [filters]);
 
+    const fetchFavorites = async () => {
+        try {
+            const res = await api.getMyFavorites();
+            if (res.success && res.data) {
+                setFavorites(res.data.map(f => f.id));
+            }
+        } catch (err) {
+            console.error('Error fetching favorites:', err);
+        }
+    };
+
+    const toggleFavorite = async (e, parkingId) => {
+        e.preventDefault();
+        e.stopPropagation(); // Prevent navigating to details
+        if (!isAuthenticated) {
+            toast.error("Please log in to save favorites");
+            navigate('/login');
+            return;
+        }
+
+        if (favoritesLoading) return;
+        setFavoritesLoading(true);
+
+        try {
+            const res = await api.toggleFavorite(parkingId);
+            if (res.success) {
+                if (res.data) {
+                    setFavorites(prev => [...prev, parkingId]);
+                    toast.success("Added to favorites");
+                } else {
+                    setFavorites(prev => prev.filter(id => id !== parkingId));
+                    toast.success("Removed from favorites");
+                }
+            }
+        } catch (err) {
+            toast.error("Failed to update favorites");
+        } finally {
+            setFavoritesLoading(false);
+        }
+    };
+
     // Fetch on initial load (show all parking)
     useEffect(() => {
-        fetchParkingSpaces();
-    }, []);
+        fetchParkingSpaces(filters);
+        if (isAuthenticated) {
+            fetchFavorites();
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isAuthenticated]);
 
     // Fetch when page changes
     useEffect(() => {
         if (filters.page > 1) {
-            fetchParkingSpaces();
+            fetchParkingSpaces(filters);
         }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [filters.page]);
+
+    const handleAmenityToggle = (amenity) => {
+        setFilters(prev => {
+            const newAmenities = prev.amenities.includes(amenity)
+                ? prev.amenities.filter(a => a !== amenity)
+                : [...prev.amenities, amenity];
+            return { ...prev, amenities: newAmenities, page: 1 };
+        });
+    };
 
     const handleSearch = (e) => {
         e.preventDefault();
@@ -116,6 +185,7 @@ export default function Search() {
             { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
         );
     };
+
 
     return (
         <div className="page">
@@ -232,6 +302,57 @@ export default function Search() {
                                 </select>
                             </div>
 
+                            <div className="form-group" style={{ margin: 0 }}>
+                                <label className="form-label">Sort By</label>
+                                <select
+                                    className="form-select"
+                                    value={filters.sortBy}
+                                    onChange={(e) => {
+                                        const val = e.target.value;
+                                        setFilters(prev => ({
+                                            ...prev,
+                                            sortBy: val,
+                                            sortDescending: val === 'price-desc' || val === 'rating-desc',
+                                            page: 1
+                                        }));
+                                    }}
+                                >
+                                    <option value="">Default (Latest)</option>
+                                    <option value="distance">Nearest Distance</option>
+                                    <option value="price">Price: Low to High</option>
+                                    <option value="price-desc">Price: High to Low</option>
+                                    <option value="rating">Highest Rated</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        {/* Amenities Checkboxes */}
+                        <div className="amenities-group mt-2">
+                            <span className="form-label" style={{ width: '100%', marginBottom: '0.25rem' }}>Features/Amenities</span>
+                            <div className="flex gap-1" style={{ flexWrap: 'wrap' }}>
+                                {[
+                                    { id: 'EV_Charging', label: '🔌 EV Charging' },
+                                    { id: 'CCTV', label: '📹 CCTV' },
+                                    { id: 'Security', label: '👮 Security' },
+                                    { id: 'Covered', label: '☂️ Covered' },
+                                    { id: '24x7', label: '🕒 24/7 Access' }
+                                ].map(amenity => (
+                                    <label
+                                        key={amenity.id}
+                                        className={`amenity-checkbox ${filters.amenities.includes(amenity.id) ? 'active' : ''}`}
+                                    >
+                                        <input
+                                            type="checkbox"
+                                            checked={filters.amenities.includes(amenity.id)}
+                                            onChange={() => handleAmenityToggle(amenity.id)}
+                                        />
+                                        {amenity.label}
+                                    </label>
+                                ))}
+                            </div>
+                        </div>
+
+                        <div className="flex gap-2 mt-2">
                             <div className="form-group" style={{ margin: 0, alignSelf: 'flex-end', display: 'flex', gap: '0.5rem' }}>
                                 <button type="button" className="btn btn-secondary" onClick={handleNearMeClick} style={{ flex: '1 0 auto', padding: '0.875rem 0.5rem', whiteSpace: 'nowrap' }} title="Use my current location">
                                     📍 Near Me
@@ -249,8 +370,10 @@ export default function Search() {
                     {/* Left: Cards */}
                     <div className="search-cards">
                         {loading ? (
-                            <div className="loading">
-                                <div className="spinner"></div>
+                            <div className="search-card-list">
+                                {[1, 2, 3, 4, 5, 6].map(n => (
+                                    <div key={n} className="skeleton-card" />
+                                ))}
                             </div>
                         ) : parkingSpaces.length === 0 ? (
                             <div className="empty-state">
@@ -267,10 +390,11 @@ export default function Search() {
                                 </div>
                                 <div className="search-card-list">
                                     {parkingSpaces.map(parking => (
-                                        <Link
-                                            to={`/parking/${parking.id}`}
+                                        <div
                                             key={parking.id}
-                                            style={{ textDecoration: 'none', color: 'inherit' }}
+                                            className={`card parking-card hover-card ${hoveredId === parking.id ? 'parking-card-highlighted' : ''}`}
+                                            style={{ cursor: 'pointer' }}
+                                            onClick={() => navigate(`/parking/${parking.id}`)}
                                             onMouseEnter={() => setHoveredId(parking.id)}
                                             onMouseLeave={() => setHoveredId(null)}
                                         >
@@ -285,7 +409,33 @@ export default function Search() {
                                                 ) : (
                                                     <div className="parking-image">🅿️</div>
                                                 )}
-                                                <h3 className="card-title">{parking.title}</h3>
+                                                <button
+                                                    className="favorite-btn"
+                                                    onClick={(e) => toggleFavorite(e, parking.id)}
+                                                    style={{
+                                                        position: 'absolute',
+                                                        top: '1rem',
+                                                        right: '1rem',
+                                                        background: 'rgba(255, 255, 255, 0.9)',
+                                                        border: 'none',
+                                                        borderRadius: '50%',
+                                                        width: '36px',
+                                                        height: '36px',
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        justifyContent: 'center',
+                                                        cursor: 'pointer',
+                                                        boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                                                        zIndex: 2,
+                                                        fontSize: '1.2rem',
+                                                        transition: 'transform 0.2s',
+                                                    }}
+                                                    onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.1)'}
+                                                    onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
+                                                >
+                                                    {favorites.includes(parking.id) ? '❤️' : '🤍'}
+                                                </button>
+                                                <h3 className="card-title" style={{ marginTop: '0.5rem' }}>{parking.title}</h3>
                                                 <div className="parking-location">
                                                     📍 {parking.address}, {parking.city}
                                                 </div>
@@ -299,41 +449,29 @@ export default function Search() {
                                                 </div>
                                                 <div className="parking-meta">
                                                     <span className="parking-tag">{PARKING_TYPES[parking.parkingType] || 'Open'}</span>
-                                                    <span className="parking-tag">{parking.availableSpots} spots</span>
+                                                    <span className={`parking-tag ${parking.availableSpots <= 0 ? 'bg-danger' : ''}`}>
+                                                        {parking.availableSpots <= 0 ? 'FULL' : `${parking.availableSpots} spots`}
+                                                    </span>
                                                     {parking.is24Hours && <span className="parking-tag">24/7</span>}
                                                 </div>
-                                                {(() => {
-                                                    const validReservations = parking.activeReservations?.filter(r => new Date(r.endDateTime) > new Date()) || [];
-                                                    if (validReservations.length === 0) return null;
 
-                                                    return (
-                                                        <div style={{
-                                                            marginTop: '0.75rem',
-                                                            padding: '0.5rem',
-                                                            background: 'rgba(239, 68, 68, 0.1)',
-                                                            borderRadius: 'var(--radius-sm)',
-                                                            fontSize: '0.8rem'
-                                                        }}>
-                                                            <strong style={{ color: '#ef4444' }}>🔒 Reserved:</strong>
-                                                            <ul style={{ margin: '0.25rem 0 0 1rem', padding: 0 }}>
-                                                                {validReservations.slice(0, 3).map((res, i) => (
-                                                                    <li key={i} style={{ color: 'var(--color-text-muted)' }}>
-                                                                        {new Date(res.startDateTime).toLocaleDateString()} {new Date(res.startDateTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                                                        {' → '}
-                                                                        {new Date(res.endDateTime).toLocaleDateString()} {new Date(res.endDateTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                                                    </li>
-                                                                ))}
-                                                                {validReservations.length > 3 && (
-                                                                    <li style={{ color: 'var(--color-text-muted)' }}>
-                                                                        +{validReservations.length - 3} more reservations
-                                                                    </li>
-                                                                )}
-                                                            </ul>
-                                                        </div>
-                                                    );
-                                                })()}
+                                                <BookedSlots reservations={parking.activeReservations} compact totalSpots={parking.totalSpots} />
+                                                {parking.distanceKm !== null && parking.distanceKm !== undefined && (
+                                                    <div style={{ marginTop: '0.75rem' }}>
+                                                        <a
+                                                            href={`https://www.google.com/maps/dir/?api=1&destination=${parking.latitude},${parking.longitude}`}
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                            className="btn-navigate"
+                                                            onClick={(e) => e.stopPropagation()}
+                                                            style={{ width: '100%', textDecoration: 'none' }}
+                                                        >
+                                                            🚗 Navigate to Spot
+                                                        </a>
+                                                    </div>
+                                                )}
                                             </div>
-                                        </Link>
+                                        </div>
                                     ))}
                                 </div>
                             </>

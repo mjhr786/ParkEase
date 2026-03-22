@@ -65,9 +65,9 @@ public class MappingTests
         entity.Latitude.Should().Be(12.9716);
         entity.Longitude.Should().Be(77.5946);
         entity.Location.Should().NotBeNull();
-        entity.Location.X.Should().Be(77.5946); // Longitude
-        entity.Location.Y.Should().Be(12.9716); // Latitude
-        entity.Location.SRID.Should().Be(4326);
+        entity.Location!.X.Should().Be(77.5946); // Longitude
+        entity.Location!.Y.Should().Be(12.9716); // Latitude
+        entity.Location!.SRID.Should().Be(4326);
     }
 
     [Fact]

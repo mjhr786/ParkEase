@@ -6,6 +6,7 @@ using ParkingApp.Application.DTOs;
 using ParkingApp.Domain.Entities;
 using ParkingApp.Domain.Interfaces;
 using ParkingApp.Domain.Enums;
+using ParkingApp.Application.Interfaces;
 
 namespace ParkingApp.UnitTests;
 
@@ -14,12 +15,18 @@ public class BookingTests
     private readonly Mock<IUnitOfWork> _mockUnitOfWork;
     private readonly Mock<IBookingRepository> _mockBookingRepository;
     private readonly Mock<IParkingSpaceRepository> _mockParkingRepository;
+    private readonly Mock<INotificationCoordinator> _mockNotificationCoordinator;
+    private readonly Mock<IEmailService> _mockEmailService;
+    private readonly Mock<ICacheService> _mockCacheService;
 
     public BookingTests()
     {
         _mockUnitOfWork = new Mock<IUnitOfWork>();
         _mockBookingRepository = new Mock<IBookingRepository>();
         _mockParkingRepository = new Mock<IParkingSpaceRepository>();
+        _mockNotificationCoordinator = new Mock<INotificationCoordinator>();
+        _mockEmailService = new Mock<IEmailService>();
+        _mockCacheService = new Mock<ICacheService>();
 
         _mockUnitOfWork.Setup(u => u.Bookings).Returns(_mockBookingRepository.Object);
         _mockUnitOfWork.Setup(u => u.ParkingSpaces).Returns(_mockParkingRepository.Object);
@@ -29,11 +36,11 @@ public class BookingTests
     public async Task CreateBookingHandler_WhenParkingDoesNotExist_ShouldReturnFailure()
     {
         // Arrange
-        var handler = new CreateBookingHandler(_mockUnitOfWork.Object);
+        var handler = new CreateBookingHandler(_mockUnitOfWork.Object, _mockNotificationCoordinator.Object, _mockEmailService.Object, _mockCacheService.Object);
         _mockParkingRepository.Setup(r => r.GetByIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((ParkingSpace?)null);
 
-        var command = new CreateBookingCommand(Guid.NewGuid(), Guid.NewGuid(), DateTime.UtcNow.AddDays(1), DateTime.UtcNow.AddDays(1).AddHours(2), PricingType.Hourly, VehicleType.Car, "XYZ", "Tesla", null);
+        var command = new CreateBookingCommand(Guid.NewGuid(), Guid.NewGuid(), DateTime.UtcNow.AddDays(1), DateTime.UtcNow.AddDays(1).AddHours(2), PricingType.Hourly, VehicleType.Car, null, "XYZ", "Tesla", null, null);
 
         // Act
         var result = await handler.HandleAsync(command);
@@ -47,7 +54,7 @@ public class BookingTests
     public async Task CreateBookingHandler_WithValidData_ShouldCreateBooking()
     {
         // Arrange
-        var handler = new CreateBookingHandler(_mockUnitOfWork.Object);
+        var handler = new CreateBookingHandler(_mockUnitOfWork.Object, _mockNotificationCoordinator.Object, _mockEmailService.Object, _mockCacheService.Object);
         var parking = new ParkingSpace { Id = Guid.NewGuid(), IsActive = true, TotalSpots = 5, HourlyRate = 10 };
         
         _mockParkingRepository.Setup(r => r.GetByIdAsync(parking.Id, It.IsAny<CancellationToken>()))
@@ -58,10 +65,13 @@ public class BookingTests
         
         _mockBookingRepository.Setup(r => r.HasOverlappingBookingAsync(It.IsAny<Guid>(), It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<Guid?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(false);
+            
+        _mockBookingRepository.Setup(r => r.GetByIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Booking { Id = Guid.NewGuid(), TotalAmount = 100, User = new User { FirstName = "John", LastName = "Doe" } });
 
         var start = DateTime.UtcNow.AddDays(1);
         var end = start.AddHours(2);
-        var command = new CreateBookingCommand(Guid.NewGuid(), parking.Id, start, end, PricingType.Hourly, VehicleType.Car, "XYZ", "Tesla", null);
+        var command = new CreateBookingCommand(Guid.NewGuid(), parking.Id, start, end, PricingType.Hourly, VehicleType.Car, null, "XYZ", "Tesla", null, null);
 
         // Act
         var result = await handler.HandleAsync(command);
@@ -79,7 +89,7 @@ public class BookingTests
     public async Task CancelBookingHandler_WhenNotOwner_ShouldReturnFailure()
     {
         // Arrange
-        var handler = new CancelBookingHandler(_mockUnitOfWork.Object);
+        var handler = new CancelBookingHandler(_mockUnitOfWork.Object, _mockNotificationCoordinator.Object, _mockEmailService.Object, _mockCacheService.Object);
         var userId = Guid.NewGuid();
         var booking = new Booking { Id = Guid.NewGuid(), UserId = Guid.NewGuid() }; // Different user
         
@@ -100,7 +110,7 @@ public class BookingTests
     public async Task CreateBookingHandler_WhenNoSpotsAvailable_ShouldReturnFailure()
     {
         // Arrange
-        var handler = new CreateBookingHandler(_mockUnitOfWork.Object);
+        var handler = new CreateBookingHandler(_mockUnitOfWork.Object, _mockNotificationCoordinator.Object, _mockEmailService.Object, _mockCacheService.Object);
         var parking = new ParkingSpace { Id = Guid.NewGuid(), IsActive = true, TotalSpots = 1 };
         
         _mockParkingRepository.Setup(r => r.GetByIdAsync(parking.Id, It.IsAny<CancellationToken>()))
@@ -114,7 +124,7 @@ public class BookingTests
 
         var start = DateTime.UtcNow.AddDays(1);
         var end = start.AddHours(2);
-        var command = new CreateBookingCommand(Guid.NewGuid(), parking.Id, start, end, PricingType.Hourly, VehicleType.Car, "XYZ", "Tesla", null);
+        var command = new CreateBookingCommand(Guid.NewGuid(), parking.Id, start, end, PricingType.Hourly, VehicleType.Car, null, "XYZ", "Tesla", null, null);
 
         // Act
         var result = await handler.HandleAsync(command);

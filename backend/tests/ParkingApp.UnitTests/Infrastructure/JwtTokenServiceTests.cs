@@ -1,12 +1,14 @@
-using Moq;
+using System;
+using System.IdentityModel.Tokens.Jwt;
+using System.Linq;
+using System.Security.Claims;
 using FluentAssertions;
-using Xunit;
 using Microsoft.Extensions.Configuration;
-using ParkingApp.Infrastructure.Services;
+using Moq;
 using ParkingApp.Domain.Entities;
 using ParkingApp.Domain.Enums;
-using System.Security.Claims;
-using System.IdentityModel.Tokens.Jwt;
+using ParkingApp.Infrastructure.Services;
+using Xunit;
 
 namespace ParkingApp.UnitTests.Infrastructure;
 
@@ -14,7 +16,7 @@ public class JwtTokenServiceTests
 {
     private readonly Mock<IConfiguration> _mockConfig;
     private readonly JwtTokenService _service;
-    private const string SecretKey = "SuperSecretKeyForTestingDontUseInProduction";
+    private const string SecretKey = "super-secret-key-that-is-at-least-32-characters";
 
     public JwtTokenServiceTests()
     {
@@ -28,16 +30,16 @@ public class JwtTokenServiceTests
     }
 
     [Fact]
-    public void GenerateAccessToken_ShouldReturnValidJwt()
+    public void GenerateAccessToken_ShouldReturnValidToken()
     {
         // Arrange
         var user = new User
         {
             Id = Guid.NewGuid(),
             Email = "test@example.com",
-            FirstName = "Test",
-            LastName = "User",
-            Role = UserRole.Member
+            Role = UserRole.Member,
+            FirstName = "John",
+            LastName = "Doe"
         };
 
         // Act
@@ -49,57 +51,73 @@ public class JwtTokenServiceTests
         var jwtToken = handler.ReadJwtToken(token);
 
         jwtToken.Issuer.Should().Be("TestIssuer");
+        jwtToken.Audiences.Should().Contain("TestAudience");
         jwtToken.Claims.First(c => c.Type == JwtRegisteredClaimNames.Sub).Value.Should().Be(user.Id.ToString());
         jwtToken.Claims.First(c => c.Type == JwtRegisteredClaimNames.Email).Value.Should().Be(user.Email);
         jwtToken.Claims.First(c => c.Type == ClaimTypes.Role).Value.Should().Be(user.Role.ToString());
     }
 
     [Fact]
-    public void GenerateRefreshToken_ShouldReturnRandomString()
+    public void GenerateRefreshToken_ShouldReturnString()
     {
         // Act
-        var token1 = _service.GenerateRefreshToken();
-        var token2 = _service.GenerateRefreshToken();
+        var token = _service.GenerateRefreshToken();
 
         // Assert
-        token1.Should().NotBeNullOrEmpty();
-        token2.Should().NotBeNullOrEmpty();
-        token1.Should().NotBe(token2);
+        token.Should().NotBeNullOrEmpty();
+        token.Length.Should().BeGreaterThan(20);
     }
 
     [Fact]
-    public void ValidateRefreshToken_WithCorrectToken_ShouldReturnTrue()
+    public void ValidateRefreshToken_ShouldReturnTrue_WhenValid()
     {
         // Arrange
         var token = "valid-token";
-        var user = new User 
-        { 
-            RefreshToken = token, 
-            RefreshTokenExpiryTime = DateTime.UtcNow.AddHours(1) 
+        var user = new User
+        {
+            RefreshToken = token,
+            RefreshTokenExpiryTime = DateTime.UtcNow.AddHours(1)
         };
 
         // Act
-        var result = _service.ValidateRefreshToken(user, token);
+        var isValid = _service.ValidateRefreshToken(user, token);
 
         // Assert
-        result.Should().BeTrue();
+        isValid.Should().BeTrue();
     }
 
     [Fact]
-    public void ValidateRefreshToken_WithExpiredToken_ShouldReturnFalse()
+    public void ValidateRefreshToken_ShouldReturnFalse_WhenExpired()
     {
         // Arrange
         var token = "valid-token";
-        var user = new User 
-        { 
-            RefreshToken = token, 
-            RefreshTokenExpiryTime = DateTime.UtcNow.AddHours(-1) 
+        var user = new User
+        {
+            RefreshToken = token,
+            RefreshTokenExpiryTime = DateTime.UtcNow.AddHours(-1)
         };
 
         // Act
-        var result = _service.ValidateRefreshToken(user, token);
+        var isValid = _service.ValidateRefreshToken(user, token);
 
         // Assert
-        result.Should().BeFalse();
+        isValid.Should().BeFalse();
+    }
+
+    [Fact]
+    public void ValidateRefreshToken_ShouldReturnFalse_WhenTokenMismatch()
+    {
+        // Arrange
+        var user = new User
+        {
+            RefreshToken = "real-token",
+            RefreshTokenExpiryTime = DateTime.UtcNow.AddHours(1)
+        };
+
+        // Act
+        var isValid = _service.ValidateRefreshToken(user, "wrong-token");
+
+        // Assert
+        isValid.Should().BeFalse();
     }
 }

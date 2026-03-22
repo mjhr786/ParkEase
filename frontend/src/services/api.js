@@ -146,10 +146,21 @@ class ApiService {
   }
 
   async updateProfile(data) {
-    return this.request('/users/profile', {
+    return this.request('/users/me', {
       method: 'PUT',
       body: JSON.stringify(data),
     });
+  }
+
+  async changePassword(data) {
+    return this.request('/auth/change-password', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteProfile() {
+    return this.request('/users/me', { method: 'DELETE' });
   }
 
   // Payment endpoints
@@ -168,6 +179,17 @@ class ApiService {
     return this.request('/payments/verify', {
       method: 'POST',
       body: JSON.stringify(data),
+    });
+  }
+
+  // Favorite endpoints
+  async getMyFavorites() {
+    return this.request('/favorites');
+  }
+
+  async toggleFavorite(parkingSpaceId) {
+    return this.request(`/favorites/${parkingSpaceId}/toggle`, {
+      method: 'POST'
     });
   }
 
@@ -251,16 +273,46 @@ class ApiService {
     return this.request(`/files/parking/${parkingSpaceId}`);
   }
 
+  // Review endpoints
+  async getReviewsByParkingSpace(parkingSpaceId) {
+    return this.request(`/reviews/parking-space/${parkingSpaceId}`);
+  }
+
+  async createReview(data) {
+    return this.request('/reviews', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updateReview(id, data) {
+    return this.request(`/reviews/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteReview(id) {
+    return this.request(`/reviews/${id}`, { method: 'DELETE' });
+  }
+
+  async addOwnerResponse(id, response) {
+    return this.request(`/reviews/${id}/owner-response`, {
+      method: 'POST',
+      body: JSON.stringify({ response }),
+    });
+  }
+
   // Booking endpoints
   async calculatePrice(data) {
-    return this.request('/bookings/calculate-price', {
+    return this.request('/v2/bookings/calculate-price', {
       method: 'POST',
       body: JSON.stringify(data),
     });
   }
 
   async createBooking(data) {
-    return this.request('/bookings', {
+    return this.request('/v2/bookings', {
       method: 'POST',
       body: JSON.stringify(data),
     });
@@ -268,42 +320,72 @@ class ApiService {
 
   async getMyBookings(params = {}) {
     const queryString = new URLSearchParams(params).toString();
-    return this.request(`/bookings/my-bookings?${queryString}`);
+    return this.request(`/v2/bookings/my-bookings?${queryString}`);
   }
 
   async getBookingById(id) {
-    return this.request(`/bookings/${id}`);
+    return this.request(`/v2/bookings/${id}`);
   }
 
   async cancelBooking(id, reason) {
-    return this.request(`/bookings/${id}/cancel`, {
+    return this.request(`/v2/bookings/${id}/cancel`, {
+      method: 'POST',
+      body: JSON.stringify({ reason }),
+    });
+  }
+
+  // Request an extension (creates a pending extension request for vendor approval)
+  async requestExtension(id, data) {
+    return this.request(`/v2/bookings/${id}/extend`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  // Keep alias for backwards compatibility
+  async extendBooking(id, data) {
+    return this.requestExtension(id, data);
+  }
+
+  // Vendor: approve a pending extension request
+  async approveExtension(id) {
+    return this.request(`/v2/bookings/${id}/approve-extension`, { method: 'POST' });
+  }
+
+  // Vendor: reject a pending extension request
+  async rejectExtension(id, reason) {
+    return this.request(`/v2/bookings/${id}/reject-extension`, {
       method: 'POST',
       body: JSON.stringify({ reason }),
     });
   }
 
   async checkIn(id) {
-    return this.request(`/bookings/${id}/check-in`, { method: 'POST' });
+    return this.request(`/v2/bookings/${id}/check-in`, { method: 'POST' });
   }
 
   async checkOut(id) {
-    return this.request(`/bookings/${id}/check-out`, { method: 'POST' });
+    return this.request(`/v2/bookings/${id}/check-out`, { method: 'POST' });
   }
 
   async getVendorBookings(params = {}) {
     const queryString = new URLSearchParams(params).toString();
-    return this.request(`/bookings/vendor-bookings?${queryString}`);
+    return this.request(`/v2/bookings/vendor-bookings?${queryString}`);
   }
 
   async approveBooking(id) {
-    return this.request(`/bookings/${id}/approve`, { method: 'POST' });
+    return this.request(`/v2/bookings/${id}/approve`, { method: 'POST' });
   }
 
   async rejectBooking(id, reason) {
-    return this.request(`/bookings/${id}/reject`, {
+    return this.request(`/v2/bookings/${id}/reject`, {
       method: 'POST',
       body: JSON.stringify({ reason }),
     });
+  }
+
+  async getPendingRequestsCount() {
+    return this.request('/v2/bookings/pending-count');
   }
 
   // Payment endpoints
@@ -359,6 +441,58 @@ class ApiService {
 
   async getUnreadCount() {
     return this.request('/chat/unread-count');
+  }
+
+  // Notification Center endpoints
+  async getNotifications(page = 1, pageSize = 20) {
+    return this.request(`/notifications?page=${page}&pageSize=${pageSize}`);
+  }
+
+  async markNotificationAsRead(notificationId) {
+    return this.request(`/notifications/${notificationId}/read`, {
+      method: 'PUT',
+    });
+  }
+
+  async markAllNotificationsAsRead() {
+    return this.request('/notifications/read-all', {
+      method: 'PUT',
+    });
+  }
+
+  async deleteNotification(notificationId) {
+    return this.request(`/notifications/${notificationId}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async clearAllNotifications() {
+    return this.request('/notifications/clear-all', {
+      method: 'DELETE',
+    });
+  }
+
+  // Vehicle endpoints
+  async getMyVehicles() {
+    return this.request('/vehicles');
+  }
+
+  async addVehicle(data) {
+    return this.request('/vehicles', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updateVehicle(id, data) {
+    return this.request(`/vehicles/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteVehicle(id) {
+    return this.request(`/vehicles/${id}`, { method: 'DELETE' });
   }
 }
 

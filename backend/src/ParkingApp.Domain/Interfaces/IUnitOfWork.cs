@@ -9,6 +9,9 @@ public interface IUnitOfWork : IDisposable
     IReviewRepository Reviews { get; }
     IConversationRepository Conversations { get; }
     IChatMessageRepository ChatMessages { get; }
+    IFavoriteRepository Favorites { get; }
+    INotificationRepository Notifications { get; }
+    IVehicleRepository Vehicles { get; }
     
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
     Task BeginTransactionAsync(CancellationToken cancellationToken = default);

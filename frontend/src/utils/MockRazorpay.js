@@ -8,7 +8,7 @@ class MockRazorpay {
     }
 
     open() {
-        console.log('Mock Razorpay Checkout Opened', this.options);
+        // console.log('Mock Razorpay Checkout Opened', this.options);
 
         // Simulate user interaction with a delay
         setTimeout(() => {
@@ -27,7 +27,7 @@ class MockRazorpay {
                     razorpay_signature: "mock_signature_valid"
                 };
 
-                console.log('Payment Success', response);
+                // console.log('Payment Success', response);
                 if (this.options.handler) {
                     this.options.handler(response);
                 }
@@ -44,7 +44,7 @@ class MockRazorpay {
                     }
                 };
 
-                console.log('Payment Failed', error);
+                // console.log('Payment Failed', error);
                 // Razorpay doesn't always have a strict error handler in the options (often it's 'modal.ondismiss')
                 // But typically for standard checkout, it just closes. 
                 // We'll simulate a toast error here or call a retry mechanism if defined.

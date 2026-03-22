@@ -73,6 +73,16 @@ public static class DateTimeExtensions
             _ => dateTime.ToString("MMM dd, yyyy")
         };
     }
+
+    /// <summary>
+    /// Ensures the DateTime has Kind=Utc.
+    /// If Kind is Unspecified, it's assumed to be UTC and specified as such.
+    /// If Kind is Local, it's converted to UTC.
+    /// </summary>
+    public static DateTime ToUtc(this DateTime dateTime) =>
+        dateTime.Kind == DateTimeKind.Unspecified
+            ? DateTime.SpecifyKind(dateTime, DateTimeKind.Utc)
+            : dateTime.ToUniversalTime();
 }
 
 /// <summary>

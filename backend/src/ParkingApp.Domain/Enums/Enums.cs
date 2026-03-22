@@ -9,14 +9,16 @@ public enum UserRole
 
 public enum BookingStatus
 {
-    Pending = 0,          // Waiting for owner approval
-    Confirmed = 1,        // Owner approved AND payment completed
-    InProgress = 2,       // Checked in
-    Completed = 3,        // Checked out
-    Cancelled = 4,        // Cancelled by user or owner
-    Expired = 5,          // Booking expired
-    AwaitingPayment = 6,  // Owner approved, waiting for member payment
-    Rejected = 7          // Rejected by owner
+    Pending = 0,                   // Waiting for owner approval
+    Confirmed = 1,                 // Owner approved AND payment completed
+    InProgress = 2,                // Checked in
+    Completed = 3,                 // Checked out
+    Cancelled = 4,                 // Cancelled by user or owner
+    Expired = 5,                   // Booking expired
+    AwaitingPayment = 6,           // Owner approved initial booking, waiting for member payment
+    Rejected = 7,                  // Rejected by owner
+    PendingExtension = 8,          // Extension requested by user, awaiting owner approval
+    AwaitingExtensionPayment = 9   // Owner approved extension, waiting for member payment
 }
 
 public enum PaymentStatus
@@ -62,5 +64,22 @@ public enum PaymentMethod
     UPI = 2,
     NetBanking = 3,
     Wallet = 4,
-    Cash = 5
+}
+
+public enum NotificationType
+{
+    BookingRequest = 0,
+    BookingConfirmed = 1,
+    BookingRejected = 2,
+    PaymentReceived = 3,
+    NewMessage = 4,
+    SystemAlert = 5
+}
+
+public enum NotificationPriority
+{
+    Low = 0,
+    Normal = 1,
+    High = 2,
+    Critical = 3
 }

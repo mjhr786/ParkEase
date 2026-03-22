@@ -38,11 +38,13 @@ public static class DependencyInjection
         services.AddScoped<IReviewRepository, ReviewRepository>();
         services.AddScoped<IConversationRepository, ConversationRepository>();
         services.AddScoped<IChatMessageRepository, ChatMessageRepository>();
+        services.AddScoped<IDashboardRepository, DashboardRepository>();
 
         // Services
         services.AddScoped<ITokenService, JwtTokenService>();
         services.AddScoped<IPaymentService, StripePaymentService>();
         services.AddHttpClient<IEmailService, ResendEmailService>();
+        services.AddHttpClient<IRoutingService, OSRMService>();
         
         // Cache Registration (Redis or In-Memory)
         var redisConnection = configuration.GetConnectionString("Redis");

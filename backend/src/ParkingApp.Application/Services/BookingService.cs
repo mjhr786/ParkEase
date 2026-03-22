@@ -6,13 +6,14 @@ using ParkingApp.Domain.Enums;
 using ParkingApp.Domain.Interfaces;
 using Microsoft.Extensions.Logging;
 using ParkingApp.BuildingBlocks.Logging;
+using ParkingApp.BuildingBlocks.Extensions;
 
 namespace ParkingApp.Application.Services;
 
 public class BookingService : IBookingService
 {
     private readonly IUnitOfWork _unitOfWork;
-    private readonly INotificationService _notificationService;
+    private readonly INotificationCoordinator _notificationCoordinator;
     private readonly ICacheService _cache;
     private readonly ILogger<BookingService> _logger;
     private readonly IEmailService _emailService;
@@ -20,10 +21,10 @@ public class BookingService : IBookingService
     private const decimal TaxRate = 0.18m; // 18% tax
     private const decimal ServiceFeeRate = 0.05m; // 5% service fee
 
-    public BookingService(IUnitOfWork unitOfWork, INotificationService notificationService, ICacheService cache, ILogger<BookingService> logger, IEmailService emailService)
+    public BookingService(IUnitOfWork unitOfWork, INotificationCoordinator notificationCoordinator, ICacheService cache, ILogger<BookingService> logger, IEmailService emailService)
     {
         _unitOfWork = unitOfWork;
-        _notificationService = notificationService;
+        _notificationCoordinator = notificationCoordinator;
         _cache = cache;
         _logger = logger;
         _emailService = emailService;
@@ -128,8 +129,8 @@ public class BookingService : IBookingService
             return new ApiResponse<PriceBreakdownDto>(false, "Parking space not found", null);
         }
 
-        var duration = dto.EndDateTime - dto.StartDateTime;
-        var (baseAmount, durationValue, durationUnit) = CalculateBaseAmount(parking, dto.StartDateTime, dto.EndDateTime, dto.PricingType);
+        var duration = dto.EndDateTime.ToUtc() - dto.StartDateTime.ToUtc();
+        var (baseAmount, durationValue, durationUnit) = CalculateBaseAmount(parking, dto.StartDateTime.ToUtc(), dto.EndDateTime.ToUtc(), dto.PricingType);
 
         var taxAmount = Math.Round(baseAmount * TaxRate, 2);
         var serviceFee = Math.Round(baseAmount * ServiceFeeRate, 2);
@@ -175,9 +176,14 @@ public class BookingService : IBookingService
         }
 
         // Validate dates
-        if (dto.StartDateTime < DateTime.UtcNow)
+        if (dto.StartDateTime.ToUtc() < DateTime.UtcNow)
         {
             return new ApiResponse<BookingDto>(false, "Start date must be in the future", null);
+        }
+
+        if (dto.SlotNumber.HasValue && (dto.SlotNumber.Value < 1 || dto.SlotNumber.Value > parking.TotalSpots))
+        {
+            return new ApiResponse<BookingDto>(false, $"Slot must be between 1 and {parking.TotalSpots}", null);
         }
 
         // Check if the same vehicle is already booked during overlapping time (across any parking space)
@@ -192,7 +198,7 @@ public class BookingService : IBookingService
                  b.Status == BookingStatus.Confirmed ||
                  b.Status == BookingStatus.InProgress) &&
                 // Check for time overlap
-                b.StartDateTime < dto.EndDateTime && b.EndDateTime > dto.StartDateTime
+                b.StartDateTime < dto.EndDateTime.ToUtc() && b.EndDateTime > dto.StartDateTime.ToUtc()
             );
 
             if (vehicleOverlapBooking != null)
@@ -214,7 +220,7 @@ public class BookingService : IBookingService
              b.Status == BookingStatus.Confirmed ||
              b.Status == BookingStatus.InProgress) &&
             // Check for time overlap
-            b.StartDateTime < dto.EndDateTime && b.EndDateTime > dto.StartDateTime
+            b.StartDateTime < dto.EndDateTime.ToUtc() && b.EndDateTime > dto.StartDateTime.ToUtc()
         );
 
         if (duplicateBooking != null)
@@ -226,13 +232,13 @@ public class BookingService : IBookingService
 
         // Check for overlapping bookings from other users
         var hasOverlap = await _unitOfWork.Bookings.HasOverlappingBookingAsync(
-            dto.ParkingSpaceId, dto.StartDateTime, dto.EndDateTime, null, cancellationToken);
+            dto.ParkingSpaceId, dto.StartDateTime.ToUtc(), dto.EndDateTime.ToUtc(), null, cancellationToken);
 
         if (hasOverlap)
         {
             // Check if spots are still available
             var activeBookingsCount = await _unitOfWork.Bookings.GetActiveBookingsCountAsync(
-                dto.ParkingSpaceId, dto.StartDateTime, dto.EndDateTime, cancellationToken);
+                dto.ParkingSpaceId, dto.StartDateTime.ToUtc(), dto.EndDateTime.ToUtc(), cancellationToken);
 
             if (activeBookingsCount >= parking.TotalSpots)
             {
@@ -240,8 +246,27 @@ public class BookingService : IBookingService
             }
         }
 
+        if (dto.SlotNumber.HasValue)
+        {
+            var isSelectedSlotBooked = await _unitOfWork.Bookings.AnyAsync(b =>
+                b.ParkingSpaceId == dto.ParkingSpaceId &&
+                b.SlotNumber == dto.SlotNumber.Value &&
+                (b.Status == BookingStatus.Pending ||
+                 b.Status == BookingStatus.AwaitingPayment ||
+                 b.Status == BookingStatus.Confirmed ||
+                 b.Status == BookingStatus.InProgress) &&
+                b.StartDateTime < dto.EndDateTime.ToUtc() &&
+                b.EndDateTime > dto.StartDateTime.ToUtc(),
+                cancellationToken);
+
+            if (isSelectedSlotBooked)
+            {
+                return new ApiResponse<BookingDto>(false, $"Slot {dto.SlotNumber.Value} is already booked for the selected time", null);
+            }
+        }
+
         // Calculate pricing
-        var (baseAmount, _, _) = CalculateBaseAmount(parking, dto.StartDateTime, dto.EndDateTime, dto.PricingType);
+        var (baseAmount, _, _) = CalculateBaseAmount(parking, dto.StartDateTime.ToUtc(), dto.EndDateTime.ToUtc(), dto.PricingType);
         var taxAmount = Math.Round(baseAmount * TaxRate, 2);
         var serviceFee = Math.Round(baseAmount * ServiceFeeRate, 2);
         var discountAmount = ApplyDiscount(baseAmount, dto.DiscountCode);
@@ -252,10 +277,11 @@ public class BookingService : IBookingService
         {
             UserId = userId,
             ParkingSpaceId = dto.ParkingSpaceId,
-            StartDateTime = dto.StartDateTime,
-            EndDateTime = dto.EndDateTime,
+            StartDateTime = dto.StartDateTime.ToUtc(),
+            EndDateTime = dto.EndDateTime.ToUtc(),
             PricingType = dto.PricingType,
             VehicleType = dto.VehicleType,
+            SlotNumber = dto.SlotNumber,
             VehicleNumber = dto.VehicleNumber?.Trim().ToUpper(),
             VehicleModel = dto.VehicleModel?.Trim(),
             BaseAmount = baseAmount,
@@ -279,13 +305,14 @@ public class BookingService : IBookingService
 
         // Notify parking owner of new booking request
         var memberName = booking?.User != null ? $"{booking.User.FirstName} {booking.User.LastName}" : "A member";
-        await _notificationService.NotifyUserAsync(
+        await _notificationCoordinator.SendAsync(
             parking.OwnerId,
-            new NotificationDto(
-                NotificationTypes.BookingRequested,
+            new NotificationRequest(
+                NotificationType.BookingRequest.ToString(),
                 "New Booking Request",
                 $"New booking request from {memberName} for {parking.Title}",
-                new { BookingId = booking!.Id, BookingReference = booking.BookingReference }
+                NotificationChannels.InApp,
+                new Dictionary<string, string> { { "BookingId", booking!.Id.ToString() }, { "BookingReference", booking.BookingReference ?? string.Empty } }
             ),
             cancellationToken);
 
@@ -348,8 +375,8 @@ public class BookingService : IBookingService
         // If dates changed, recalculate pricing
         if (dto.StartDateTime.HasValue || dto.EndDateTime.HasValue)
         {
-            var startDateTime = dto.StartDateTime ?? booking.StartDateTime;
-            var endDateTime = dto.EndDateTime ?? booking.EndDateTime;
+            var startDateTime = (dto.StartDateTime ?? booking.StartDateTime).ToUtc();
+            var endDateTime = (dto.EndDateTime ?? booking.EndDateTime).ToUtc();
 
             // Validate new dates
             if (startDateTime < DateTime.UtcNow)
@@ -448,13 +475,14 @@ public class BookingService : IBookingService
         var recipientId = booking.UserId == userId ? booking.ParkingSpace?.OwnerId : booking.UserId;
         if (recipientId.HasValue)
         {
-            await _notificationService.NotifyUserAsync(
+            await _notificationCoordinator.SendAsync(
                 recipientId.Value,
-                new NotificationDto(
-                    NotificationTypes.BookingCancelled,
+                new NotificationRequest(
+                    NotificationType.BookingRejected.ToString(),
                     "Booking Cancelled",
                     $"Booking {booking.BookingReference} has been cancelled",
-                    new { BookingId = id, BookingReference = booking.BookingReference }
+                    NotificationChannels.InApp,
+                    new Dictionary<string, string> { { "BookingId", id.ToString() }, { "BookingReference", booking.BookingReference ?? string.Empty } }
                 ),
                 cancellationToken);
         }
@@ -535,13 +563,14 @@ public class BookingService : IBookingService
         // Notify owner of check-in
         if (booking.ParkingSpace?.OwnerId != null)
         {
-            await _notificationService.NotifyUserAsync(
+            await _notificationCoordinator.SendAsync(
                 booking.ParkingSpace.OwnerId,
-                new NotificationDto(
-                    NotificationTypes.CheckIn,
+                new NotificationRequest(
+                    NotificationType.SystemAlert.ToString(),
                     "Guest Checked In",
                     $"{booking.User?.FirstName} has checked in at {booking.ParkingSpace.Title}",
-                    new { BookingId = id, BookingReference = booking.BookingReference }
+                    NotificationChannels.InApp,
+                    new Dictionary<string, string> { { "BookingId", id.ToString() }, { "BookingReference", booking.BookingReference ?? string.Empty } }
                 ),
                 cancellationToken);
         }
@@ -638,6 +667,23 @@ public class BookingService : IBookingService
         return new ApiResponse<BookingListResultDto>(true, null, result);
     }
 
+    public async Task<ApiResponse<int>> GetPendingRequestsCountAsync(Guid vendorId, CancellationToken cancellationToken = default)
+    {
+        // Get all parking spaces owned by this vendor
+        var parkingSpaces = await _unitOfWork.ParkingSpaces.GetByOwnerIdAsync(vendorId, cancellationToken);
+        var parkingSpaceIds = parkingSpaces.Select(p => p.Id).ToList();
+
+        // Count all pending bookings for these parking spaces
+        int pendingCount = 0;
+        foreach (var parkingSpaceId in parkingSpaceIds)
+        {
+            var bookings = await _unitOfWork.Bookings.GetByParkingSpaceIdAsync(parkingSpaceId, cancellationToken);
+            pendingCount += bookings.Count(b => b.Status == BookingStatus.Pending);
+        }
+
+        return new ApiResponse<int>(true, null, pendingCount);
+    }
+
     public async Task<ApiResponse<BookingDto>> ApproveAsync(Guid id, Guid vendorId, CancellationToken cancellationToken = default)
     {
         _logger.LogInformation("Vendor {VendorId} approving booking {BookingId}", vendorId, id);
@@ -667,13 +713,14 @@ public class BookingService : IBookingService
         _logger.LogInformation("Booking {BookingReference} approved by vendor {VendorId}", booking.BookingReference, vendorId);
 
         // Notify member that their booking was approved
-        await _notificationService.NotifyUserAsync(
+        await _notificationCoordinator.SendAsync(
             booking.UserId,
-            new NotificationDto(
-                NotificationTypes.BookingApproved,
+            new NotificationRequest(
+                NotificationType.BookingConfirmed.ToString(),
                 "Booking Approved!",
                 $"Your booking for {booking.ParkingSpace?.Title} has been approved. Please complete payment.",
-                new { BookingId = id, BookingReference = booking.BookingReference }
+                NotificationChannels.InApp,
+                new Dictionary<string, string> { { "BookingId", id.ToString() }, { "BookingReference", booking.BookingReference ?? string.Empty } }
             ),
             cancellationToken);
 
@@ -695,6 +742,82 @@ public class BookingService : IBookingService
         await _cache.RemoveByPatternAsync("search:*", cancellationToken);
 
         return new ApiResponse<BookingDto>(true, "Booking approved. Awaiting member payment.", booking.ToDto());
+    }
+
+    public async Task<ApiResponse<BookingDto>> ExtendAsync(Guid id, Guid userId, ExtendBookingDto dto, CancellationToken cancellationToken = default)
+    {
+        var newEndDateTime = dto.NewEndDateTime.ToUtc();
+        _logger.LogInformation("Extending booking {BookingId} for user {UserId} to {NewEndDateTime}", id, userId, newEndDateTime);
+
+        var booking = await _unitOfWork.Bookings.GetByIdAsync(id, cancellationToken);
+        if (booking == null)
+        {
+            return new ApiResponse<BookingDto>(false, "Booking not found", null);
+        }
+
+        if (booking.UserId != userId)
+        {
+            return new ApiResponse<BookingDto>(false, "Unauthorized", null);
+        }
+
+        if (booking.Status != BookingStatus.Confirmed && booking.Status != BookingStatus.InProgress)
+        {
+            return new ApiResponse<BookingDto>(false, "Only confirmed or in-progress bookings can be extended", null);
+        }
+
+        if (newEndDateTime <= booking.EndDateTime)
+        {
+            return new ApiResponse<BookingDto>(false, "New end time must be after the current end time", null);
+        }
+
+        // Check availability for the extension period (from current end time to new end time)
+        var parking = await _unitOfWork.ParkingSpaces.GetByIdAsync(booking.ParkingSpaceId, cancellationToken);
+        if (parking == null)
+        {
+            return new ApiResponse<BookingDto>(false, "Parking space not found", null);
+        }
+
+        var hasOverlap = await _unitOfWork.Bookings.HasOverlappingBookingAsync(
+            booking.ParkingSpaceId, booking.EndDateTime, newEndDateTime, booking.Id, cancellationToken);
+
+        if (hasOverlap)
+        {
+            var activeCount = await _unitOfWork.Bookings.GetActiveBookingsCountAsync(
+                booking.ParkingSpaceId, booking.EndDateTime, newEndDateTime, cancellationToken);
+            
+            if (activeCount >= parking.TotalSpots)
+            {
+                return new ApiResponse<BookingDto>(false, "Parking spot is not available for the extended period", null);
+            }
+        }
+
+        // Calculate additional pricing
+        var extraDuration = newEndDateTime - booking.EndDateTime;
+        var (extraBaseAmount, _, _) = CalculateBaseAmount(parking, booking.EndDateTime, newEndDateTime, booking.PricingType);
+        
+        var extraTaxAmount = Math.Round(extraBaseAmount * TaxRate, 2);
+        var extraServiceFee = Math.Round(extraBaseAmount * ServiceFeeRate, 2);
+        var totalExtraAmount = extraBaseAmount + extraTaxAmount + extraServiceFee;
+
+        // Update booking
+        booking.EndDateTime = newEndDateTime;
+        booking.BaseAmount += extraBaseAmount;
+        booking.TaxAmount += extraTaxAmount;
+        booking.ServiceFee += extraServiceFee;
+        booking.TotalAmount += totalExtraAmount;
+
+        _unitOfWork.Bookings.Update(booking);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        _logger.LogInformation("Booking {BookingReference} extended successfully. Extra amount: {ExtraAmount:C}", 
+            booking.BookingReference, totalExtraAmount);
+
+        // Invalidate caches
+        await _cache.RemoveAsync($"dashboard:member:{userId}", cancellationToken);
+        await _cache.RemoveAsync($"parking:{parking.Id}", cancellationToken);
+        await _cache.RemoveByPatternAsync("search:*", cancellationToken);
+
+        return new ApiResponse<BookingDto>(true, $"Booking extended successfully. Additional charge: {totalExtraAmount:C}", booking.ToDto());
     }
 
     public async Task<ApiResponse<BookingDto>> RejectAsync(Guid id, Guid vendorId, string? reason, CancellationToken cancellationToken = default)
@@ -726,13 +849,14 @@ public class BookingService : IBookingService
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         // Notify member that their booking was rejected
-        await _notificationService.NotifyUserAsync(
+        await _notificationCoordinator.SendAsync(
             booking.UserId,
-            new NotificationDto(
-                NotificationTypes.BookingRejected,
+            new NotificationRequest(
+                NotificationType.BookingRejected.ToString(),
                 "Booking Rejected",
                 $"Your booking for {booking.ParkingSpace?.Title} was rejected. Reason: {booking.CancellationReason}",
-                new { BookingId = id, BookingReference = booking.BookingReference, Reason = booking.CancellationReason }
+                NotificationChannels.InApp,
+                new Dictionary<string, string> { { "BookingId", id.ToString() }, { "BookingReference", booking.BookingReference ?? string.Empty }, { "Reason", booking.CancellationReason ?? string.Empty } }
             ),
             cancellationToken);
 

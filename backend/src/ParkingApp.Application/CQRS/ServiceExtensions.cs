@@ -1,6 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using ParkingApp.Application.CQRS.Commands.Auth;
 using ParkingApp.Application.CQRS.Commands.Bookings;
+using ParkingApp.Application.CQRS.Handlers.Bookings;
 using ParkingApp.Application.CQRS.Commands.Chat;
 using ParkingApp.Application.CQRS.Commands.Parking;
 using ParkingApp.Application.CQRS.Commands.Payments;
@@ -12,6 +13,12 @@ using ParkingApp.Application.CQRS.Queries.Dashboard;
 using ParkingApp.Application.CQRS.Queries.Parking;
 using ParkingApp.Application.CQRS.Queries.Payments;
 using ParkingApp.Application.CQRS.Queries.Reviews;
+using ParkingApp.Application.CQRS.Commands.Favorites;
+using ParkingApp.Application.CQRS.Queries.Favorites;
+using ParkingApp.Application.CQRS.Commands.Notifications;
+using ParkingApp.Application.CQRS.Queries.Notifications;
+using ParkingApp.Application.CQRS.Commands.Vehicles;
+using ParkingApp.Application.CQRS.Queries.Vehicles;
 using ParkingApp.Application.DTOs;
 
 namespace ParkingApp.Application.CQRS;
@@ -40,11 +47,16 @@ public static class CQRSServiceExtensions
 
         // ── Booking ──
         services.AddScoped<ICommandHandler<CreateBookingCommand, ApiResponse<BookingDto>>, CreateBookingHandler>();
+        services.AddScoped<ICommandHandler<UpdateBookingCommand, ApiResponse<BookingDto>>, UpdateBookingHandler>();
         services.AddScoped<ICommandHandler<CancelBookingCommand, ApiResponse<BookingDto>>, CancelBookingHandler>();
         services.AddScoped<ICommandHandler<ApproveBookingCommand, ApiResponse<BookingDto>>, ApproveBookingHandler>();
         services.AddScoped<ICommandHandler<RejectBookingCommand, ApiResponse<BookingDto>>, RejectBookingHandler>();
         services.AddScoped<ICommandHandler<CheckInCommand, ApiResponse<BookingDto>>, CheckInHandler>();
         services.AddScoped<ICommandHandler<CheckOutCommand, ApiResponse<BookingDto>>, CheckOutHandler>();
+        services.AddScoped<ICommandHandler<RequestExtensionCommand, ApiResponse<BookingDto>>, RequestExtensionHandler>();
+        services.AddScoped<ICommandHandler<ApproveExtensionCommand, ApiResponse<BookingDto>>, ApproveExtensionHandler>();
+        services.AddScoped<ICommandHandler<RejectExtensionCommand, ApiResponse<BookingDto>>, RejectExtensionHandler>();
+        services.AddScoped<ICommandHandler<ConfirmExtensionPaymentCommand, ApiResponse<BookingDto>>, ConfirmExtensionPaymentHandler>();
 
         // ── Parking ──
         services.AddScoped<ICommandHandler<CreateParkingCommand, ApiResponse<ParkingSpaceDto>>, CreateParkingHandler>();
@@ -68,6 +80,14 @@ public static class CQRSServiceExtensions
         services.AddScoped<ICommandHandler<SendMessageCommand, ApiResponse<ChatMessageDto>>, SendMessageHandler>();
         services.AddScoped<ICommandHandler<MarkMessagesReadCommand, ApiResponse<bool>>, MarkMessagesReadHandler>();
 
+        // ── Favorites ──
+        services.AddScoped<ICommandHandler<ToggleFavoriteCommand, ApiResponse<bool>>, ToggleFavoriteCommandHandler>();
+
+        // ── Vehicles ──
+        services.AddScoped<ICommandHandler<CreateVehicleCommand, ApiResponse<VehicleDto>>, CreateVehicleCommandHandler>();
+        services.AddScoped<ICommandHandler<UpdateVehicleCommand, ApiResponse<VehicleDto>>, UpdateVehicleCommandHandler>();
+        services.AddScoped<ICommandHandler<DeleteVehicleCommand, ApiResponse<bool>>, DeleteVehicleCommandHandler>();
+
         // ══════════════════════════════════════════════════════
         // QUERY HANDLERS
         // ══════════════════════════════════════════════════════
@@ -80,7 +100,9 @@ public static class CQRSServiceExtensions
         services.AddScoped<IQueryHandler<GetBookingByReferenceQuery, ApiResponse<BookingDto>>, GetBookingByReferenceHandler>();
         services.AddScoped<IQueryHandler<GetUserBookingsQuery, ApiResponse<BookingListResultDto>>, GetUserBookingsHandler>();
         services.AddScoped<IQueryHandler<GetVendorBookingsQuery, ApiResponse<BookingListResultDto>>, GetVendorBookingsHandler>();
+        services.AddScoped<IQueryHandler<GetBookingsByParkingSpaceQuery, ApiResponse<BookingListResultDto>>, GetBookingsByParkingSpaceHandler>();
         services.AddScoped<IQueryHandler<CalculatePriceQuery, ApiResponse<PriceBreakdownDto>>, CalculatePriceHandler>();
+        services.AddScoped<IQueryHandler<GetPendingRequestsCountQuery, ApiResponse<int>>, GetPendingRequestsCountHandler>();
 
         // ── Parking ──
         services.AddScoped<IQueryHandler<GetParkingByIdQuery, ApiResponse<ParkingSpaceDto>>, GetParkingByIdHandler>();
@@ -103,6 +125,19 @@ public static class CQRSServiceExtensions
         // ── Chat ──
         services.AddScoped<IQueryHandler<GetConversationsQuery, ApiResponse<ConversationListDto>>, GetConversationsHandler>();
         services.AddScoped<IQueryHandler<GetMessagesQuery, ApiResponse<List<ChatMessageDto>>>, GetMessagesHandler>();
+
+        // ── Favorites ──
+        services.AddScoped<IQueryHandler<GetMyFavoritesQuery, ApiResponse<IEnumerable<ParkingSpaceDto>>>, GetMyFavoritesQueryHandler>();
+
+        // ── Notifications ──
+        services.AddScoped<IQueryHandler<GetMyNotificationsQuery, ApiResponse<NotificationListDto>>, GetMyNotificationsQueryHandler>();
+        services.AddScoped<ICommandHandler<MarkNotificationAsReadCommand, ApiResponse<bool>>, MarkNotificationAsReadCommandHandler>();
+        services.AddScoped<ICommandHandler<MarkAllNotificationsAsReadCommand, ApiResponse<bool>>, MarkAllNotificationsAsReadCommandHandler>();
+        services.AddScoped<ICommandHandler<DeleteNotificationCommand, ApiResponse<bool>>, DeleteNotificationCommandHandler>();
+        services.AddScoped<ICommandHandler<ClearAllNotificationsCommand, ApiResponse<bool>>, ClearAllNotificationsCommandHandler>();
+
+        // ── Vehicles ──
+        services.AddScoped<IQueryHandler<GetMyVehiclesQuery, ApiResponse<IEnumerable<VehicleDto>>>, GetMyVehiclesQueryHandler>();
 
         return services;
     }

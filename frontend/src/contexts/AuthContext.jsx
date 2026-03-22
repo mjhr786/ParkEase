@@ -52,10 +52,16 @@ export function AuthProvider({ children }) {
         try {
             await api.logout();
         } catch (error) {
-            console.log('Logout error:', error);
+            // console.log('Logout error:', error);
         }
         api.clearTokens();
         setUser(null);
+    };
+
+    const updateUser = (userData) => {
+        const updated = { ...user, ...userData };
+        localStorage.setItem('user', JSON.stringify(updated));
+        setUser(updated);
     };
 
     const isVendor = user?.role === 1 || user?.role === 'Vendor';
@@ -68,6 +74,7 @@ export function AuthProvider({ children }) {
             login,
             register,
             logout,
+            updateUser,
             loading,
             isVendor,
             isAdmin,
