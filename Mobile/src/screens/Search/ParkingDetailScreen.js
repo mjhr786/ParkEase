@@ -9,6 +9,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import { Ionicons } from '@expo/vector-icons';
 import { getParkingDetailThunk } from '../../store/slices/parkingSlice';
 import { getReviewsThunk } from '../../store/slices/reviewSlice';
+import { toggleFavoriteThunk } from '../../store/slices/favoriteSlice';
 import ScreenLayout from '../../components/Layouts/ScreenLayout';
 import Card from '../../components/Common/Card';
 import Badge from '../../components/Common/Badge';
@@ -26,11 +27,31 @@ const ParkingDetailScreen = ({ navigation, route }) => {
     const { selectedParking: parking, detailLoading } = useSelector((s) => s.parking);
     const { reviews } = useSelector((s) => s.review);
     const [chatLoading, setChatLoading] = useState(false);
+    const [isFavorited, setIsFavorited] = useState(false);
+    const [favLoading, setFavLoading] = useState(false);
 
     useEffect(() => {
         dispatch(getParkingDetailThunk(parkingId));
         dispatch(getReviewsThunk(parkingId));
     }, [dispatch, parkingId]);
+
+    useEffect(() => {
+        if (parking?.isFavorited !== undefined) {
+            setIsFavorited(parking.isFavorited);
+        }
+    }, [parking?.isFavorited]);
+
+    const handleToggleFavorite = useCallback(async () => {
+        setFavLoading(true);
+        try {
+            const result = await dispatch(toggleFavoriteThunk(parkingId)).unwrap();
+            setIsFavorited(result.isFavorited ?? !isFavorited);
+        } catch {
+            Alert.alert('Error', 'Could not update favorite.');
+        } finally {
+            setFavLoading(false);
+        }
+    }, [dispatch, parkingId, isFavorited]);
 
     const handleChatWithOwner = useCallback(async () => {
         setChatLoading(true);
@@ -73,6 +94,17 @@ const ParkingDetailScreen = ({ navigation, route }) => {
                     </View>
                     <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
                         <Ionicons name="arrow-back" size={24} color={colors.textPrimary} />
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                        style={styles.favBtn}
+                        onPress={handleToggleFavorite}
+                        disabled={favLoading}
+                    >
+                        <Ionicons
+                            name={isFavorited ? 'heart' : 'heart-outline'}
+                            size={24}
+                            color={isFavorited ? colors.danger : colors.textPrimary}
+                        />
                     </TouchableOpacity>
                 </View>
 
@@ -153,7 +185,17 @@ const ParkingDetailScreen = ({ navigation, route }) => {
 
                     {/* Reviews */}
                     <Card style={styles.section}>
-                        <Text style={styles.sectionTitle}>Reviews ({reviews.length})</Text>
+                        <View style={styles.sectionRow}>
+                            <Text style={styles.sectionTitle}>Reviews ({reviews.length})</Text>
+                            {reviews.length > 0 && (
+                                <TouchableOpacity onPress={() => navigation.navigate('ReviewsList', {
+                                    parkingSpaceId: parkingId,
+                                    parkingTitle: parking?.title,
+                                })}>
+                                    <Text style={styles.seeAllText}>See All</Text>
+                                </TouchableOpacity>
+                            )}
+                        </View>
                         {reviews.slice(0, 3).map((review) => (
                             <View key={review.id} style={styles.reviewItem}>
                                 <View style={styles.reviewHeader}>
@@ -164,6 +206,13 @@ const ParkingDetailScreen = ({ navigation, route }) => {
                                 <Text style={styles.reviewDate}>{formatDate(review.createdAt)}</Text>
                             </View>
                         ))}
+                        <TouchableOpacity
+                            style={styles.writeReviewBtn}
+                            onPress={() => navigation.navigate('CreateReview', { parkingSpaceId: parkingId })}
+                        >
+                            <Ionicons name="star-outline" size={16} color={colors.primary} />
+                            <Text style={styles.writeReviewText}>Write a Review</Text>
+                        </TouchableOpacity>
                     </Card>
 
                     {/* Action Buttons */}
@@ -199,6 +248,12 @@ const styles = StyleSheet.create({
         backgroundColor: colors.white, justifyContent: 'center', alignItems: 'center',
         ...shadows.md,
     },
+    favBtn: {
+        position: 'absolute', top: 50, right: 16,
+        width: 40, height: 40, borderRadius: 20,
+        backgroundColor: colors.white, justifyContent: 'center', alignItems: 'center',
+        ...shadows.md,
+    },
     content: { paddingHorizontal: spacing.screenHorizontal, paddingBottom: spacing['3xl'] },
     titleSection: { paddingVertical: spacing.lg },
     title: { ...typography.h2, color: colors.textPrimary },
@@ -220,11 +275,15 @@ const styles = StyleSheet.create({
     amenitiesGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
     amenityChip: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: colors.successSoft, paddingHorizontal: spacing.md, paddingVertical: spacing.xs, borderRadius: spacing.radius.full },
     amenityText: { ...typography.caption, color: colors.successDark, fontWeight: '500' },
+    sectionRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.md },
+    seeAllText: { ...typography.caption, color: colors.primary, fontWeight: '600' },
     reviewItem: { paddingVertical: spacing.md, borderBottomWidth: 1, borderBottomColor: colors.borderLight },
     reviewHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
     reviewerName: { ...typography.label, color: colors.textPrimary },
     reviewComment: { ...typography.bodySmall, color: colors.textSecondary, marginTop: spacing.xs },
     reviewDate: { ...typography.caption, color: colors.textTertiary, marginTop: spacing.xs },
+    writeReviewBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: spacing.md, marginTop: spacing.sm },
+    writeReviewText: { ...typography.label, color: colors.primary },
     actionButtons: { flexDirection: 'row', gap: spacing.md, marginTop: spacing.lg },
 });
 

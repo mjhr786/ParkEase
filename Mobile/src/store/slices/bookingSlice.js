@@ -47,6 +47,18 @@ export const createBookingThunk = createAsyncThunk(
     }
 );
 
+export const updateBookingThunk = createAsyncThunk(
+    'booking/update',
+    async ({ id, data }, { rejectWithValue }) => {
+        try {
+            const response = await apiClient.put(ENDPOINTS.BOOKINGS.BY_ID(id), data);
+            return response.data.data;
+        } catch (error) {
+            return rejectWithValue(getErrorMessage(error));
+        }
+    }
+);
+
 export const cancelBookingThunk = createAsyncThunk(
     'booking/cancel',
     async ({ id, reason }, { rejectWithValue }) => {
@@ -64,6 +76,78 @@ export const calculatePriceThunk = createAsyncThunk(
     async (data, { rejectWithValue }) => {
         try {
             const response = await apiClient.post(ENDPOINTS.BOOKINGS.CALCULATE_PRICE, data);
+            return response.data.data;
+        } catch (error) {
+            return rejectWithValue(getErrorMessage(error));
+        }
+    }
+);
+
+export const checkInBookingThunk = createAsyncThunk(
+    'booking/checkIn',
+    async (id, { rejectWithValue }) => {
+        try {
+            const response = await apiClient.post(ENDPOINTS.BOOKINGS.CHECK_IN(id));
+            return response.data.data;
+        } catch (error) {
+            return rejectWithValue(getErrorMessage(error));
+        }
+    }
+);
+
+export const checkOutBookingThunk = createAsyncThunk(
+    'booking/checkOut',
+    async (id, { rejectWithValue }) => {
+        try {
+            const response = await apiClient.post(ENDPOINTS.BOOKINGS.CHECK_OUT(id));
+            return response.data.data;
+        } catch (error) {
+            return rejectWithValue(getErrorMessage(error));
+        }
+    }
+);
+
+export const extendBookingThunk = createAsyncThunk(
+    'booking/extend',
+    async ({ id, data }, { rejectWithValue }) => {
+        try {
+            const response = await apiClient.post(ENDPOINTS.BOOKINGS.EXTEND(id), data);
+            return response.data.data;
+        } catch (error) {
+            return rejectWithValue(getErrorMessage(error));
+        }
+    }
+);
+
+export const approveExtensionThunk = createAsyncThunk(
+    'booking/approveExtension',
+    async (id, { rejectWithValue }) => {
+        try {
+            const response = await apiClient.post(ENDPOINTS.BOOKINGS.APPROVE_EXTENSION(id));
+            return response.data.data;
+        } catch (error) {
+            return rejectWithValue(getErrorMessage(error));
+        }
+    }
+);
+
+export const rejectExtensionThunk = createAsyncThunk(
+    'booking/rejectExtension',
+    async (id, { rejectWithValue }) => {
+        try {
+            const response = await apiClient.post(ENDPOINTS.BOOKINGS.REJECT_EXTENSION(id));
+            return response.data.data;
+        } catch (error) {
+            return rejectWithValue(getErrorMessage(error));
+        }
+    }
+);
+
+export const getPendingCountThunk = createAsyncThunk(
+    'booking/getPendingCount',
+    async (_, { rejectWithValue }) => {
+        try {
+            const response = await apiClient.get(ENDPOINTS.BOOKINGS.PENDING_COUNT);
             return response.data.data;
         } catch (error) {
             return rejectWithValue(getErrorMessage(error));
@@ -120,6 +204,17 @@ const initialState = {
     priceBreakdown: null,
     priceLoading: false,
     actionLoading: false,
+    extensionLoading: false,
+    pendingCount: 0,
+};
+
+const updateBookingInList = (list, updatedBooking) => {
+    if (!updatedBooking) return list;
+    const idx = list.findIndex((b) => b.id === updatedBooking.id);
+    if (idx !== -1) {
+        list[idx] = updatedBooking;
+    }
+    return list;
 };
 
 const bookingSlice = createSlice({
@@ -172,11 +267,19 @@ const bookingSlice = createSlice({
             .addCase(createBookingThunk.rejected, (state) => {
                 state.createLoading = false;
             })
+            // Update Booking
+            .addCase(updateBookingThunk.fulfilled, (state, action) => {
+                if (action.payload) {
+                    updateBookingInList(state.myBookings, action.payload);
+                    if (state.selectedBooking?.id === action.payload.id) {
+                        state.selectedBooking = action.payload;
+                    }
+                }
+            })
             // Cancel Booking
             .addCase(cancelBookingThunk.fulfilled, (state, action) => {
                 if (action.payload) {
-                    const idx = state.myBookings.findIndex((b) => b.id === action.payload.id);
-                    if (idx !== -1) state.myBookings[idx] = action.payload;
+                    updateBookingInList(state.myBookings, action.payload);
                     if (state.selectedBooking?.id === action.payload.id) {
                         state.selectedBooking = action.payload;
                     }
@@ -192,6 +295,92 @@ const bookingSlice = createSlice({
             })
             .addCase(calculatePriceThunk.rejected, (state) => {
                 state.priceLoading = false;
+            })
+            // Check In
+            .addCase(checkInBookingThunk.pending, (state) => {
+                state.actionLoading = true;
+            })
+            .addCase(checkInBookingThunk.fulfilled, (state, action) => {
+                state.actionLoading = false;
+                if (action.payload) {
+                    updateBookingInList(state.myBookings, action.payload);
+                    updateBookingInList(state.vendorBookings, action.payload);
+                    if (state.selectedBooking?.id === action.payload.id) {
+                        state.selectedBooking = action.payload;
+                    }
+                }
+            })
+            .addCase(checkInBookingThunk.rejected, (state) => {
+                state.actionLoading = false;
+            })
+            // Check Out
+            .addCase(checkOutBookingThunk.pending, (state) => {
+                state.actionLoading = true;
+            })
+            .addCase(checkOutBookingThunk.fulfilled, (state, action) => {
+                state.actionLoading = false;
+                if (action.payload) {
+                    updateBookingInList(state.myBookings, action.payload);
+                    updateBookingInList(state.vendorBookings, action.payload);
+                    if (state.selectedBooking?.id === action.payload.id) {
+                        state.selectedBooking = action.payload;
+                    }
+                }
+            })
+            .addCase(checkOutBookingThunk.rejected, (state) => {
+                state.actionLoading = false;
+            })
+            // Extend
+            .addCase(extendBookingThunk.pending, (state) => {
+                state.extensionLoading = true;
+            })
+            .addCase(extendBookingThunk.fulfilled, (state, action) => {
+                state.extensionLoading = false;
+                if (action.payload) {
+                    updateBookingInList(state.myBookings, action.payload);
+                    if (state.selectedBooking?.id === action.payload.id) {
+                        state.selectedBooking = action.payload;
+                    }
+                }
+            })
+            .addCase(extendBookingThunk.rejected, (state) => {
+                state.extensionLoading = false;
+            })
+            // Approve Extension
+            .addCase(approveExtensionThunk.pending, (state) => {
+                state.extensionLoading = true;
+            })
+            .addCase(approveExtensionThunk.fulfilled, (state, action) => {
+                state.extensionLoading = false;
+                if (action.payload) {
+                    updateBookingInList(state.vendorBookings, action.payload);
+                    if (state.selectedBooking?.id === action.payload.id) {
+                        state.selectedBooking = action.payload;
+                    }
+                }
+            })
+            .addCase(approveExtensionThunk.rejected, (state) => {
+                state.extensionLoading = false;
+            })
+            // Reject Extension
+            .addCase(rejectExtensionThunk.pending, (state) => {
+                state.extensionLoading = true;
+            })
+            .addCase(rejectExtensionThunk.fulfilled, (state, action) => {
+                state.extensionLoading = false;
+                if (action.payload) {
+                    updateBookingInList(state.vendorBookings, action.payload);
+                    if (state.selectedBooking?.id === action.payload.id) {
+                        state.selectedBooking = action.payload;
+                    }
+                }
+            })
+            .addCase(rejectExtensionThunk.rejected, (state) => {
+                state.extensionLoading = false;
+            })
+            // Pending Count
+            .addCase(getPendingCountThunk.fulfilled, (state, action) => {
+                state.pendingCount = action.payload?.count ?? action.payload ?? 0;
             })
             // Vendor Bookings
             .addCase(getVendorBookingsThunk.pending, (state) => {
@@ -211,8 +400,7 @@ const bookingSlice = createSlice({
             .addCase(approveBookingThunk.fulfilled, (state, action) => {
                 state.actionLoading = false;
                 if (action.payload) {
-                    const idx = state.vendorBookings.findIndex((b) => b.id === action.payload.id);
-                    if (idx !== -1) state.vendorBookings[idx] = action.payload;
+                    updateBookingInList(state.vendorBookings, action.payload);
                     if (state.selectedBooking?.id === action.payload.id) {
                         state.selectedBooking = action.payload;
                     }
@@ -228,8 +416,7 @@ const bookingSlice = createSlice({
             .addCase(rejectBookingThunk.fulfilled, (state, action) => {
                 state.actionLoading = false;
                 if (action.payload) {
-                    const idx = state.vendorBookings.findIndex((b) => b.id === action.payload.id);
-                    if (idx !== -1) state.vendorBookings[idx] = action.payload;
+                    updateBookingInList(state.vendorBookings, action.payload);
                     if (state.selectedBooking?.id === action.payload.id) {
                         state.selectedBooking = action.payload;
                     }

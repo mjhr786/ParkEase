@@ -15,6 +15,11 @@ import {
     cancelBookingThunk,
     approveBookingThunk,
     rejectBookingThunk,
+    checkInBookingThunk,
+    checkOutBookingThunk,
+    extendBookingThunk,
+    approveExtensionThunk,
+    rejectExtensionThunk,
 } from '../../store/slices/bookingSlice';
 import { useAuth } from '../../hooks/useAuth';
 import ScreenLayout from '../../components/Layouts/ScreenLayout';
@@ -46,6 +51,8 @@ const BookingDetailScreen = ({ navigation, route }) => {
     const [rejectModalVisible, setRejectModalVisible] = useState(false);
     const [rejectReason, setRejectReason] = useState('');
     const [chatLoading, setChatLoading] = useState(false);
+    const [extendModalVisible, setExtendModalVisible] = useState(false);
+    const [extendHours, setExtendHours] = useState('');
 
     useEffect(() => {
         dispatch(getBookingDetailThunk(bookingId));
@@ -137,10 +144,90 @@ const BookingDetailScreen = ({ navigation, route }) => {
         }
     }, [booking, isVendor, navigation]);
 
+    const handleCheckIn = useCallback(async () => {
+        setActionLoading(true);
+        try {
+            await dispatch(checkInBookingThunk(bookingId)).unwrap();
+            Alert.alert('Success', 'Checked in successfully!');
+        } catch (error) {
+            Alert.alert('Error', error || 'Failed to check in');
+        } finally {
+            setActionLoading(false);
+        }
+    }, [dispatch, bookingId]);
+
+    const handleCheckOut = useCallback(async () => {
+        Alert.alert('Check Out', 'Confirm check-out from this parking space?', [
+            { text: 'Cancel', style: 'cancel' },
+            {
+                text: 'Check Out',
+                onPress: async () => {
+                    setActionLoading(true);
+                    try {
+                        await dispatch(checkOutBookingThunk(bookingId)).unwrap();
+                        Alert.alert('Success', 'Checked out successfully!');
+                    } catch (error) {
+                        Alert.alert('Error', error || 'Failed to check out');
+                    } finally {
+                        setActionLoading(false);
+                    }
+                },
+            },
+        ]);
+    }, [dispatch, bookingId]);
+
+    const handleExtend = useCallback(async () => {
+        const hours = parseInt(extendHours, 10);
+        if (!hours || hours < 1) {
+            Alert.alert('Error', 'Please enter a valid number of hours.');
+            return;
+        }
+        setActionLoading(true);
+        try {
+            await dispatch(extendBookingThunk({ id: bookingId, data: { additionalHours: hours } })).unwrap();
+            Alert.alert('Success', 'Extension request submitted!');
+            setExtendModalVisible(false);
+            setExtendHours('');
+        } catch (error) {
+            Alert.alert('Error', error || 'Failed to request extension');
+        } finally {
+            setActionLoading(false);
+        }
+    }, [dispatch, bookingId, extendHours]);
+
+    const handleApproveExtension = useCallback(async () => {
+        setActionLoading(true);
+        try {
+            await dispatch(approveExtensionThunk(bookingId)).unwrap();
+            Alert.alert('Success', 'Extension approved!');
+        } catch (error) {
+            Alert.alert('Error', error || 'Failed to approve extension');
+        } finally {
+            setActionLoading(false);
+        }
+    }, [dispatch, bookingId]);
+
+    const handleRejectExtension = useCallback(async () => {
+        setActionLoading(true);
+        try {
+            await dispatch(rejectExtensionThunk(bookingId)).unwrap();
+            Alert.alert('Done', 'Extension rejected.');
+        } catch (error) {
+            Alert.alert('Error', error || 'Failed to reject extension');
+        } finally {
+            setActionLoading(false);
+        }
+    }, [dispatch, bookingId]);
+
     if (detailLoading || !booking) return <LoadingScreen />;
 
     const canCancel = !isVendor && [BookingStatus.Pending, BookingStatus.Confirmed, BookingStatus.AwaitingPayment].includes(booking.status);
     const canApproveReject = isVendor && booking.status === BookingStatus.Pending;
+    const canCheckIn = booking.status === BookingStatus.Confirmed;
+    const canCheckOut = booking.status === BookingStatus.InProgress;
+    const canExtend = !isVendor && booking.status === BookingStatus.InProgress;
+    const hasExtensionPending = booking.extensionStatus === 'Pending' || booking.hasExtensionRequest;
+    const canManageExtension = isVendor && hasExtensionPending;
 
     return (
         <ScreenLayout>
@@ -245,6 +332,69 @@ const BookingDetailScreen = ({ navigation, route }) => {
                             />
                         )}
 
+                        {/* Check In */}
+                        {canCheckIn && (
+                            <Button
+                                title="Check In"
+                                onPress={handleCheckIn}
+                                loading={actionLoading}
+                                icon={<Ionicons name="log-in" size={20} color={colors.white} />}
+                            />
+                        )}
+
+                        {/* Check Out */}
+                        {canCheckOut && (
+                            <Button
+                                title="Check Out"
+                                onPress={handleCheckOut}
+                                loading={actionLoading}
+                                variant="secondary"
+                                icon={<Ionicons name="log-out" size={20} color={colors.primary} />}
+                            />
+                        )}
+
+                        {/* Extend */}
+                        {canExtend && (
+                            <Button
+                                title="Extend Booking"
+                                onPress={() => { setExtendHours(''); setExtendModalVisible(true); }}
+                                variant="secondary"
+                                icon={<Ionicons name="time" size={20} color={colors.primary} />}
+                            />
+                        )}
+
+                        {/* Vendor: Approve/Reject Extension */}
+                        {canManageExtension && (
+                            <Card>
+                                <Text style={styles.sectionTitle}>Extension Request</Text>
+                                <Text style={{ ...typography.bodySmall, color: colors.textSecondary, marginBottom: spacing.md }}>
+                                    The user has requested a booking extension.
+                                </Text>
+                                <View style={styles.vendorActions}>
+                                    <Button title="Approve" onPress={handleApproveExtension} loading={actionLoading} style={{ flex: 1 }} />
+                                    <Button title="Reject" onPress={handleRejectExtension} variant="danger" loading={actionLoading} style={{ flex: 1 }} />
+                                </View>
+                            </Card>
+                        )}
+
+                        {/* Payment - for awaiting payment bookings */}
+                        {!isVendor && booking.status === BookingStatus.AwaitingPayment && (
+                            <Button
+                                title="Proceed to Payment"
+                                onPress={() => navigation.navigate('PaymentScreen', {
+                                    bookingId: booking.id,
+                                    amount: booking.totalAmount,
+                                    parkingTitle: booking.parkingSpaceTitle,
+                                    priceBreakdown: {
+                                        duration: booking.durationText || `${booking.startDateTime ? new Date(booking.startDateTime).toLocaleDateString() : ''} – ${booking.endDateTime ? new Date(booking.endDateTime).toLocaleDateString() : ''}`,
+                                        basePrice: booking.baseAmount || booking.totalAmount,
+                                        serviceFee: booking.serviceFee || 0,
+                                    },
+                                })}
+                                icon={<Ionicons name="card" size={20} color={colors.white} />}
+                            />
+                        )}
+
                         {/* Chat button for both roles */}
                         <Button
                             title={isVendor ? 'Chat with User' : 'Chat with Owner'}
@@ -307,6 +457,48 @@ const BookingDetailScreen = ({ navigation, route }) => {
                                     setRejectModalVisible(false);
                                     setRejectReason('');
                                 }}
+                                variant="secondary"
+                                style={{ flex: 1 }}
+                            />
+                        </View>
+                    </View>
+                </KeyboardAvoidingView>
+            </Modal>
+
+            {/* Extend Booking Modal */}
+            <Modal
+                visible={extendModalVisible}
+                transparent
+                animationType="fade"
+                onRequestClose={() => setExtendModalVisible(false)}
+            >
+                <KeyboardAvoidingView
+                    style={styles.modalOverlay}
+                    behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+                >
+                    <View style={styles.modalContent}>
+                        <Text style={styles.modalTitle}>Extend Booking</Text>
+                        <Text style={styles.modalSubtitle}>
+                            How many additional hours?
+                        </Text>
+                        <TextInput
+                            style={styles.modalInput}
+                            value={extendHours}
+                            onChangeText={setExtendHours}
+                            placeholder="Number of hours"
+                            placeholderTextColor={colors.textTertiary}
+                            keyboardType="numeric"
+                        />
+                        <View style={styles.modalActions}>
+                            <Button
+                                title="Request Extension"
+                                onPress={handleExtend}
+                                loading={actionLoading}
+                                style={{ flex: 1 }}
+                            />
+                            <Button
+                                title="Cancel"
+                                onPress={() => setExtendModalVisible(false)}
                                 variant="secondary"
                                 style={{ flex: 1 }}
                             />

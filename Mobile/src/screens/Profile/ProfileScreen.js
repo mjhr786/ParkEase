@@ -5,9 +5,11 @@
 
 import React, { useState, useCallback } from 'react';
 import { View, Text, TouchableOpacity, Alert, StyleSheet } from 'react-native';
+import { useDispatch } from 'react-redux';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../hooks/useAuth';
 import { authService } from '../../services/auth/authService';
+import { deleteAccountThunk } from '../../store/slices/authSlice';
 import ScreenLayout from '../../components/Layouts/ScreenLayout';
 import Card from '../../components/Common/Card';
 import Button from '../../components/Common/Button';
@@ -34,6 +36,7 @@ const menuStyles = StyleSheet.create({
 });
 
 const ProfileScreen = ({ navigation }) => {
+    const dispatch = useDispatch();
     const { user, logout, updateProfile, loading } = useAuth();
     const [editing, setEditing] = useState(false);
     const [firstName, setFirstName] = useState(user?.firstName || '');
@@ -56,21 +59,30 @@ const ProfileScreen = ({ navigation }) => {
     }, [logout]);
 
     const handleChangePassword = () => {
-        Alert.prompt(
-            'Change Password',
-            'Enter your new password (min 8 characters)',
-            async (newPassword) => {
-                if (newPassword && newPassword.length >= 8) {
-                    try {
-                        await authService.changePassword({ currentPassword: '', newPassword });
-                        Alert.alert('Success', 'Password changed');
-                    } catch {
-                        Alert.alert('Error', 'Failed to change password');
-                    }
-                }
-            }
-        );
+        navigation.navigate('ChangePassword');
     };
+
+    const handleDeleteAccount = useCallback(() => {
+        Alert.alert(
+            'Delete Account',
+            'This action is permanent and cannot be undone. Are you sure?',
+            [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                    text: 'Delete',
+                    style: 'destructive',
+                    onPress: async () => {
+                        try {
+                            await dispatch(deleteAccountThunk()).unwrap();
+                            Alert.alert('Account Deleted', 'Your account has been permanently deleted.');
+                        } catch (error) {
+                            Alert.alert('Error', error || 'Failed to delete account.');
+                        }
+                    },
+                },
+            ]
+        );
+    }, [dispatch]);
 
     return (
         <ScreenLayout scrollable>
@@ -114,6 +126,13 @@ const ProfileScreen = ({ navigation }) => {
                     <MenuItem icon="mail-outline" label="Email" value={user?.email} onPress={() => { }} />
                     <MenuItem icon="call-outline" label="Phone" value={user?.phoneNumber} onPress={() => { }} />
                     <MenuItem icon="lock-closed-outline" label="Change Password" onPress={handleChangePassword} />
+                    <MenuItem icon="car-outline" label="My Vehicles" onPress={() => navigation.navigate('Vehicles')} />
+                    <MenuItem icon="heart-outline" label="Favorites" onPress={() => navigation.navigate('Favorites')} />
+                    <MenuItem icon="notifications-outline" label="Notifications" onPress={() => navigation.navigate('Notifications')} />
+                </Card>
+
+                <Card>
+                    <MenuItem icon="trash-outline" label="Delete Account" onPress={handleDeleteAccount} danger />
                 </Card>
 
                 <Button title="Logout" onPress={handleLogout} variant="danger" style={styles.logoutBtn} icon={<Ionicons name="log-out-outline" size={20} color={colors.white} />} />
