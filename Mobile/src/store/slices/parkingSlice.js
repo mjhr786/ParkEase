@@ -83,6 +83,54 @@ export const toggleParkingActiveThunk = createAsyncThunk(
     }
 );
 
+export const deleteParkingThunk = createAsyncThunk(
+    'parking/delete',
+    async (id, { rejectWithValue }) => {
+        try {
+            await apiClient.delete(ENDPOINTS.PARKING.BY_ID(id));
+            return id;
+        } catch (error) {
+            return rejectWithValue(getErrorMessage(error));
+        }
+    }
+);
+
+export const uploadParkingImagesThunk = createAsyncThunk(
+    'parking/uploadImages',
+    async ({ parkingSpaceId, images }, { rejectWithValue }) => {
+        try {
+            const formData = new FormData();
+            images.forEach((image, index) => {
+                formData.append('files', {
+                    uri: image.uri,
+                    type: image.type || 'image/jpeg',
+                    name: image.fileName || `image_${index}.jpg`,
+                });
+            });
+            const response = await apiClient.post(
+                ENDPOINTS.FILES.UPLOAD(parkingSpaceId),
+                formData,
+                { headers: { 'Content-Type': 'multipart/form-data' } }
+            );
+            return response.data.data;
+        } catch (error) {
+            return rejectWithValue(getErrorMessage(error));
+        }
+    }
+);
+
+export const getMapCoordinatesThunk = createAsyncThunk(
+    'parking/getMapCoordinates',
+    async (params = {}, { rejectWithValue }) => {
+        try {
+            const response = await apiClient.get(ENDPOINTS.PARKING.MAP, { params });
+            return response.data.data || response.data;
+        } catch (error) {
+            return rejectWithValue(getErrorMessage(error));
+        }
+    }
+);
+
 const initialState = {
     searchResults: [],
     searchTotalCount: 0,
@@ -94,6 +142,9 @@ const initialState = {
     myListings: [],
     listingsLoading: false,
     createLoading: false,
+    uploadLoading: false,
+    mapCoordinates: [],
+    mapLoading: false,
 };
 
 const parkingSlice = createSlice({
@@ -162,6 +213,31 @@ const parkingSlice = createSlice({
                     const idx = state.myListings.findIndex((l) => l.id === action.payload.id);
                     if (idx !== -1) state.myListings[idx] = action.payload;
                 }
+            })
+            // Delete Parking
+            .addCase(deleteParkingThunk.fulfilled, (state, action) => {
+                state.myListings = state.myListings.filter((l) => l.id !== action.payload);
+            })
+            // Upload Images
+            .addCase(uploadParkingImagesThunk.pending, (state) => {
+                state.uploadLoading = true;
+            })
+            .addCase(uploadParkingImagesThunk.fulfilled, (state) => {
+                state.uploadLoading = false;
+            })
+            .addCase(uploadParkingImagesThunk.rejected, (state) => {
+                state.uploadLoading = false;
+            })
+            // Map Coordinates
+            .addCase(getMapCoordinatesThunk.pending, (state) => {
+                state.mapLoading = true;
+            })
+            .addCase(getMapCoordinatesThunk.fulfilled, (state, action) => {
+                state.mapLoading = false;
+                state.mapCoordinates = action.payload || [];
+            })
+            .addCase(getMapCoordinatesThunk.rejected, (state) => {
+                state.mapLoading = false;
             });
     },
 });

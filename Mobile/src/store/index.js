@@ -8,6 +8,11 @@ import parkingReducer from './slices/parkingSlice';
 import bookingReducer from './slices/bookingSlice';
 import dashboardReducer from './slices/dashboardSlice';
 import reviewReducer from './slices/reviewSlice';
+import chatReducer from './slices/chatSlice';
+import notificationReducer from './slices/notificationSlice';
+import vehicleReducer from './slices/vehicleSlice';
+import favoriteReducer from './slices/favoriteSlice';
+import paymentReducer from './slices/paymentSlice';
 import uiReducer from './slices/uiSlice';
 
 export const store = configureStore({
@@ -17,6 +22,11 @@ export const store = configureStore({
         booking: bookingReducer,
         dashboard: dashboardReducer,
         review: reviewReducer,
+        chat: chatReducer,
+        notification: notificationReducer,
+        vehicle: vehicleReducer,
+        favorite: favoriteReducer,
+        payment: paymentReducer,
         ui: uiReducer,
     },
     middleware: (getDefaultMiddleware) =>

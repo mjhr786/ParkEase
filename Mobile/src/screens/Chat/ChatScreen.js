@@ -8,6 +8,7 @@ import {
     View, Text, FlatList, TextInput, TouchableOpacity,
     StyleSheet, KeyboardAvoidingView, Platform, ActivityIndicator
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../../styles/globalStyles';
 import { useAuth } from '../../hooks/useAuth';
@@ -16,6 +17,7 @@ import chatService from '../../services/chat/chatService';
 const ChatScreen = ({ route, navigation }) => {
     const { conversationId: initialConversationId, parkingSpaceId, participantName, parkingTitle } = route.params;
     const { user } = useAuth();
+    const insets = useSafeAreaInsets();
     const [activeConversationId, setActiveConversationId] = useState(initialConversationId);
     const [messages, setMessages] = useState([]);
     const [newMessage, setNewMessage] = useState('');
@@ -122,8 +124,8 @@ const ChatScreen = ({ route, navigation }) => {
     return (
         <KeyboardAvoidingView
             style={styles.container}
-            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-            keyboardVerticalOffset={0}
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            keyboardVerticalOffset={Platform.OS === 'ios' ? 10 : 0}
         >
             {/* Header */}
             <View style={styles.header}>
@@ -159,7 +161,7 @@ const ChatScreen = ({ route, navigation }) => {
             )}
 
             {/* Input */}
-            <View style={styles.inputContainer}>
+            <View style={[styles.inputContainer, { paddingBottom: Math.max(insets.bottom, 8) }]}>
                 <TextInput
                     style={styles.input}
                     value={newMessage}
@@ -219,7 +221,6 @@ const styles = StyleSheet.create({
     inputContainer: {
         flexDirection: 'row', alignItems: 'flex-end', padding: 8,
         backgroundColor: colors.surface, borderTopWidth: 1, borderTopColor: colors.borderLight,
-        paddingBottom: Platform.OS === 'ios' ? 24 : 8,
     },
     input: {
         flex: 1, backgroundColor: colors.background, borderRadius: 20,

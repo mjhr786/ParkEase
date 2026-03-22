@@ -32,6 +32,18 @@ export const createReviewThunk = createAsyncThunk(
     }
 );
 
+export const ownerResponseThunk = createAsyncThunk(
+    'review/ownerResponse',
+    async ({ reviewId, response }, { rejectWithValue }) => {
+        try {
+            const res = await apiClient.post(ENDPOINTS.REVIEWS.OWNER_RESPONSE(reviewId), { response });
+            return res.data.data;
+        } catch (error) {
+            return rejectWithValue(getErrorMessage(error));
+        }
+    }
+);
+
 const initialState = {
     reviews: [],
     loading: false,
@@ -69,6 +81,13 @@ const reviewSlice = createSlice({
             })
             .addCase(createReviewThunk.rejected, (state) => {
                 state.createLoading = false;
+            })
+            // Owner Response
+            .addCase(ownerResponseThunk.fulfilled, (state, action) => {
+                if (action.payload) {
+                    const idx = state.reviews.findIndex((r) => r.id === action.payload.id);
+                    if (idx !== -1) state.reviews[idx] = action.payload;
+                }
             });
     },
 });

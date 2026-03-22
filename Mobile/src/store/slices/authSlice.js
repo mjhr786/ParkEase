@@ -93,6 +93,42 @@ export const updateProfileThunk = createAsyncThunk(
     }
 );
 
+/**
+ * Change password thunk
+ */
+export const changePasswordThunk = createAsyncThunk(
+    'auth/changePassword',
+    async (data, { rejectWithValue }) => {
+        try {
+            const result = await authService.changePassword(data);
+            if (!result.success) {
+                return rejectWithValue(result.message || 'Password change failed');
+            }
+            return result.data;
+        } catch (error) {
+            return rejectWithValue(getErrorMessage(error));
+        }
+    }
+);
+
+/**
+ * Delete account thunk
+ */
+export const deleteAccountThunk = createAsyncThunk(
+    'auth/deleteAccount',
+    async (_, { rejectWithValue }) => {
+        try {
+            const result = await authService.deleteAccount();
+            if (!result.success) {
+                return rejectWithValue(result.message || 'Delete failed');
+            }
+            return result.data;
+        } catch (error) {
+            return rejectWithValue(getErrorMessage(error));
+        }
+    }
+);
+
 const initialState = {
     user: null,
     token: null,
@@ -168,6 +204,22 @@ const authSlice = createSlice({
             // Update Profile
             .addCase(updateProfileThunk.fulfilled, (state, action) => {
                 state.user = action.payload;
+            })
+            // Change Password
+            .addCase(changePasswordThunk.pending, (state) => {
+                state.loading = true;
+                state.error = null;
+            })
+            .addCase(changePasswordThunk.fulfilled, (state) => {
+                state.loading = false;
+            })
+            .addCase(changePasswordThunk.rejected, (state, action) => {
+                state.loading = false;
+                state.error = action.payload;
+            })
+            // Delete Account
+            .addCase(deleteAccountThunk.fulfilled, (state) => {
+                Object.assign(state, { ...initialState, isSessionChecked: true });
             });
     },
 });

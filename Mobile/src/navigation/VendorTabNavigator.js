@@ -15,7 +15,10 @@ import MyListingsScreen from '../screens/Vendor/MyListingsScreen';
 import CreateParkingScreen from '../screens/Vendor/CreateParkingScreen';
 import VendorBookingsScreen from '../screens/Vendor/VendorBookingsScreen';
 import BookingDetailScreen from '../screens/Booking/BookingDetailScreen';
+import PaymentScreen from '../screens/Payment/PaymentScreen';
 import ProfileScreen from '../screens/Profile/ProfileScreen';
+import ChangePasswordScreen from '../screens/Profile/ChangePasswordScreen';
+import NotificationsScreen from '../screens/Notifications/NotificationsScreen';
 import ConversationListScreen from '../screens/Chat/ConversationListScreen';
 import ChatScreen from '../screens/Chat/ChatScreen';
 
@@ -47,6 +50,7 @@ const BookingsStack = () => (
     <Stack.Navigator screenOptions={stackOptions}>
         <Stack.Screen name="VendorBookings" component={VendorBookingsScreen} />
         <Stack.Screen name="BookingDetail" component={BookingDetailScreen} />
+        <Stack.Screen name="PaymentScreen" component={PaymentScreen} />
         <Stack.Screen name="ChatScreen" component={ChatScreen} />
     </Stack.Navigator>
 );
@@ -55,6 +59,8 @@ const BookingsStack = () => (
 const ProfileStack = () => (
     <Stack.Navigator screenOptions={stackOptions}>
         <Stack.Screen name="Profile" component={ProfileScreen} />
+        <Stack.Screen name="ChangePassword" component={ChangePasswordScreen} />
+        <Stack.Screen name="Notifications" component={NotificationsScreen} />
     </Stack.Navigator>
 );
 

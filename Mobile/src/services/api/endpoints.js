@@ -22,36 +22,64 @@ export const ENDPOINTS = {
     PARKING: {
         BASE: '/parking',
         SEARCH: '/parking/search',
+        MAP: '/parking/map',
         MY_LISTINGS: '/parking/my-listings',
         BY_ID: (id) => `/parking/${id}`,
         TOGGLE_ACTIVE: (id) => `/parking/${id}/toggle-active`,
     },
 
-    // Bookings
+    // Bookings (V2)
     BOOKINGS: {
-        BASE: '/bookings',
-        MY_BOOKINGS: '/bookings/my-bookings',
-        VENDOR_BOOKINGS: '/bookings/vendor-bookings',
-        CALCULATE_PRICE: '/bookings/calculate-price',
-        BY_ID: (id) => `/bookings/${id}`,
-        BY_REFERENCE: (ref) => `/bookings/reference/${ref}`,
-        BY_PARKING_SPACE: (id) => `/bookings/parking-space/${id}`,
-        CANCEL: (id) => `/bookings/${id}/cancel`,
-        CHECK_IN: (id) => `/bookings/${id}/check-in`,
-        CHECK_OUT: (id) => `/bookings/${id}/check-out`,
-        APPROVE: (id) => `/bookings/${id}/approve`,
-        REJECT: (id) => `/bookings/${id}/reject`,
+        BASE: '/v2/bookings',
+        MY_BOOKINGS: '/v2/bookings/my-bookings',
+        VENDOR_BOOKINGS: '/v2/bookings/vendor-bookings',
+        PENDING_COUNT: '/v2/bookings/pending-count',
+        CALCULATE_PRICE: '/v2/bookings/calculate-price',
+        BY_ID: (id) => `/v2/bookings/${id}`,
+        BY_REFERENCE: (ref) => `/v2/bookings/reference/${ref}`,
+        CANCEL: (id) => `/v2/bookings/${id}/cancel`,
+        APPROVE: (id) => `/v2/bookings/${id}/approve`,
+        REJECT: (id) => `/v2/bookings/${id}/reject`,
+        CHECK_IN: (id) => `/v2/bookings/${id}/check-in`,
+        CHECK_OUT: (id) => `/v2/bookings/${id}/check-out`,
+        EXTEND: (id) => `/v2/bookings/${id}/extend`,
+        APPROVE_EXTENSION: (id) => `/v2/bookings/${id}/approve-extension`,
+        REJECT_EXTENSION: (id) => `/v2/bookings/${id}/reject-extension`,
     },
 
     // Payments
     PAYMENTS: {
         BASE: '/payments',
         STRIPE_CONFIG: '/payments/stripe-config',
-        CREATE_ORDER: '/payments/create-order',
         VERIFY: '/payments/verify',
         REFUND: '/payments/refund',
         BY_ID: (id) => `/payments/${id}`,
-        BY_BOOKING: (bookingId) => `/payments/booking/${bookingId}`,
+    },
+
+    // Chat
+    CHAT: {
+        CONVERSATIONS: '/chat/conversations',
+        MESSAGES: (id) => `/chat/conversations/${id}/messages`,
+        SEND: '/chat/send',
+        UNREAD_COUNT: '/chat/unread-count',
+    },
+
+    // Notifications
+    NOTIFICATIONS: {
+        BASE: '/notifications',
+        MARK_READ: (id) => `/notifications/${id}/read`,
+        DELETE: (id) => `/notifications/${id}`,
+    },
+
+    // Vehicles
+    VEHICLES: {
+        BASE: '/vehicles',
+    },
+
+    // Favorites
+    FAVORITES: {
+        BASE: '/favorites',
+        TOGGLE: (id) => `/favorites/${id}/toggle`,
     },
 
     // Reviews

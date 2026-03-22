@@ -1,6 +1,6 @@
 /**
  * Member Tab Navigator
- * Bottom tabs: Home, Search, Bookings, Profile
+ * Bottom tabs: Home, Search, Bookings, Messages, Profile
  */
 
 import React from 'react';
@@ -15,9 +15,15 @@ import SearchScreen from '../screens/Search/SearchScreen';
 import ParkingDetailScreen from '../screens/Search/ParkingDetailScreen';
 import BookingScreen from '../screens/Booking/BookingScreen';
 import MyBookingsScreen from '../screens/Booking/MyBookingsScreen';
+import PaymentScreen from '../screens/Payment/PaymentScreen';
 import BookingDetailScreen from '../screens/Booking/BookingDetailScreen';
 import CreateReviewScreen from '../screens/Review/CreateReviewScreen';
+import ReviewsListScreen from '../screens/Review/ReviewsListScreen';
 import ProfileScreen from '../screens/Profile/ProfileScreen';
+import ChangePasswordScreen from '../screens/Profile/ChangePasswordScreen';
+import NotificationsScreen from '../screens/Notifications/NotificationsScreen';
+import VehiclesScreen from '../screens/Vehicles/VehiclesScreen';
+import FavoritesScreen from '../screens/Favorites/FavoritesScreen';
 import ConversationListScreen from '../screens/Chat/ConversationListScreen';
 import ChatScreen from '../screens/Chat/ChatScreen';
 
@@ -29,10 +35,20 @@ const stackOptions = {
     animation: 'slide_from_right',
 };
 
-// Home Stack
+// Home Stack — supports deep navigation from dashboard tiles
 const HomeStack = () => (
     <Stack.Navigator screenOptions={stackOptions}>
         <Stack.Screen name="MemberDashboard" component={MemberDashboardScreen} />
+        <Stack.Screen name="ParkingDetail" component={ParkingDetailScreen} />
+        <Stack.Screen name="BookParking" component={BookingScreen} />
+        <Stack.Screen name="BookingDetail" component={BookingDetailScreen} />
+        <Stack.Screen name="PaymentScreen" component={PaymentScreen} />
+        <Stack.Screen name="Favorites" component={FavoritesScreen} />
+        <Stack.Screen name="Notifications" component={NotificationsScreen} />
+        <Stack.Screen name="Vehicles" component={VehiclesScreen} />
+        <Stack.Screen name="CreateReview" component={CreateReviewScreen} />
+        <Stack.Screen name="ReviewsList" component={ReviewsListScreen} />
+        <Stack.Screen name="ChatScreen" component={ChatScreen} />
     </Stack.Navigator>
 );
 
@@ -43,6 +59,7 @@ const SearchStack = () => (
         <Stack.Screen name="ParkingDetail" component={ParkingDetailScreen} />
         <Stack.Screen name="BookParking" component={BookingScreen} />
         <Stack.Screen name="CreateReview" component={CreateReviewScreen} />
+        <Stack.Screen name="ReviewsList" component={ReviewsListScreen} />
         <Stack.Screen name="ChatScreen" component={ChatScreen} />
     </Stack.Navigator>
 );
@@ -52,6 +69,7 @@ const BookingsStack = () => (
     <Stack.Navigator screenOptions={stackOptions}>
         <Stack.Screen name="MyBookings" component={MyBookingsScreen} />
         <Stack.Screen name="BookingDetail" component={BookingDetailScreen} />
+        <Stack.Screen name="PaymentScreen" component={PaymentScreen} />
         <Stack.Screen name="CreateReview" component={CreateReviewScreen} />
         <Stack.Screen name="ChatScreen" component={ChatScreen} />
     </Stack.Navigator>
@@ -61,6 +79,10 @@ const BookingsStack = () => (
 const ProfileStack = () => (
     <Stack.Navigator screenOptions={stackOptions}>
         <Stack.Screen name="Profile" component={ProfileScreen} />
+        <Stack.Screen name="ChangePassword" component={ChangePasswordScreen} />
+        <Stack.Screen name="Vehicles" component={VehiclesScreen} />
+        <Stack.Screen name="Favorites" component={FavoritesScreen} />
+        <Stack.Screen name="Notifications" component={NotificationsScreen} />
     </Stack.Navigator>
 );
 
