@@ -20,7 +20,7 @@ public class DtoValidatorTests
     [Fact]
     public void RegisterDtoValidator_ShouldHaveError_WhenEmailInvalid()
     {
-        var dto = new RegisterDto("invalid-email", "Pa$$w0rd", "First", "Last", "1234567890", UserRole.Member);
+        var dto = new RegisterDto("invalid-email", "Pa$$w0rd", "First", "Last", "1234567890");
         var result = _registerValidator.TestValidate(dto);
         result.ShouldHaveValidationErrorFor(x => x.Email);
     }
@@ -28,7 +28,7 @@ public class DtoValidatorTests
     [Fact]
     public void RegisterDtoValidator_ShouldHaveError_WhenPasswordWeak()
     {
-        var dto = new RegisterDto("test@test.com", "weak", "First", "Last", "1234567890", UserRole.Member);
+        var dto = new RegisterDto("test@test.com", "weak", "First", "Last", "1234567890");
         var result = _registerValidator.TestValidate(dto);
         result.ShouldHaveValidationErrorFor(x => x.Password);
     }
@@ -36,7 +36,7 @@ public class DtoValidatorTests
     [Fact]
     public void RegisterDtoValidator_ShouldNotHaveError_WhenValid()
     {
-        var dto = new RegisterDto("test@test.com", "Str0ngP@ssw0rd!", "First", "Last", "1234567890", UserRole.Member);
+        var dto = new RegisterDto("test@test.com", "Str0ngP@ssw0rd!", "First", "Last", "1234567890");
         var result = _registerValidator.TestValidate(dto);
         result.ShouldNotHaveValidationErrorFor(x => x.Email);
         result.ShouldNotHaveValidationErrorFor(x => x.Password);

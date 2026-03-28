@@ -11,7 +11,6 @@ export default function Register() {
         firstName: '',
         lastName: '',
         phoneNumber: '',
-        role: 2, // Member by default
     });
     const [loading, setLoading] = useState(false);
     const { register } = useAuth();
@@ -37,7 +36,6 @@ export default function Register() {
         setLoading(true);
 
         const { confirmPassword, ...registerData } = formData;
-        registerData.role = parseInt(registerData.role);
 
         const result = await register(registerData);
 
@@ -111,18 +109,7 @@ export default function Register() {
                         />
                     </div>
 
-                    <div className="form-group">
-                        <label className="form-label">I want to</label>
-                        <select
-                            name="role"
-                            className="form-select"
-                            value={formData.role}
-                            onChange={handleChange}
-                        >
-                            <option value={2}>Find Parking (Member)</option>
-                            <option value={1}>Rent Out My Parking (Vendor)</option>
-                        </select>
-                    </div>
+
 
                     <div className="form-group">
                         <label className="form-label">Password</label>

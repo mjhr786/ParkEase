@@ -129,10 +129,6 @@ public class ParkingSpaceService : IParkingSpaceService
             return new ApiResponse<ParkingSpaceDto>(false, "Owner not found", null);
         }
 
-        if (owner.Role != UserRole.Vendor && owner.Role != UserRole.Admin)
-        {
-            return new ApiResponse<ParkingSpaceDto>(false, "Only vendors can create parking spaces", null);
-        }
 
         var parking = dto.ToEntity(ownerId);
         parking.Owner = owner;

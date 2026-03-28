@@ -37,7 +37,7 @@ public class JwtTokenServiceTests
         {
             Id = Guid.NewGuid(),
             Email = "test@example.com",
-            Role = UserRole.Member,
+            Role = UserRole.User,
             FirstName = "John",
             LastName = "Doe"
         };

@@ -53,7 +53,7 @@ public class ControllerTests
         // Arrange
         var controller = new AuthController(_mockDispatcher.Object, _mockRegisterValidator.Object, _mockLoginValidator.Object);
         var dto = new LoginDto("test@test.com", "Password123!");
-        var tokenDto = new TokenDto("access", "refresh", DateTime.UtcNow.AddHours(1), new UserDto(Guid.NewGuid(), "test@test.com", "John", "Doe", "123", UserRole.Member, true, true, DateTime.UtcNow));
+        var tokenDto = new TokenDto("access", "refresh", DateTime.UtcNow.AddHours(1), new UserDto(Guid.NewGuid(), "test@test.com", "John", "Doe", "123", UserRole.User, true, true, DateTime.UtcNow));
         var apiResponse = new ApiResponse<TokenDto>(true, "Success", tokenDto);
 
         _mockLoginValidator.Setup(v => v.ValidateAsync(dto, It.IsAny<CancellationToken>()))
@@ -85,7 +85,7 @@ public class ControllerTests
             HttpContext = new DefaultHttpContext { User = principal }
         };
 
-        var userDto = new UserDto(userId, "test@test.com", "John", "Doe", "123", UserRole.Member, true, true, DateTime.UtcNow);
+        var userDto = new UserDto(userId, "test@test.com", "John", "Doe", "123", UserRole.User, true, true, DateTime.UtcNow);
         var apiResponse = new ApiResponse<UserDto>(true, null, userDto);
 
         _mockDispatcher.Setup(d => d.QueryAsync(It.IsAny<GetCurrentUserQuery>(), It.IsAny<CancellationToken>()))

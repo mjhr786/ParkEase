@@ -65,7 +65,7 @@ public class UserCommandsTests
     {
         var handler = new GetCurrentUserHandler(_mockUow.Object, _mockCache.Object);
         var userId = Guid.NewGuid();
-        var dto = new UserDto(userId, "t", "r", "F", "L", ParkingApp.Domain.Enums.UserRole.Member, true, true, DateTime.UtcNow);
+        var dto = new UserDto(userId, "t", "r", "F", "L", ParkingApp.Domain.Enums.UserRole.User, true, true, DateTime.UtcNow);
         _mockCache.Setup(c => c.GetAsync<UserDto>($"user:{userId}", It.IsAny<CancellationToken>())).ReturnsAsync(dto);
 
         var res = await handler.HandleAsync(new GetCurrentUserQuery(userId));

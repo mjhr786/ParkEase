@@ -68,7 +68,7 @@ public class UserModuleTests
     {
         var handler = new GetCurrentUserHandler(_mockUnitOfWork.Object, _mockCache.Object);
         var userId = Guid.NewGuid();
-        var cachedUser = new UserDto(userId, "cached@test.com", "Cached", "User", "12345", UserRole.Member, true, true, DateTime.UtcNow);
+        var cachedUser = new UserDto(userId, "cached@test.com", "Cached", "User", "12345", UserRole.User, true, true, DateTime.UtcNow);
 
         _mockCache.Setup(c => c.GetAsync<UserDto>($"user:{userId}", It.IsAny<CancellationToken>()))
             .ReturnsAsync(cachedUser);

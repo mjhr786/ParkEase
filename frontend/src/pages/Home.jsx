@@ -115,15 +115,15 @@ export default function Home() {
                 </div>
             </section>
 
-            {/* CTA for Vendors */}
+            {/* CTA for Listing Space */}
             <section className="container mt-3 mb-3">
                 <div className="card" style={{ textAlign: 'center', padding: '3rem' }}>
                     <h2 style={{ fontSize: '2rem', marginBottom: '1rem' }}>Own a Parking Space?</h2>
                     <p className="card-subtitle" style={{ maxWidth: '500px', margin: '0 auto 1.5rem' }}>
-                        Start earning by renting out your unused parking space. Join our network of vendors today.
+                        Start earning by renting out your unused parking space to our users today.
                     </p>
-                    <Link to="/register" className="btn btn-primary">
-                        Become a Vendor →
+                    <Link to={isAuthenticated ? "/my/listings" : "/register"} className="btn btn-primary">
+                        List Your Space →
                     </Link>
                 </div>
             </section>

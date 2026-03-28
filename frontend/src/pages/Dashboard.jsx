@@ -99,26 +99,27 @@ const REFRESH_TRIGGERS = [
 ];
 
 export default function Dashboard() {
-    const { user, isVendor, isMember } = useAuth();
-    const [stats, setStats] = useState(null);
+    const { user } = useAuth();
+    const [vendorStats, setVendorStats] = useState(null);
+    const [memberStats, setMemberStats] = useState(null);
     const [loading, setLoading] = useState(true);
+    const [activeTab, setActiveTab] = useState('listings');
 
     const { subscribeToRefresh } = useNotificationContext();
 
     const fetchDashboard = useCallback(async () => {
         try {
-            const response = isVendor
-                ? await api.getVendorDashboard()
-                : await api.getMemberDashboard();
-
-            if (response.success && response.data) {
-                setStats(response.data);
-            }
+            const [vendorRes, memberRes] = await Promise.all([
+                api.getVendorDashboard(),
+                api.getMemberDashboard()
+            ]);
+            if (vendorRes.success && vendorRes.data) setVendorStats(vendorRes.data);
+            if (memberRes.success && memberRes.data) setMemberStats(memberRes.data);
         } catch (error) {
             console.error('Dashboard error:', error);
         }
         setLoading(false);
-    }, [isVendor]);
+    }, []);
 
     // Initial load
     useEffect(() => {
@@ -150,70 +151,41 @@ export default function Dashboard() {
                 <div className="dashboard-header flex-between">
                     <div>
                         <h1 className="dashboard-title">Welcome, {user?.firstName}!</h1>
-                        <p className="card-subtitle">{isVendor ? 'Vendor Dashboard' : 'Member Dashboard'}</p>
+                        <p className="card-subtitle">Your Dashboard</p>
                     </div>
-                    {isVendor && (
-                        <Link to="/vendor/listings" className="btn btn-primary">
-                            + Add Parking Space
-                        </Link>
-                    )}
+                    <Link to="/my/listings" className="btn btn-primary">
+                        + Add Parking Space
+                    </Link>
                 </div>
 
-                {/* Stats Grid */}
+                {/* Stats Grid — combined */}
                 <div className="grid grid-4 mt-3">
-                    {isVendor ? (
-                        <>
-                            <div className="card stat-card">
-                                <div className="stat-value">{stats?.totalParkingSpaces || 0}</div>
-                                <div className="stat-label">Total Listings</div>
-                            </div>
-                            <div className="card stat-card">
-                                <div className="stat-value">{stats?.activeBookings || 0}</div>
-                                <div className="stat-label">Active Bookings</div>
-                            </div>
-                            <div className="card stat-card">
-                                <div className="stat-value">₹{stats?.monthlyEarnings?.toFixed(0) || 0}</div>
-                                <div className="stat-label">Monthly Earnings</div>
-                            </div>
-                            <div className="card stat-card">
-                                <div className="stat-value">⭐ {stats?.averageRating?.toFixed(1) || 'N/A'}</div>
-                                <div className="stat-label">Average Rating</div>
-                            </div>
-                        </>
-                    ) : (
-                        <>
-                            <div className="card stat-card">
-                                <div className="stat-value">{stats?.totalBookings || 0}</div>
-                                <div className="stat-label">Total Bookings</div>
-                            </div>
-                            <div className="card stat-card">
-                                <div className="stat-value">{stats?.activeBookings || 0}</div>
-                                <div className="stat-label">Active Bookings</div>
-                            </div>
-                            <div className="card stat-card">
-                                <div className="stat-value">{stats?.completedBookings || 0}</div>
-                                <div className="stat-label">Completed</div>
-                            </div>
-                            <div className="card stat-card">
-                                <div className="stat-value">₹{stats?.totalSpent?.toFixed(0) || 0}</div>
-                                <div className="stat-label">Total Spent</div>
-                            </div>
-                        </>
-                    )}
+                    <div className="card stat-card">
+                        <div className="stat-value">{vendorStats?.totalParkingSpaces || 0}</div>
+                        <div className="stat-label">My Listings</div>
+                    </div>
+                    <div className="card stat-card">
+                        <div className="stat-value">{memberStats?.totalBookings || 0}</div>
+                        <div className="stat-label">My Bookings</div>
+                    </div>
+                    <div className="card stat-card">
+                        <div className="stat-value">₹{vendorStats?.monthlyEarnings?.toFixed(0) || 0}</div>
+                        <div className="stat-label">Monthly Earnings</div>
+                    </div>
+                    <div className="card stat-card">
+                        <div className="stat-value">₹{memberStats?.totalSpent?.toFixed(0) || 0}</div>
+                        <div className="stat-label">Total Spent</div>
+                    </div>
                 </div>
 
-                {/* Vendor Charts Area */}
-                {isVendor && stats?.chartData && (
+                {/* Charts */}
+                {vendorStats?.chartData && (
                     <div className="grid grid-2 mt-3 gap-2">
-                        {/* Weekly Earnings Area Chart */}
                         <div className="card hover-card">
                             <h3 className="card-title mb-2">Weekly Earnings</h3>
                             <div style={{ height: '250px', width: '100%', minHeight: '0' }}>
                                 <ResponsiveContainer width="100%" height="100%" minHeight={1}>
-                                    <AreaChart
-                                        data={stats.chartData}
-                                        margin={{ top: 10, right: 10, left: 10, bottom: 0 }}
-                                    >
+                                    <AreaChart data={vendorStats.chartData} margin={{ top: 10, right: 10, left: 10, bottom: 0 }}>
                                         <defs>
                                             <linearGradient id="colorEarnings" x1="0" y1="0" x2="0" y2="1">
                                                 <stop offset="5%" stopColor="var(--color-primary)" stopOpacity={0.8} />
@@ -223,34 +195,21 @@ export default function Dashboard() {
                                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--color-border)" />
                                         <XAxis dataKey="label" axisLine={false} tickLine={false} stroke="var(--color-text-secondary)" fontSize={12} />
                                         <YAxis axisLine={false} tickLine={false} stroke="var(--color-text-secondary)" fontSize={12} tickFormatter={val => `₹${val}`} />
-                                        <Tooltip
-                                            contentStyle={{ backgroundColor: 'var(--color-surface)', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-border)' }}
-                                            itemStyle={{ color: 'var(--color-primary)', fontWeight: 'bold' }}
-                                            formatter={(value) => [`₹${value}`, 'Earnings']}
-                                        />
+                                        <Tooltip contentStyle={{ backgroundColor: 'var(--color-surface)', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-border)' }} itemStyle={{ color: 'var(--color-primary)', fontWeight: 'bold' }} formatter={(value) => [`₹${value}`, 'Earnings']} />
                                         <Area type="monotone" dataKey="earnings" stroke="var(--color-primary)" fillOpacity={1} fill="url(#colorEarnings)" />
                                     </AreaChart>
                                 </ResponsiveContainer>
                             </div>
                         </div>
-
-                        {/* Weekly Booking Volume Bar Chart */}
                         <div className="card hover-card">
                             <h3 className="card-title mb-2">Weekly Booking Volume</h3>
                             <div style={{ height: '250px', width: '100%', minHeight: '0' }}>
                                 <ResponsiveContainer width="100%" height="100%" minHeight={1}>
-                                    <BarChart
-                                        data={stats.chartData}
-                                        margin={{ top: 10, right: 10, left: 10, bottom: 0 }}
-                                    >
+                                    <BarChart data={vendorStats.chartData} margin={{ top: 10, right: 10, left: 10, bottom: 0 }}>
                                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--color-border)" />
                                         <XAxis dataKey="label" axisLine={false} tickLine={false} stroke="var(--color-text-secondary)" fontSize={12} />
                                         <YAxis axisLine={false} tickLine={false} stroke="var(--color-text-secondary)" fontSize={12} allowDecimals={false} />
-                                        <Tooltip
-                                            contentStyle={{ backgroundColor: 'var(--color-surface)', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-border)' }}
-                                            itemStyle={{ color: 'var(--color-secondary)', fontWeight: 'bold' }}
-                                            formatter={(value) => [value, 'Bookings']}
-                                        />
+                                        <Tooltip contentStyle={{ backgroundColor: 'var(--color-surface)', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-border)' }} itemStyle={{ color: 'var(--color-secondary)', fontWeight: 'bold' }} formatter={(value) => [value, 'Bookings']} />
                                         <Bar dataKey="volume" fill="var(--color-secondary)" radius={[4, 4, 0, 0]} barSize={30} />
                                     </BarChart>
                                 </ResponsiveContainer>
@@ -259,52 +218,74 @@ export default function Dashboard() {
                     </div>
                 )}
 
-                {/* Upcoming/Recent Bookings */}
+                {/* Tabbed Bookings Area */}
                 <div className="card hover-card mt-3">
+                    <div style={{ display: 'flex', gap: '1rem', marginBottom: '1rem', borderBottom: '1px solid var(--color-border)', paddingBottom: '0.5rem' }}>
+                        <button onClick={() => setActiveTab('listings')} className={`btn ${activeTab === 'listings' ? 'btn-primary' : 'btn-secondary'}`} style={{ fontSize: '0.85rem' }}>
+                            🅿️ My Listings ({vendorStats?.totalParkingSpaces || 0})
+                        </button>
+                        <button onClick={() => setActiveTab('bookings')} className={`btn ${activeTab === 'bookings' ? 'btn-primary' : 'btn-secondary'}`} style={{ fontSize: '0.85rem' }}>
+                            📅 My Bookings ({memberStats?.totalBookings || 0})
+                        </button>
+                    </div>
+
                     <h3 className="card-title mb-2">
-                        {isMember ? 'Upcoming Bookings' : 'Recent Bookings'}
+                        {activeTab === 'listings' ? 'Recent Booking Requests' : 'Upcoming Bookings'}
                     </h3>
 
-                    {(!stats?.upcomingBookings?.length && !stats?.recentBookings?.length) ? (
-                        <p className="card-subtitle">No bookings to display</p>
-                    ) : (
-                        <div>
-                            {(isMember ? stats?.upcomingBookings : stats?.recentBookings)?.map(booking => (
-                                <div
-                                    key={booking.id}
-                                    className="flex-between"
-                                    style={{
-                                        padding: '1rem',
-                                        borderBottom: '1px solid var(--color-border)',
-                                    }}
-                                >
-                                    <div>
-                                        <strong>{booking.parkingSpaceTitle}</strong>
-                                        <div className="card-subtitle">
-                                            {new Date(booking.startDateTime).toLocaleDateString()} -{' '}
-                                            {new Date(booking.endDateTime).toLocaleDateString()}
-                                        </div>
-                                        <small>Ref: {booking.bookingReference}</small>
-                                    </div>
-                                    <div style={{ textAlign: 'right' }}>
-                                        <div className="parking-tag" style={{
-                                            background: BOOKING_STATUS_COLOR[booking.status] ??
-                                                'rgba(99,102,241,0.2)'
-                                        }}>
-                                            {BOOKING_STATUS_MAP[booking.status] ?? 'Unknown'}
-                                        </div>
-                                        <div style={{ marginTop: '0.5rem', fontWeight: 600 }}>
-                                            ₹{booking.totalAmount}
-                                        </div>
-                                        {booking.status === 2 && ( // InProgress
-                                            <div className="mt-1" style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                                                <CountdownTimer endDateTime={booking.endDateTime} />
+                    {activeTab === 'listings' ? (
+                        (!vendorStats?.recentBookings?.length) ? (
+                            <p className="card-subtitle">No booking requests to display</p>
+                        ) : (
+                            <div>
+                                {vendorStats.recentBookings.map(booking => (
+                                    <div key={booking.id} className="flex-between" style={{ padding: '1rem', borderBottom: '1px solid var(--color-border)' }}>
+                                        <div>
+                                            <strong>{booking.parkingSpaceTitle}</strong>
+                                            <div className="card-subtitle">
+                                                {new Date(booking.startDateTime).toLocaleDateString()} - {new Date(booking.endDateTime).toLocaleDateString()}
                                             </div>
-                                        )}
+                                            <small>Ref: {booking.bookingReference}</small>
+                                        </div>
+                                        <div style={{ textAlign: 'right' }}>
+                                            <div className="parking-tag" style={{ background: BOOKING_STATUS_COLOR[booking.status] ?? 'rgba(99,102,241,0.2)' }}>
+                                                {BOOKING_STATUS_MAP[booking.status] ?? 'Unknown'}
+                                            </div>
+                                            <div style={{ marginTop: '0.5rem', fontWeight: 600 }}>₹{booking.totalAmount}</div>
+                                        </div>
                                     </div>
-                                </div>
-                            ))}
-                        </div>
+                                ))}
+                            </div>
+                        )
+                    ) : (
+                        (!memberStats?.upcomingBookings?.length) ? (
+                            <p className="card-subtitle">No upcoming bookings</p>
+                        ) : (
+                            <div>
+                                {memberStats.upcomingBookings.map(booking => (
+                                    <div key={booking.id} className="flex-between" style={{ padding: '1rem', borderBottom: '1px solid var(--color-border)' }}>
+                                        <div>
+                                            <strong>{booking.parkingSpaceTitle}</strong>
+                                            <div className="card-subtitle">
+                                                {new Date(booking.startDateTime).toLocaleDateString()} - {new Date(booking.endDateTime).toLocaleDateString()}
+                                            </div>
+                                            <small>Ref: {booking.bookingReference}</small>
+                                        </div>
+                                        <div style={{ textAlign: 'right' }}>
+                                            <div className="parking-tag" style={{ background: BOOKING_STATUS_COLOR[booking.status] ?? 'rgba(99,102,241,0.2)' }}>
+                                                {BOOKING_STATUS_MAP[booking.status] ?? 'Unknown'}
+                                            </div>
+                                            <div style={{ marginTop: '0.5rem', fontWeight: 600 }}>₹{booking.totalAmount}</div>
+                                            {booking.status === 2 && (
+                                                <div className="mt-1" style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                                                    <CountdownTimer endDateTime={booking.endDateTime} />
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )
                     )}
 
                     <Link to="/bookings" className="btn btn-secondary mt-2">

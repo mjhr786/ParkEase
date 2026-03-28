@@ -20,7 +20,7 @@ public class MappingExtensionsTests
             Email = "test@test.com",
             FirstName = "First",
             LastName = "Last",
-            Role = UserRole.Member,
+            Role = UserRole.User,
             PhoneNumber = "123"
         };
 

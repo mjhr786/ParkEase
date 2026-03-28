@@ -49,7 +49,7 @@ public class ParkingController : ControllerBase
         return Ok(result);
     }
 
-    [Authorize(Roles = "Vendor,Admin")]
+    [Authorize(Roles = "User,Admin")]
     [HttpGet("my-listings")]
     [ProducesResponseType(typeof(ApiResponse<List<ParkingSpaceDto>>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetMyListings(CancellationToken cancellationToken)
@@ -61,7 +61,7 @@ public class ParkingController : ControllerBase
         return Ok(result);
     }
 
-    [Authorize(Roles = "Vendor,Admin")]
+    [Authorize(Roles = "User,Admin")]
     [HttpPost]
     [ProducesResponseType(typeof(ApiResponse<ParkingSpaceDto>), StatusCodes.Status201Created)]
     [ProducesResponseType(typeof(ApiResponse<ParkingSpaceDto>), StatusCodes.Status400BadRequest)]
@@ -83,7 +83,7 @@ public class ParkingController : ControllerBase
             : BadRequest(result);
     }
 
-    [Authorize(Roles = "Vendor,Admin")]
+    [Authorize(Roles = "User,Admin")]
     [HttpPut("{id:guid}")]
     [ProducesResponseType(typeof(ApiResponse<ParkingSpaceDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiResponse<ParkingSpaceDto>), StatusCodes.Status400BadRequest)]
@@ -99,7 +99,7 @@ public class ParkingController : ControllerBase
         return Ok(result);
     }
 
-    [Authorize(Roles = "Vendor,Admin")]
+    [Authorize(Roles = "User,Admin")]
     [HttpDelete("{id:guid}")]
     [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status400BadRequest)]
@@ -115,7 +115,7 @@ public class ParkingController : ControllerBase
         return Ok(result);
     }
 
-    [Authorize(Roles = "Vendor,Admin")]
+    [Authorize(Roles = "User,Admin")]
     [HttpPost("{id:guid}/toggle-active")]
     [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status400BadRequest)]

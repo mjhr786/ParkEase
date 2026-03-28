@@ -28,7 +28,7 @@ public class AdvancedInfrastructureTests
         mockConfig.Setup(c => c["Jwt:AccessTokenExpirationMinutes"]).Returns("60");
 
         var service = new JwtTokenService(mockConfig.Object);
-        var user = new User { Id = Guid.NewGuid(), Email = "test@test.com", Role = UserRole.Member, FirstName = "John", LastName = "Doe" };
+        var user = new User { Id = Guid.NewGuid(), Email = "test@test.com", Role = UserRole.User, FirstName = "John", LastName = "Doe" };
 
         // Act
         var token = service.GenerateAccessToken(user);

@@ -9,8 +9,7 @@ public record RegisterDto(
     [Required][MinLength(8)] string Password,
     [Required] string FirstName,
     [Required] string LastName,
-    [Required] string PhoneNumber,
-    UserRole Role = UserRole.Member
+    [Required] string PhoneNumber
 );
 
 public record LoginDto(
