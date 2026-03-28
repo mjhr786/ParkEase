@@ -7,7 +7,7 @@ import React, { useState, useCallback } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, Alert, StyleSheet } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { Ionicons } from '@expo/vector-icons';
-import { createParkingThunk } from '../../store/slices/parkingSlice';
+import { createParkingThunk, updateParkingThunk, getMyListingsThunk } from '../../store/slices/parkingSlice';
 import ScreenLayout from '../../components/Layouts/ScreenLayout';
 import Card from '../../components/Common/Card';
 import Button from '../../components/Common/Button';
@@ -15,28 +15,30 @@ import Input from '../../components/Common/Input';
 import { colors, spacing, typography, shadows } from '../../styles/globalStyles';
 import { ParkingType, ParkingTypeLabels, AMENITIES } from '../../utils/constants';
 
-const CreateParkingScreen = ({ navigation }) => {
+const CreateParkingScreen = ({ route, navigation }) => {
+    const { editData } = route.params || {};
+    const isEditing = !!editData;
     const dispatch = useDispatch();
     const { createLoading } = useSelector((s) => s.parking);
 
     const [formData, setFormData] = useState({
-        title: '',
-        description: '',
-        address: '',
-        city: '',
-        state: '',
-        country: 'India',
-        postalCode: '',
-        latitude: 0,
-        longitude: 0,
-        totalSpots: '',
-        parkingType: ParkingType.Open,
-        hourlyRate: '',
-        dailyRate: '',
-        weeklyRate: '',
-        monthlyRate: '',
-        is24Hours: true,
-        amenities: [],
+        title: editData?.title || '',
+        description: editData?.description || '',
+        address: editData?.address || '',
+        city: editData?.city || '',
+        state: editData?.state || '',
+        country: editData?.country || 'India',
+        postalCode: editData?.postalCode || '',
+        latitude: editData?.latitude || 0,
+        longitude: editData?.longitude || 0,
+        totalSpots: editData?.totalSpots?.toString() || '',
+        parkingType: editData?.parkingType || ParkingType.Open,
+        hourlyRate: editData?.hourlyRate?.toString() || '',
+        dailyRate: editData?.dailyRate?.toString() || '',
+        weeklyRate: editData?.weeklyRate?.toString() || '',
+        monthlyRate: editData?.monthlyRate?.toString() || '',
+        is24Hours: editData?.is24Hours ?? true,
+        amenities: editData?.amenities || [],
     });
 
     const updateField = (field) => (value) => {
@@ -59,22 +61,31 @@ const CreateParkingScreen = ({ navigation }) => {
         }
 
         try {
-            const result = await dispatch(createParkingThunk({
+            const payload = {
                 ...formData,
                 totalSpots: parseInt(formData.totalSpots),
                 hourlyRate: parseFloat(formData.hourlyRate),
                 dailyRate: parseFloat(formData.dailyRate) || 0,
                 weeklyRate: parseFloat(formData.weeklyRate) || 0,
                 monthlyRate: parseFloat(formData.monthlyRate) || 0,
-            })).unwrap();
+            };
 
-            Alert.alert('Success', 'Parking space created!', [
-                { text: 'OK', onPress: () => navigation.goBack() },
-            ]);
+            if (isEditing) {
+                await dispatch(updateParkingThunk({ id: editData.id, data: payload })).unwrap();
+                dispatch(getMyListingsThunk()); // Refresh list safely
+                Alert.alert('Success', 'Parking space updated!', [
+                    { text: 'OK', onPress: () => navigation.goBack() },
+                ]);
+            } else {
+                await dispatch(createParkingThunk(payload)).unwrap();
+                Alert.alert('Success', 'Parking space created!', [
+                    { text: 'OK', onPress: () => navigation.goBack() },
+                ]);
+            }
         } catch (error) {
-            Alert.alert('Failed', typeof error === 'string' ? error : 'Could not create parking space. Please check all fields and try again.');
+            Alert.alert('Failed', typeof error === 'string' ? error : `Could not ${isEditing ? 'update' : 'create'} parking space. Please check all fields and try again.`);
         }
-    }, [dispatch, formData, navigation]);
+    }, [dispatch, formData, navigation, isEditing, editData]);
 
     return (
         <ScreenLayout>
@@ -84,7 +95,7 @@ const CreateParkingScreen = ({ navigation }) => {
                     <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
                         <Ionicons name="arrow-back" size={24} color={colors.textPrimary} />
                     </TouchableOpacity>
-                    <Text style={styles.headerTitle}>New Parking Space</Text>
+                    <Text style={styles.headerTitle}>{isEditing ? 'Edit Parking Space' : 'New Parking Space'}</Text>
                     <View style={{ width: 40 }} />
                 </View>
 
@@ -181,11 +192,11 @@ const CreateParkingScreen = ({ navigation }) => {
 
                     {/* Submit */}
                     <Button
-                        title="Create Parking Space"
+                        title={isEditing ? "Save Changes" : "Create Parking Space"}
                         onPress={handleCreate}
                         loading={createLoading}
                         style={styles.submitBtn}
-                        icon={<Ionicons name="checkmark-circle" size={20} color={colors.white} />}
+                        icon={<Ionicons name={isEditing ? "save" : "checkmark-circle"} size={20} color={colors.white} />}
                     />
                 </View>
             </ScrollView>
@@ -194,7 +205,7 @@ const CreateParkingScreen = ({ navigation }) => {
 };
 
 const styles = StyleSheet.create({
-    header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingTop: 60, paddingHorizontal: spacing.screenHorizontal, paddingBottom: spacing.base },
+    header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingTop: spacing.md, paddingHorizontal: spacing.screenHorizontal, paddingBottom: spacing.base },
     backBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.surface, justifyContent: 'center', alignItems: 'center', ...shadows.sm },
     headerTitle: { ...typography.h3, color: colors.textPrimary },
     content: { paddingHorizontal: spacing.screenHorizontal, paddingBottom: spacing['3xl'] },

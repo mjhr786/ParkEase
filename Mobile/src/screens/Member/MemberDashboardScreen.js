@@ -187,7 +187,7 @@ const MemberDashboardScreen = ({ navigation }) => {
                             onPress={() => navigation.navigate('Favorites')} />
                         <QuickTile icon="notifications" label="Alerts" color={colors.accent}
                             onPress={() => navigation.navigate('Notifications')} />
-                        <QuickTile icon="car-sport" label="My Vehicles" color="#6C63FF"
+                        <QuickTile icon="car-sport" label="Garage" color="#6C63FF"
                             onPress={() => navigation.navigate('Vehicles')} />
                     </View>
                 );
@@ -253,7 +253,7 @@ const MemberDashboardScreen = ({ navigation }) => {
 
 const styles = StyleSheet.create({
     heroGradient: {
-        paddingTop: 60,
+        paddingTop: spacing.md,
         paddingBottom: spacing['2xl'],
         paddingHorizontal: spacing.screenHorizontal,
         borderBottomLeftRadius: spacing.radius.xl,

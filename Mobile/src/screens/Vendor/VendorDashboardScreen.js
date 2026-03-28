@@ -4,7 +4,7 @@
  */
 
 import React, { useEffect, useCallback, useState } from 'react';
-import { View, Text, FlatList, StyleSheet, RefreshControl } from 'react-native';
+import { View, Text, FlatList, StyleSheet, RefreshControl, TouchableOpacity } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -18,15 +18,33 @@ import EmptyState from '../../components/Common/EmptyState';
 import { colors, spacing, typography, shadows } from '../../styles/globalStyles';
 import { formatCurrency, formatDate, formatTime } from '../../utils/formatters';
 
-const StatCard = ({ icon, label, value, color, bg }) => (
-    <View style={[vStatStyles.card, { backgroundColor: bg }]}>
-        <View style={[vStatStyles.iconWrap, { backgroundColor: color }]}>
-            <Ionicons name={icon} size={20} color={colors.white} />
+const QuickTile = ({ icon, label, color, onPress }) => (
+    <TouchableOpacity style={qtStyles.container} onPress={onPress}>
+        <View style={[qtStyles.iconWrap, { backgroundColor: `${color}15` }]}>
+            <Ionicons name={icon} size={24} color={color} />
         </View>
-        <Text style={vStatStyles.value}>{value}</Text>
-        <Text style={vStatStyles.label}>{label}</Text>
-    </View>
+        <Text style={qtStyles.label}>{label}</Text>
+    </TouchableOpacity>
 );
+
+const qtStyles = StyleSheet.create({
+    container: { alignItems: 'center', width: '22%' },
+    iconWrap: { width: 48, height: 48, borderRadius: 24, justifyContent: 'center', alignItems: 'center', marginBottom: spacing.xs },
+    label: { ...typography.caption, color: colors.textSecondary },
+});
+
+const StatCard = ({ icon, label, value, color, bg, onPress }) => {
+    const Container = onPress ? TouchableOpacity : View;
+    return (
+        <Container style={[vStatStyles.card, { backgroundColor: bg }]} onPress={onPress} activeOpacity={0.7}>
+            <View style={[vStatStyles.iconWrap, { backgroundColor: color }]}>
+                <Ionicons name={icon} size={20} color={colors.white} />
+            </View>
+            <Text style={vStatStyles.value}>{value}</Text>
+            <Text style={vStatStyles.label}>{label}</Text>
+        </Container>
+    );
+};
 
 const vStatStyles = StyleSheet.create({
     card: { flex: 1, borderRadius: spacing.radius.lg, padding: spacing.md, alignItems: 'center' },
@@ -55,6 +73,7 @@ const VendorDashboardScreen = ({ navigation }) => {
 
     const sections = [
         { type: 'header' },
+        { type: 'actions' },
         { type: 'stats' },
         { type: 'earnings' },
         ...(data?.recentBookings?.length ? [{ type: 'sectionTitle', title: 'Recent Bookings' }] : []),
@@ -71,11 +90,24 @@ const VendorDashboardScreen = ({ navigation }) => {
                         <Text style={styles.heroSub}>Manage your parking business</Text>
                     </LinearGradient>
                 );
+            case 'actions':
+                return (
+                    <View style={styles.quickActions}>
+                        <QuickTile icon="list" label="Listings" color={colors.primary}
+                            onPress={() => navigation.navigate('ListingsTab')} />
+                        <QuickTile icon="calendar" label="Bookings" color={colors.success}
+                            onPress={() => navigation.navigate('BookingsTab')} />
+                        <QuickTile icon="chatbubbles" label="Messages" color={colors.accent}
+                            onPress={() => navigation.navigate('MessagesTab')} />
+                        <QuickTile icon="car-sport" label="Garage" color="#6C63FF"
+                            onPress={() => navigation.navigate('Vehicles')} />
+                    </View>
+                );
             case 'stats':
                 return (
                     <View style={styles.statsRow}>
-                        <StatCard icon="location" label="Spaces" value={data?.totalParkingSpaces || 0} color={colors.primary} bg={colors.primarySoft} />
-                        <StatCard icon="calendar" label="Bookings" value={data?.totalBookings || 0} color={colors.success} bg={colors.successSoft} />
+                        <StatCard icon="location" label="Spaces" value={data?.totalParkingSpaces || 0} color={colors.primary} bg={colors.primarySoft} onPress={() => navigation.navigate('ListingsTab')} />
+                        <StatCard icon="calendar" label="Bookings" value={data?.totalBookings || 0} color={colors.success} bg={colors.successSoft} onPress={() => navigation.navigate('BookingsTab')} />
                         <StatCard icon="wallet" label="Earnings" value={formatCurrency(data?.totalEarnings || 0)} color={colors.accent} bg={colors.accentSoft} />
                     </View>
                 );
@@ -91,19 +123,21 @@ const VendorDashboardScreen = ({ navigation }) => {
                 return <Text style={styles.sectionHeader}>{item.title}</Text>;
             case 'booking':
                 return (
-                    <Card style={styles.bookingCard}>
-                        <View style={styles.bookingRow}>
-                            <View style={{ flex: 1 }}>
-                                <Text style={styles.bookingTitle}>{item.data.userName}</Text>
-                                <Text style={styles.bookingMeta}>{item.data.parkingSpaceTitle}</Text>
-                                <Text style={styles.bookingTime}>{formatDate(item.data.startDateTime)} · {formatTime(item.data.startDateTime)}</Text>
+                    <TouchableOpacity activeOpacity={0.7} onPress={() => navigation.navigate('BookingDetail', { bookingId: item.data.id })}>
+                        <Card style={styles.bookingCard}>
+                            <View style={styles.bookingRow}>
+                                <View style={{ flex: 1 }}>
+                                    <Text style={styles.bookingTitle}>{item.data.userName}</Text>
+                                    <Text style={styles.bookingMeta}>{item.data.parkingSpaceTitle}</Text>
+                                    <Text style={styles.bookingTime}>{formatDate(item.data.startDateTime)} · {formatTime(item.data.startDateTime)}</Text>
+                                </View>
+                                <View style={{ alignItems: 'flex-end', gap: 4 }}>
+                                    <Badge status={item.data.status} />
+                                    <Text style={styles.bookingAmount}>{formatCurrency(item.data.totalAmount)}</Text>
+                                </View>
                             </View>
-                            <View style={{ alignItems: 'flex-end', gap: 4 }}>
-                                <Badge status={item.data.status} />
-                                <Text style={styles.bookingAmount}>{formatCurrency(item.data.totalAmount)}</Text>
-                            </View>
-                        </View>
-                    </Card>
+                        </Card>
+                    </TouchableOpacity>
                 );
             case 'empty':
                 return <EmptyState icon="analytics-outline" title="No recent bookings" message="Your booking activity will appear here" />;
@@ -126,10 +160,11 @@ const VendorDashboardScreen = ({ navigation }) => {
 };
 
 const styles = StyleSheet.create({
-    hero: { paddingTop: 60, paddingBottom: spacing['2xl'], paddingHorizontal: spacing.screenHorizontal, borderBottomLeftRadius: spacing.radius.xl, borderBottomRightRadius: spacing.radius.xl },
+    hero: { paddingBottom: spacing['2xl'], paddingHorizontal: spacing.screenHorizontal, borderBottomLeftRadius: spacing.radius.xl, borderBottomRightRadius: spacing.radius.xl },
     greeting: { fontSize: 28, fontWeight: '700', color: colors.white },
     heroSub: { ...typography.body, color: 'rgba(255,255,255,0.7)', marginTop: spacing.xs },
-    statsRow: { flexDirection: 'row', gap: spacing.md, paddingHorizontal: spacing.screenHorizontal, marginTop: -spacing.lg },
+    quickActions: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: spacing.screenHorizontal, marginTop: -spacing.lg, marginBottom: spacing.lg },
+    statsRow: { flexDirection: 'row', gap: spacing.md, paddingHorizontal: spacing.screenHorizontal, marginBottom: spacing.lg },
     earningsCard: { marginHorizontal: spacing.screenHorizontal, alignItems: 'center', paddingVertical: spacing.xl, backgroundColor: colors.accentSoft },
     sectionTitle: { ...typography.label, color: colors.textSecondary, marginBottom: spacing.xs },
     earningsValue: { ...typography.h1, color: colors.accentDark },

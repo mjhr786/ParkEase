@@ -32,6 +32,30 @@ export const addVehicleThunk = createAsyncThunk(
     }
 );
 
+export const updateVehicleThunk = createAsyncThunk(
+    'vehicle/update',
+    async ({ id, data }, { rejectWithValue }) => {
+        try {
+            const response = await apiClient.put(`${ENDPOINTS.VEHICLES.BASE}/${id}`, data);
+            return response.data.data;
+        } catch (error) {
+            return rejectWithValue(getErrorMessage(error));
+        }
+    }
+);
+
+export const deleteVehicleThunk = createAsyncThunk(
+    'vehicle/delete',
+    async (id, { rejectWithValue }) => {
+        try {
+            await apiClient.delete(`${ENDPOINTS.VEHICLES.BASE}/${id}`);
+            return id;
+        } catch (error) {
+            return rejectWithValue(getErrorMessage(error));
+        }
+    }
+);
+
 const initialState = {
     vehicles: [],
     loading: false,
@@ -70,6 +94,31 @@ const vehicleSlice = createSlice({
             })
             .addCase(addVehicleThunk.rejected, (state) => {
                 state.addLoading = false;
+            })
+            .addCase(updateVehicleThunk.pending, (state) => {
+                state.addLoading = true;
+            })
+            .addCase(updateVehicleThunk.fulfilled, (state, action) => {
+                state.addLoading = false;
+                if (action.payload) {
+                    const index = state.vehicles.findIndex(v => v.id === action.payload.id);
+                    if (index !== -1) {
+                        state.vehicles[index] = action.payload;
+                    }
+                }
+            })
+            .addCase(updateVehicleThunk.rejected, (state) => {
+                state.addLoading = false;
+            })
+            .addCase(deleteVehicleThunk.pending, (state) => {
+                state.loading = true;
+            })
+            .addCase(deleteVehicleThunk.fulfilled, (state, action) => {
+                state.loading = false;
+                state.vehicles = state.vehicles.filter(v => v.id !== action.payload);
+            })
+            .addCase(deleteVehicleThunk.rejected, (state) => {
+                state.loading = false;
             });
     },
 });

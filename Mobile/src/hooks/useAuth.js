@@ -39,8 +39,8 @@ export const useAuth = () => {
         [dispatch]
     );
 
-    const isVendor = user?.role === UserRole.Vendor || user?.role === UserRole.Admin;
-    const isMember = user?.role === UserRole.Member;
+    const isVendor = user?.role === UserRole.Vendor;
+    const isMember = user?.role === UserRole.Member || user?.role === UserRole.Admin;
 
     return {
         user,

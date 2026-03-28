@@ -344,7 +344,7 @@ const SearchScreen = ({ navigation, route }) => {
 const styles = StyleSheet.create({
     searchHeader: {
         paddingHorizontal: spacing.screenHorizontal,
-        paddingTop: 60,
+        paddingTop: spacing.md,
         paddingBottom: spacing.base,
         backgroundColor: colors.surface,
         ...shadows.sm,

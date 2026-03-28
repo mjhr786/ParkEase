@@ -123,7 +123,7 @@ const SignupScreen = ({ navigation }) => {
 const styles = StyleSheet.create({
     gradient: { flex: 1 },
     container: { flex: 1 },
-    scrollContent: { flexGrow: 1, paddingHorizontal: spacing.screenHorizontal, paddingTop: 60, paddingBottom: 40 },
+    scrollContent: { flexGrow: 1, paddingHorizontal: spacing.screenHorizontal, paddingTop: spacing.md, paddingBottom: 40 },
     header: { marginBottom: spacing.xl },
     backButton: { marginBottom: spacing.base },
     title: { fontSize: 32, fontWeight: '800', color: colors.white },

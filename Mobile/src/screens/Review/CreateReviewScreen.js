@@ -77,7 +77,7 @@ const CreateReviewScreen = ({ navigation, route }) => {
 };
 
 const styles = StyleSheet.create({
-    header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingTop: 60, paddingHorizontal: spacing.screenHorizontal, paddingBottom: spacing.base },
+    header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingTop: spacing.md, paddingHorizontal: spacing.screenHorizontal, paddingBottom: spacing.base },
     backBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.surface, justifyContent: 'center', alignItems: 'center', ...shadows.sm },
     headerTitle: { ...typography.h3, color: colors.textPrimary },
     content: { paddingHorizontal: spacing.screenHorizontal, paddingBottom: spacing['3xl'] },
