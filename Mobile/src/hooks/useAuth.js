@@ -6,7 +6,6 @@
 import { useCallback } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { loginThunk, registerThunk, logoutThunk, updateProfileThunk, clearError } from '../store/slices/authSlice';
-import { UserRole } from '../utils/constants';
 
 export const useAuth = () => {
     const dispatch = useDispatch();
@@ -39,8 +38,23 @@ export const useAuth = () => {
         [dispatch]
     );
 
-    const isVendor = user?.role === UserRole.Vendor;
-    const isMember = user?.role === UserRole.Member || user?.role === UserRole.Admin;
+    /**
+     * Ownership helper — determines if the current user is the owner
+     * of the parking space in a booking (i.e. the listing owner).
+     * If true, the user can approve / reject / manage extensions.
+     * If false, the user is the booker and can cancel / extend / pay.
+     */
+    const isOwnerOfBooking = useCallback(
+        (booking) => {
+            if (!user || !booking) return false;
+            // Check via ownerId first, fallback to comparing userId
+            if (booking.ownerId) return booking.ownerId === user.id;
+            // If userId matches current user, they are the booker (not owner)
+            if (booking.userId) return booking.userId !== user.id;
+            return false;
+        },
+        [user]
+    );
 
     return {
         user,
@@ -48,8 +62,7 @@ export const useAuth = () => {
         error,
         isAuthenticated,
         isSessionChecked,
-        isVendor,
-        isMember,
+        isOwnerOfBooking,
         login,
         register,
         logout,

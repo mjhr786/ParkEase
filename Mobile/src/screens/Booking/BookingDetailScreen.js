@@ -1,6 +1,8 @@
 /**
  * BookingDetailScreen
- * Full booking details with actions: cancel (member), approve/reject/chat (vendor)
+ * Full booking details with ownership-based actions:
+ * Listing owner: approve/reject/manage extensions
+ * Booker: cancel/pay/extend/review
  */
 
 import React, { useEffect, useCallback, useState } from 'react';
@@ -45,7 +47,7 @@ const InfoRow = ({ icon, label, value }) => (
 const BookingDetailScreen = ({ navigation, route }) => {
     const { bookingId } = route.params;
     const dispatch = useDispatch();
-    const { isVendor } = useAuth();
+    const { isOwnerOfBooking, user } = useAuth();
     const { selectedBooking: booking, detailLoading } = useSelector((s) => s.booking);
     const [actionLoading, setActionLoading] = useState(false);
     const [rejectModalVisible, setRejectModalVisible] = useState(false);
@@ -129,7 +131,7 @@ const BookingDetailScreen = ({ navigation, route }) => {
             const existing = await chatService.findConversationByParkingSpace(booking.parkingSpaceId);
             const chatParams = {
                 parkingSpaceId: booking.parkingSpaceId,
-                participantName: isVendor ? (booking.userName || 'User') : (booking.ownerName || 'Owner'),
+                participantName: isOwner ? (booking.userName || 'User') : (booking.ownerName || 'Owner'),
                 parkingTitle: booking.parkingSpaceTitle || 'Parking Space',
             };
             if (existing) {
@@ -142,7 +144,7 @@ const BookingDetailScreen = ({ navigation, route }) => {
         } finally {
             setChatLoading(false);
         }
-    }, [booking, isVendor, navigation]);
+    }, [booking, navigation]);
 
     const handleCheckIn = useCallback(async () => {
         setActionLoading(true);
@@ -221,13 +223,15 @@ const BookingDetailScreen = ({ navigation, route }) => {
 
     if (detailLoading || !booking) return <LoadingScreen />;
 
-    const canCancel = !isVendor && [BookingStatus.Pending, BookingStatus.Confirmed, BookingStatus.AwaitingPayment].includes(booking.status);
-    const canApproveReject = isVendor && booking.status === BookingStatus.Pending;
+    const isOwner = isOwnerOfBooking(booking);
+
+    const canCancel = !isOwner && [BookingStatus.Pending, BookingStatus.Confirmed, BookingStatus.AwaitingPayment].includes(booking.status);
+    const canApproveReject = isOwner && booking.status === BookingStatus.Pending;
     const canCheckIn = booking.status === BookingStatus.Confirmed;
     const canCheckOut = booking.status === BookingStatus.InProgress;
-    const canExtend = !isVendor && booking.status === BookingStatus.InProgress;
+    const canExtend = !isOwner && booking.status === BookingStatus.InProgress;
     const hasExtensionPending = booking.extensionStatus === 'Pending' || booking.hasExtensionRequest;
-    const canManageExtension = isVendor && hasExtensionPending;
+    const canManageExtension = isOwner && hasExtensionPending;
 
     return (
         <ScreenLayout>
@@ -258,8 +262,8 @@ const BookingDetailScreen = ({ navigation, route }) => {
                         </View>
                     </Card>
 
-                    {/* User info (for vendor view) */}
-                    {isVendor && booking.userName && (
+                    {/* User info (for listing owner view) */}
+                    {isOwner && booking.userName && (
                         <Card>
                             <Text style={styles.sectionTitle}>Booked By</Text>
                             <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
@@ -378,7 +382,7 @@ const BookingDetailScreen = ({ navigation, route }) => {
                         )}
 
                         {/* Payment - for awaiting payment bookings */}
-                        {!isVendor && booking.status === BookingStatus.AwaitingPayment && (
+                        {!isOwner && booking.status === BookingStatus.AwaitingPayment && (
                             <Button
                                 title="Proceed to Payment"
                                 onPress={() => navigation.navigate('PaymentScreen', {
@@ -397,15 +401,15 @@ const BookingDetailScreen = ({ navigation, route }) => {
 
                         {/* Chat button for both roles */}
                         <Button
-                            title={isVendor ? 'Chat with User' : 'Chat with Owner'}
+                            title={isOwner ? 'Chat with Booker' : 'Chat with Owner'}
                             onPress={handleChat}
                             variant="secondary"
                             loading={chatLoading}
                             icon={<Ionicons name="chatbubble-ellipses" size={20} color={colors.primary} />}
                         />
 
-                        {/* Review button for completed bookings (member) */}
-                        {!isVendor && booking.status === BookingStatus.Completed && (
+                        {/* Review button for completed bookings (booker only) */}
+                        {!isOwner && booking.status === BookingStatus.Completed && (
                             <Button
                                 title="Write Review"
                                 onPress={() => navigation.navigate('CreateReview', { parkingSpaceId: booking.parkingSpaceId })}

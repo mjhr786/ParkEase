@@ -78,6 +78,13 @@ const MyBookingsScreen = ({ navigation }) => {
             {/* Header */}
             <View style={styles.header}>
                 <Text style={styles.screenTitle}>My Bookings</Text>
+                <TouchableOpacity
+                    style={styles.incomingBtn}
+                    onPress={() => navigation.navigate('IncomingBookings')}
+                >
+                    <Ionicons name="arrow-down-circle-outline" size={18} color={colors.primary} />
+                    <Text style={styles.incomingBtnText}>Incoming Requests</Text>
+                </TouchableOpacity>
             </View>
 
             {/* Filter Tabs */}
@@ -114,8 +121,10 @@ const MyBookingsScreen = ({ navigation }) => {
 };
 
 const styles = StyleSheet.create({
-    header: { paddingTop: spacing.md, paddingHorizontal: spacing.screenHorizontal, paddingBottom: spacing.md },
+    header: { paddingTop: spacing.md, paddingHorizontal: spacing.screenHorizontal, paddingBottom: spacing.md, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
     screenTitle: { ...typography.h2, color: colors.textPrimary },
+    incomingBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: spacing.xs, paddingHorizontal: spacing.sm, borderRadius: spacing.radius.full, backgroundColor: colors.primarySoft },
+    incomingBtnText: { ...typography.caption, color: colors.primary, fontWeight: '600' },
     filterRow: { flexDirection: 'row', paddingHorizontal: spacing.screenHorizontal, gap: spacing.sm, marginBottom: spacing.md },
     filterTab: { paddingHorizontal: spacing.base, paddingVertical: spacing.sm, borderRadius: spacing.radius.full, backgroundColor: colors.background, borderWidth: 1, borderColor: colors.border },
     filterTabActive: { backgroundColor: colors.primarySoft, borderColor: colors.primary },
