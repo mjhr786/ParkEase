@@ -19,7 +19,7 @@ public class ValidatorTests
     [InlineData("Valid123!", true)] // Strong
     public void RegisterValidator_PasswordComplexity_ShouldValidateCorrectly(string password, bool expectedValid)
     {
-        var dto = new RegisterDto("test@test.com", password, "John", "Doe", "+1234567890", UserRole.Member);
+        var dto = new RegisterDto("test@test.com", password, "John", "Doe", "+1234567890");
         var result = _registerValidator.Validate(dto);
 
         result.IsValid.Should().Be(expectedValid);
@@ -34,7 +34,7 @@ public class ValidatorTests
     [InlineData("test@domain.com", true)]
     public void RegisterValidator_EmailFormat_ShouldValidateCorrectly(string email, bool expectedValid)
     {
-        var dto = new RegisterDto(email, "StrongPass123!", "John", "Doe", "+1234567890", UserRole.Member);
+        var dto = new RegisterDto(email, "StrongPass123!", "John", "Doe", "+1234567890");
         var result = _registerValidator.Validate(dto);
 
         result.IsValid.Should().Be(expectedValid);
@@ -46,7 +46,7 @@ public class ValidatorTests
     [InlineData("1234567890123456", false)] // Too long
     public void RegisterValidator_PhoneNumber_ShouldValidateCorrectly(string phone, bool expectedValid)
     {
-        var dto = new RegisterDto("test@test.com", "StrongPass123!", "John", "Doe", phone, UserRole.Member);
+        var dto = new RegisterDto("test@test.com", "StrongPass123!", "John", "Doe", phone);
         var result = _registerValidator.Validate(dto);
 
         result.IsValid.Should().Be(expectedValid);

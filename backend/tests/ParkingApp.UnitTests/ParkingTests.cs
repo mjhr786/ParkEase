@@ -43,27 +43,7 @@ public class ParkingTests
         _mockUnitOfWork.Setup(u => u.Bookings).Returns(_mockBookingRepository.Object);
     }
 
-    [Fact]
-    public async Task CreateParkingHandler_WithNonVendorRole_ShouldReturnFailure()
-    {
-        // Arrange
-        var handler = new CreateParkingHandler(_mockUnitOfWork.Object, _mockCache.Object, _mockCreateLogger.Object);
-        var ownerId = Guid.NewGuid();
-        var owner = new User { Id = ownerId, Role = UserRole.Member };
-        
-        _mockUserRepository.Setup(r => r.GetByIdAsync(ownerId, It.IsAny<CancellationToken>())).ReturnsAsync(owner);
 
-        var dto = new CreateParkingSpaceDto(
-            "Test Parking", "Description", "Address", "City", "State", "Country", "12345", 
-            12.34, 56.78, ParkingType.Open, 10, 50, 400, 2500, 10000, null, null);
-
-        // Act
-        var result = await handler.HandleAsync(new CreateParkingCommand(ownerId, dto));
-
-        // Assert
-        result.Success.Should().BeFalse();
-        result.Message.Should().Be("Only vendors can create parking spaces");
-    }
 
     [Fact]
     public async Task CreateParkingHandler_WhenOwnerIsVendor_ShouldSucceed()
@@ -71,7 +51,7 @@ public class ParkingTests
         // Arrange
         var handler = new CreateParkingHandler(_mockUnitOfWork.Object, _mockCache.Object, _mockCreateLogger.Object);
         var ownerId = Guid.NewGuid();
-        var owner = new User { Id = ownerId, Role = UserRole.Vendor, Email = "vendor@test.com", FirstName = "Vendor" };
+        var owner = new User { Id = ownerId, Role = UserRole.User, Email = "vendor@test.com", FirstName = "Vendor" };
         
         _mockUserRepository.Setup(r => r.GetByIdAsync(ownerId, It.IsAny<CancellationToken>())).ReturnsAsync(owner);
 

@@ -69,7 +69,7 @@ public class BookingsController : ControllerBase
     }
 
     [HttpGet("parking-space/{parkingSpaceId:guid}")]
-    [Authorize(Roles = "Vendor,Admin")]
+    [Authorize(Roles = "User,Admin")]
     public async Task<IActionResult> GetByParkingSpace(Guid parkingSpaceId, [FromQuery] BookingFilterDto? filter, CancellationToken cancellationToken)
     {
         var userId = GetUserId();
@@ -198,7 +198,7 @@ public class BookingsController : ControllerBase
     }
 
     [HttpGet("vendor-bookings")]
-    [Authorize(Roles = "Vendor,Admin")]
+    [Authorize(Roles = "User,Admin")]
     public async Task<IActionResult> GetVendorBookings([FromQuery] BookingFilterDto? filter, CancellationToken cancellationToken)
     {
         var userId = GetUserId();
@@ -212,7 +212,7 @@ public class BookingsController : ControllerBase
     }
 
     [HttpGet("pending-count")]
-    [Authorize(Roles = "Vendor,Admin")]
+    [Authorize(Roles = "User,Admin")]
     public async Task<IActionResult> GetPendingRequestsCount([FromServices] IDispatcher dispatcher, CancellationToken cancellationToken)
     {
         var userId = GetUserId();
@@ -228,7 +228,7 @@ public class BookingsController : ControllerBase
     }
 
     [HttpPost("{id:guid}/approve")]
-    [Authorize(Roles = "Vendor,Admin")]
+    [Authorize(Roles = "User,Admin")]
     public async Task<IActionResult> Approve(Guid id, CancellationToken cancellationToken)
     {
         var userId = GetUserId();
@@ -247,7 +247,7 @@ public class BookingsController : ControllerBase
     }
 
     [HttpPost("{id:guid}/reject")]
-    [Authorize(Roles = "Vendor,Admin")]
+    [Authorize(Roles = "User,Admin")]
     public async Task<IActionResult> Reject(Guid id, [FromBody] RejectBookingDto? dto, CancellationToken cancellationToken)
     {
         var userId = GetUserId();

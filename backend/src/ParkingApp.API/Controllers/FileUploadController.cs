@@ -21,7 +21,7 @@ public class FileUploadController : ControllerBase
     }
 
     [HttpPost("parking/{parkingSpaceId:guid}/upload")]
-    [Authorize(Roles = "Vendor,Admin")]
+    [Authorize(Roles = "User,Admin")]
     [RequestSizeLimit(100 * 1024 * 1024)] // 100MB total request limit
     public async Task<IActionResult> UploadParkingFiles(Guid parkingSpaceId, [FromForm] List<IFormFile> files, CancellationToken cancellationToken)
     {
@@ -98,7 +98,7 @@ public class FileUploadController : ControllerBase
     }
 
     [HttpDelete("parking/{parkingSpaceId:guid}/{fileName}")]
-    [Authorize(Roles = "Vendor,Admin")]
+    [Authorize(Roles = "User,Admin")]
     public async Task<IActionResult> DeleteParkingFile(Guid parkingSpaceId, string fileName, CancellationToken cancellationToken)
     {
         var userId = GetUserId();
@@ -125,7 +125,7 @@ public class FileUploadController : ControllerBase
     }
 
     [HttpPost("parking/{parkingSpaceId:guid}/sign-upload")]
-    [Authorize(Roles = "Vendor,Admin")]
+    [Authorize(Roles = "User,Admin")]
     public async Task<IActionResult> GeneratePresignedUrl(Guid parkingSpaceId, [FromBody] GenerateUrlRequest request, CancellationToken cancellationToken)
     {
         var userId = GetUserId();
@@ -153,7 +153,7 @@ public class FileUploadController : ControllerBase
     }
 
     [HttpPost("parking/{parkingSpaceId:guid}/confirm-upload")]
-    [Authorize(Roles = "Vendor,Admin")]
+    [Authorize(Roles = "User,Admin")]
     public async Task<IActionResult> ConfirmUpload(Guid parkingSpaceId, [FromBody] ConfirmUploadRequest request, CancellationToken cancellationToken)
     {
         var userId = GetUserId();

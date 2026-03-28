@@ -133,7 +133,7 @@ public class ParkingSpaceServiceTests
     public async Task CreateAsync_ShouldSucceed()
     {
         var ownerId = Guid.NewGuid();
-        _mockUserRepo.Setup(r => r.GetByIdAsync(ownerId, It.IsAny<CancellationToken>())).ReturnsAsync(new User { Role = UserRole.Vendor });
+        _mockUserRepo.Setup(r => r.GetByIdAsync(ownerId, It.IsAny<CancellationToken>())).ReturnsAsync(new User { Role = UserRole.User });
 
         var res = await _service.CreateAsync(ownerId, new CreateParkingSpaceDto("Title", "Description", "Address", "City", "State", "Country", "PostalCode", 1.0, 1.0, ParkingType.Open, 1, 1.0m, 1.0m, 1.0m, 1.0m, TimeSpan.Zero, TimeSpan.Zero, false, new List<string>(), new List<VehicleType>(), new List<string>(), "Instructions"));
 

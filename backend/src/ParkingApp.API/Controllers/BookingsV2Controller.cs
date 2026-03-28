@@ -76,7 +76,7 @@ public class BookingsV2Controller : ControllerBase
     /// Get bookings for vendor's parking spaces
     /// </summary>
     [HttpGet("vendor-bookings")]
-    [Authorize(Roles = "Vendor,Admin")]
+    [Authorize(Roles = "User,Admin")]
     [ProducesResponseType(typeof(ApiResponse<BookingListResultDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetVendorBookings([FromQuery] BookingFilterDto? filter, CancellationToken cancellationToken)
     {
@@ -93,7 +93,7 @@ public class BookingsV2Controller : ControllerBase
     /// Get the count of pending booking requests for the vendor
     /// </summary>
     [HttpGet("pending-count")]
-    [Authorize(Roles = "Vendor,Admin")]
+    [Authorize(Roles = "User,Admin")]
     [ProducesResponseType(typeof(ApiResponse<int>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetPendingRequestsCount(CancellationToken cancellationToken)
     {
@@ -110,7 +110,7 @@ public class BookingsV2Controller : ControllerBase
     /// Get bookings for a specific parking space (vendor only)
     /// </summary>
     [HttpGet("parking-space/{parkingSpaceId:guid}")]
-    [Authorize(Roles = "Vendor,Admin")]
+    [Authorize(Roles = "User,Admin")]
     [ProducesResponseType(typeof(ApiResponse<BookingListResultDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetByParkingSpace(Guid parkingSpaceId, [FromQuery] BookingFilterDto? filter, CancellationToken cancellationToken)
     {
@@ -220,7 +220,7 @@ public class BookingsV2Controller : ControllerBase
     /// Approve a booking (vendor only)
     /// </summary>
     [HttpPost("{id:guid}/approve")]
-    [Authorize(Roles = "Vendor,Admin")]
+    [Authorize(Roles = "User,Admin")]
     [ProducesResponseType(typeof(ApiResponse<BookingDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiResponse<BookingDto>), StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> Approve(Guid id, CancellationToken cancellationToken)
@@ -238,7 +238,7 @@ public class BookingsV2Controller : ControllerBase
     /// Reject a booking (vendor only)
     /// </summary>
     [HttpPost("{id:guid}/reject")]
-    [Authorize(Roles = "Vendor,Admin")]
+    [Authorize(Roles = "User,Admin")]
     [ProducesResponseType(typeof(ApiResponse<BookingDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiResponse<BookingDto>), StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> Reject(Guid id, [FromBody] RejectBookingDto? dto, CancellationToken cancellationToken)
@@ -307,7 +307,7 @@ public class BookingsV2Controller : ControllerBase
     /// Approve a pending extension request (vendor only)
     /// </summary>
     [HttpPost("{id:guid}/approve-extension")]
-    [Authorize(Roles = "Vendor,Admin")]
+    [Authorize(Roles = "User,Admin")]
     [ProducesResponseType(typeof(ApiResponse<BookingDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiResponse<BookingDto>), StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> ApproveExtension(Guid id, CancellationToken cancellationToken)
@@ -325,7 +325,7 @@ public class BookingsV2Controller : ControllerBase
     /// Reject a pending extension request (vendor only)
     /// </summary>
     [HttpPost("{id:guid}/reject-extension")]
-    [Authorize(Roles = "Vendor,Admin")]
+    [Authorize(Roles = "User,Admin")]
     [ProducesResponseType(typeof(ApiResponse<BookingDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiResponse<BookingDto>), StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> RejectExtension(Guid id, [FromBody] RejectBookingDto? dto, CancellationToken cancellationToken)

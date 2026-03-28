@@ -183,7 +183,7 @@ public class ReviewsController : ControllerBase
         return Ok(result);
     }
 
-    [Authorize(Roles = "Vendor,Admin")]
+    [Authorize(Roles = "User,Admin")]
     [HttpPost("{id:guid}/owner-response")]
     [ProducesResponseType(typeof(ApiResponse<ReviewDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> AddOwnerResponse(Guid id, [FromBody] OwnerResponseDto dto, CancellationToken cancellationToken)
@@ -215,7 +215,7 @@ public class DashboardController : ControllerBase
     public DashboardController(IDispatcher dispatcher) => _dispatcher = dispatcher;
 
     [HttpGet("vendor")]
-    [Authorize(Roles = "Vendor,Admin")]
+    [Authorize(Roles = "User,Admin")]
     [ProducesResponseType(typeof(ApiResponse<VendorDashboardDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetVendorDashboard(CancellationToken cancellationToken)
     {

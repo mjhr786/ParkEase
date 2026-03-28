@@ -37,7 +37,7 @@ public class AuthServiceTests
     [Fact]
     public async Task RegisterAsync_ShouldFail_WhenEmailExists()
     {
-        var dto = new RegisterDto("test@test.com", "Password123", "First", "Last", "1234567890", UserRole.Member);
+        var dto = new RegisterDto("test@test.com", "Password123", "First", "Last", "1234567890");
         _mockUserRepo.Setup(r => r.GetByEmailAsync(dto.Email, It.IsAny<CancellationToken>())).ReturnsAsync(new User());
 
         var result = await _service.RegisterAsync(dto);
@@ -49,7 +49,7 @@ public class AuthServiceTests
     [Fact]
     public async Task RegisterAsync_ShouldSucceed_WhenValid()
     {
-        var dto = new RegisterDto("test@test.com", "Password123", "First", "Last", "1234567890", UserRole.Member);
+        var dto = new RegisterDto("test@test.com", "Password123", "First", "Last", "1234567890");
         _mockUserRepo.Setup(r => r.GetByEmailAsync(dto.Email, It.IsAny<CancellationToken>())).ReturnsAsync((User?)null);
         _mockTokenService.Setup(t => t.GenerateAccessToken(It.IsAny<User>())).Returns("access_token");
         _mockTokenService.Setup(t => t.GenerateRefreshToken()).Returns("refresh_token");

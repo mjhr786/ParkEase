@@ -6,6 +6,7 @@ using ParkingApp.Domain.Entities;
 using ParkingApp.Domain.Interfaces;
 using Microsoft.Extensions.Logging;
 using ParkingApp.BuildingBlocks.Logging;
+using ParkingApp.Domain.Enums;
 
 namespace ParkingApp.Application.Services;
 
@@ -41,7 +42,7 @@ public class AuthService : IAuthService
             FirstName = dto.FirstName.Trim(),
             LastName = dto.LastName.Trim(),
             PhoneNumber = dto.PhoneNumber.Trim(),
-            Role = dto.Role
+            Role = UserRole.User
         };
 
         // Generate tokens

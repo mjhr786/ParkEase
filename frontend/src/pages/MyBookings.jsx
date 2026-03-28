@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
-import { useAuth } from '../contexts/AuthContext';
+
 import { useNotificationContext } from '../context/NotificationContext';
 import api from '../services/api';
 import { handleApiError } from '../utils/errorHandler';
@@ -97,7 +97,6 @@ const REFRESH_TRIGGERS = [
 ];
 
 export default function MyBookings() {
-    const { isVendor } = useAuth();
     const [bookings, setBookings] = useState([]);
     const [loading, setLoading] = useState(true);
     const [filter, setFilter] = useState('');
@@ -425,36 +424,7 @@ export default function MyBookings() {
         }
     };
 
-    const handleApproveExtension = async (bookingId) => {
-        try {
-            const res = await api.approveExtension(bookingId);
-            if (res.success) {
-                showToast.success('Extension approved! Member will be notified to pay.');
-                fetchBookings();
-            } else {
-                showToast.error(res.message || 'Failed to approve extension');
-            }
-        } catch (err) {
-            showToast.error(handleApiError(err, 'Failed to approve extension'));
-        }
-    };
 
-    const handleRejectExtension = async (bookingId) => {
-        const reason = window.prompt('Reason for rejecting the extension (optional):');
-        // User cancelled the prompt
-        if (reason === null) return;
-        try {
-            const res = await api.rejectExtension(bookingId, reason || 'Rejected by owner');
-            if (res.success) {
-                showToast.success('Extension request rejected.');
-                fetchBookings();
-            } else {
-                showToast.error(res.message || 'Failed to reject extension');
-            }
-        } catch (err) {
-            showToast.error(handleApiError(err, 'Failed to reject extension'));
-        }
-    };
 
     return (
         <>
@@ -599,23 +569,7 @@ export default function MyBookings() {
                                                 ⏳ Extension request pending owner approval — proposed new end: {booking.pendingExtensionEndDateTime ? new Date(booking.pendingExtensionEndDateTime).toLocaleString() : ''}
                                             </div>
                                         )}
-                                        {/* Vendor: Approve / Reject extension */}
-                                        {isVendor && booking.status === 8 && (
-                                            <>
-                                                <button
-                                                    className="btn btn-primary"
-                                                    onClick={() => handleApproveExtension(booking.id)}
-                                                >
-                                                    ✅ Approve Extension
-                                                </button>
-                                                <button
-                                                    className="btn btn-danger"
-                                                    onClick={() => handleRejectExtension(booking.id)}
-                                                >
-                                                    ❌ Reject Extension
-                                                </button>
-                                            </>
-                                        )}
+
                                         {booking.status === 1 && ( // Confirmed (paid)
                                             <>
                                                 <button

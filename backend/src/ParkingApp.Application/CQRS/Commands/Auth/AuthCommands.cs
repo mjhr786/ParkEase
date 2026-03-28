@@ -53,7 +53,7 @@ public sealed class RegisterHandler : ICommandHandler<RegisterCommand, ApiRespon
             FirstName = command.Dto.FirstName.Trim(),
             LastName = command.Dto.LastName.Trim(),
             PhoneNumber = command.Dto.PhoneNumber.Trim(),
-            Role = command.Dto.Role
+            Role = Domain.Enums.UserRole.User
         };
 
         var accessToken = _tokenService.GenerateAccessToken(user);

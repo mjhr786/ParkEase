@@ -3,8 +3,7 @@ namespace ParkingApp.Domain.Enums;
 public enum UserRole
 {
     Admin = 0,
-    Vendor = 1,
-    Member = 2
+    User = 1
 }
 
 public enum BookingStatus
