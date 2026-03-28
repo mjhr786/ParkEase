@@ -1,6 +1,6 @@
 /**
  * SignupScreen
- * Registration with role selection (Member/Vendor)
+ * Registration form
  */
 
 import React, { useState, useCallback } from 'react';
@@ -10,7 +10,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../hooks/useAuth';
 import { validateForm, registerRules } from '../../utils/validators';
-import { UserRole } from '../../utils/constants';
+
 import Button from '../../components/Common/Button';
 import Input from '../../components/Common/Input';
 import { colors, spacing, typography, shadows } from '../../styles/globalStyles';
@@ -23,7 +23,6 @@ const SignupScreen = ({ navigation }) => {
         email: '',
         password: '',
         phoneNumber: '',
-        role: UserRole.Member,
     });
     const [errors, setErrors] = useState({});
 
@@ -71,26 +70,7 @@ const SignupScreen = ({ navigation }) => {
                             </View>
                         )}
 
-                        {/* Role Selection */}
-                        <Text style={styles.roleLabel}>I am a</Text>
-                        <View style={styles.roleRow}>
-                            <TouchableOpacity
-                                onPress={() => updateField('role')(UserRole.Member)}
-                                style={[styles.roleOption, formData.role === UserRole.Member && styles.roleSelected]}
-                            >
-                                <Ionicons name="person" size={24} color={formData.role === UserRole.Member ? colors.primary : colors.textTertiary} />
-                                <Text style={[styles.roleText, formData.role === UserRole.Member && styles.roleTextSelected]}>Member</Text>
-                                <Text style={styles.roleDesc}>Book parking</Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity
-                                onPress={() => updateField('role')(UserRole.Vendor)}
-                                style={[styles.roleOption, formData.role === UserRole.Vendor && styles.roleSelected]}
-                            >
-                                <Ionicons name="business" size={24} color={formData.role === UserRole.Vendor ? colors.primary : colors.textTertiary} />
-                                <Text style={[styles.roleText, formData.role === UserRole.Vendor && styles.roleTextSelected]}>Vendor</Text>
-                                <Text style={styles.roleDesc}>List parking</Text>
-                            </TouchableOpacity>
-                        </View>
+
 
                         <View style={styles.nameRow}>
                             <View style={styles.nameField}>
@@ -148,21 +128,7 @@ const styles = StyleSheet.create({
         gap: spacing.sm,
     },
     errorBannerText: { ...typography.bodySmall, color: colors.dangerDark, flex: 1 },
-    roleLabel: { ...typography.label, color: colors.textPrimary, marginBottom: spacing.sm },
-    roleRow: { flexDirection: 'row', gap: spacing.md, marginBottom: spacing.lg },
-    roleOption: {
-        flex: 1,
-        alignItems: 'center',
-        padding: spacing.base,
-        borderRadius: spacing.radius.md,
-        borderWidth: 1.5,
-        borderColor: colors.border,
-        gap: 4,
-    },
-    roleSelected: { borderColor: colors.primary, backgroundColor: colors.primarySoft },
-    roleText: { ...typography.label, color: colors.textSecondary },
-    roleTextSelected: { color: colors.primary },
-    roleDesc: { ...typography.caption, color: colors.textTertiary },
+
     nameRow: { flexDirection: 'row', gap: spacing.md },
     nameField: { flex: 1 },
     signupButton: { marginTop: spacing.sm },

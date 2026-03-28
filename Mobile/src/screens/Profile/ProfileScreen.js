@@ -15,7 +15,7 @@ import Card from '../../components/Common/Card';
 import Button from '../../components/Common/Button';
 import Input from '../../components/Common/Input';
 import { colors, spacing, typography, shadows } from '../../styles/globalStyles';
-import { UserRoleLabels } from '../../utils/constants';
+
 
 const MenuItem = ({ icon, label, value, onPress, danger = false }) => (
     <TouchableOpacity style={menuStyles.item} onPress={onPress}>
@@ -101,9 +101,6 @@ const ProfileScreen = ({ navigation }) => {
                     </View>
                     <Text style={styles.userName}>{user?.firstName} {user?.lastName}</Text>
                     <Text style={styles.userEmail}>{user?.email}</Text>
-                    <View style={styles.roleBadge}>
-                        <Text style={styles.roleText}>{UserRoleLabels[user?.role] || 'Member'}</Text>
-                    </View>
                 </View>
 
                 {/* Edit Profile */}
