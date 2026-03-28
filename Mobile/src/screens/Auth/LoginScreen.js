@@ -5,6 +5,7 @@
 
 import React, { useState, useCallback } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform, Image } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../hooks/useAuth';
@@ -41,72 +42,77 @@ const LoginScreen = ({ navigation }) => {
 
     return (
         <LinearGradient colors={colors.gradients.hero} style={styles.gradient}>
-            <KeyboardAvoidingView
-                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-                style={styles.container}
-            >
-                {/* Logo Area */}
-                <View style={styles.logoSection}>
-                    <View style={styles.logoCircle}>
-                        <Ionicons name="car-sport" size={48} color={colors.primary} />
-                    </View>
-                    <Text style={styles.appName}>ParkEase</Text>
-                    <Text style={styles.tagline}>Find & book parking in seconds</Text>
-                </View>
-
-                {/* Form */}
-                <View style={styles.formCard}>
-                    <Text style={styles.welcomeText}>Welcome Back</Text>
-
-                    {error && (
-                        <View style={styles.errorBanner}>
-                            <Ionicons name="alert-circle" size={18} color={colors.danger} />
-                            <Text style={styles.errorBannerText}>{error}</Text>
+            <SafeAreaView style={styles.safeArea}>
+                <KeyboardAvoidingView
+                    behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                    style={styles.container}
+                >
+                    {/* Logo Area */}
+                    <View style={styles.logoSection}>
+                        <View style={styles.logoCircle}>
+                            <Ionicons name="car-sport" size={48} color={colors.primary} />
                         </View>
-                    )}
-
-                    <Input
-                        label="Email"
-                        value={formData.email}
-                        onChangeText={updateField('email')}
-                        placeholder="Enter your email"
-                        keyboardType="email-address"
-                        autoCapitalize="none"
-                        leftIcon="mail-outline"
-                        error={errors.email}
-                    />
-
-                    <Input
-                        label="Password"
-                        value={formData.password}
-                        onChangeText={updateField('password')}
-                        placeholder="Enter your password"
-                        secureTextEntry
-                        leftIcon="lock-closed-outline"
-                        error={errors.password}
-                    />
-
-                    <Button
-                        title="Sign In"
-                        onPress={handleLogin}
-                        loading={loading}
-                        style={styles.loginButton}
-                    />
-
-                    <View style={styles.signupRow}>
-                        <Text style={styles.signupText}>Don't have an account? </Text>
-                        <TouchableOpacity onPress={() => navigation.navigate('Signup')}>
-                            <Text style={styles.signupLink}>Sign Up</Text>
-                        </TouchableOpacity>
+                        <Text style={styles.appName}>ParkEase</Text>
+                        <Text style={styles.tagline}>Find & book parking in seconds</Text>
                     </View>
-                </View>
-            </KeyboardAvoidingView>
+
+                    {/* Form */}
+                    <View style={styles.formCard}>
+                        <Text style={styles.welcomeText}>Welcome Back</Text>
+
+                        {error && (
+                            <View style={styles.errorBanner}>
+                                <Ionicons name="alert-circle" size={18} color={colors.danger} />
+                                <Text style={styles.errorBannerText}>{error}</Text>
+                            </View>
+                        )}
+
+                        <Input
+                            label="Email"
+                            value={formData.email}
+                            onChangeText={updateField('email')}
+                            placeholder="Enter your email"
+                            keyboardType="email-address"
+                            autoCapitalize="none"
+                            leftIcon="mail-outline"
+                            error={errors.email}
+                        />
+
+                        <Input
+                            label="Password"
+                            value={formData.password}
+                            onChangeText={updateField('password')}
+                            placeholder="Enter your password"
+                            secureTextEntry
+                            leftIcon="lock-closed-outline"
+                            error={errors.password}
+                        />
+
+                        <Button
+                            title="Sign In"
+                            onPress={handleLogin}
+                            loading={loading}
+                            style={styles.loginButton}
+                        />
+
+                        <View style={styles.signupRow}>
+                            <Text style={styles.signupText}>Don't have an account? </Text>
+                            <TouchableOpacity onPress={() => navigation.navigate('Signup')}>
+                                <Text style={styles.signupLink}>Sign Up</Text>
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                </KeyboardAvoidingView>
+            </SafeAreaView>
         </LinearGradient>
     );
 };
 
 const styles = StyleSheet.create({
     gradient: {
+        flex: 1,
+    },
+    safeArea: {
         flex: 1,
     },
     container: {

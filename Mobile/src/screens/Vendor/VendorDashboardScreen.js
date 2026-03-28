@@ -8,6 +8,7 @@ import { View, Text, FlatList, StyleSheet, RefreshControl, TouchableOpacity } fr
 import { useDispatch, useSelector } from 'react-redux';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getVendorDashboardThunk } from '../../store/slices/dashboardSlice';
 import { useAuth } from '../../hooks/useAuth';
 import ScreenLayout from '../../components/Layouts/ScreenLayout';
@@ -58,6 +59,7 @@ const VendorDashboardScreen = ({ navigation }) => {
     const { user } = useAuth();
     const { vendorDashboard: data, loading } = useSelector((s) => s.dashboard);
     const [refreshing, setRefreshing] = useState(false);
+    const insets = useSafeAreaInsets();
 
     useEffect(() => {
         dispatch(getVendorDashboardThunk());
@@ -85,7 +87,7 @@ const VendorDashboardScreen = ({ navigation }) => {
         switch (item.type) {
             case 'header':
                 return (
-                    <LinearGradient colors={colors.gradients.dark} style={styles.hero}>
+                    <LinearGradient colors={colors.gradients.dark} style={[styles.hero, { paddingTop: insets.top + spacing.md }]}>
                         <Text style={styles.greeting}>Welcome, {user?.firstName} 👋</Text>
                         <Text style={styles.heroSub}>Manage your parking business</Text>
                     </LinearGradient>
@@ -147,7 +149,7 @@ const VendorDashboardScreen = ({ navigation }) => {
     };
 
     return (
-        <ScreenLayout>
+        <ScreenLayout edges={['bottom']}>
             <FlatList
                 data={sections}
                 renderItem={renderItem}
@@ -163,7 +165,7 @@ const styles = StyleSheet.create({
     hero: { paddingBottom: spacing['2xl'], paddingHorizontal: spacing.screenHorizontal, borderBottomLeftRadius: spacing.radius.xl, borderBottomRightRadius: spacing.radius.xl },
     greeting: { fontSize: 28, fontWeight: '700', color: colors.white },
     heroSub: { ...typography.body, color: 'rgba(255,255,255,0.7)', marginTop: spacing.xs },
-    quickActions: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: spacing.screenHorizontal, marginTop: -spacing.lg, marginBottom: spacing.lg },
+    quickActions: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: spacing.screenHorizontal, marginTop: spacing.lg, marginBottom: spacing.lg },
     statsRow: { flexDirection: 'row', gap: spacing.md, paddingHorizontal: spacing.screenHorizontal, marginBottom: spacing.lg },
     earningsCard: { marginHorizontal: spacing.screenHorizontal, alignItems: 'center', paddingVertical: spacing.xl, backgroundColor: colors.accentSoft },
     sectionTitle: { ...typography.label, color: colors.textSecondary, marginBottom: spacing.xs },
