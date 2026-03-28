@@ -143,7 +143,7 @@ const ProfileScreen = ({ navigation }) => {
 
 const styles = StyleSheet.create({
     content: { paddingBottom: spacing['3xl'] },
-    header: { paddingTop: 60, paddingHorizontal: spacing.screenHorizontal, paddingBottom: spacing.base },
+    header: { paddingTop: spacing.md, paddingHorizontal: spacing.screenHorizontal, paddingBottom: spacing.base },
     screenTitle: { ...typography.h2, color: colors.textPrimary },
     avatarSection: { alignItems: 'center', paddingVertical: spacing.xl },
     avatarCircle: { width: 80, height: 80, borderRadius: 40, backgroundColor: colors.primary, justifyContent: 'center', alignItems: 'center', ...shadows.lg },

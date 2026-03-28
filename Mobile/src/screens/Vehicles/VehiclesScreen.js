@@ -7,7 +7,7 @@ import React, { useEffect, useCallback, useState } from 'react';
 import { View, Text, FlatList, TouchableOpacity, StyleSheet, Alert, Modal, RefreshControl } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { Ionicons } from '@expo/vector-icons';
-import { getVehiclesThunk, addVehicleThunk } from '../../store/slices/vehicleSlice';
+import { getVehiclesThunk, addVehicleThunk, updateVehicleThunk, deleteVehicleThunk } from '../../store/slices/vehicleSlice';
 import ScreenLayout from '../../components/Layouts/ScreenLayout';
 import Card from '../../components/Common/Card';
 import Button from '../../components/Common/Button';
@@ -17,7 +17,7 @@ import LoadingScreen from '../../components/Common/LoadingScreen';
 import { colors, spacing, typography, shadows } from '../../styles/globalStyles';
 import { VehicleTypeLabels, VehicleType } from '../../utils/constants';
 
-const VehicleItem = ({ vehicle }) => {
+const VehicleItem = ({ vehicle, onEdit, onDelete }) => {
     const typeLabel = VehicleTypeLabels[vehicle.vehicleType] || 'Vehicle';
     const iconMap = {
         [VehicleType.Car]: 'car-outline',
@@ -39,6 +39,14 @@ const VehicleItem = ({ vehicle }) => {
                     <Text style={vStyles.meta}>{typeLabel} · {vehicle.licensePlate}</Text>
                     {vehicle.color ? <Text style={vStyles.meta}>Color: {vehicle.color}</Text> : null}
                 </View>
+                <View style={vStyles.actions}>
+                    <TouchableOpacity onPress={() => onEdit(vehicle)} style={{ padding: 4 }}>
+                        <Ionicons name="create-outline" size={20} color={colors.primary} />
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={() => onDelete(vehicle.id)} style={{ padding: 4 }}>
+                        <Ionicons name="trash-outline" size={20} color={colors.danger} />
+                    </TouchableOpacity>
+                </View>
             </View>
         </Card>
     );
@@ -58,6 +66,7 @@ const vStyles = StyleSheet.create({
     info: { flex: 1 },
     name: { ...typography.label, color: colors.textPrimary },
     meta: { ...typography.caption, color: colors.textTertiary, marginTop: 2 },
+    actions: { flexDirection: 'row', gap: spacing.sm },
 });
 
 const VehiclesScreen = ({ navigation }) => {
@@ -65,6 +74,7 @@ const VehiclesScreen = ({ navigation }) => {
     const { vehicles, loading, addLoading } = useSelector((state) => state.vehicle);
     const [refreshing, setRefreshing] = useState(false);
     const [showModal, setShowModal] = useState(false);
+    const [editingId, setEditingId] = useState(null);
     const [make, setMake] = useState('');
     const [model, setModel] = useState('');
     const [licensePlate, setLicensePlate] = useState('');
@@ -81,29 +91,62 @@ const VehiclesScreen = ({ navigation }) => {
         setRefreshing(false);
     }, [dispatch]);
 
-    const handleAdd = useCallback(async () => {
+    const openAddModal = () => {
+        setEditingId(null);
+        setMake(''); setModel(''); setLicensePlate(''); setVehicleColor(''); setVehicleType(VehicleType.Car);
+        setShowModal(true);
+    };
+
+    const openEditModal = (vehicle) => {
+        setEditingId(vehicle.id);
+        setMake(vehicle.make); setModel(vehicle.model); setLicensePlate(vehicle.licensePlate); 
+        setVehicleColor(vehicle.color || ''); setVehicleType(vehicle.vehicleType);
+        setShowModal(true);
+    };
+
+    const handleDelete = (id) => {
+        Alert.alert('Delete Vehicle', 'Are you sure you want to remove this vehicle?', [
+            { text: 'Cancel', style: 'cancel' },
+            { 
+                text: 'Delete', 
+                style: 'destructive', 
+                onPress: () => {
+                    dispatch(deleteVehicleThunk(id)).then((res) => {
+                        if (res.error) Alert.alert('Error', res.payload || 'Failed to delete vehicle');
+                    });
+                }
+            }
+        ]);
+    };
+
+    const handleSave = useCallback(async () => {
         if (!make.trim() || !model.trim() || !licensePlate.trim()) {
             Alert.alert('Error', 'Please fill in make, model, and license plate.');
             return;
         }
-        const result = await dispatch(addVehicleThunk({
+
+        const payload = {
             make: make.trim(),
             model: model.trim(),
             licensePlate: licensePlate.trim(),
             color: vehicleColor.trim(),
             vehicleType,
-        }));
+        };
+
+        let result;
+        if (editingId) {
+            result = await dispatch(updateVehicleThunk({ id: editingId, data: payload }));
+        } else {
+            result = await dispatch(addVehicleThunk(payload));
+        }
+
         if (!result.error) {
             setShowModal(false);
-            setMake('');
-            setModel('');
-            setLicensePlate('');
-            setVehicleColor('');
-            Alert.alert('Success', 'Vehicle added!');
+            Alert.alert('Success', editingId ? 'Vehicle updated!' : 'Vehicle added!');
         } else {
-            Alert.alert('Error', result.payload || 'Failed to add vehicle');
+            Alert.alert('Error', result.payload || 'Failed to save vehicle');
         }
-    }, [dispatch, make, model, licensePlate, vehicleColor, vehicleType]);
+    }, [dispatch, make, model, licensePlate, vehicleColor, vehicleType, editingId]);
 
     if (loading && !vehicles.length) {
         return <LoadingScreen />;
@@ -115,19 +158,19 @@ const VehiclesScreen = ({ navigation }) => {
                 <TouchableOpacity onPress={() => navigation.goBack()}>
                     <Ionicons name="arrow-back" size={24} color={colors.textPrimary} />
                 </TouchableOpacity>
-                <Text style={styles.title}>My Vehicles</Text>
-                <TouchableOpacity onPress={() => setShowModal(true)}>
+                <Text style={styles.title}>Garage</Text>
+                <TouchableOpacity onPress={openAddModal}>
                     <Ionicons name="add-circle-outline" size={28} color={colors.primary} />
                 </TouchableOpacity>
             </View>
             <FlatList
                 data={vehicles}
                 keyExtractor={(item) => item.id?.toString()}
-                renderItem={({ item }) => <VehicleItem vehicle={item} />}
+                renderItem={({ item }) => <VehicleItem vehicle={item} onEdit={openEditModal} onDelete={handleDelete} />}
                 ListEmptyComponent={
                     <EmptyState
                         icon="car-outline"
-                        title="No vehicles"
+                        title="Your garage is empty"
                         message="Add a vehicle to speed up bookings"
                     />
                 }
@@ -143,7 +186,7 @@ const VehiclesScreen = ({ navigation }) => {
                 <View style={styles.modalOverlay}>
                     <View style={styles.modalContent}>
                         <View style={styles.modalHeader}>
-                            <Text style={styles.modalTitle}>Add Vehicle</Text>
+                            <Text style={styles.modalTitle}>{editingId ? 'Edit Vehicle' : 'Add Vehicle'}</Text>
                             <TouchableOpacity onPress={() => setShowModal(false)}>
                                 <Ionicons name="close" size={24} color={colors.textPrimary} />
                             </TouchableOpacity>
@@ -168,7 +211,7 @@ const VehiclesScreen = ({ navigation }) => {
                             ))}
                         </View>
 
-                        <Button title="Add Vehicle" onPress={handleAdd} loading={addLoading} style={{ marginTop: spacing.lg }} />
+                        <Button title={editingId ? 'Save Changes' : 'Add Vehicle'} onPress={handleSave} loading={addLoading} style={{ marginTop: spacing.lg }} />
                     </View>
                 </View>
             </Modal>
@@ -181,7 +224,7 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
-        paddingTop: 60,
+        paddingTop: spacing.md,
         paddingBottom: spacing.md,
         paddingHorizontal: spacing.screenHorizontal,
     },

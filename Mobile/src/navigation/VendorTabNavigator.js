@@ -7,6 +7,7 @@ import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors } from '../styles/globalStyles';
 
 // Screens
@@ -19,8 +20,13 @@ import PaymentScreen from '../screens/Payment/PaymentScreen';
 import ProfileScreen from '../screens/Profile/ProfileScreen';
 import ChangePasswordScreen from '../screens/Profile/ChangePasswordScreen';
 import NotificationsScreen from '../screens/Notifications/NotificationsScreen';
+import VehiclesScreen from '../screens/Vehicles/VehiclesScreen';
+import FavoritesScreen from '../screens/Favorites/FavoritesScreen';
 import ConversationListScreen from '../screens/Chat/ConversationListScreen';
 import ChatScreen from '../screens/Chat/ChatScreen';
+import ParkingDetailScreen from '../screens/Search/ParkingDetailScreen';
+import ReviewsListScreen from '../screens/Review/ReviewsListScreen';
+import CreateReviewScreen from '../screens/Review/CreateReviewScreen';
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
@@ -34,6 +40,10 @@ const stackOptions = {
 const DashboardStack = () => (
     <Stack.Navigator screenOptions={stackOptions}>
         <Stack.Screen name="VendorDashboard" component={VendorDashboardScreen} />
+        <Stack.Screen name="BookingDetail" component={BookingDetailScreen} />
+        <Stack.Screen name="ChatScreen" component={ChatScreen} />
+        <Stack.Screen name="CreateReview" component={CreateReviewScreen} />
+        <Stack.Screen name="Vehicles" component={VehiclesScreen} />
     </Stack.Navigator>
 );
 
@@ -42,6 +52,9 @@ const ListingsStack = () => (
     <Stack.Navigator screenOptions={stackOptions}>
         <Stack.Screen name="MyListings" component={MyListingsScreen} />
         <Stack.Screen name="CreateParking" component={CreateParkingScreen} />
+        <Stack.Screen name="ParkingDetail" component={ParkingDetailScreen} />
+        <Stack.Screen name="ReviewsList" component={ReviewsListScreen} />
+        <Stack.Screen name="CreateReview" component={CreateReviewScreen} />
     </Stack.Navigator>
 );
 
@@ -61,6 +74,8 @@ const ProfileStack = () => (
         <Stack.Screen name="Profile" component={ProfileScreen} />
         <Stack.Screen name="ChangePassword" component={ChangePasswordScreen} />
         <Stack.Screen name="Notifications" component={NotificationsScreen} />
+        <Stack.Screen name="Vehicles" component={VehiclesScreen} />
+        <Stack.Screen name="Favorites" component={FavoritesScreen} />
     </Stack.Navigator>
 );
 
@@ -72,7 +87,10 @@ const MessagesStack = () => (
     </Stack.Navigator>
 );
 
-const VendorTabNavigator = () => (
+const VendorTabNavigator = () => {
+    const insets = useSafeAreaInsets();
+    
+    return (
     <Tab.Navigator
         screenOptions={({ route }) => ({
             headerShown: false,
@@ -91,9 +109,9 @@ const VendorTabNavigator = () => (
             tabBarStyle: {
                 backgroundColor: colors.surface,
                 borderTopColor: colors.borderLight,
-                paddingBottom: 6,
+                paddingBottom: Math.max(insets.bottom, 6),
                 paddingTop: 6,
-                height: 60,
+                height: 60 + Math.max(insets.bottom, 0),
             },
             tabBarLabelStyle: {
                 fontSize: 11,
@@ -107,6 +125,7 @@ const VendorTabNavigator = () => (
         <Tab.Screen name="MessagesTab" component={MessagesStack} options={{ tabBarLabel: 'Messages' }} />
         <Tab.Screen name="ProfileTab" component={ProfileStack} options={{ tabBarLabel: 'Profile' }} />
     </Tab.Navigator>
-);
+    );
+};
 
 export default VendorTabNavigator;

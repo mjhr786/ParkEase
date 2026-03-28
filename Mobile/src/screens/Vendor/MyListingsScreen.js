@@ -4,10 +4,10 @@
  */
 
 import React, { useEffect, useCallback, useState } from 'react';
-import { View, Text, FlatList, TouchableOpacity, Switch, StyleSheet, RefreshControl } from 'react-native';
+import { View, Text, FlatList, TouchableOpacity, StyleSheet, RefreshControl, Alert } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { Ionicons } from '@expo/vector-icons';
-import { getMyListingsThunk, toggleParkingActiveThunk } from '../../store/slices/parkingSlice';
+import { getMyListingsThunk, toggleParkingActiveThunk, deleteParkingThunk } from '../../store/slices/parkingSlice';
 import ScreenLayout from '../../components/Layouts/ScreenLayout';
 import Card from '../../components/Common/Card';
 import Button from '../../components/Common/Button';
@@ -18,50 +18,57 @@ import { colors, spacing, typography, shadows } from '../../styles/globalStyles'
 import { formatCurrency } from '../../utils/formatters';
 import { ParkingTypeLabels } from '../../utils/constants';
 
-const ListingCard = ({ listing, onToggle, onEdit }) => (
-    <Card>
-        <View style={cardStyles.header}>
-            <View style={{ flex: 1 }}>
-                <Text style={cardStyles.title} numberOfLines={1}>{listing.title}</Text>
-                <View style={cardStyles.locationRow}>
-                    <Ionicons name="location-outline" size={14} color={colors.textTertiary} />
-                    <Text style={cardStyles.address} numberOfLines={1}>{listing.address}, {listing.city}</Text>
+const ListingCard = ({ listing, onToggle, onEdit, onDelete, onPress }) => (
+    <TouchableOpacity activeOpacity={0.8} onPress={onPress}>
+        <Card>
+            <View style={cardStyles.header}>
+                <View style={{ flex: 1 }}>
+                    <Text style={cardStyles.title} numberOfLines={1}>{listing.title}</Text>
+                    <View style={cardStyles.locationRow}>
+                        <Ionicons name="location-outline" size={14} color={colors.textTertiary} />
+                        <Text style={cardStyles.address} numberOfLines={1}>{listing.address}, {listing.city}</Text>
+                    </View>
+                </View>
+                <View style={cardStyles.actionsWrapper}>
+                    <TouchableOpacity style={cardStyles.iconBtn} onPress={() => onEdit(listing)}>
+                        <Ionicons name="create-outline" size={18} color={colors.primary} />
+                    </TouchableOpacity>
+                    <TouchableOpacity style={[cardStyles.iconBtn, { backgroundColor: colors.dangerSoft }]} onPress={() => onDelete(listing.id)}>
+                        <Ionicons name="trash-outline" size={18} color={colors.danger} />
+                    </TouchableOpacity>
                 </View>
             </View>
-            <Switch
-                value={listing.isActive}
-                onValueChange={() => onToggle(listing.id)}
-                trackColor={{ false: colors.lightGray, true: colors.successLight }}
-                thumbColor={listing.isActive ? colors.success : colors.mediumGray}
-            />
-        </View>
 
-        <View style={cardStyles.infoRow}>
-            <View style={cardStyles.infoItem}>
-                <Text style={cardStyles.infoLabel}>Type</Text>
-                <Text style={cardStyles.infoValue}>{ParkingTypeLabels[listing.parkingType]}</Text>
+            <View style={cardStyles.infoRow}>
+                <View style={cardStyles.infoItem}>
+                    <Text style={cardStyles.infoLabel}>Type</Text>
+                    <Text style={cardStyles.infoValue}>{ParkingTypeLabels[listing.parkingType]}</Text>
+                </View>
+                <View style={cardStyles.infoItem}>
+                    <Text style={cardStyles.infoLabel}>Rate</Text>
+                    <Text style={cardStyles.infoValue}>{formatCurrency(listing.hourlyRate)}/hr</Text>
+                </View>
+                <View style={cardStyles.infoItem}>
+                    <Text style={cardStyles.infoLabel}>Spots</Text>
+                    <Text style={cardStyles.infoValue}>{listing.availableSpots}/{listing.totalSpots}</Text>
+                </View>
             </View>
-            <View style={cardStyles.infoItem}>
-                <Text style={cardStyles.infoLabel}>Rate</Text>
-                <Text style={cardStyles.infoValue}>{formatCurrency(listing.hourlyRate)}/hr</Text>
-            </View>
-            <View style={cardStyles.infoItem}>
-                <Text style={cardStyles.infoLabel}>Spots</Text>
-                <Text style={cardStyles.infoValue}>{listing.availableSpots}/{listing.totalSpots}</Text>
-            </View>
-        </View>
 
-        <View style={cardStyles.footer}>
-            <View style={cardStyles.ratingRow}>
-                <StarRating rating={listing.averageRating} size={14} />
-                <Text style={cardStyles.ratingText}>{listing.averageRating?.toFixed(1)} ({listing.totalReviews})</Text>
+            <View style={cardStyles.footer}>
+                <View style={cardStyles.ratingRow}>
+                    <StarRating rating={listing.averageRating} size={14} />
+                    <Text style={cardStyles.ratingText}>{listing.averageRating?.toFixed(1)} ({listing.totalReviews})</Text>
+                </View>
+                <Button 
+                    title={listing.isActive ? "Pause Listing" : "Activate Listing"}
+                    variant={listing.isActive ? "outline" : "primary"}
+                    onPress={() => onToggle(listing.id)}
+                    style={{ paddingVertical: 8, paddingHorizontal: 16, minHeight: 36 }}
+                    textStyle={{ ...typography.caption, fontWeight: '600' }}
+                />
             </View>
-            <View style={[cardStyles.statusDot, { backgroundColor: listing.isActive ? colors.success : colors.mediumGray }]} />
-            <Text style={[cardStyles.statusText, { color: listing.isActive ? colors.success : colors.mediumGray }]}>
-                {listing.isActive ? 'Active' : 'Inactive'}
-            </Text>
-        </View>
-    </Card>
+        </Card>
+    </TouchableOpacity>
 );
 
 const cardStyles = StyleSheet.create({
@@ -73,11 +80,11 @@ const cardStyles = StyleSheet.create({
     infoItem: { alignItems: 'center' },
     infoLabel: { ...typography.caption, color: colors.textTertiary },
     infoValue: { ...typography.label, color: colors.textPrimary, marginTop: 2 },
-    footer: { flexDirection: 'row', alignItems: 'center', marginTop: spacing.md },
-    ratingRow: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 4 },
+    footer: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: spacing.md },
+    ratingRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
     ratingText: { ...typography.caption, color: colors.textSecondary },
-    statusDot: { width: 8, height: 8, borderRadius: 4, marginRight: 4 },
-    statusText: { ...typography.caption, fontWeight: '600' },
+    actionsWrapper: { flexDirection: 'row', gap: spacing.sm },
+    iconBtn: { width: 32, height: 32, borderRadius: 16, backgroundColor: colors.primarySoft, justifyContent: 'center', alignItems: 'center' },
 });
 
 const MyListingsScreen = ({ navigation }) => {
@@ -99,6 +106,22 @@ const MyListingsScreen = ({ navigation }) => {
         dispatch(toggleParkingActiveThunk(id));
     }, [dispatch]);
 
+    const handleDelete = useCallback((id) => {
+        Alert.alert('Delete Space', 'Are you sure you want to permanently delete this parking space?', [
+            { text: 'Cancel', style: 'cancel' },
+            { 
+                text: 'Delete', 
+                style: 'destructive',
+                onPress: () => {
+                    dispatch(deleteParkingThunk(id)).then((res) => {
+                        if (res.error) Alert.alert('Error', res.payload || 'Failed to delete listing');
+                        else dispatch(getMyListingsThunk()); // Refresh list
+                    });
+                }
+            }
+        ]);
+    }, [dispatch]);
+
     return (
         <ScreenLayout>
             <View style={styles.header}>
@@ -118,7 +141,13 @@ const MyListingsScreen = ({ navigation }) => {
                     data={myListings}
                     keyExtractor={(item) => item.id}
                     renderItem={({ item }) => (
-                        <ListingCard listing={item} onToggle={handleToggle} onEdit={() => { }} />
+                        <ListingCard 
+                            listing={item} 
+                            onToggle={handleToggle} 
+                            onEdit={(data) => navigation.navigate('CreateParking', { editData: data })} 
+                            onDelete={handleDelete}
+                            onPress={() => navigation.navigate('ParkingDetail', { parkingId: item.id })}
+                        />
                     )}
                     contentContainerStyle={styles.listContent}
                     refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />}
@@ -143,7 +172,7 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
-        paddingTop: 60,
+        paddingTop: spacing.md,
         paddingHorizontal: spacing.screenHorizontal,
         paddingBottom: spacing.md,
     },
