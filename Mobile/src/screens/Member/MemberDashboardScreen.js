@@ -8,6 +8,7 @@ import { View, Text, FlatList, TouchableOpacity, StyleSheet, RefreshControl } fr
 import { useDispatch, useSelector } from 'react-redux';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getMemberDashboardThunk } from '../../store/slices/dashboardSlice';
 import { getFavoritesThunk } from '../../store/slices/favoriteSlice';
 import { useAuth } from '../../hooks/useAuth';
@@ -124,6 +125,7 @@ const MemberDashboardScreen = ({ navigation }) => {
     const { memberDashboard, loading } = useSelector((state) => state.dashboard);
     const { favorites } = useSelector((state) => state.favorite);
     const [refreshing, setRefreshing] = React.useState(false);
+    const insets = useSafeAreaInsets();
 
     useEffect(() => {
         dispatch(getMemberDashboardThunk());
@@ -169,7 +171,7 @@ const MemberDashboardScreen = ({ navigation }) => {
         switch (item.type) {
             case 'header':
                 return (
-                    <LinearGradient colors={colors.gradients.hero} style={styles.heroGradient}>
+                    <LinearGradient colors={colors.gradients.hero} style={[styles.heroGradient, { paddingTop: insets.top + spacing.md }]}>
                         <View style={styles.heroContent}>
                             <Text style={styles.greeting}>Hello, {user?.firstName || 'there'} 👋</Text>
                             <Text style={styles.heroSubtitle}>Find your perfect parking spot</Text>
@@ -239,7 +241,7 @@ const MemberDashboardScreen = ({ navigation }) => {
     };
 
     return (
-        <ScreenLayout>
+        <ScreenLayout edges={['bottom']}>
             <FlatList
                 data={sections}
                 renderItem={renderItem}

@@ -1,10 +1,11 @@
 /**
  * ScreenLayout Component
- * SafeAreaView wrapper for screens
+ * SafeAreaView wrapper for screens using react-native-safe-area-context
  */
 
 import React from 'react';
-import { View, SafeAreaView, StyleSheet, ScrollView, RefreshControl } from 'react-native';
+import { View, StyleSheet, ScrollView, RefreshControl } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors } from '../../styles/globalStyles';
 
 const ScreenLayout = ({
@@ -14,10 +15,13 @@ const ScreenLayout = ({
     onRefresh,
     style,
     contentStyle,
+    edges,
 }) => {
+    const safeAreaProps = edges ? { edges } : {};
+
     if (scrollable) {
         return (
-            <SafeAreaView style={[styles.safeArea, style]}>
+            <SafeAreaView style={[styles.safeArea, style]} {...safeAreaProps}>
                 <ScrollView
                     style={styles.scrollView}
                     contentContainerStyle={[styles.scrollContent, contentStyle]}
@@ -35,7 +39,7 @@ const ScreenLayout = ({
     }
 
     return (
-        <SafeAreaView style={[styles.safeArea, style]}>
+        <SafeAreaView style={[styles.safeArea, style]} {...safeAreaProps}>
             <View style={[styles.container, contentStyle]}>{children}</View>
         </SafeAreaView>
     );

@@ -9,6 +9,7 @@ import {
     StyleSheet, RefreshControl, ActivityIndicator
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, typography } from '../../styles/globalStyles';
 import chatService from '../../services/chat/chatService';
@@ -17,6 +18,7 @@ const ConversationListScreen = ({ navigation }) => {
     const [conversations, setConversations] = useState([]);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
+    const insets = useSafeAreaInsets();
 
     useFocusEffect(
         useCallback(() => {
@@ -104,7 +106,7 @@ const ConversationListScreen = ({ navigation }) => {
 
     return (
         <View style={styles.container}>
-            <View style={styles.header}>
+            <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
                 <Text style={styles.headerTitle}>💬 Messages</Text>
             </View>
             {conversations.length === 0 ? (
@@ -137,7 +139,7 @@ const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.background },
     centered: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 },
     header: {
-        padding: 16, paddingTop: 50,
+        padding: 16,
         backgroundColor: colors.surface,
         borderBottomWidth: 1, borderBottomColor: colors.borderLight,
     },
