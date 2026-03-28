@@ -58,24 +58,12 @@ public class ParkingCommandsTests
         res.Message.Should().Contain("Owner not found");
     }
 
-    [Fact]
-    public async Task CreateParkingHandler_ShouldFail_WhenNotVendor()
-    {
-        var handler = new CreateParkingHandler(_mockUow.Object, _mockCache.Object, _mockCreateLogger.Object);
-        var user = new User { Role = UserRole.Member };
-        _mockUserRepo.Setup(r => r.GetByIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>())).ReturnsAsync(user);
-
-        var res = await handler.HandleAsync(new CreateParkingCommand(Guid.NewGuid(), new CreateParkingSpaceDto("T", "D", "A", "C", "S", "C", "P", 1, 1, ParkingType.Open, 1, 1, 1, 1, 1, default, default, false, null, null, null, null)));
-
-        res.Success.Should().BeFalse();
-        res.Message.Should().Contain("Only vendors");
-    }
 
     [Fact]
     public async Task CreateParkingHandler_ShouldSucceed()
     {
         var handler = new CreateParkingHandler(_mockUow.Object, _mockCache.Object, _mockCreateLogger.Object);
-        var owner = new User { Id = Guid.NewGuid(), Role = UserRole.Vendor };
+        var owner = new User { Id = Guid.NewGuid(), Role = UserRole.User };
         _mockUserRepo.Setup(r => r.GetByIdAsync(owner.Id, It.IsAny<CancellationToken>())).ReturnsAsync(owner);
 
         var res = await handler.HandleAsync(new CreateParkingCommand(owner.Id, new CreateParkingSpaceDto("T", "D", "A", "C", "S", "C", "P", 1, 1, ParkingType.Open, 1, 1, 1, 1, 1, default, default, false, null, null, null, null)));

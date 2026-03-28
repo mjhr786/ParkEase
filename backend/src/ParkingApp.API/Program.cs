@@ -68,7 +68,9 @@ builder.Services.AddCors(options =>
                 "http://127.0.0.1:5173",
                 "http://localhost:5174",
                 "https://localhost:5174",
-                "https://parkease.azurewebsites.net" // Add Azure URL
+                "https://parkease.azurewebsites.net", // Azure URL (keep if needed)
+                "http://parkeaseapp.runasp.net",   // MonsterASP.net
+                "https://parkeaseapp.runasp.net"   // MonsterASP.net
               )
               .AllowAnyHeader()
               .AllowAnyMethod()
@@ -100,7 +102,7 @@ else
     Directory.CreateDirectory(Path.Combine(webRoot, "uploads"));
     
     // Fallback Local Storage
-    var baseUrl = builder.Configuration["API_BASE_URL"] ?? "https://localhost:7082"; // Adjust port if needed
+    var baseUrl = builder.Configuration["API_BASE_URL"] ?? "https://localhost:5173"; // Adjust port if needed
     builder.Services.AddScoped<IFileStorage>(sp => 
         new LocalFileStorage(webRoot, $"{baseUrl}/uploads"));
     Log.Information(">> Using Local File Storage");

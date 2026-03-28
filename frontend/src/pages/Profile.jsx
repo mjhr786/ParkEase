@@ -5,7 +5,7 @@ import api from '../services/api';
 import showToast from '../utils/toast.jsx';
 import './Profile.css';
 
-const ROLE_LABELS = { 0: 'Admin', 1: 'Vendor', 2: 'Member', Admin: 'Admin', Vendor: 'Vendor', Member: 'Member' };
+const ROLE_LABELS = { 0: 'Admin', 1: 'User', Admin: 'Admin', User: 'User' };
 
 const Profile = () => {
     const { user, logout, updateUser } = useAuth();
@@ -150,7 +150,7 @@ const Profile = () => {
         ? `${user.firstName?.[0] ?? ''}${user.lastName?.[0] ?? ''}`.toUpperCase()
         : '?';
 
-    const roleName = ROLE_LABELS[user?.role] || 'Member';
+    const roleName = ROLE_LABELS[user?.role] || 'User';
     const memberSince = user?.createdAt
         ? new Date(user.createdAt).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
         : '—';
@@ -171,7 +171,7 @@ const Profile = () => {
             <div className="profile-header">
                 <div className="profile-avatar">{initials}</div>
                 <h1>{user?.firstName} {user?.lastName}</h1>
-                <p className="profile-role">{roleName === 'Vendor' ? '⭐ Vendor' : roleName} · Member since {memberSince}</p>
+                <p className="profile-role">{roleName} · Member since {memberSince}</p>
             </div>
 
             {/* Profile Information */}

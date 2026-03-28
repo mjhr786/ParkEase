@@ -45,7 +45,7 @@ public class AuthCommandsTests
         var handler = new RegisterHandler(_mockUow.Object, _mockTokenService.Object, _mockRegisterLogger.Object);
         _mockUserRepo.Setup(r => r.GetByEmailAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(new User());
 
-        var res = await handler.HandleAsync(new RegisterCommand(new RegisterDto("test@test.com", "Pass123", "F", "L", "123", UserRole.Member)));
+        var res = await handler.HandleAsync(new RegisterCommand(new RegisterDto("test@test.com", "Pass123", "F", "L", "123")));
 
         res.Success.Should().BeFalse();
         res.Message.Should().Contain("Email already registered");
@@ -59,7 +59,7 @@ public class AuthCommandsTests
         _mockTokenService.Setup(t => t.GenerateAccessToken(It.IsAny<User>())).Returns("token");
         _mockTokenService.Setup(t => t.GenerateRefreshToken()).Returns("refresh");
 
-        var res = await handler.HandleAsync(new RegisterCommand(new RegisterDto("test@test.com", "Pass123", "F", "L", "123", UserRole.Member)));
+        var res = await handler.HandleAsync(new RegisterCommand(new RegisterDto("test@test.com", "Pass123", "F", "L", "123")));
 
         res.Success.Should().BeTrue();
         res.Data.AccessToken.Should().Be("token");

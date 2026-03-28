@@ -36,7 +36,7 @@ public class UserServiceTests
     public async Task GetByIdAsync_ShouldReturnFromCache_WhenCached()
     {
         var userId = Guid.NewGuid();
-        var cachedDto = new UserDto(userId, "t", "r", "F", "L", ParkingApp.Domain.Enums.UserRole.Member, true, true, DateTime.UtcNow);
+        var cachedDto = new UserDto(userId, "t", "r", "F", "L", ParkingApp.Domain.Enums.UserRole.User, true, true, DateTime.UtcNow);
         _mockCache.Setup(c => c.GetAsync<UserDto>($"user:{userId}", It.IsAny<CancellationToken>())).ReturnsAsync(cachedDto);
 
         var result = await _service.GetByIdAsync(userId);

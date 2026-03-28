@@ -64,9 +64,7 @@ export function AuthProvider({ children }) {
         setUser(updated);
     };
 
-    const isVendor = user?.role === 1 || user?.role === 'Vendor';
     const isAdmin = user?.role === 0 || user?.role === 'Admin';
-    const isMember = user?.role === 2 || user?.role === 'Member';
 
     return (
         <AuthContext.Provider value={{
@@ -76,9 +74,7 @@ export function AuthProvider({ children }) {
             logout,
             updateUser,
             loading,
-            isVendor,
             isAdmin,
-            isMember,
             isAuthenticated: !!user
         }}>
             {children}

@@ -32,7 +32,7 @@ function Loading() {
 }
 
 function Header() {
-  const { isAuthenticated, user, logout, isVendor } = useAuth();
+  const { isAuthenticated, user, logout } = useAuth();
   const { unreadCount } = useChatContext();
   const navigate = useNavigate();
   const [profileOpen, setProfileOpen] = React.useState(false);
@@ -61,7 +61,7 @@ function Header() {
   React.useEffect(() => {
     let mounted = true;
     const fetchPendingCount = async () => {
-      if (isAuthenticated && isVendor) {
+      if (isAuthenticated) {
         try {
           const response = await api.getPendingRequestsCount();
           if (response?.success && mounted) {
@@ -76,7 +76,7 @@ function Header() {
     fetchPendingCount();
 
     let unsubscribe = () => { };
-    if (isAuthenticated && isVendor && subscribeToRefresh) {
+    if (isAuthenticated && subscribeToRefresh) {
       unsubscribe = subscribeToRefresh(
         'HeaderPendingCount',
         [
@@ -97,7 +97,7 @@ function Header() {
       mounted = false;
       unsubscribe();
     };
-  }, [isAuthenticated, isVendor, subscribeToRefresh]);
+  }, [isAuthenticated, subscribeToRefresh]);
 
   const initials = user
     ? `${user.firstName?.[0] ?? ''}${user.lastName?.[0] ?? ''}`.toUpperCase()
@@ -203,7 +203,7 @@ function Header() {
                         {user?.firstName} {user?.lastName}
                       </div>
                       <div style={{ fontSize: '0.76rem', color: '#64748b', marginTop: '2px' }}>
-                        {isVendor ? '⭐ Vendor' : 'Member'}
+                        ParkEase User
                       </div>
                     </div>
 
@@ -214,10 +214,8 @@ function Header() {
                       { to: '/garage', icon: '🚗', label: 'My Garage' },
                       { to: '/favorites', icon: '❤️', label: 'Favorites' },
                       { to: '/profile', icon: '👤', label: 'My Profile' },
-                      ...(isVendor ? [
-                        { to: '/vendor/listings', icon: '🅿️', label: 'My Listings' },
-                        { to: '/vendor/bookings', icon: '📋', label: 'Requests', badge: pendingRequests > 0 ? pendingRequests : null },
-                      ] : []),
+                      { to: '/my/listings', icon: '🅿️', label: 'My Listings' },
+                      { to: '/my/requests', icon: '📋', label: 'Requests', badge: pendingRequests > 0 ? pendingRequests : null },
                     ].map(item => (
                       <Link
                         key={item.to}
@@ -301,8 +299,8 @@ function Header() {
   );
 }
 
-function ProtectedRoute({ children, vendorOnly = false }) {
-  const { isAuthenticated, loading, isVendor } = useAuth();
+function ProtectedRoute({ children }) {
+  const { isAuthenticated, loading } = useAuth();
 
   if (loading) {
     return <Loading />;
@@ -310,10 +308,6 @@ function ProtectedRoute({ children, vendorOnly = false }) {
 
   if (!isAuthenticated) {
     return <Navigate to="/login" />;
-  }
-
-  if (vendorOnly && !isVendor) {
-    return <Navigate to="/dashboard" />;
   }
 
   return children;
@@ -369,17 +363,17 @@ function AppRoutes() {
           }
         />
         <Route
-          path="/vendor/listings"
+          path="/my/listings"
           element={
-            <ProtectedRoute vendorOnly>
+            <ProtectedRoute>
               <VendorListings />
             </ProtectedRoute>
           }
         />
         <Route
-          path="/vendor/bookings"
+          path="/my/requests"
           element={
-            <ProtectedRoute vendorOnly>
+            <ProtectedRoute>
               <VendorBookings />
             </ProtectedRoute>
           }

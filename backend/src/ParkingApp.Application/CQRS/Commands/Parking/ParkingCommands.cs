@@ -41,8 +41,6 @@ public sealed class CreateParkingHandler : ICommandHandler<CreateParkingCommand,
         if (owner == null)
             return new ApiResponse<ParkingSpaceDto>(false, "Owner not found", null);
 
-        if (owner.Role != Domain.Enums.UserRole.Vendor && owner.Role != Domain.Enums.UserRole.Admin)
-            return new ApiResponse<ParkingSpaceDto>(false, "Only vendors can create parking spaces", null);
 
         var parking = command.Dto.ToEntity(command.OwnerId);
         parking.Owner = owner;

@@ -75,7 +75,7 @@ public class AuthTests
         _mockUserRepository.Setup(r => r.GetByEmailAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new User());
 
-        var dto = new RegisterDto("exist@test.com", "Pass123!", "First", "Last", "123", UserRole.Member);
+        var dto = new RegisterDto("exist@test.com", "Pass123!", "First", "Last", "123");
         var result = await handler.HandleAsync(new RegisterCommand(dto));
 
         result.Success.Should().BeFalse();
@@ -91,7 +91,7 @@ public class AuthTests
         _mockTokenService.Setup(t => t.GenerateAccessToken(It.IsAny<User>())).Returns("access-token");
         _mockTokenService.Setup(t => t.GenerateRefreshToken()).Returns("refresh-token");
 
-        var dto = new RegisterDto("new@test.com", "Pass123!", "First", "Last", "123", UserRole.Member);
+        var dto = new RegisterDto("new@test.com", "Pass123!", "First", "Last", "123");
         var result = await handler.HandleAsync(new RegisterCommand(dto));
 
         result.Success.Should().BeTrue();

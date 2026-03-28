@@ -427,3 +427,6 @@ coveragereport/
 
 # wwwroot assets
 backend/src/ParkingApp.API/wwwroot/assets/
+
+# Production secrets
+appsettings.Production.json

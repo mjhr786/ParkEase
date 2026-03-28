@@ -43,8 +43,8 @@ public class AuthControllerTests
     public async Task Register_WithValidDto_ReturnsCreated()
     {
         // Arrange
-        var dto = new RegisterDto("test@test.com", "password", "Test", "User", "12345", ParkingApp.Domain.Enums.UserRole.Member);
-        var tokenDto = new TokenDto("token", "refresh", DateTime.UtcNow.AddHours(1), new UserDto(Guid.NewGuid(), "test@test.com", "Test", "User", "12345", ParkingApp.Domain.Enums.UserRole.Member, true, true, DateTime.UtcNow));
+        var dto = new RegisterDto("test@test.com", "password", "Test", "User", "12345");
+        var tokenDto = new TokenDto("token", "refresh", DateTime.UtcNow.AddHours(1), new UserDto(Guid.NewGuid(), "test@test.com", "Test", "User", "12345", ParkingApp.Domain.Enums.UserRole.User, true, true, DateTime.UtcNow));
         var result = new ApiResponse<TokenDto>(true, "Success", tokenDto, null);
 
         _registerValidatorMock
@@ -69,7 +69,7 @@ public class AuthControllerTests
     public async Task Register_WithInvalidDto_ReturnsBadRequest()
     {
         // Arrange
-        var dto = new RegisterDto("invalid", "password", "Test", "User", "12345", ParkingApp.Domain.Enums.UserRole.Member);
+        var dto = new RegisterDto("invalid", "password", "Test", "User", "12345");
         var validationResult = new ValidationResult(new[] { new ValidationFailure("Email", "Invalid email") });
 
         _registerValidatorMock
@@ -88,7 +88,7 @@ public class AuthControllerTests
     {
          // Arrange
         var dto = new LoginDto("test@test.com", "password");
-        var tokenDto = new TokenDto("token", "refresh", DateTime.UtcNow.AddHours(1), new UserDto(Guid.NewGuid(), "test@test.com", "Test", "User", "12345", ParkingApp.Domain.Enums.UserRole.Member, true, true, DateTime.UtcNow));
+        var tokenDto = new TokenDto("token", "refresh", DateTime.UtcNow.AddHours(1), new UserDto(Guid.NewGuid(), "test@test.com", "Test", "User", "12345", ParkingApp.Domain.Enums.UserRole.User, true, true, DateTime.UtcNow));
         var result = new ApiResponse<TokenDto>(true, "Success", tokenDto, null);
 
         _loginValidatorMock
@@ -133,7 +133,7 @@ public class AuthControllerTests
     {
         // Arrange
         var dto = new RefreshTokenDto("refresh");
-        var tokenDto = new TokenDto("new-token", "new-refresh", DateTime.UtcNow.AddHours(1), new UserDto(Guid.NewGuid(), "test@test.com", "Test", "User", "12345", ParkingApp.Domain.Enums.UserRole.Member, true, true, DateTime.UtcNow));
+        var tokenDto = new TokenDto("new-token", "new-refresh", DateTime.UtcNow.AddHours(1), new UserDto(Guid.NewGuid(), "test@test.com", "Test", "User", "12345", ParkingApp.Domain.Enums.UserRole.User, true, true, DateTime.UtcNow));
         var result = new ApiResponse<TokenDto>(true, "Success", tokenDto, null);
 
         _dispatcherMock
@@ -214,7 +214,7 @@ public class UsersControllerTests
          // Arrange
         var userId = Guid.NewGuid();
         SetupControllerUser(_controller, userId);
-        var userDto = new UserDto(userId, "test@test.com", "Test", "User", "12345", ParkingApp.Domain.Enums.UserRole.Member, true, true, DateTime.UtcNow);
+        var userDto = new UserDto(userId, "test@test.com", "Test", "User", "12345", ParkingApp.Domain.Enums.UserRole.User, true, true, DateTime.UtcNow);
         
         _dispatcherMock
             .Setup(d => d.QueryAsync(It.Is<GetCurrentUserQuery>(q => q.UserId == userId), It.IsAny<CancellationToken>()))
@@ -234,7 +234,7 @@ public class UsersControllerTests
         var userId = Guid.NewGuid();
         SetupControllerUser(_controller, userId);
         var dto = new UpdateUserDto("NewName", null, null);
-        var userDto = new UserDto(userId, "test@test.com", "NewName", "User", "12345", ParkingApp.Domain.Enums.UserRole.Member, true, true, DateTime.UtcNow);
+        var userDto = new UserDto(userId, "test@test.com", "NewName", "User", "12345", ParkingApp.Domain.Enums.UserRole.User, true, true, DateTime.UtcNow);
         
         _dispatcherMock
             .Setup(d => d.SendAsync(It.Is<UpdateUserCommand>(c => c.UserId == userId && c.Dto == dto), It.IsAny<CancellationToken>()))
