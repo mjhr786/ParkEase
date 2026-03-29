@@ -4,14 +4,15 @@
  */
 
 import React, { useEffect, useCallback, useState } from 'react';
-import { View, Text, FlatList, TouchableOpacity, StyleSheet, RefreshControl } from 'react-native';
+import { View, Text, FlatList, TouchableOpacity, StyleSheet } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { Ionicons } from '@expo/vector-icons';
 import { getFavoritesThunk, toggleFavoriteThunk } from '../../store/slices/favoriteSlice';
 import ScreenLayout from '../../components/Layouts/ScreenLayout';
 import Card from '../../components/Common/Card';
 import EmptyState from '../../components/Common/EmptyState';
-import LoadingScreen from '../../components/Common/LoadingScreen';
+import { FavoritesSkeleton } from '../../components/Common/ShimmerPlaceholder';
+import EnhancedRefreshControl, { useEnhancedRefresh } from '../../components/Common/EnhancedRefreshControl';
 import { colors, spacing, typography, shadows } from '../../styles/globalStyles';
 import { formatCurrency } from '../../utils/formatters';
 
@@ -55,17 +56,13 @@ const fStyles = StyleSheet.create({
 const FavoritesScreen = ({ navigation }) => {
     const dispatch = useDispatch();
     const { favorites, loading } = useSelector((state) => state.favorite);
-    const [refreshing, setRefreshing] = useState(false);
-
-    useEffect(() => {
-        dispatch(getFavoritesThunk());
-    }, [dispatch]);
-
-    const onRefresh = useCallback(async () => {
-        setRefreshing(true);
+    const fetchFavs = useCallback(async () => {
         await dispatch(getFavoritesThunk());
-        setRefreshing(false);
     }, [dispatch]);
+
+    const { refreshing, onRefresh, lastRefreshed } = useEnhancedRefresh(fetchFavs);
+
+    useEffect(() => { fetchFavs(); }, [fetchFavs]);
 
     const handleToggle = useCallback(
         (id) => dispatch(toggleFavoriteThunk(id)),
@@ -73,7 +70,7 @@ const FavoritesScreen = ({ navigation }) => {
     );
 
     if (loading && !favorites.length) {
-        return <LoadingScreen />;
+        return <FavoritesSkeleton />;
     }
 
     return (
@@ -106,7 +103,7 @@ const FavoritesScreen = ({ navigation }) => {
                     />
                 }
                 refreshControl={
-                    <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />
+                    <EnhancedRefreshControl refreshing={refreshing} onRefresh={onRefresh} lastRefreshed={lastRefreshed} />
                 }
                 showsVerticalScrollIndicator={false}
                 contentContainerStyle={{ paddingBottom: spacing['3xl'] }}

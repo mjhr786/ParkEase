@@ -4,7 +4,7 @@
  */
 
 import React, { useEffect, useCallback, useState } from 'react';
-import { View, Text, FlatList, TouchableOpacity, StyleSheet, RefreshControl, Alert } from 'react-native';
+import { View, Text, FlatList, TouchableOpacity, StyleSheet, Alert } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { Ionicons } from '@expo/vector-icons';
 import {
@@ -15,6 +15,8 @@ import {
 import ScreenLayout from '../../components/Layouts/ScreenLayout';
 import EmptyState from '../../components/Common/EmptyState';
 import LoadingScreen from '../../components/Common/LoadingScreen';
+import { NotificationsSkeleton } from '../../components/Common/ShimmerPlaceholder';
+import EnhancedRefreshControl from '../../components/Common/EnhancedRefreshControl';
 import { colors, spacing, typography, shadows } from '../../styles/globalStyles';
 import { formatDateTime } from '../../utils/formatters';
 
@@ -113,7 +115,7 @@ const NotificationsScreen = ({ navigation }) => {
     );
 
     if (loading && !notifications.length) {
-        return <LoadingScreen />;
+        return <NotificationsSkeleton />;
     }
 
     return (
@@ -143,7 +145,7 @@ const NotificationsScreen = ({ navigation }) => {
                     />
                 }
                 refreshControl={
-                    <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />
+                    <EnhancedRefreshControl refreshing={refreshing} onRefresh={onRefresh} />
                 }
                 showsVerticalScrollIndicator={false}
                 contentContainerStyle={{ paddingBottom: spacing['3xl'] }}

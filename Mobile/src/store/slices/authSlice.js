@@ -20,6 +20,10 @@ export const loginThunk = createAsyncThunk(
             }
             return result.data;
         } catch (error) {
+            console.log('--- API DEBUG LOG ---');
+            console.log('Login Error Raw:', JSON.stringify(error, Object.getOwnPropertyNames(error), 2));
+            console.log('Login Error Data:', JSON.stringify(error.response?.data, null, 2));
+            console.log('---------------------');
             return rejectWithValue(getErrorMessage(error));
         }
     }
@@ -35,6 +39,24 @@ export const registerThunk = createAsyncThunk(
             const result = await authService.register(data);
             if (!result.success) {
                 return rejectWithValue(result.message || 'Registration failed');
+            }
+            return result.data;
+        } catch (error) {
+            return rejectWithValue(getErrorMessage(error));
+        }
+    }
+);
+
+/**
+ * Google Login thunk
+ */
+export const googleLoginThunk = createAsyncThunk(
+    'auth/googleLogin',
+    async (googleData, { rejectWithValue }) => {
+        try {
+            const result = await authService.googleLogin(googleData);
+            if (!result.success) {
+                return rejectWithValue(result.message || 'Google login failed');
             }
             return result.data;
         } catch (error) {
@@ -179,6 +201,22 @@ const authSlice = createSlice({
                 state.isSessionChecked = true;
             })
             .addCase(registerThunk.rejected, (state, action) => {
+                state.loading = false;
+                state.error = action.payload;
+            })
+            // Google Login
+            .addCase(googleLoginThunk.pending, (state) => {
+                state.loading = true;
+                state.error = null;
+            })
+            .addCase(googleLoginThunk.fulfilled, (state, action) => {
+                state.loading = false;
+                state.user = action.payload.user;
+                state.token = action.payload.accessToken;
+                state.isAuthenticated = true;
+                state.isSessionChecked = true;
+            })
+            .addCase(googleLoginThunk.rejected, (state, action) => {
                 state.loading = false;
                 state.error = action.payload;
             })

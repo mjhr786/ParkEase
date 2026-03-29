@@ -4,7 +4,7 @@
  */
 
 import React, { useEffect, useCallback, useState } from 'react';
-import { View, Text, FlatList, TouchableOpacity, StyleSheet, Alert, Modal, RefreshControl } from 'react-native';
+import { View, Text, FlatList, TouchableOpacity, StyleSheet, Alert, Modal } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { Ionicons } from '@expo/vector-icons';
 import { getVehiclesThunk, addVehicleThunk, updateVehicleThunk, deleteVehicleThunk } from '../../store/slices/vehicleSlice';
@@ -14,6 +14,8 @@ import Button from '../../components/Common/Button';
 import Input from '../../components/Common/Input';
 import EmptyState from '../../components/Common/EmptyState';
 import LoadingScreen from '../../components/Common/LoadingScreen';
+import { VehiclesSkeleton } from '../../components/Common/ShimmerPlaceholder';
+import EnhancedRefreshControl from '../../components/Common/EnhancedRefreshControl';
 import { colors, spacing, typography, shadows } from '../../styles/globalStyles';
 import { VehicleTypeLabels, VehicleType } from '../../utils/constants';
 
@@ -69,7 +71,7 @@ const vStyles = StyleSheet.create({
     actions: { flexDirection: 'row', gap: spacing.sm },
 });
 
-const VehiclesScreen = ({ navigation }) => {
+const VehiclesScreen = ({ navigation, route }) => {
     const dispatch = useDispatch();
     const { vehicles, loading, addLoading } = useSelector((state) => state.vehicle);
     const [refreshing, setRefreshing] = useState(false);
@@ -83,6 +85,10 @@ const VehiclesScreen = ({ navigation }) => {
 
     useEffect(() => {
         dispatch(getVehiclesThunk());
+        // Auto-open add modal if navigated with addNew param
+        if (route?.params?.addNew) {
+            openAddModal();
+        }
     }, [dispatch]);
 
     const onRefresh = useCallback(async () => {
@@ -149,7 +155,7 @@ const VehiclesScreen = ({ navigation }) => {
     }, [dispatch, make, model, licensePlate, vehicleColor, vehicleType, editingId]);
 
     if (loading && !vehicles.length) {
-        return <LoadingScreen />;
+        return <VehiclesSkeleton />;
     }
 
     return (
@@ -175,7 +181,7 @@ const VehiclesScreen = ({ navigation }) => {
                     />
                 }
                 refreshControl={
-                    <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />
+                    <EnhancedRefreshControl refreshing={refreshing} onRefresh={onRefresh} />
                 }
                 showsVerticalScrollIndicator={false}
                 contentContainerStyle={{ paddingBottom: spacing['3xl'] }}

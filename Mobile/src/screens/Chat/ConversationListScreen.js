@@ -6,8 +6,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
     View, Text, FlatList, TouchableOpacity,
-    StyleSheet, RefreshControl, ActivityIndicator
+    StyleSheet, ActivityIndicator
 } from 'react-native';
+import { ChatListSkeleton } from '../../components/Common/ShimmerPlaceholder';
+import EnhancedRefreshControl from '../../components/Common/EnhancedRefreshControl';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -98,8 +100,13 @@ const ConversationListScreen = ({ navigation }) => {
 
     if (loading) {
         return (
-            <View style={styles.centered}>
-                <ActivityIndicator size="large" color={colors.primary} />
+            <View style={styles.container}>
+                <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
+                    <Text style={styles.headerTitle}>💬 Messages</Text>
+                </View>
+                <View style={{ flex: 1, paddingTop: 10 }}>
+                    <ChatListSkeleton />
+                </View>
             </View>
         );
     }
@@ -123,7 +130,7 @@ const ConversationListScreen = ({ navigation }) => {
                     renderItem={renderConversation}
                     keyExtractor={(item) => item.id}
                     refreshControl={
-                        <RefreshControl
+                        <EnhancedRefreshControl
                             refreshing={refreshing}
                             onRefresh={onRefresh}
                             tintColor={colors.primary}

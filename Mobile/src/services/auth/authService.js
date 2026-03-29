@@ -33,6 +33,22 @@ export const authService = {
         return response.data;
     },
 
+    async googleLogin(googleData) {
+        logger.info(TAG, 'Google login attempt', { email: googleData.email });
+        try {
+            const response = await apiClient.post(ENDPOINTS.AUTH.GOOGLE_LOGIN, googleData);
+            if (response.data.success && response.data.data) {
+                const { accessToken, refreshToken, user } = response.data.data;
+                await storageService.setTokens(accessToken, refreshToken);
+                await storageService.setUser(user);
+            }
+            return response.data;
+        } catch (error) {
+            logger.error(TAG, 'Google login failed', error);
+            throw error;
+        }
+    },
+
     async logout() {
         try {
             await apiClient.post(ENDPOINTS.AUTH.LOGOUT);

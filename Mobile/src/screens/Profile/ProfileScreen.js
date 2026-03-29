@@ -5,7 +5,7 @@
 
 import React, { useState, useCallback } from 'react';
 import { View, Text, TouchableOpacity, Alert, StyleSheet } from 'react-native';
-import { useDispatch } from 'react-redux';
+import { useDispatch, useSelector } from 'react-redux';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../hooks/useAuth';
 import { authService } from '../../services/auth/authService';
@@ -42,6 +42,10 @@ const ProfileScreen = ({ navigation }) => {
     const [firstName, setFirstName] = useState(user?.firstName || '');
     const [lastName, setLastName] = useState(user?.lastName || '');
     const [phoneNumber, setPhoneNumber] = useState(user?.phoneNumber || '');
+
+    // Get unread count safely
+    const { notifications } = useSelector((s) => s.notification);
+    const unreadCount = (Array.isArray(notifications) ? notifications : []).filter((n) => !n.isRead).length;
 
     const handleSaveProfile = useCallback(async () => {
         const result = await updateProfile({ firstName, lastName, phoneNumber });
@@ -119,13 +123,13 @@ const ProfileScreen = ({ navigation }) => {
 
                 {/* Menu */}
                 <Card>
-                    <MenuItem icon="person-outline" label="Edit Profile" value={`${user?.firstName} ${user?.lastName}`} onPress={() => setEditing(true)} />
+                    <MenuItem icon="person-outline" label="Edit Profile" value={`${user?.firstName} ${user?.lastName}`} onPress={() => navigation.navigate('EditProfile')} />
                     <MenuItem icon="mail-outline" label="Email" value={user?.email} onPress={() => { }} />
                     <MenuItem icon="call-outline" label="Phone" value={user?.phoneNumber} onPress={() => { }} />
                     <MenuItem icon="lock-closed-outline" label="Change Password" onPress={handleChangePassword} />
-                    <MenuItem icon="car-outline" label="My Vehicles" onPress={() => navigation.navigate('Vehicles')} />
+                    <MenuItem icon="car-outline" label="My Vehicles" onPress={() => navigation.navigate('Vehicles', { addNew: true })} />
                     <MenuItem icon="heart-outline" label="Favorites" onPress={() => navigation.navigate('Favorites')} />
-                    <MenuItem icon="notifications-outline" label="Notifications" onPress={() => navigation.navigate('Notifications')} />
+                    <MenuItem icon="notifications-outline" label="Notifications" value={unreadCount > 0 ? `${unreadCount} Unread` : ''} onPress={() => navigation.navigate('Notifications')} />
                 </Card>
 
                 <Card>

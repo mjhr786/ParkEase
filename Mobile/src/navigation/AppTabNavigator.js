@@ -25,6 +25,7 @@ import VendorBookingsScreen from '../screens/Vendor/VendorBookingsScreen';
 import CreateReviewScreen from '../screens/Review/CreateReviewScreen';
 import ReviewsListScreen from '../screens/Review/ReviewsListScreen';
 import ProfileScreen from '../screens/Profile/ProfileScreen';
+import EditProfileScreen from '../screens/Profile/EditProfileScreen';
 import ChangePasswordScreen from '../screens/Profile/ChangePasswordScreen';
 import NotificationsScreen from '../screens/Notifications/NotificationsScreen';
 import VehiclesScreen from '../screens/Vehicles/VehiclesScreen';
@@ -105,10 +106,13 @@ const MessagesStack = () => (
 const ProfileStack = () => (
     <Stack.Navigator screenOptions={stackOptions}>
         <Stack.Screen name="Profile" component={ProfileScreen} />
+        <Stack.Screen name="EditProfile" component={EditProfileScreen} />
         <Stack.Screen name="ChangePassword" component={ChangePasswordScreen} />
         <Stack.Screen name="Vehicles" component={VehiclesScreen} />
         <Stack.Screen name="Favorites" component={FavoritesScreen} />
         <Stack.Screen name="Notifications" component={NotificationsScreen} />
+        <Stack.Screen name="PaymentScreen" component={PaymentScreen} />
+        <Stack.Screen name="MyListings" component={MyListingsScreen} />
     </Stack.Navigator>
 );
 

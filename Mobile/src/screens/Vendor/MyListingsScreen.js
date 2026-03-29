@@ -12,7 +12,7 @@ import ScreenLayout from '../../components/Layouts/ScreenLayout';
 import Card from '../../components/Common/Card';
 import Button from '../../components/Common/Button';
 import EmptyState from '../../components/Common/EmptyState';
-import LoadingScreen from '../../components/Common/LoadingScreen';
+import { BookingCardSkeleton } from '../../components/Common/ShimmerPlaceholder';
 import StarRating from '../../components/Common/StarRating';
 import { colors, spacing, typography, shadows } from '../../styles/globalStyles';
 import { formatCurrency } from '../../utils/formatters';
@@ -135,7 +135,7 @@ const MyListingsScreen = ({ navigation }) => {
             </View>
 
             {listingsLoading && !refreshing ? (
-                <LoadingScreen />
+                <BookingCardSkeleton />
             ) : (
                 <FlatList
                     data={myListings}

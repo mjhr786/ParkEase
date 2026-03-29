@@ -13,7 +13,7 @@ import ScreenLayout from '../../components/Layouts/ScreenLayout';
 import Card from '../../components/Common/Card';
 import StarRating from '../../components/Common/StarRating';
 import EmptyState from '../../components/Common/EmptyState';
-import LoadingScreen from '../../components/Common/LoadingScreen';
+import { SearchSkeleton } from '../../components/Common/ShimmerPlaceholder';
 import { colors, spacing, typography, shadows } from '../../styles/globalStyles';
 import { formatCurrency } from '../../utils/formatters';
 import { VehicleTypeLabels, ParkingType, ParkingTypeLabels } from '../../utils/constants';
@@ -265,6 +265,11 @@ const SearchScreen = ({ navigation, route }) => {
 
                 {/* Parking Type Filters */}
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterScroll}>
+                    <FilterChip
+                        label="All"
+                        active={selectedParkingType === null}
+                        onPress={() => toggleParkingTypeFilter(null)}
+                    />
                     {parkingTypes.map(([value, label]) => (
                         <FilterChip
                             key={`p-${value}`}
@@ -278,7 +283,7 @@ const SearchScreen = ({ navigation, route }) => {
 
             {/* Results */}
             {searchLoading ? (
-                <LoadingScreen message="Loading parking spaces..." />
+                <SearchSkeleton />
             ) : displayResults.length > 0 ? (
                 <FlatList
                     data={displayResults}
