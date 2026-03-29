@@ -14,6 +14,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../../styles/globalStyles';
 import { useAuth } from '../../hooks/useAuth';
 import chatService from '../../services/chat/chatService';
+import { EventBus } from '../../utils/EventBus';
 
 const ChatScreen = ({ route, navigation }) => {
     const { conversationId: initialConversationId, parkingSpaceId, participantName, parkingTitle } = route.params;
@@ -51,7 +52,7 @@ const ChatScreen = ({ route, navigation }) => {
                 setMessages((result.data || []).reverse());
             }
         } catch (error) {
-            console.error('Failed to load messages:', error);
+            EventBus.emit('SHOW_ERROR_BANNER', { title: 'Network Issue', message: 'Failed to load messages' });
         } finally {
             setLoading(false);
         }
@@ -84,7 +85,7 @@ const ChatScreen = ({ route, navigation }) => {
                 setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
             }
         } catch (error) {
-            console.error('Failed to send message:', error);
+            EventBus.emit('SHOW_ERROR_BANNER', { title: 'Network Issue', message: 'Failed to send message' });
         } finally {
             setSending(false);
         }

@@ -4,6 +4,7 @@
  */
 
 import React, { useState, useCallback, useEffect } from 'react';
+import { EventBus } from '../../utils/EventBus';
 import {
     View, Text, TouchableOpacity, StyleSheet, KeyboardAvoidingView,
     Platform, ScrollView, Alert, TextInput,
@@ -66,7 +67,7 @@ const LoginScreen = ({ navigation }) => {
                 });
             }
         } catch (err) {
-            Alert.alert('Error', 'Failed to process Google sign-in');
+            EventBus.emit('SHOW_ERROR_BANNER', { title: 'Error', message: 'Failed to process Google sign-in' });
         } finally {
             setGoogleLoading(false);
         }
@@ -103,7 +104,7 @@ const LoginScreen = ({ navigation }) => {
         try {
             await promptAsync();
         } catch (err) {
-            Alert.alert('Error', 'Could not open Google sign-in');
+            EventBus.emit('SHOW_ERROR_BANNER', { title: 'Error', message: 'Could not open Google sign-in' });
             setGoogleLoading(false);
         }
     }, [promptAsync]);

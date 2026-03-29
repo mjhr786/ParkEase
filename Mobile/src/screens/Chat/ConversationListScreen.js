@@ -15,6 +15,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, typography } from '../../styles/globalStyles';
 import chatService from '../../services/chat/chatService';
+import { EventBus } from '../../utils/EventBus';
 
 const ConversationListScreen = ({ navigation }) => {
     const [conversations, setConversations] = useState([]);
@@ -36,7 +37,7 @@ const ConversationListScreen = ({ navigation }) => {
                 setConversations(result.data?.conversations || []);
             }
         } catch (error) {
-            console.error('Failed to load conversations:', error);
+            EventBus.emit('SHOW_ERROR_BANNER', { title: 'Network Issue', message: 'Failed to load conversations' });
         } finally {
             setLoading(false);
         }

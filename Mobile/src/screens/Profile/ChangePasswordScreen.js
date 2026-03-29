@@ -4,6 +4,7 @@
  */
 
 import React, { useState, useCallback } from 'react';
+import { EventBus } from '../../utils/EventBus';
 import { View, Text, StyleSheet, Alert } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { Ionicons } from '@expo/vector-icons';
@@ -23,15 +24,15 @@ const ChangePasswordScreen = ({ navigation }) => {
 
     const handleSubmit = useCallback(async () => {
         if (!currentPassword.trim()) {
-            Alert.alert('Error', 'Please enter your current password.');
+            EventBus.emit('SHOW_ERROR_BANNER', { title: 'Error', message: 'Please enter your current password.' });
             return;
         }
         if (newPassword.length < 8) {
-            Alert.alert('Error', 'New password must be at least 8 characters.');
+            EventBus.emit('SHOW_ERROR_BANNER', { title: 'Error', message: 'New password must be at least 8 characters.' });
             return;
         }
         if (newPassword !== confirmPassword) {
-            Alert.alert('Error', 'New passwords do not match.');
+            EventBus.emit('SHOW_ERROR_BANNER', { title: 'Error', message: 'New passwords do not match.' });
             return;
         }
 
@@ -45,7 +46,7 @@ const ChangePasswordScreen = ({ navigation }) => {
                 { text: 'OK', onPress: () => navigation.goBack() },
             ]);
         } else {
-            Alert.alert('Error', result.payload || 'Failed to change password.');
+            EventBus.emit('SHOW_ERROR_BANNER', { title: 'Error', message: result.payload || 'Failed to change password.' });
         }
     }, [dispatch, currentPassword, newPassword, confirmPassword, navigation]);
 

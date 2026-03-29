@@ -4,6 +4,7 @@
  */
 
 import React, { useState, useCallback } from 'react';
+import { EventBus } from '../../utils/EventBus';
 import { View, Text, TouchableOpacity, Alert, StyleSheet } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { Ionicons } from '@expo/vector-icons';
@@ -80,7 +81,7 @@ const ProfileScreen = ({ navigation }) => {
                             await dispatch(deleteAccountThunk()).unwrap();
                             Alert.alert('Account Deleted', 'Your account has been permanently deleted.');
                         } catch (error) {
-                            Alert.alert('Error', error || 'Failed to delete account.');
+                            EventBus.emit('SHOW_ERROR_BANNER', { title: 'Error', message: error || 'Failed to delete account.' });
                         }
                     },
                 },

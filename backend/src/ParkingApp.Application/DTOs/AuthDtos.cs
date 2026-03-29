@@ -17,6 +17,16 @@ public record LoginDto(
     [Required] string Password
 );
 
+public record GoogleLoginDto(
+    [Required] string GoogleId,
+    [Required][EmailAddress] string Email,
+    [Required] string FirstName,
+    [Required] string LastName,
+    string? ProfilePicture,
+    string? IdToken,
+    string? AccessToken
+);
+
 public record TokenDto(
     string AccessToken,
     string RefreshToken,

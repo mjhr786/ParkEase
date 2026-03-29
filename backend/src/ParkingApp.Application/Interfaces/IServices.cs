@@ -6,6 +6,7 @@ public interface IAuthService
 {
     Task<ApiResponse<TokenDto>> RegisterAsync(RegisterDto dto, CancellationToken cancellationToken = default);
     Task<ApiResponse<TokenDto>> LoginAsync(LoginDto dto, CancellationToken cancellationToken = default);
+    Task<ApiResponse<TokenDto>> GoogleLoginAsync(GoogleLoginDto dto, CancellationToken cancellationToken = default);
     Task<ApiResponse<TokenDto>> RefreshTokenAsync(RefreshTokenDto dto, CancellationToken cancellationToken = default);
     Task<ApiResponse<bool>> LogoutAsync(Guid userId, CancellationToken cancellationToken = default);
     Task<ApiResponse<bool>> ChangePasswordAsync(Guid userId, ChangePasswordDto dto, CancellationToken cancellationToken = default);

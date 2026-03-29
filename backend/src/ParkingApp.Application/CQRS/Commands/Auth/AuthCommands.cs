@@ -15,6 +15,7 @@ namespace ParkingApp.Application.CQRS.Commands.Auth;
 
 public sealed record RegisterCommand(RegisterDto Dto) : ICommand<ApiResponse<TokenDto>>;
 public sealed record LoginCommand(LoginDto Dto) : ICommand<ApiResponse<TokenDto>>;
+public sealed record GoogleLoginCommand(GoogleLoginDto Dto) : ICommand<ApiResponse<TokenDto>>;
 public sealed record RefreshTokenCommand(RefreshTokenDto Dto) : ICommand<ApiResponse<TokenDto>>;
 public sealed record LogoutCommand(Guid UserId) : ICommand<ApiResponse<bool>>;
 public sealed record ChangePasswordCommand(Guid UserId, ChangePasswordDto Dto) : ICommand<ApiResponse<bool>>;
@@ -107,6 +108,79 @@ public sealed class LoginHandler : ICommandHandler<LoginCommand, ApiResponse<Tok
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         _logger.LogInformation("User logged in: {Email}, UserId: {UserId}", user.Email, user.Id);
+
+        return new ApiResponse<TokenDto>(true, "Login successful",
+            new TokenDto(accessToken, refreshToken, DateTime.UtcNow.AddMinutes(15), user.ToDto()));
+    }
+}
+
+public sealed class GoogleLoginHandler : ICommandHandler<GoogleLoginCommand, ApiResponse<TokenDto>>
+{
+    private readonly IUnitOfWork _unitOfWork;
+    private readonly ITokenService _tokenService;
+    private readonly ILogger<GoogleLoginHandler> _logger;
+    private const int RefreshTokenExpirationDays = 7;
+
+    public GoogleLoginHandler(IUnitOfWork unitOfWork, ITokenService tokenService, ILogger<GoogleLoginHandler> logger)
+    {
+        _unitOfWork = unitOfWork;
+        _tokenService = tokenService;
+        _logger = logger;
+    }
+
+    public async Task<ApiResponse<TokenDto>> HandleAsync(GoogleLoginCommand command, CancellationToken cancellationToken = default)
+    {
+        var dto = command.Dto;
+        var email = dto.Email.ToLower().Trim();
+
+        // Try to find existing user by email
+        var user = await _unitOfWork.Users.GetByEmailAsync(email, cancellationToken);
+
+        if (user != null)
+        {
+            // Existing user — link Google ID if not already linked
+            if (string.IsNullOrEmpty(user.GoogleId))
+            {
+                user.GoogleId = dto.GoogleId;
+                _logger.LogInformation("Linked Google account to existing user: {Email}", email);
+            }
+            if (!string.IsNullOrEmpty(dto.ProfilePicture))
+                user.ProfilePictureUrl = dto.ProfilePicture;
+
+            if (!user.IsActive)
+                return new ApiResponse<TokenDto>(false, "Account disabled", null, new List<string> { "Your account has been disabled" });
+        }
+        else
+        {
+            // New user — create account from Google profile
+            user = new User
+            {
+                Email = email,
+                PasswordHash = BCrypt.Net.BCrypt.HashPassword(Guid.NewGuid().ToString()),
+                FirstName = dto.FirstName.Trim(),
+                LastName = dto.LastName.Trim(),
+                PhoneNumber = string.Empty,
+                Role = Domain.Enums.UserRole.User,
+                GoogleId = dto.GoogleId,
+                ProfilePictureUrl = dto.ProfilePicture,
+                IsEmailVerified = true, // Google-verified email
+            };
+
+            await _unitOfWork.Users.AddAsync(user, cancellationToken);
+            _logger.LogInformation("New user created via Google sign-in: {Email}", email);
+        }
+
+        // Generate tokens
+        var accessToken = _tokenService.GenerateAccessToken(user);
+        var refreshToken = _tokenService.GenerateRefreshToken();
+        user.RefreshToken = refreshToken;
+        user.RefreshTokenExpiryTime = DateTime.UtcNow.AddDays(RefreshTokenExpirationDays);
+        user.LastLoginAt = DateTime.UtcNow;
+
+        _unitOfWork.Users.Update(user);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        _logger.LogInformation("Google login successful: {Email}, UserId: {UserId}", user.Email, user.Id);
 
         return new ApiResponse<TokenDto>(true, "Login successful",
             new TokenDto(accessToken, refreshToken, DateTime.UtcNow.AddMinutes(15), user.ToDto()));

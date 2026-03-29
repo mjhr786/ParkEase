@@ -9,6 +9,7 @@ import { Provider } from 'react-redux';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import store from './src/store';
 import RootNavigator from './src/navigation/RootNavigator';
+import GlobalErrorBanner from './src/components/Common/GlobalErrorBanner';
 
 export default function App() {
   return (
@@ -16,6 +17,7 @@ export default function App() {
       <SafeAreaProvider>
         <StatusBar style="auto" />
         <RootNavigator />
+        <GlobalErrorBanner />
       </SafeAreaProvider>
     </Provider>
   );

@@ -4,6 +4,7 @@
  */
 
 import React, { useEffect, useCallback, useState } from 'react';
+import { EventBus } from '../../utils/EventBus';
 import { View, Text, FlatList, TouchableOpacity, StyleSheet, Alert, Modal } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { Ionicons } from '@expo/vector-icons';
@@ -118,7 +119,7 @@ const VehiclesScreen = ({ navigation, route }) => {
                 style: 'destructive', 
                 onPress: () => {
                     dispatch(deleteVehicleThunk(id)).then((res) => {
-                        if (res.error) Alert.alert('Error', res.payload || 'Failed to delete vehicle');
+                        if (res.error) EventBus.emit('SHOW_ERROR_BANNER', { title: 'Error', message: res.payload || 'Failed to delete vehicle' });
                     });
                 }
             }
@@ -127,7 +128,7 @@ const VehiclesScreen = ({ navigation, route }) => {
 
     const handleSave = useCallback(async () => {
         if (!make.trim() || !model.trim() || !licensePlate.trim()) {
-            Alert.alert('Error', 'Please fill in make, model, and license plate.');
+            EventBus.emit('SHOW_ERROR_BANNER', { title: 'Error', message: 'Please fill in make, model, and license plate.' });
             return;
         }
 
@@ -150,7 +151,7 @@ const VehiclesScreen = ({ navigation, route }) => {
             setShowModal(false);
             Alert.alert('Success', editingId ? 'Vehicle updated!' : 'Vehicle added!');
         } else {
-            Alert.alert('Error', result.payload || 'Failed to save vehicle');
+            EventBus.emit('SHOW_ERROR_BANNER', { title: 'Error', message: result.payload || 'Failed to save vehicle' });
         }
     }, [dispatch, make, model, licensePlate, vehicleColor, vehicleType, editingId]);
 
