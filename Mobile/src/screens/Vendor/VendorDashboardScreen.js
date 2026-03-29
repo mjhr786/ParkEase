@@ -14,7 +14,7 @@ import { useAuth } from '../../hooks/useAuth';
 import ScreenLayout from '../../components/Layouts/ScreenLayout';
 import Card from '../../components/Common/Card';
 import Badge from '../../components/Common/Badge';
-import LoadingScreen from '../../components/Common/LoadingScreen';
+import { DashboardSkeleton } from '../../components/Common/ShimmerPlaceholder';
 import EmptyState from '../../components/Common/EmptyState';
 import { colors, spacing, typography, shadows } from '../../styles/globalStyles';
 import { formatCurrency, formatDate, formatTime } from '../../utils/formatters';
@@ -71,7 +71,7 @@ const VendorDashboardScreen = ({ navigation }) => {
         setRefreshing(false);
     }, [dispatch]);
 
-    if (loading && !data) return <LoadingScreen />;
+    if (loading && !data) return <DashboardSkeleton />;
 
     const sections = [
         { type: 'header' },

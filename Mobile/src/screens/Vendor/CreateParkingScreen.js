@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useCallback } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, Alert, StyleSheet } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, Alert, StyleSheet, KeyboardAvoidingView, Platform } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { Ionicons } from '@expo/vector-icons';
 import { createParkingThunk, updateParkingThunk, getMyListingsThunk } from '../../store/slices/parkingSlice';
@@ -89,7 +89,14 @@ const CreateParkingScreen = ({ route, navigation }) => {
 
     return (
         <ScreenLayout>
-            <ScrollView showsVerticalScrollIndicator={false}>
+            <KeyboardAvoidingView 
+                style={{ flex: 1 }} 
+                behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+            >
+                <ScrollView 
+                    showsVerticalScrollIndicator={false}
+                    keyboardShouldPersistTaps="handled"
+                >
                 {/* Header */}
                 <View style={styles.header}>
                     <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
@@ -200,6 +207,7 @@ const CreateParkingScreen = ({ route, navigation }) => {
                     />
                 </View>
             </ScrollView>
+            </KeyboardAvoidingView>
         </ScreenLayout>
     );
 };

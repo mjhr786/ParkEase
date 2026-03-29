@@ -4,7 +4,7 @@
  */
 
 import React, { useEffect, useCallback } from 'react';
-import { View, Text, FlatList, TouchableOpacity, StyleSheet, RefreshControl } from 'react-native';
+import { View, Text, FlatList, TouchableOpacity, StyleSheet } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -17,6 +17,8 @@ import Card from '../../components/Common/Card';
 import Badge from '../../components/Common/Badge';
 import EmptyState from '../../components/Common/EmptyState';
 import LoadingScreen from '../../components/Common/LoadingScreen';
+import { DashboardSkeleton } from '../../components/Common/ShimmerPlaceholder';
+import EnhancedRefreshControl from '../../components/Common/EnhancedRefreshControl';
 import { colors, spacing, typography, shadows } from '../../styles/globalStyles';
 import { formatCurrency, formatDate, formatTime } from '../../utils/formatters';
 import { ParkingType } from '../../utils/constants';
@@ -150,7 +152,7 @@ const MemberDashboardScreen = ({ navigation }) => {
     }, [navigation]);
 
     if (loading && !memberDashboard) {
-        return <LoadingScreen />;
+        return <DashboardSkeleton />;
     }
 
     const data = memberDashboard;
@@ -247,7 +249,7 @@ const MemberDashboardScreen = ({ navigation }) => {
                 renderItem={renderItem}
                 keyExtractor={(item, index) => `${item.type}-${index}`}
                 showsVerticalScrollIndicator={false}
-                refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />}
+                refreshControl={<EnhancedRefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
             />
         </ScreenLayout>
     );

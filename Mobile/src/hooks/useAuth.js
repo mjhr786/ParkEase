@@ -5,7 +5,7 @@
 
 import { useCallback } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { loginThunk, registerThunk, logoutThunk, updateProfileThunk, clearError } from '../store/slices/authSlice';
+import { loginThunk, registerThunk, googleLoginThunk, logoutThunk, updateProfileThunk, clearError } from '../store/slices/authSlice';
 
 export const useAuth = () => {
     const dispatch = useDispatch();
@@ -20,6 +20,11 @@ export const useAuth = () => {
 
     const register = useCallback(
         (data) => dispatch(registerThunk(data)),
+        [dispatch]
+    );
+
+    const googleLogin = useCallback(
+        (googleData) => dispatch(googleLoginThunk(googleData)),
         [dispatch]
     );
 
@@ -65,6 +70,7 @@ export const useAuth = () => {
         isOwnerOfBooking,
         login,
         register,
+        googleLogin,
         logout,
         updateProfile,
         dismissError,

@@ -6,6 +6,7 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
+    "scheme": "com.parkease.app",
     "newArchEnabled": true,
     "splash": {
       "image": "./assets/splash-icon.png",
@@ -14,7 +15,14 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.parkease.app"
+      "bundleIdentifier": "com.parkease.app",
+      "infoPlist": {
+        "CFBundleURLTypes": [
+          {
+            "CFBundleURLSchemes": ["com.parkease.app"]
+          }
+        ]
+      }
     },
     "android": {
       "package": "com.parkease.app",
@@ -28,12 +36,14 @@
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
-      "@react-native-community/datetimepicker"
+      "@react-native-community/datetimepicker",
+      "expo-web-browser"
     ],
     "extra": {
       "eas": {
         "projectId": "fffba957-5e7e-4860-84be-19285ecff942"
-      }
+      },
+      "googleClientId": "1088567196242-9jpdbr13j8vlbf4o4fqjsqqumg07cd5g.apps.googleusercontent.com"
     },
     "runtimeVersion": {
       "policy": "appVersion"

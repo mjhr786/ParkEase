@@ -4,7 +4,7 @@
  */
 
 import React, { useEffect, useCallback, useState } from 'react';
-import { View, Text, FlatList, TouchableOpacity, StyleSheet, RefreshControl } from 'react-native';
+import { View, Text, FlatList, TouchableOpacity, StyleSheet, RefreshControl, TextInput } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { Ionicons } from '@expo/vector-icons';
 import { getMyBookingsThunk } from '../../store/slices/bookingSlice';
@@ -12,7 +12,7 @@ import ScreenLayout from '../../components/Layouts/ScreenLayout';
 import Card from '../../components/Common/Card';
 import Badge from '../../components/Common/Badge';
 import EmptyState from '../../components/Common/EmptyState';
-import LoadingScreen from '../../components/Common/LoadingScreen';
+import { BookingCardSkeleton } from '../../components/Common/ShimmerPlaceholder';
 import { colors, spacing, typography } from '../../styles/globalStyles';
 import { formatCurrency, formatDate, formatTime } from '../../utils/formatters';
 import { BookingStatus } from '../../utils/constants';
@@ -28,6 +28,7 @@ const MyBookingsScreen = ({ navigation }) => {
     const dispatch = useDispatch();
     const { myBookings, myBookingsLoading } = useSelector((s) => s.booking);
     const [activeFilter, setActiveFilter] = useState(0);
+    const [searchQuery, setSearchQuery] = useState('');
     const [refreshing, setRefreshing] = useState(false);
 
     useEffect(() => {
@@ -42,8 +43,11 @@ const MyBookingsScreen = ({ navigation }) => {
 
     const filteredBookings = myBookings.filter((b) => {
         const filter = FILTERS[activeFilter].value;
-        if (!filter) return true;
-        return filter.includes(b.status);
+        const matchesStatus = !filter || filter.includes(b.status);
+        const matchesSearch = !searchQuery || 
+            b.parkingSpaceTitle?.toLowerCase().includes(searchQuery.toLowerCase()) || 
+            b.parkingSpaceAddress?.toLowerCase().includes(searchQuery.toLowerCase());
+        return matchesStatus && matchesSearch;
     });
 
     const renderBookingItem = ({ item }) => (
@@ -87,6 +91,23 @@ const MyBookingsScreen = ({ navigation }) => {
                 </TouchableOpacity>
             </View>
 
+            {/* Search Bar */}
+            <View style={styles.searchContainer}>
+                <Ionicons name="search" size={18} color={colors.textTertiary} />
+                <TextInput
+                    style={styles.searchInput}
+                    placeholder="Search bookings..."
+                    placeholderTextColor={colors.textTertiary}
+                    value={searchQuery}
+                    onChangeText={setSearchQuery}
+                />
+                {searchQuery ? (
+                    <TouchableOpacity onPress={() => setSearchQuery('')}>
+                        <Ionicons name="close-circle" size={18} color={colors.textTertiary} />
+                    </TouchableOpacity>
+                ) : null}
+            </View>
+
             {/* Filter Tabs */}
             <View style={styles.filterRow}>
                 {FILTERS.map((filter, idx) => (
@@ -104,7 +125,7 @@ const MyBookingsScreen = ({ navigation }) => {
 
             {/* List */}
             {myBookingsLoading && !refreshing ? (
-                <LoadingScreen />
+                <BookingCardSkeleton />
             ) : (
                 <FlatList
                     data={filteredBookings}
@@ -125,6 +146,8 @@ const styles = StyleSheet.create({
     screenTitle: { ...typography.h2, color: colors.textPrimary },
     incomingBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: spacing.xs, paddingHorizontal: spacing.sm, borderRadius: spacing.radius.full, backgroundColor: colors.primarySoft },
     incomingBtnText: { ...typography.caption, color: colors.primary, fontWeight: '600' },
+    searchContainer: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.background, marginHorizontal: spacing.screenHorizontal, marginBottom: spacing.md, paddingHorizontal: spacing.base, borderRadius: spacing.radius.md, borderWidth: 1, borderColor: colors.borderLight, height: 44 },
+    searchInput: { flex: 1, marginLeft: spacing.sm, ...typography.body, color: colors.textPrimary },
     filterRow: { flexDirection: 'row', paddingHorizontal: spacing.screenHorizontal, gap: spacing.sm, marginBottom: spacing.md },
     filterTab: { paddingHorizontal: spacing.base, paddingVertical: spacing.sm, borderRadius: spacing.radius.full, backgroundColor: colors.background, borderWidth: 1, borderColor: colors.border },
     filterTabActive: { backgroundColor: colors.primarySoft, borderColor: colors.primary },

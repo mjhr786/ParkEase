@@ -16,7 +16,7 @@ import Card from '../../components/Common/Card';
 import Badge from '../../components/Common/Badge';
 import Button from '../../components/Common/Button';
 import EmptyState from '../../components/Common/EmptyState';
-import LoadingScreen from '../../components/Common/LoadingScreen';
+import { BookingCardSkeleton } from '../../components/Common/ShimmerPlaceholder';
 import { colors, spacing, typography } from '../../styles/globalStyles';
 import { formatCurrency, formatDate, formatTime } from '../../utils/formatters';
 import { BookingStatus } from '../../utils/constants';
@@ -209,7 +209,7 @@ const VendorBookingsScreen = ({ navigation }) => {
             </View>
 
             {vendorBookingsLoading && !refreshing ? (
-                <LoadingScreen />
+                <BookingCardSkeleton />
             ) : (
                 <FlatList
                     data={filteredBookings}

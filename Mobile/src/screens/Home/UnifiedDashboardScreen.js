@@ -4,7 +4,7 @@
  */
 
 import React, { useEffect, useCallback, useState } from 'react';
-import { View, Text, FlatList, TouchableOpacity, StyleSheet, RefreshControl } from 'react-native';
+import { View, Text, FlatList, TouchableOpacity, StyleSheet } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -16,7 +16,8 @@ import ScreenLayout from '../../components/Layouts/ScreenLayout';
 import Card from '../../components/Common/Card';
 import Badge from '../../components/Common/Badge';
 import EmptyState from '../../components/Common/EmptyState';
-import LoadingScreen from '../../components/Common/LoadingScreen';
+import { DashboardSkeleton } from '../../components/Common/ShimmerPlaceholder';
+import EnhancedRefreshControl, { useEnhancedRefresh } from '../../components/Common/EnhancedRefreshControl';
 import { colors, spacing, typography, shadows } from '../../styles/globalStyles';
 import { formatCurrency, formatDate, formatTime } from '../../utils/formatters';
 
@@ -119,7 +120,6 @@ const UnifiedDashboardScreen = ({ navigation }) => {
     const { user } = useAuth();
     const { memberDashboard, vendorDashboard, loading } = useSelector((state) => state.dashboard);
     const { favorites } = useSelector((state) => state.favorite);
-    const [refreshing, setRefreshing] = useState(false);
     const insets = useSafeAreaInsets();
 
     useEffect(() => {
@@ -128,15 +128,15 @@ const UnifiedDashboardScreen = ({ navigation }) => {
         dispatch(getFavoritesThunk());
     }, [dispatch]);
 
-    const onRefresh = useCallback(async () => {
-        setRefreshing(true);
+    const fetchAll = useCallback(async () => {
         await Promise.all([
             dispatch(getMemberDashboardThunk()),
             dispatch(getVendorDashboardThunk()),
             dispatch(getFavoritesThunk()),
         ]);
-        setRefreshing(false);
     }, [dispatch]);
+
+    const { refreshing, onRefresh, lastRefreshed } = useEnhancedRefresh(fetchAll);
 
     const navigateToBookingDetail = useCallback((bookingId) => {
         navigation.navigate('BookingDetail', { bookingId });
@@ -147,7 +147,7 @@ const UnifiedDashboardScreen = ({ navigation }) => {
     }, [navigation]);
 
     if (loading && !memberDashboard && !vendorDashboard) {
-        return <LoadingScreen />;
+        return <DashboardSkeleton />;
     }
 
     const memberData = memberDashboard;
@@ -258,7 +258,7 @@ const UnifiedDashboardScreen = ({ navigation }) => {
                 renderItem={renderItem}
                 keyExtractor={(item, index) => `${item.type}-${index}`}
                 showsVerticalScrollIndicator={false}
-                refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />}
+                refreshControl={<EnhancedRefreshControl refreshing={refreshing} onRefresh={onRefresh} lastRefreshed={lastRefreshed} />}
             />
         </ScreenLayout>
     );

@@ -51,7 +51,7 @@ const SignupScreen = ({ navigation }) => {
                     behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
                     style={styles.container}
                 >
-                    <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+                    <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
                     {/* Header */}
                     <View style={styles.header}>
                         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
@@ -88,6 +88,21 @@ const SignupScreen = ({ navigation }) => {
                         <Input label="Password" value={formData.password} onChangeText={updateField('password')} placeholder="Min. 8 characters" secureTextEntry leftIcon="lock-closed-outline" error={errors.password} />
 
                         <Button title="Create Account" onPress={handleSignup} loading={loading} style={styles.signupButton} />
+
+                        {/* Divider */}
+                        <View style={styles.dividerRow}>
+                            <View style={styles.dividerLine} />
+                            <Text style={styles.dividerText}>OR</Text>
+                            <View style={styles.dividerLine} />
+                        </View>
+
+                        {/* Google Login */}
+                        <TouchableOpacity style={styles.googleBtn} activeOpacity={0.8}>
+                            <View style={styles.googleIconCircle}>
+                                <Text style={styles.googleG}>G</Text>
+                            </View>
+                            <Text style={styles.googleBtnText}>Sign up with Google</Text>
+                        </TouchableOpacity>
 
                         <View style={styles.loginRow}>
                             <Text style={styles.loginText}>Already have an account? </Text>
@@ -135,6 +150,17 @@ const styles = StyleSheet.create({
     loginRow: { flexDirection: 'row', justifyContent: 'center', marginTop: spacing.lg },
     loginText: { ...typography.bodySmall, color: colors.textSecondary },
     loginLink: { ...typography.bodySmall, color: colors.primary, fontWeight: typography.weight.semibold },
+    dividerRow: { flexDirection: 'row', alignItems: 'center', marginVertical: spacing.lg },
+    dividerLine: { flex: 1, height: 1, backgroundColor: colors.border },
+    dividerText: { ...typography.caption, color: colors.textTertiary, marginHorizontal: spacing.base },
+    googleBtn: {
+        flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+        backgroundColor: colors.white, borderWidth: 1.5, borderColor: colors.border,
+        borderRadius: spacing.radius.lg, paddingVertical: spacing.md, gap: spacing.sm,
+    },
+    googleIconCircle: { width: 24, height: 24, borderRadius: 12, backgroundColor: '#4285F4', justifyContent: 'center', alignItems: 'center' },
+    googleG: { color: colors.white, fontSize: 14, fontWeight: '700' },
+    googleBtnText: { ...typography.body, color: colors.textPrimary, fontWeight: '600' },
 });
 
 export default SignupScreen;

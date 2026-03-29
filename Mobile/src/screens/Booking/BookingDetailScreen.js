@@ -28,7 +28,7 @@ import ScreenLayout from '../../components/Layouts/ScreenLayout';
 import Card from '../../components/Common/Card';
 import Badge from '../../components/Common/Badge';
 import Button from '../../components/Common/Button';
-import LoadingScreen from '../../components/Common/LoadingScreen';
+import { DetailSkeleton } from '../../components/Common/ShimmerPlaceholder';
 import { colors, spacing, typography, shadows } from '../../styles/globalStyles';
 import { formatCurrency, formatDateTime } from '../../utils/formatters';
 import { BookingStatus, BookingStatusLabels, PricingTypeLabels, VehicleTypeLabels } from '../../utils/constants';
@@ -221,7 +221,7 @@ const BookingDetailScreen = ({ navigation, route }) => {
         }
     }, [dispatch, bookingId]);
 
-    if (detailLoading || !booking) return <LoadingScreen />;
+    if (detailLoading || !booking) return <DetailSkeleton />;
 
     const isOwner = isOwnerOfBooking(booking);
 

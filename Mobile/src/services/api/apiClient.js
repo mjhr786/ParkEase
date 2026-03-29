@@ -35,6 +35,16 @@ const onTokenRefreshed = (newToken) => {
 // Request interceptor - attach token
 apiClient.interceptors.request.use(
     async (config) => {
+        // Fix for Axios overriding the '/api' path:
+        // Ensure the relative URL does not start with a slash 
+        // and the baseURL ends with a slash so it resolves correctly
+        if (config.url && config.url.startsWith('/')) {
+            config.url = config.url.substring(1);
+        }
+        if (!config.baseURL.endsWith('/')) {
+            config.baseURL += '/';
+        }
+
         try {
             const token = await storageService.getAccessToken();
             if (token) {
@@ -52,10 +62,18 @@ apiClient.interceptors.request.use(
 apiClient.interceptors.response.use(
     (response) => response,
     async (error) => {
+        // Global Error Logger for Development
+        console.error(
+            '[API Error]', 
+            error.config?.url, 
+            error.response?.status, 
+            error.response?.data || error.message
+        );
+
         const originalRequest = error.config;
 
         // Skip refresh for auth endpoints
-        const isAuthEndpoint = originalRequest.url?.includes('/auth/');
+        const isAuthEndpoint = originalRequest?.url?.includes('/auth/');
 
         if (error.response?.status === 401 && !originalRequest._retry && !isAuthEndpoint) {
             if (isRefreshing) {

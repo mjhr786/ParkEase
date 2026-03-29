@@ -6,8 +6,9 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
     View, Text, FlatList, TextInput, TouchableOpacity,
-    StyleSheet, KeyboardAvoidingView, Platform, ActivityIndicator
+    StyleSheet, KeyboardAvoidingView, Platform
 } from 'react-native';
+import { ChatListSkeleton } from '../../components/Common/ShimmerPlaceholder';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../../styles/globalStyles';
@@ -141,7 +142,7 @@ const ChatScreen = ({ route, navigation }) => {
             {/* Messages */}
             {loading ? (
                 <View style={styles.centered}>
-                    <ActivityIndicator size="large" color={colors.primary} />
+                    <ChatListSkeleton />
                 </View>
             ) : (
                 <FlatList
