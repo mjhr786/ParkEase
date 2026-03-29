@@ -1,0 +1,110 @@
+# ParkEase Mobile Application
+
+Welcome to the **ParkEase Mobile** repository. This is an Expo-managed React Native application providing a seamless interface for users to find, book, and manage parking spaces, while allowing hosts to list their properties.
+
+## Table of Contents
+1. [Prerequisites](#prerequisites)
+2. [Installation & Setup](#installation--setup)
+3. [Running the App Locally](#running-the-app-locally)
+4. [Project Architecture & Guidelines](#project-architecture--guidelines)
+5. [Global Error Handling & Debugging](#global-error-handling--debugging)
+6. [Generating an APK (Android)](#generating-an-apk-android)
+7. [Deploying for Production](#deploying-for-production)
+
+---
+
+## Prerequisites
+
+Before starting, ensure you have the following installed on your machine:
+- **Node.js** (v18 or higher recommended)
+- **npm** or **yarn**
+- **Expo CLI**: `npm install -g expo-cli`
+- **EAS CLI** (Expo Application Services for building/deploying): `npm install -g eas-cli`
+- **Xcode** (for Mac users wanting to simulate iOS)
+- **Android Studio** (for Simulating Android devices locally)
+
+---
+
+## Installation & Setup
+
+1. **Clone the repository** and navigate to the mobile directory:
+   ```bash
+   cd ParkEase/Mobile
+   ```
+2. **Install dependencies**:
+   ```bash
+   npm install
+   ```
+3. **Environment Setup**: Ensure your backend API is running and that your local environment variables mapping to `src/config/environment.js` point to your local machine IP or hosted domain (e.g. `http://YOUR_LOCAL_IP:5000/api`). Avoid using `localhost` if running on physical devices.
+
+---
+
+## Running the App Locally
+
+Expo provides an interactive terminal UI. Start the Metro bundler using:
+```bash
+npm start
+```
+From the interactive terminal menu that launches, you can press:
+- `i` — To open the app on the **iOS Simulator** (requires Xcode). Alternatively, directly run `npx expo start --ios`.
+- `a` — To open the app on the **Android Emulator** (requires Android Studio). Alternatively, directly run `npx expo start --android`.
+- `Scan QR Code` — Download the **Expo Go** app on your physical iPhone/Android device and scan the terminal QR code to run it live.
+
+---
+
+## Project Architecture & Guidelines
+
+We strictly follow the architectural conventions defined in **`AppGuidelines.md`** located at the root of the project.
+
+- **State Management**: Redux Toolkit `slice` & `thunk` architecture inside `src/store/`.
+- **Navigation**: React Navigation stacked tabs (`AuthNavigator`, `AppTabNavigator`).
+- **Styles**: We use a centralized style dictionary (`src/styles/globalStyles.js`) instead of scattered inline styles.
+- **Component Design**: Every module exports typed/commented standard React Functional Components using standard clean coding principles.
+
+---
+
+## Global Error Handling & Debugging
+
+The app employs a unified error masking logic. 
+In development environments, explicit `console.error` calls will normally trigger intrusive grey **LogBox** popups on the device screen. To circumvent this and ensure proper UI continuity:
+
+1. **Top-Edge Automatic Error Banner**: An `EventBus` module explicitly listens for unhandled system exceptions or `4xx`/`5xx` REST failures.
+2. **Implementation**: When `apiClient.js` experiences a backend crash or timeout, it fires:
+   ```javascript
+   EventBus.emit('SHOW_ERROR_BANNER', { title: 'Network Issue', message: 'Failed to connect' });
+   ```
+3. **Logging Silently**: Always use the native `logger.js` utility (`import logger from '../../utils/logger'`) for internal debugging using `logger.debug()` or `console.log()` to prevent the Expo LogBox UI from hijacking the screen during development.
+4. **Token Expiration**: The Axios client seamlessly intercepts `401 Unauthorized` responses and pauses pending network requests to query `/auth/refresh` silently via secure storage before unfreezing queues.
+
+---
+
+## Generating an APK (Android Testing)
+
+To generate a standalone `.apk` Android installation file (independent of Expo Go) for friends, QA, or manual distribution:
+
+We utilize the customized `preview` profile located inside our `eas.json` configuration, which specifically requests an `apk` build type.
+
+1. **Log in to Expo Services** (required once):
+   ```bash
+   eas login
+   ```
+2. **Trigger the APK build pipeline**:
+   ```bash
+   eas build -p android --profile preview
+   ```
+3. **Wait & Download**: The process will upload your codebase to the Expo Cloud Servers. You will receive a direct tracking URL. Once compiled (approx 5-10 minutes), Expo will provide a direct download link for your `.apk` file!
+
+*(Note: To build entirely locally bypassing the queue, you can append the `--local` flag natively, provided your Mac has the extensive Android SDK/NDK locally installed.)*
+
+---
+
+## Deploying for Production
+
+When you are ready to distribute to the **Apple App Store** (.ipa) or **Google Play Store** (.aab Android App Bundle):
+
+1. Double-check your app versions and credentials in `app.json`.
+2. Run the production build via EAS:
+   ```bash
+   eas build --platform all --profile production
+   ```
+3. Use `eas submit` to automatically push the compiled binaries directly to App Store Connect or Google Play Console!
