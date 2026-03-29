@@ -105,6 +105,60 @@ public class AuthService : IAuthService
         return new ApiResponse<TokenDto>(true, "Login successful", tokenDto);
     }
 
+    public async Task<ApiResponse<TokenDto>> GoogleLoginAsync(GoogleLoginDto dto, CancellationToken cancellationToken = default)
+    {
+        var email = dto.Email.ToLower().Trim();
+        var user = await _unitOfWork.Users.GetByEmailAsync(email, cancellationToken);
+
+        if (user != null)
+        {
+            // Link Google ID if not already linked
+            if (string.IsNullOrEmpty(user.GoogleId))
+            {
+                user.GoogleId = dto.GoogleId;
+                _logger.LogInformation("Linked Google account to existing user: {Email}", email);
+            }
+            if (!string.IsNullOrEmpty(dto.ProfilePicture))
+                user.ProfilePictureUrl = dto.ProfilePicture;
+
+            if (!user.IsActive)
+                return new ApiResponse<TokenDto>(false, "Account disabled", null, new List<string> { "Your account has been disabled" });
+        }
+        else
+        {
+            // Create new user from Google profile
+            user = new User
+            {
+                Email = email,
+                PasswordHash = BCrypt.Net.BCrypt.HashPassword(Guid.NewGuid().ToString()),
+                FirstName = dto.FirstName.Trim(),
+                LastName = dto.LastName.Trim(),
+                PhoneNumber = string.Empty,
+                Role = UserRole.User,
+                GoogleId = dto.GoogleId,
+                ProfilePictureUrl = dto.ProfilePicture,
+                IsEmailVerified = true,
+            };
+
+            await _unitOfWork.Users.AddAsync(user, cancellationToken);
+            _logger.LogInformation("New user created via Google: {Email}", email);
+        }
+
+        var accessToken = _tokenService.GenerateAccessToken(user);
+        var refreshToken = _tokenService.GenerateRefreshToken();
+        user.RefreshToken = refreshToken;
+        user.RefreshTokenExpiryTime = DateTime.UtcNow.AddDays(RefreshTokenExpirationDays);
+        user.LastLoginAt = DateTime.UtcNow;
+
+        _unitOfWork.Users.Update(user);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        var tokenDto = new TokenDto(accessToken, refreshToken, DateTime.UtcNow.AddMinutes(15), user.ToDto());
+        _logger.LogInformation("Google login successful: {Email}, UserId: {UserId}", user.Email, user.Id);
+
+        return new ApiResponse<TokenDto>(true, "Login successful", tokenDto);
+    }
+
     public async Task<ApiResponse<TokenDto>> RefreshTokenAsync(RefreshTokenDto dto, CancellationToken cancellationToken = default)
     {
         var user = await _unitOfWork.Users.GetByRefreshTokenAsync(dto.RefreshToken, cancellationToken);

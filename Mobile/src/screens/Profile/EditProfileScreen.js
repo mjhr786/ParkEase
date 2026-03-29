@@ -4,6 +4,7 @@
  */
 
 import React, { useState, useCallback } from 'react';
+import { EventBus } from '../../utils/EventBus';
 import { View, Text, StyleSheet, Alert } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { Ionicons } from '@expo/vector-icons';
@@ -24,7 +25,7 @@ const EditProfileScreen = ({ navigation }) => {
 
     const handleSubmit = useCallback(async () => {
         if (!firstName.trim() || !lastName.trim()) {
-            Alert.alert('Error', 'First name and last name are required.');
+            EventBus.emit('SHOW_ERROR_BANNER', { title: 'Error', message: 'First name and last name are required.' });
             return;
         }
 
@@ -39,7 +40,7 @@ const EditProfileScreen = ({ navigation }) => {
                 { text: 'OK', onPress: () => navigation.goBack() },
             ]);
         } else {
-            Alert.alert('Error', result.payload || 'Failed to update profile.');
+            EventBus.emit('SHOW_ERROR_BANNER', { title: 'Error', message: result.payload || 'Failed to update profile.' });
         }
     }, [dispatch, firstName, lastName, phoneNumber, navigation]);
 

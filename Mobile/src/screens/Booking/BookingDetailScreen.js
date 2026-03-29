@@ -6,6 +6,7 @@
  */
 
 import React, { useEffect, useCallback, useState } from 'react';
+import { EventBus } from '../../utils/EventBus';
 import {
     View, Text, ScrollView, Alert, TouchableOpacity, StyleSheet,
     Modal, TextInput, KeyboardAvoidingView, Platform
@@ -75,7 +76,7 @@ const BookingDetailScreen = ({ navigation, route }) => {
                             await dispatch(cancelBookingThunk({ id: bookingId, reason: 'Cancelled by user' })).unwrap();
                             Alert.alert('Success', 'Booking has been cancelled.');
                         } catch (error) {
-                            Alert.alert('Error', error || 'Failed to cancel booking');
+                            EventBus.emit('SHOW_ERROR_BANNER', { title: 'Error', message: error || 'Failed to cancel booking' });
                         } finally {
                             setActionLoading(false);
                         }
@@ -97,7 +98,7 @@ const BookingDetailScreen = ({ navigation, route }) => {
                         Alert.alert('Success', 'Booking approved successfully!');
                         dispatch(getBookingDetailThunk(bookingId));
                     } catch (error) {
-                        Alert.alert('Error', error || 'Failed to approve booking');
+                        EventBus.emit('SHOW_ERROR_BANNER', { title: 'Error', message: error || 'Failed to approve booking' });
                     } finally {
                         setActionLoading(false);
                     }
@@ -118,7 +119,7 @@ const BookingDetailScreen = ({ navigation, route }) => {
             setRejectReason('');
             dispatch(getBookingDetailThunk(bookingId));
         } catch (error) {
-            Alert.alert('Error', error || 'Failed to reject booking');
+            EventBus.emit('SHOW_ERROR_BANNER', { title: 'Error', message: error || 'Failed to reject booking' });
         } finally {
             setActionLoading(false);
         }
@@ -140,7 +141,7 @@ const BookingDetailScreen = ({ navigation, route }) => {
                 navigation.navigate('ChatScreen', { conversationId: null, ...chatParams });
             }
         } catch {
-            Alert.alert('Error', 'Could not open chat.');
+            EventBus.emit('SHOW_ERROR_BANNER', { title: 'Error', message: 'Could not open chat.' });
         } finally {
             setChatLoading(false);
         }
@@ -152,7 +153,7 @@ const BookingDetailScreen = ({ navigation, route }) => {
             await dispatch(checkInBookingThunk(bookingId)).unwrap();
             Alert.alert('Success', 'Checked in successfully!');
         } catch (error) {
-            Alert.alert('Error', error || 'Failed to check in');
+            EventBus.emit('SHOW_ERROR_BANNER', { title: 'Error', message: error || 'Failed to check in' });
         } finally {
             setActionLoading(false);
         }
@@ -169,7 +170,7 @@ const BookingDetailScreen = ({ navigation, route }) => {
                         await dispatch(checkOutBookingThunk(bookingId)).unwrap();
                         Alert.alert('Success', 'Checked out successfully!');
                     } catch (error) {
-                        Alert.alert('Error', error || 'Failed to check out');
+                        EventBus.emit('SHOW_ERROR_BANNER', { title: 'Error', message: error || 'Failed to check out' });
                     } finally {
                         setActionLoading(false);
                     }
@@ -181,7 +182,7 @@ const BookingDetailScreen = ({ navigation, route }) => {
     const handleExtend = useCallback(async () => {
         const hours = parseInt(extendHours, 10);
         if (!hours || hours < 1) {
-            Alert.alert('Error', 'Please enter a valid number of hours.');
+            EventBus.emit('SHOW_ERROR_BANNER', { title: 'Error', message: 'Please enter a valid number of hours.' });
             return;
         }
         setActionLoading(true);
@@ -191,7 +192,7 @@ const BookingDetailScreen = ({ navigation, route }) => {
             setExtendModalVisible(false);
             setExtendHours('');
         } catch (error) {
-            Alert.alert('Error', error || 'Failed to request extension');
+            EventBus.emit('SHOW_ERROR_BANNER', { title: 'Error', message: error || 'Failed to request extension' });
         } finally {
             setActionLoading(false);
         }
@@ -203,7 +204,7 @@ const BookingDetailScreen = ({ navigation, route }) => {
             await dispatch(approveExtensionThunk(bookingId)).unwrap();
             Alert.alert('Success', 'Extension approved!');
         } catch (error) {
-            Alert.alert('Error', error || 'Failed to approve extension');
+            EventBus.emit('SHOW_ERROR_BANNER', { title: 'Error', message: error || 'Failed to approve extension' });
         } finally {
             setActionLoading(false);
         }
@@ -215,7 +216,7 @@ const BookingDetailScreen = ({ navigation, route }) => {
             await dispatch(rejectExtensionThunk(bookingId)).unwrap();
             Alert.alert('Done', 'Extension rejected.');
         } catch (error) {
-            Alert.alert('Error', error || 'Failed to reject extension');
+            EventBus.emit('SHOW_ERROR_BANNER', { title: 'Error', message: error || 'Failed to reject extension' });
         } finally {
             setActionLoading(false);
         }

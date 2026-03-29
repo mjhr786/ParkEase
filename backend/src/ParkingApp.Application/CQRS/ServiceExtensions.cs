@@ -37,6 +37,7 @@ public static class CQRSServiceExtensions
         // ── Auth ──
         services.AddScoped<ICommandHandler<RegisterCommand, ApiResponse<TokenDto>>, RegisterHandler>();
         services.AddScoped<ICommandHandler<LoginCommand, ApiResponse<TokenDto>>, LoginHandler>();
+        services.AddScoped<ICommandHandler<GoogleLoginCommand, ApiResponse<TokenDto>>, GoogleLoginHandler>();
         services.AddScoped<ICommandHandler<RefreshTokenCommand, ApiResponse<TokenDto>>, RefreshTokenHandler>();
         services.AddScoped<ICommandHandler<LogoutCommand, ApiResponse<bool>>, LogoutHandler>();
         services.AddScoped<ICommandHandler<ChangePasswordCommand, ApiResponse<bool>>, ChangePasswordHandler>();

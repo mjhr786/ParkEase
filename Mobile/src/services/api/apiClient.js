@@ -7,6 +7,7 @@ import axios from 'axios';
 import environment from '../../config/environment';
 import { storageService } from '../storage/secureStorage';
 import logger from '../../utils/logger';
+import { EventBus } from '../../utils/EventBus';
 
 const TAG = 'ApiClient';
 
@@ -62,11 +63,10 @@ apiClient.interceptors.request.use(
 apiClient.interceptors.response.use(
     (response) => response,
     async (error) => {
-        // Global Error Logger for Development
-        console.error(
-            '[API Error]', 
-            error.config?.url, 
-            error.response?.status, 
+        // Log silently using logger to avoid triggering the visual React Native LogBox popups on screen
+        logger.debug(
+            TAG,
+            `[API Error] ${error.config?.url} - ${error.response?.status}`,
             error.response?.data || error.message
         );
 
@@ -74,6 +74,22 @@ apiClient.interceptors.response.use(
 
         // Skip refresh for auth endpoints
         const isAuthEndpoint = originalRequest?.url?.includes('/auth/');
+
+        // Emit global error banner for network/server failures or unhandled server crashes
+        // We avoid showing generic banners for 401 (token refresh handles it silently), 
+        // 404 (handled by ui state), or 422 (validation errors handled by form)
+        if (!error.response || (error.response.status !== 401 && error.response.status !== 404 && error.response.status !== 422)) {
+            EventBus.emit('SHOW_ERROR_BANNER', {
+                title: 'Something went wrong',
+                message: 'We are having trouble connecting. Please try again later.'
+            });
+        } else if (error.response && error.response.status === 401 && isAuthEndpoint) {
+            // If it's a 401 on login/auth, show invalid credentials
+            EventBus.emit('SHOW_ERROR_BANNER', {
+                title: 'Authentication Failed',
+                message: error.response?.data?.message || 'Invalid email or password.'
+            });
+        }
 
         if (error.response?.status === 401 && !originalRequest._retry && !isAuthEndpoint) {
             if (isRefreshing) {

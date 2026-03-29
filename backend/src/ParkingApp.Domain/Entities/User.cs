@@ -13,6 +13,8 @@ public class User : BaseEntity
     public bool IsEmailVerified { get; set; } = false;
     public bool IsPhoneVerified { get; set; } = false;
     public bool IsActive { get; set; } = true;
+    public string? GoogleId { get; set; }
+    public string? ProfilePictureUrl { get; set; }
     public string? RefreshToken { get; set; }
     public DateTime? RefreshTokenExpiryTime { get; set; }
     public DateTime? LastLoginAt { get; set; }

@@ -53,6 +53,15 @@ public class AuthController : ControllerBase
         return result.Success ? Ok(result) : Unauthorized(result);
     }
 
+    [HttpPost("google")]
+    [ProducesResponseType(typeof(ApiResponse<TokenDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<TokenDto>), StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> GoogleLogin([FromBody] GoogleLoginDto dto, CancellationToken cancellationToken)
+    {
+        var result = await _dispatcher.SendAsync(new GoogleLoginCommand(dto), cancellationToken);
+        return result.Success ? Ok(result) : BadRequest(result);
+    }
+
     [HttpPost("refresh")]
     [ProducesResponseType(typeof(ApiResponse<TokenDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> RefreshToken([FromBody] RefreshTokenDto dto, CancellationToken cancellationToken)

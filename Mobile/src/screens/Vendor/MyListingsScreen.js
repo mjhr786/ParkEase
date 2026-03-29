@@ -4,6 +4,7 @@
  */
 
 import React, { useEffect, useCallback, useState } from 'react';
+import { EventBus } from '../../utils/EventBus';
 import { View, Text, FlatList, TouchableOpacity, StyleSheet, RefreshControl, Alert } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { Ionicons } from '@expo/vector-icons';
@@ -114,7 +115,7 @@ const MyListingsScreen = ({ navigation }) => {
                 style: 'destructive',
                 onPress: () => {
                     dispatch(deleteParkingThunk(id)).then((res) => {
-                        if (res.error) Alert.alert('Error', res.payload || 'Failed to delete listing');
+                        if (res.error) EventBus.emit('SHOW_ERROR_BANNER', { title: 'Error', message: res.payload || 'Failed to delete listing' });
                         else dispatch(getMyListingsThunk()); // Refresh list
                     });
                 }

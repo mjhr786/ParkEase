@@ -4,6 +4,7 @@
  */
 
 import React, { useEffect, useCallback, useState } from 'react';
+import { EventBus } from '../../utils/EventBus';
 import {
     View, Text, FlatList, TouchableOpacity, Alert, StyleSheet,
     RefreshControl, Modal, TextInput, KeyboardAvoidingView, Platform
@@ -61,7 +62,7 @@ const VendorBookingsScreen = ({ navigation }) => {
                         const result = await dispatch(approveBookingThunk(id)).unwrap();
                         Alert.alert('Success', 'Booking approved successfully!');
                     } catch (error) {
-                        Alert.alert('Error', error || 'Failed to approve booking');
+                        EventBus.emit('SHOW_ERROR_BANNER', { title: 'Error', message: error || 'Failed to approve booking' });
                     } finally {
                         setActionLoading(null);
                     }
@@ -89,7 +90,7 @@ const VendorBookingsScreen = ({ navigation }) => {
             setRejectBookingId(null);
             setRejectReason('');
         } catch (error) {
-            Alert.alert('Error', error || 'Failed to reject booking');
+            EventBus.emit('SHOW_ERROR_BANNER', { title: 'Error', message: error || 'Failed to reject booking' });
         } finally {
             setActionLoading(null);
         }
@@ -114,7 +115,7 @@ const VendorBookingsScreen = ({ navigation }) => {
                 });
             }
         } catch {
-            Alert.alert('Error', 'Could not open chat.');
+            EventBus.emit('SHOW_ERROR_BANNER', { title: 'Error', message: 'Could not open chat.' });
         }
     }, [navigation]);
 

@@ -35,7 +35,7 @@ class Logger {
 
     error(tag, message, error = null) {
         if (this.logLevel <= LOG_LEVELS.ERROR) {
-            console.error(`[ERROR] ${tag}: ${message}`, error || '');
+            console.log(`[ERROR] ${tag}: ${message}`, error || '');
         }
     }
 }

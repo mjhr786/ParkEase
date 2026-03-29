@@ -5,9 +5,9 @@
  */
 
 import React, { useEffect, useState, useCallback } from 'react';
+import { EventBus } from '../../utils/EventBus';
 import {
-    View, Text, ScrollView, TouchableOpacity, StyleSheet,
-    Alert, Image, Dimensions, Share,
+    View, Text, ScrollView, TouchableOpacity, StyleSheet, Image, Dimensions, Share,
 } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { Ionicons } from '@expo/vector-icons';
@@ -54,7 +54,7 @@ const ParkingDetailScreen = ({ navigation, route }) => {
             const result = await dispatch(toggleFavoriteThunk(parkingId)).unwrap();
             setIsFavorited(result.isFavorited ?? !isFavorited);
         } catch {
-            Alert.alert('Error', 'Could not update favorite.');
+            EventBus.emit('SHOW_ERROR_BANNER', { title: 'Error', message: 'Could not update favorite.' });
         } finally {
             setFavLoading(false);
         }
@@ -80,7 +80,7 @@ const ParkingDetailScreen = ({ navigation, route }) => {
                 });
             }
         } catch {
-            Alert.alert('Error', 'Could not open chat.');
+            EventBus.emit('SHOW_ERROR_BANNER', { title: 'Error', message: 'Could not open chat.' });
         } finally {
             setChatLoading(false);
         }

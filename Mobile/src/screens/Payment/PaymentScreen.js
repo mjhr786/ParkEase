@@ -4,6 +4,7 @@
  */
 
 import React, { useEffect, useCallback, useState } from 'react';
+import { EventBus } from '../../utils/EventBus';
 import { View, Text, ScrollView, StyleSheet, Alert } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { Ionicons } from '@expo/vector-icons';
@@ -43,7 +44,7 @@ const PaymentScreen = ({ navigation, route }) => {
 
     const handlePay = useCallback(async () => {
         if (!bookingId || !amount) {
-            Alert.alert('Error', 'Missing booking information');
+            EventBus.emit('SHOW_ERROR_BANNER', { title: 'Error', message: 'Missing booking information' });
             return;
         }
         const result = await dispatch(processPaymentThunk({
