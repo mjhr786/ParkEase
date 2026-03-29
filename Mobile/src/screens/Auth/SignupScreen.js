@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useCallback } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform, ScrollView, Keyboard } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -34,6 +34,7 @@ const SignupScreen = ({ navigation }) => {
             return;
         }
         setErrors({});
+        Keyboard.dismiss();
         await register(formData);
     }, [formData, register, dismissError]);
 
@@ -81,11 +82,11 @@ const SignupScreen = ({ navigation }) => {
                             </View>
                         </View>
 
-                        <Input label="Email" value={formData.email} onChangeText={updateField('email')} placeholder="Enter your email" keyboardType="email-address" autoCapitalize="none" leftIcon="mail-outline" error={errors.email} />
+                        <Input label="Email" value={formData.email} onChangeText={updateField('email')} placeholder="Enter your email" keyboardType="email-address" autoCapitalize="none" leftIcon="mail-outline" error={errors.email} textContentType="username" autoComplete="email" importantForAutofill="yes" returnKeyType="next" />
 
-                        <Input label="Phone Number" value={formData.phoneNumber} onChangeText={updateField('phoneNumber')} placeholder="Enter phone number" keyboardType="phone-pad" leftIcon="call-outline" error={errors.phoneNumber} />
+                        <Input label="Phone Number" value={formData.phoneNumber} onChangeText={updateField('phoneNumber')} placeholder="Enter phone number" keyboardType="phone-pad" leftIcon="call-outline" error={errors.phoneNumber} returnKeyType="next" />
 
-                        <Input label="Password" value={formData.password} onChangeText={updateField('password')} placeholder="Min. 8 characters" secureTextEntry leftIcon="lock-closed-outline" error={errors.password} />
+                        <Input label="Password" value={formData.password} onChangeText={updateField('password')} placeholder="Min. 8 characters" secureTextEntry leftIcon="lock-closed-outline" error={errors.password} textContentType="newPassword" autoComplete="new-password" importantForAutofill="yes" returnKeyType="done" onSubmitEditing={handleSignup} />
 
                         <Button title="Create Account" onPress={handleSignup} loading={loading} style={styles.signupButton} />
 
