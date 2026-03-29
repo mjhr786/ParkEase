@@ -3,11 +3,11 @@
  * Clean login matching mockup: blue gradient, rounded icon, white form card
  */
 
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { EventBus } from '../../utils/EventBus';
 import {
     View, Text, TouchableOpacity, StyleSheet, KeyboardAvoidingView,
-    Platform, ScrollView, Alert, TextInput,
+    Platform, ScrollView, Alert, TextInput, Keyboard,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -31,6 +31,7 @@ const LoginScreen = ({ navigation }) => {
     const [errors, setErrors] = useState({});
     const [rememberMe, setRememberMe] = useState(false);
     const [googleLoading, setGoogleLoading] = useState(false);
+    const passwordRef = useRef(null);
 
     const [request, response, promptAsync] = Google.useAuthRequest({
         iosClientId: GOOGLE_CLIENT_ID,
@@ -91,6 +92,7 @@ const LoginScreen = ({ navigation }) => {
             return;
         }
         setErrors({});
+        Keyboard.dismiss();
         if (rememberMe) {
             await cacheService.setRememberEmail(formData.email);
         } else {
@@ -160,6 +162,12 @@ const LoginScreen = ({ navigation }) => {
                                     keyboardType="email-address"
                                     autoCapitalize="none"
                                     autoCorrect={false}
+                                    textContentType="username"
+                                    autoComplete="username"
+                                    importantForAutofill="yes"
+                                    returnKeyType="next"
+                                    onSubmitEditing={() => passwordRef.current?.focus()}
+                                    blurOnSubmit={false}
                                 />
                             </View>
                             {errors.email && <Text style={styles.errorText}>{errors.email}</Text>}
@@ -168,15 +176,35 @@ const LoginScreen = ({ navigation }) => {
                             <Text style={styles.inputLabel}>Password</Text>
                             <View style={[styles.inputContainer, errors.password && styles.inputError]}>
                                 <TextInput
+                                    ref={passwordRef}
                                     value={formData.password}
                                     onChangeText={updateField('password')}
                                     placeholder="••••••••"
                                     placeholderTextColor={colors.textTertiary}
                                     style={styles.input}
                                     secureTextEntry
+                                    textContentType="password"
+                                    autoComplete="password"
+                                    importantForAutofill="yes"
+                                    returnKeyType="done"
+                                    onSubmitEditing={handleLogin}
                                 />
                             </View>
                             {errors.password && <Text style={styles.errorText}>{errors.password}</Text>}
+
+                            {/* Remember Me */}
+                            <TouchableOpacity 
+                                style={styles.rememberMeRow} 
+                                onPress={() => setRememberMe(!rememberMe)}
+                                activeOpacity={0.7}
+                            >
+                                <Ionicons 
+                                    name={rememberMe ? "checkbox" : "square-outline"} 
+                                    size={20} 
+                                    color={rememberMe ? colors.primary : colors.textTertiary} 
+                                />
+                                <Text style={styles.rememberMeText}>Remember Me</Text>
+                            </TouchableOpacity>
 
                             {/* Login Button */}
                             <TouchableOpacity
@@ -329,6 +357,18 @@ const styles = StyleSheet.create({
         marginTop: -12,
         marginBottom: 12,
         marginLeft: 4,
+    },
+    // Remember Me
+    rememberMeRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginBottom: 16,
+        gap: 8,
+    },
+    rememberMeText: {
+        fontSize: 14,
+        color: colors.textSecondary,
+        fontWeight: '500',
     },
     // Login Button
     loginBtn: {
