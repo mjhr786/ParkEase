@@ -70,6 +70,7 @@ const SearchStack = () => (
         <Stack.Screen name="ReviewsList" component={ReviewsListScreen} />
         <Stack.Screen name="ChatScreen" component={ChatScreen} />
         <Stack.Screen name="CreateParking" component={CreateParkingScreen} />
+        <Stack.Screen name="Vehicles" component={VehiclesScreen} />
     </Stack.Navigator>
 );
 
@@ -81,6 +82,7 @@ const ListingsStack = () => (
         <Stack.Screen name="ParkingDetail" component={ParkingDetailScreen} />
         <Stack.Screen name="ReviewsList" component={ReviewsListScreen} />
         <Stack.Screen name="CreateReview" component={CreateReviewScreen} />
+        <Stack.Screen name="Vehicles" component={VehiclesScreen} />
     </Stack.Navigator>
 );
 
@@ -93,6 +95,7 @@ const BookingsStack = () => (
         <Stack.Screen name="CreateReview" component={CreateReviewScreen} />
         <Stack.Screen name="ChatScreen" component={ChatScreen} />
         <Stack.Screen name="IncomingBookings" component={VendorBookingsScreen} />
+        <Stack.Screen name="Vehicles" component={VehiclesScreen} />
     </Stack.Navigator>
 );
 

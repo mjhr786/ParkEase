@@ -12,6 +12,7 @@ import {
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useDispatch, useSelector } from 'react-redux';
 import { Ionicons } from '@expo/vector-icons';
+import { useFocusEffect } from '@react-navigation/native';
 import { calculatePriceThunk, createBookingThunk, clearPriceBreakdown } from '../../store/slices/bookingSlice';
 import { getVehiclesThunk } from '../../store/slices/vehicleSlice';
 import ScreenLayout from '../../components/Layouts/ScreenLayout';
@@ -50,12 +51,14 @@ const BookingScreen = ({ navigation, route }) => {
     const [discountCode, setDiscountCode] = useState('');
     const [showPicker, setShowPicker] = useState(null);
 
-    // Fetch user's saved vehicles
-    useEffect(() => {
-        dispatch(getVehiclesThunk());
-    }, [dispatch]);
+    // Fetch user's saved vehicles on focus
+    useFocusEffect(
+        useCallback(() => {
+            dispatch(getVehiclesThunk());
+        }, [dispatch])
+    );
 
-    // Auto-select first vehicle
+    // Auto-select first vehicle if none selected
     useEffect(() => {
         if (vehicles.length > 0 && !selectedVehicleId) {
             const firstVehicle = vehicles[0];
