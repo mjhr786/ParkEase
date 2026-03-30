@@ -128,7 +128,7 @@ const ProfileScreen = ({ navigation }) => {
                     <MenuItem icon="mail-outline" label="Email" value={user?.email} onPress={() => { }} />
                     <MenuItem icon="call-outline" label="Phone" value={user?.phoneNumber} onPress={() => { }} />
                     <MenuItem icon="lock-closed-outline" label="Change Password" onPress={handleChangePassword} />
-                    <MenuItem icon="car-outline" label="My Vehicles" onPress={() => navigation.navigate('Vehicles', { addNew: true })} />
+                    <MenuItem icon="car-outline" label="My Vehicles" onPress={() => navigation.navigate('Vehicles')} />
                     <MenuItem icon="heart-outline" label="Favorites" onPress={() => navigation.navigate('Favorites')} />
                     <MenuItem icon="notifications-outline" label="Notifications" value={unreadCount > 0 ? `${unreadCount} Unread` : ''} onPress={() => navigation.navigate('Notifications')} />
                 </Card>

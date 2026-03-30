@@ -372,7 +372,7 @@ const BookingScreen = ({ navigation, route }) => {
                                     </ScrollView>
                                     <TouchableOpacity
                                         style={styles.addVehicleLink}
-                                        onPress={() => navigation.navigate('Vehicles')}
+                                        onPress={() => navigation.navigate('Vehicles', { addNew: true })}
                                     >
                                         <Ionicons name="add-circle-outline" size={16} color={colors.primary} />
                                         <Text style={styles.addVehicleLinkText}>Add New Vehicle</Text>
@@ -394,7 +394,7 @@ const BookingScreen = ({ navigation, route }) => {
                                     </View>
                                     <TouchableOpacity
                                         style={styles.addVehicleLink}
-                                        onPress={() => navigation.navigate('Vehicles')}
+                                        onPress={() => navigation.navigate('Vehicles', { addNew: true })}
                                     >
                                         <Ionicons name="add-circle-outline" size={16} color={colors.primary} />
                                         <Text style={styles.addVehicleLinkText}>Save a vehicle for faster booking</Text>

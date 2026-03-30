@@ -17,10 +17,11 @@ import EmptyState from '../../components/Common/EmptyState';
 import LoadingScreen from '../../components/Common/LoadingScreen';
 import { VehiclesSkeleton } from '../../components/Common/ShimmerPlaceholder';
 import EnhancedRefreshControl from '../../components/Common/EnhancedRefreshControl';
+import SwipeableRow from '../../components/Common/SwipeableRow';
 import { colors, spacing, typography, shadows } from '../../styles/globalStyles';
 import { VehicleTypeLabels, VehicleType } from '../../utils/constants';
 
-const VehicleItem = ({ vehicle, onEdit, onDelete }) => {
+const VehicleItem = ({ vehicle, onEdit }) => {
     const typeLabel = VehicleTypeLabels[vehicle.vehicleType] || 'Vehicle';
     const iconMap = {
         [VehicleType.Car]: 'car-outline',
@@ -32,26 +33,23 @@ const VehicleItem = ({ vehicle, onEdit, onDelete }) => {
     };
 
     return (
-        <Card style={vStyles.card}>
-            <View style={vStyles.row}>
-                <View style={vStyles.iconWrap}>
-                    <Ionicons name={iconMap[vehicle.vehicleType] || 'car-outline'} size={24} color={colors.primary} />
-                </View>
-                <View style={vStyles.info}>
-                    <Text style={vStyles.name}>{vehicle.make} {vehicle.model}</Text>
-                    <Text style={vStyles.meta}>{typeLabel} · {vehicle.licensePlate}</Text>
-                    {vehicle.color ? <Text style={vStyles.meta}>Color: {vehicle.color}</Text> : null}
-                </View>
-                <View style={vStyles.actions}>
-                    <TouchableOpacity onPress={() => onEdit(vehicle)} style={{ padding: 4 }}>
+        <TouchableOpacity onPress={() => onEdit(vehicle)} activeOpacity={0.7}>
+            <Card style={vStyles.card}>
+                <View style={vStyles.row}>
+                    <View style={vStyles.iconWrap}>
+                        <Ionicons name={iconMap[vehicle.vehicleType] || 'car-outline'} size={24} color={colors.primary} />
+                    </View>
+                    <View style={vStyles.info}>
+                        <Text style={vStyles.name}>{vehicle.make} {vehicle.model}</Text>
+                        <Text style={vStyles.meta}>{typeLabel} · {vehicle.licensePlate}</Text>
+                        {vehicle.color ? <Text style={vStyles.meta}>Color: {vehicle.color}</Text> : null}
+                    </View>
+                    <View style={vStyles.actions}>
                         <Ionicons name="create-outline" size={20} color={colors.primary} />
-                    </TouchableOpacity>
-                    <TouchableOpacity onPress={() => onDelete(vehicle.id)} style={{ padding: 4 }}>
-                        <Ionicons name="trash-outline" size={20} color={colors.danger} />
-                    </TouchableOpacity>
+                    </View>
                 </View>
-            </View>
-        </Card>
+            </Card>
+        </TouchableOpacity>
     );
 };
 
@@ -78,6 +76,7 @@ const VehiclesScreen = ({ navigation, route }) => {
     const [refreshing, setRefreshing] = useState(false);
     const [showModal, setShowModal] = useState(false);
     const [editingId, setEditingId] = useState(null);
+    const [deletingId, setDeletingId] = useState(null);
     const [make, setMake] = useState('');
     const [model, setModel] = useState('');
     const [licensePlate, setLicensePlate] = useState('');
@@ -117,10 +116,26 @@ const VehiclesScreen = ({ navigation, route }) => {
             { 
                 text: 'Delete', 
                 style: 'destructive', 
-                onPress: () => {
-                    dispatch(deleteVehicleThunk(id)).then((res) => {
-                        if (res.error) EventBus.emit('SHOW_ERROR_BANNER', { title: 'Error', message: res.payload || 'Failed to delete vehicle' });
-                    });
+                onPress: async () => {
+                    setDeletingId(id);
+                    try {
+                        const res = await dispatch(deleteVehicleThunk(id));
+                        if (res.error) {
+                            EventBus.emit('SHOW_ERROR_BANNER', { 
+                                title: 'Error', 
+                                message: res.payload || 'Failed to delete vehicle' 
+                            });
+                        } else {
+                            EventBus.emit('SHOW_BANNER', { 
+                                title: 'Success', 
+                                message: 'Vehicle removed', 
+                                type: 'success' 
+                            });
+                            onRefresh();
+                        }
+                    } finally {
+                        setDeletingId(null);
+                    }
                 }
             }
         ]);
@@ -149,7 +164,12 @@ const VehiclesScreen = ({ navigation, route }) => {
 
         if (!result.error) {
             setShowModal(false);
-            Alert.alert('Success', editingId ? 'Vehicle updated!' : 'Vehicle added!');
+            EventBus.emit('SHOW_BANNER', { 
+                title: 'Success', 
+                message: editingId ? 'Vehicle updated!' : 'Vehicle added!',
+                type: 'success'
+            });
+            onRefresh();
         } else {
             EventBus.emit('SHOW_ERROR_BANNER', { title: 'Error', message: result.payload || 'Failed to save vehicle' });
         }
@@ -186,7 +206,18 @@ const VehiclesScreen = ({ navigation, route }) => {
             <FlatList
                 data={vehicles}
                 keyExtractor={(item) => item.id?.toString()}
-                renderItem={({ item }) => <VehicleItem vehicle={item} onEdit={openEditModal} onDelete={handleDelete} />}
+                renderItem={({ item }) => (
+                    <SwipeableRow 
+                        onDelete={() => handleDelete(item.id)}
+                        isDeleting={deletingId === item.id}
+                        disabled={loading || !!deletingId}
+                    >
+                        <VehicleItem 
+                            vehicle={item} 
+                            onEdit={openEditModal} 
+                        />
+                    </SwipeableRow>
+                )}
                 ListEmptyComponent={
                     <EmptyState
                         icon="car-outline"
