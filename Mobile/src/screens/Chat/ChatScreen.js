@@ -23,7 +23,7 @@ const ChatScreen = ({ route, navigation }) => {
     const [activeConversationId, setActiveConversationId] = useState(initialConversationId);
     const [messages, setMessages] = useState([]);
     const [newMessage, setNewMessage] = useState('');
-    const [loading, setLoading] = useState(!!initialConversationId);
+    const [loading, setLoading] = useState(true);
     const [sending, setSending] = useState(false);
     const flatListRef = useRef(null);
     const pollInterval = useRef(null);
@@ -36,7 +36,8 @@ const ChatScreen = ({ route, navigation }) => {
             // Poll for new messages every 5 seconds (lightweight real-time substitute for mobile)
             pollInterval.current = setInterval(loadMessages, 5000);
         } else {
-            setLoading(false);
+            // Ensure minimum shimmer time for smooth transition even on new chat
+            setTimeout(() => setLoading(false), 600);
         }
         return () => {
             if (pollInterval.current) clearInterval(pollInterval.current);
@@ -54,7 +55,8 @@ const ChatScreen = ({ route, navigation }) => {
         } catch (error) {
             EventBus.emit('SHOW_ERROR_BANNER', { title: 'Network Issue', message: 'Failed to load messages' });
         } finally {
-            setLoading(false);
+            // Ensure minimum shimmer time for smooth transition
+            setTimeout(() => setLoading(false), 600);
         }
     };
 

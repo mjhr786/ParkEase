@@ -67,7 +67,7 @@ const ParkingDetailScreen = ({ navigation, route }) => {
             const existing = await chatService.findConversationByParkingSpace(parkingId);
             if (existing) {
                 navigation.navigate('ChatScreen', {
-                    conversationId: existing.id,
+                    conversationId: existing.id || existing._id,
                     parkingSpaceId: parkingId,
                     participantName: existing.otherParticipantName,
                     parkingTitle: existing.parkingSpaceTitle,
