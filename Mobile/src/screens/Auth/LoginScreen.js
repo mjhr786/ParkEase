@@ -36,6 +36,7 @@ const LoginScreen = ({ navigation }) => {
     const [request, response, promptAsync] = Google.useAuthRequest({
         iosClientId: GOOGLE_CLIENT_ID,
         webClientId: GOOGLE_CLIENT_ID,
+        androidClientId: GOOGLE_CLIENT_ID,
     });
 
     useEffect(() => {
