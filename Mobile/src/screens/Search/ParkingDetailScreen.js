@@ -306,7 +306,7 @@ const ParkingDetailScreen = ({ navigation, route }) => {
                         </View>
                         <TouchableOpacity
                             style={[styles.bookBtn, { backgroundColor: colors.textPrimary }]}
-                            onPress={() => navigation.navigate('CreateParking', { parkingId: parking.id, editing: true })}
+                            onPress={() => navigation.navigate('CreateParking', { editData: parking })}
                         >
                             <Text style={styles.bookBtnText}>Edit Listing</Text>
                         </TouchableOpacity>
