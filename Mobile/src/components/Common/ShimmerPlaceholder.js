@@ -230,6 +230,48 @@ const ChatListSkeleton = () => (
     </View>
 );
 
+// ── Messages Skeleton (Chat Thread) ──
+const MessagesSkeleton = () => (
+    <View style={{ padding: 12, flex: 1 }}>
+        {[
+            { width: '65%', align: 'left', name: true },
+            { width: '45%', align: 'right' },
+            { width: '80%', align: 'left', name: true },
+            { width: '35%', align: 'right' },
+            { width: '50%', align: 'left', name: true },
+            { width: '60%', align: 'right' },
+            { width: '40%', align: 'left', name: true },
+        ].map((item, i) => (
+            <View 
+                key={i} 
+                style={{ 
+                    alignSelf: item.align === 'left' ? 'flex-start' : 'flex-end',
+                    marginBottom: spacing.md,
+                    width: '100%',
+                    alignItems: item.align === 'left' ? 'flex-start' : 'flex-end'
+                }}
+            >
+                <View style={[
+                    skeletonStyles.messageBubble,
+                    item.align === 'left' ? skeletonStyles.otherBubbleShim : skeletonStyles.myBubbleShim,
+                    { width: item.width }
+                ]}>
+                    {item.name && (
+                        <ShimmerLine width="40%" height={10} style={{ marginBottom: 6 }} />
+                    )}
+                    <ShimmerLine width="90%" height={14} />
+                    {item.width === '80%' && (
+                        <ShimmerLine width="60%" height={14} style={{ marginTop: 6 }} />
+                    )}
+                    <View style={{ alignSelf: 'flex-end', marginTop: 8 }}>
+                        <ShimmerLine width={30} height={8} />
+                    </View>
+                </View>
+            </View>
+        ))}
+    </View>
+);
+
 // ── Reviews Skeleton ──
 const ReviewsSkeleton = () => (
     <View style={skeletonStyles.container}>
@@ -276,6 +318,20 @@ const skeletonStyles = StyleSheet.create({
         marginBottom: spacing.md,
     },
     cardRow: { flexDirection: 'row', alignItems: 'center' },
+    messageBubble: {
+        padding: 10,
+        borderRadius: 16,
+    },
+    myBubbleShim: {
+        backgroundColor: colors.primarySoft,
+        borderBottomRightRadius: 4,
+    },
+    otherBubbleShim: {
+        backgroundColor: colors.surface,
+        borderBottomLeftRadius: 4,
+        borderWidth: 1,
+        borderColor: colors.borderLight,
+    },
 });
 
 export {
@@ -290,5 +346,6 @@ export {
     VehiclesSkeleton,
     NotificationsSkeleton,
     ChatListSkeleton,
+    MessagesSkeleton,
     ReviewsSkeleton,
 };

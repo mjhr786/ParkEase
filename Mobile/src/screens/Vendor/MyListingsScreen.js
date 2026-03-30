@@ -19,7 +19,7 @@ import { colors, spacing, typography, shadows } from '../../styles/globalStyles'
 import { formatCurrency } from '../../utils/formatters';
 import { ParkingTypeLabels } from '../../utils/constants';
 
-const ListingCard = ({ listing, onToggle, onEdit, onDelete, onPress }) => (
+const ListingCard = ({ listing, onToggle, onEdit, onDelete, onPress, isToggling }) => (
     <TouchableOpacity activeOpacity={0.8} onPress={onPress}>
         <Card>
             <View style={cardStyles.header}>
@@ -64,6 +64,7 @@ const ListingCard = ({ listing, onToggle, onEdit, onDelete, onPress }) => (
                     title={listing.isActive ? "Pause Listing" : "Activate Listing"}
                     variant={listing.isActive ? "outline" : "primary"}
                     onPress={() => onToggle(listing.id)}
+                    loading={isToggling}
                     style={{ paddingVertical: 8, paddingHorizontal: 16, minHeight: 36 }}
                     textStyle={{ ...typography.caption, fontWeight: '600' }}
                 />
@@ -92,6 +93,7 @@ const MyListingsScreen = ({ navigation }) => {
     const dispatch = useDispatch();
     const { myListings, listingsLoading } = useSelector((s) => s.parking);
     const [refreshing, setRefreshing] = useState(false);
+    const [togglingId, setTogglingId] = useState(null);
 
     useEffect(() => {
         dispatch(getMyListingsThunk());
@@ -104,7 +106,19 @@ const MyListingsScreen = ({ navigation }) => {
     }, [dispatch]);
 
     const handleToggle = useCallback((id) => {
-        dispatch(toggleParkingActiveThunk(id));
+        setTogglingId(id);
+        dispatch(toggleParkingActiveThunk(id)).then((res) => {
+            if (res.error) {
+                EventBus.emit('SHOW_ERROR_BANNER', { 
+                    title: 'Error', 
+                    message: res.payload || 'Failed to update listing status' 
+                });
+            } else {
+                // Refresh for data consistency
+                dispatch(getMyListingsThunk());
+            }
+            setTogglingId(null);
+        });
     }, [dispatch]);
 
     const handleDelete = useCallback((id) => {
@@ -123,6 +137,34 @@ const MyListingsScreen = ({ navigation }) => {
         ]);
     }, [dispatch]);
 
+    if (listingsLoading && !myListings.length) {
+        return (
+            <ScreenLayout>
+                <View style={styles.header}>
+                    <Text style={styles.screenTitle}>My Listings</Text>
+                    <TouchableOpacity style={styles.addBtn} onPress={() => navigation.navigate('CreateParking')}>
+                        <Ionicons name="add" size={20} color={colors.white} />
+                        <Text style={styles.addBtnText}>Add Listing</Text>
+                    </TouchableOpacity>
+                </View>
+                <View style={{ flex: 1, paddingTop: 10 }}>
+                    <BookingCardSkeleton />
+                </View>
+            </ScreenLayout>
+        );
+    }
+
+    const renderListingItem = ({ item }) => (
+        <ListingCard 
+            listing={item} 
+            onToggle={handleToggle} 
+            isToggling={togglingId === item.id}
+            onEdit={(data) => navigation.navigate('CreateParking', { editData: data })} 
+            onDelete={handleDelete}
+            onPress={() => navigation.navigate('ParkingDetail', { parkingId: item.id })}
+        />
+    );
+
     return (
         <ScreenLayout>
             <View style={styles.header}>
@@ -135,35 +177,23 @@ const MyListingsScreen = ({ navigation }) => {
                 </TouchableOpacity>
             </View>
 
-            {listingsLoading && !refreshing ? (
-                <BookingCardSkeleton />
-            ) : (
-                <FlatList
-                    data={myListings}
-                    keyExtractor={(item) => item.id}
-                    renderItem={({ item }) => (
-                        <ListingCard 
-                            listing={item} 
-                            onToggle={handleToggle} 
-                            onEdit={(data) => navigation.navigate('CreateParking', { editData: data })} 
-                            onDelete={handleDelete}
-                            onPress={() => navigation.navigate('ParkingDetail', { parkingId: item.id })}
-                        />
-                    )}
-                    contentContainerStyle={styles.listContent}
-                    refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />}
-                    showsVerticalScrollIndicator={false}
-                    ListEmptyComponent={
-                        <EmptyState
-                            icon="location-outline"
-                            title="No listings yet"
-                            message="Add your first parking space to start earning"
-                            actionLabel="Add Parking Space"
-                            onAction={() => navigation.navigate('CreateParking')}
-                        />
-                    }
-                />
-            )}
+            <FlatList
+                data={myListings}
+                keyExtractor={(item) => item.id}
+                renderItem={renderListingItem}
+                contentContainerStyle={styles.listContent}
+                refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />}
+                showsVerticalScrollIndicator={false}
+                ListEmptyComponent={
+                    <EmptyState
+                        icon="location-outline"
+                        title="No listings yet"
+                        message="Add your first parking space to start earning"
+                        actionLabel="Add Parking Space"
+                        onAction={() => navigation.navigate('CreateParking')}
+                    />
+                }
+            />
         </ScreenLayout>
     );
 };

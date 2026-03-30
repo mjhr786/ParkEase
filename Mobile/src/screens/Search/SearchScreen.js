@@ -207,6 +207,37 @@ const SearchScreen = ({ navigation, route }) => {
     const activeSort = SORT_OPTIONS.find((o) => o.key === sortBy);
     const hasActiveFilters = selectedVehicle != null || selectedParkingType != null || favoritesOnly || sortBy !== 'default';
 
+    if (searchLoading && !searchResults.length) {
+        return (
+            <ScreenLayout>
+                <View style={styles.searchHeader}>
+                    <Text style={styles.screenTitle}>Find Parking</Text>
+                    <View style={styles.searchBar}>
+                        <Ionicons name="search" size={20} color={colors.textTertiary} />
+                        <TextInput
+                            value={searchQuery}
+                            editable={false}
+                            placeholder="Search by city or location..."
+                            placeholderTextColor={colors.textTertiary}
+                            style={styles.searchInput}
+                        />
+                    </View>
+                    <View style={styles.sortRow}>
+                        <View style={styles.sortBtn}>
+                            <Ionicons name="swap-vertical" size={16} color={colors.primary} />
+                            <Text style={styles.sortBtnText}>Sort</Text>
+                        </View>
+                        <View style={styles.favToggle}>
+                            <Ionicons name="heart-outline" size={16} color={colors.danger} />
+                            <Text style={styles.favToggleText}>Favorites</Text>
+                        </View>
+                    </View>
+                </View>
+                <SearchSkeleton />
+            </ScreenLayout>
+        );
+    }
+
     return (
         <ScreenLayout>
             {/* Search Header */}
@@ -282,9 +313,7 @@ const SearchScreen = ({ navigation, route }) => {
             </View>
 
             {/* Results */}
-            {searchLoading ? (
-                <SearchSkeleton />
-            ) : displayResults.length > 0 ? (
+            {displayResults.length > 0 ? (
                 <FlatList
                     data={displayResults}
                     keyExtractor={(item) => item.id}

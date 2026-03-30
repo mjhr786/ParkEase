@@ -70,7 +70,18 @@ const FavoritesScreen = ({ navigation }) => {
     );
 
     if (loading && !favorites.length) {
-        return <FavoritesSkeleton />;
+        return (
+            <ScreenLayout>
+                <View style={styles.header}>
+                    <TouchableOpacity onPress={() => navigation.goBack()}>
+                        <Ionicons name="arrow-back" size={24} color={colors.textPrimary} />
+                    </TouchableOpacity>
+                    <Text style={styles.title}>Favorites</Text>
+                    <View style={{ width: 24 }} />
+                </View>
+                <FavoritesSkeleton />
+            </ScreenLayout>
+        );
     }
 
     return (

@@ -147,7 +147,17 @@ const UnifiedDashboardScreen = ({ navigation }) => {
     }, [navigation]);
 
     if (loading && !memberDashboard && !vendorDashboard) {
-        return <DashboardSkeleton />;
+        return (
+            <ScreenLayout edges={['bottom']}>
+                <LinearGradient colors={colors.gradients.hero} style={[styles.heroGradient, { paddingTop: insets.top + spacing.md }]}>
+                    <View style={styles.heroContent}>
+                        <Text style={styles.greeting}>Hello, {user?.firstName || 'there'} 👋</Text>
+                        <Text style={styles.heroSubtitle}>Park, list, and earn — all in one place</Text>
+                    </View>
+                </LinearGradient>
+                <DashboardSkeleton />
+            </ScreenLayout>
+        );
     }
 
     const memberData = memberDashboard;

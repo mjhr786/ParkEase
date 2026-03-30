@@ -8,7 +8,7 @@ import {
     View, Text, FlatList, TextInput, TouchableOpacity,
     StyleSheet, KeyboardAvoidingView, Platform
 } from 'react-native';
-import { ChatListSkeleton } from '../../components/Common/ShimmerPlaceholder';
+import { MessagesSkeleton } from '../../components/Common/ShimmerPlaceholder';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../../styles/globalStyles';
@@ -123,6 +123,25 @@ const ChatScreen = ({ route, navigation }) => {
         );
     };
 
+    if (loading) {
+        return (
+            <View style={styles.container}>
+                <View style={styles.header}>
+                    <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+                        <Ionicons name="arrow-back" size={24} color={colors.text} />
+                    </TouchableOpacity>
+                    <View style={styles.headerInfo}>
+                        <Text style={styles.headerName} numberOfLines={1}>{participantName}</Text>
+                        <Text style={styles.headerSubtitle} numberOfLines={1}>🅿️ {parkingTitle}</Text>
+                    </View>
+                </View>
+                <View style={{ flex: 1, paddingTop: 10 }}>
+                    <MessagesSkeleton />
+                </View>
+            </View>
+        );
+    }
+
     return (
         <KeyboardAvoidingView
             style={styles.container}
@@ -141,26 +160,20 @@ const ChatScreen = ({ route, navigation }) => {
             </View>
 
             {/* Messages */}
-            {loading ? (
-                <View style={styles.centered}>
-                    <ChatListSkeleton />
-                </View>
-            ) : (
-                <FlatList
-                    ref={flatListRef}
-                    data={messages}
-                    renderItem={renderMessage}
-                    keyExtractor={(item) => item.id}
-                    contentContainerStyle={styles.messagesList}
-                    onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: false })}
-                    ListEmptyComponent={
-                        <View style={styles.centered}>
-                            <Text style={{ fontSize: 32, marginBottom: 8 }}>👋</Text>
-                            <Text style={styles.emptyText}>Start the conversation!</Text>
-                        </View>
-                    }
-                />
-            )}
+            <FlatList
+                ref={flatListRef}
+                data={messages}
+                renderItem={renderMessage}
+                keyExtractor={(item) => item.id}
+                contentContainerStyle={styles.messagesList}
+                onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: false })}
+                ListEmptyComponent={
+                    <View style={styles.centered}>
+                        <Text style={{ fontSize: 32, marginBottom: 8 }}>👋</Text>
+                        <Text style={styles.emptyText}>Start the conversation!</Text>
+                    </View>
+                }
+            />
 
             {/* Input */}
             <View style={[styles.inputContainer, { paddingBottom: Math.max(insets.bottom, 8) }]}>
