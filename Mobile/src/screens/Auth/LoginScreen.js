@@ -164,7 +164,6 @@ const LoginScreen = ({ navigation }) => {
                                     autoCorrect={false}
                                     textContentType="username"
                                     autoComplete="email"
-                                    importantForAutofill="yes"
                                     returnKeyType="next"
                                     onSubmitEditing={() => passwordRef.current?.focus()}
                                     blurOnSubmit={false}
@@ -185,7 +184,6 @@ const LoginScreen = ({ navigation }) => {
                                     secureTextEntry
                                     textContentType="password"
                                     autoComplete="password"
-                                    importantForAutofill="yes"
                                     returnKeyType="done"
                                     onSubmitEditing={handleLogin}
                                 />

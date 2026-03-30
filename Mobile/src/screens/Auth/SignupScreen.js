@@ -82,11 +82,11 @@ const SignupScreen = ({ navigation }) => {
                             </View>
                         </View>
 
-                        <Input label="Email" value={formData.email} onChangeText={updateField('email')} placeholder="Enter your email" keyboardType="email-address" autoCapitalize="none" leftIcon="mail-outline" error={errors.email} textContentType="username" autoComplete="email" importantForAutofill="yes" returnKeyType="next" />
+                        <Input label="Email" value={formData.email} onChangeText={updateField('email')} placeholder="Enter your email" keyboardType="email-address" autoCapitalize="none" leftIcon="mail-outline" error={errors.email} textContentType="username" autoComplete="email" returnKeyType="next" />
 
                         <Input label="Phone Number" value={formData.phoneNumber} onChangeText={updateField('phoneNumber')} placeholder="Enter phone number" keyboardType="phone-pad" leftIcon="call-outline" error={errors.phoneNumber} returnKeyType="next" />
 
-                        <Input label="Password" value={formData.password} onChangeText={updateField('password')} placeholder="Min. 8 characters" secureTextEntry leftIcon="lock-closed-outline" error={errors.password} textContentType="newPassword" autoComplete="password-new" importantForAutofill="yes" returnKeyType="done" onSubmitEditing={handleSignup} />
+                        <Input label="Password" value={formData.password} onChangeText={updateField('password')} placeholder="Min. 8 characters" secureTextEntry leftIcon="lock-closed-outline" error={errors.password} textContentType="newPassword" autoComplete="password-new" returnKeyType="done" onSubmitEditing={handleSignup} />
 
                         <Button title="Create Account" onPress={handleSignup} loading={loading} style={styles.signupButton} />
 

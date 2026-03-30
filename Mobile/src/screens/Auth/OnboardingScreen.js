@@ -71,12 +71,12 @@ const OnboardingScreen = ({ navigation }) => {
 
     const handleGetStarted = useCallback(async () => {
         await cacheService.setOnboardingDone();
-        navigation.reset({ index: 0, routes: [{ name: 'Login' }] });
+        navigation.navigate('Login');
     }, [navigation]);
 
     const handleSkip = useCallback(async () => {
         await cacheService.setOnboardingDone();
-        navigation.reset({ index: 0, routes: [{ name: 'Login' }] });
+        navigation.navigate('Login');
     }, [navigation]);
 
     const renderSlide = ({ item, index }) => (
