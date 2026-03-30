@@ -222,7 +222,20 @@ const BookingDetailScreen = ({ navigation, route }) => {
         }
     }, [dispatch, bookingId]);
 
-    if (detailLoading || !booking) return <DetailSkeleton />;
+    if (detailLoading || !booking || booking.id !== bookingId) {
+        return (
+            <ScreenLayout>
+                <View style={styles.header}>
+                    <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+                        <Ionicons name="arrow-back" size={24} color={colors.textPrimary} />
+                    </TouchableOpacity>
+                    <Text style={styles.headerTitle}>Booking Details</Text>
+                    <View style={{ width: 40 }} />
+                </View>
+                <DetailSkeleton />
+            </ScreenLayout>
+        );
+    }
 
     const isOwner = isOwnerOfBooking(booking);
 

@@ -97,7 +97,20 @@ const ParkingDetailScreen = ({ navigation, route }) => {
         }
     }, [parking]);
 
-    if (detailLoading || !parking) return <DetailSkeleton />;
+    // Improve UI stability: Only show detail if it matches the requested ID and isn't loading
+    if (detailLoading || !parking || parking.id !== parkingId) {
+        return (
+            <View style={styles.screen}>
+                <TouchableOpacity
+                    style={[styles.heroBtn, styles.backBtn, { top: insets.top + 8, zIndex: 10 }]}
+                    onPress={() => navigation.goBack()}
+                >
+                    <Ionicons name="chevron-back" size={22} color={colors.white} />
+                </TouchableOpacity>
+                <DetailSkeleton />
+            </View>
+        );
+    }
 
     const hasImage = parking.images?.length > 0;
     const typeLabel = ParkingTypeLabels[parking.parkingType] || 'Parking';
