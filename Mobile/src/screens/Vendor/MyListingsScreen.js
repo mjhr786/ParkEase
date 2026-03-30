@@ -107,15 +107,15 @@ const MyListingsScreen = ({ navigation }) => {
 
     const handleToggle = useCallback((id) => {
         setTogglingId(id);
-        dispatch(toggleParkingActiveThunk(id)).then((res) => {
+        dispatch(toggleParkingActiveThunk(id)).then(async (res) => {
             if (res.error) {
                 EventBus.emit('SHOW_ERROR_BANNER', { 
                     title: 'Error', 
                     message: res.payload || 'Failed to update listing status' 
                 });
             } else {
-                // Refresh for data consistency
-                dispatch(getMyListingsThunk());
+                // Refresh for data consistency and AWAIT it to prevent flicker
+                await dispatch(getMyListingsThunk());
             }
             setTogglingId(null);
         });
