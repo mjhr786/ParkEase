@@ -69,7 +69,9 @@ export const ENDPOINTS = {
     NOTIFICATIONS: {
         BASE: '/notifications',
         MARK_READ: (id) => `/notifications/${id}/read`,
+        MARK_ALL_READ: '/notifications/read-all',
         DELETE: (id) => `/notifications/${id}`,
+        CLEAR_ALL: '/notifications/clear-all',
     },
 
     // Vehicles

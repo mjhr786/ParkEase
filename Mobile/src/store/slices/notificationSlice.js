@@ -44,6 +44,30 @@ export const deleteNotificationThunk = createAsyncThunk(
     }
 );
 
+export const markAllNotificationsAsReadThunk = createAsyncThunk(
+    'notification/markAllRead',
+    async (_, { rejectWithValue }) => {
+        try {
+            await apiClient.put(ENDPOINTS.NOTIFICATIONS.MARK_ALL_READ);
+            return true;
+        } catch (error) {
+            return rejectWithValue(getErrorMessage(error));
+        }
+    }
+);
+
+export const clearAllNotificationsThunk = createAsyncThunk(
+    'notification/clearAll',
+    async (_, { rejectWithValue }) => {
+        try {
+            await apiClient.delete(ENDPOINTS.NOTIFICATIONS.CLEAR_ALL);
+            return true;
+        } catch (error) {
+            return rejectWithValue(getErrorMessage(error));
+        }
+    }
+);
+
 const initialState = {
     notifications: [],
     unreadCount: 0,
@@ -88,6 +112,16 @@ const notificationSlice = createSlice({
             })
             .addCase(deleteNotificationThunk.fulfilled, (state, action) => {
                 state.notifications = state.notifications.filter((n) => n.id !== action.payload);
+            })
+            .addCase(markAllNotificationsAsReadThunk.fulfilled, (state) => {
+                state.notifications.forEach((n) => {
+                    n.isRead = true;
+                });
+                state.unreadCount = 0;
+            })
+            .addCase(clearAllNotificationsThunk.fulfilled, (state) => {
+                state.notifications = [];
+                state.unreadCount = 0;
             });
     },
 });

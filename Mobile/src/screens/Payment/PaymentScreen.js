@@ -5,7 +5,7 @@
 
 import React, { useEffect, useCallback, useState } from 'react';
 import { EventBus } from '../../utils/EventBus';
-import { View, Text, ScrollView, StyleSheet, Alert } from 'react-native';
+import { View, Text, ScrollView, StyleSheet } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { Ionicons } from '@expo/vector-icons';
 import { processPaymentThunk, clearPaymentResult } from '../../store/slices/paymentSlice';
@@ -53,11 +53,10 @@ const PaymentScreen = ({ navigation, route }) => {
             paymentMethod: selectedMethod,
         }));
         if (!result.error) {
-            Alert.alert('Payment Successful', 'Your payment has been processed.', [
-                { text: 'OK', onPress: () => navigation.goBack() },
-            ]);
+            EventBus.emit('SHOW_BANNER', { title: 'Payment Successful', message: 'Your payment has been processed.', type: 'success' });
+            navigation.goBack();
         } else {
-            Alert.alert('Payment Failed', result.payload || 'Please try again.');
+            EventBus.emit('SHOW_ERROR_BANNER', { title: 'Payment Failed', message: result.payload || 'Please try again.' });
         }
     }, [dispatch, bookingId, amount, selectedMethod, navigation]);
 

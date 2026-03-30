@@ -5,7 +5,7 @@
 
 import React, { useState, useCallback } from 'react';
 import { EventBus } from '../../utils/EventBus';
-import { View, Text, StyleSheet, Alert } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { Ionicons } from '@expo/vector-icons';
 import { changePasswordThunk } from '../../store/slices/authSlice';
@@ -42,9 +42,8 @@ const ChangePasswordScreen = ({ navigation }) => {
         }));
 
         if (!result.error) {
-            Alert.alert('Success', 'Your password has been changed.', [
-                { text: 'OK', onPress: () => navigation.goBack() },
-            ]);
+            EventBus.emit('SHOW_BANNER', { title: 'Success', message: 'Your password has been changed.', type: 'success' });
+            navigation.goBack();
         } else {
             EventBus.emit('SHOW_ERROR_BANNER', { title: 'Error', message: result.payload || 'Failed to change password.' });
         }

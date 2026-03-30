@@ -43,7 +43,10 @@ const LoginScreen = ({ navigation }) => {
         if (response?.type === 'success') {
             handleGoogleToken(response.authentication);
         } else if (response?.type === 'error') {
-            Alert.alert('Google Sign-In Failed', response.error?.message || 'Something went wrong');
+            EventBus.emit('SHOW_ERROR_BANNER', { 
+                title: 'Google Sign-In Failed', 
+                message: response.error?.message || 'Something went wrong' 
+            });
             setGoogleLoading(false);
         } else if (response?.type === 'dismiss') {
             setGoogleLoading(false);

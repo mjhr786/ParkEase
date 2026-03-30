@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { Ionicons } from '@expo/vector-icons';
-import { getVendorBookingsThunk, approveBookingThunk, rejectBookingThunk } from '../../store/slices/bookingSlice';
+import { getVendorBookingsThunk, approveBookingThunk, rejectBookingThunk, getPendingCountThunk } from '../../store/slices/bookingSlice';
 import ScreenLayout from '../../components/Layouts/ScreenLayout';
 import Card from '../../components/Common/Card';
 import Badge from '../../components/Common/Badge';
@@ -60,7 +60,8 @@ const VendorBookingsScreen = ({ navigation }) => {
                     setActionLoading(id);
                     try {
                         const result = await dispatch(approveBookingThunk(id)).unwrap();
-                        Alert.alert('Success', 'Booking approved successfully!');
+                        EventBus.emit('SHOW_BANNER', { title: 'Success', message: 'Booking approved successfully!', type: 'success' });
+                        dispatch(getPendingCountThunk());
                     } catch (error) {
                         EventBus.emit('SHOW_ERROR_BANNER', { title: 'Error', message: error || 'Failed to approve booking' });
                     } finally {
@@ -85,7 +86,8 @@ const VendorBookingsScreen = ({ navigation }) => {
                 id: rejectBookingId,
                 reason: rejectReason.trim() || 'Rejected by vendor',
             })).unwrap();
-            Alert.alert('Done', 'Booking has been rejected.');
+            EventBus.emit('SHOW_BANNER', { title: 'Done', message: 'Booking has been rejected.', type: 'success' });
+            dispatch(getPendingCountThunk());
             setRejectModalVisible(false);
             setRejectBookingId(null);
             setRejectReason('');

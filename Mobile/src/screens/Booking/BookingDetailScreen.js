@@ -12,6 +12,7 @@ import {
     Modal, TextInput, KeyboardAvoidingView, Platform
 } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
+import { getMyBookingsThunk, getVendorBookingsThunk, getPendingCountThunk } from '../../store/slices/bookingSlice';
 import { Ionicons } from '@expo/vector-icons';
 import {
     getBookingDetailThunk,
@@ -74,7 +75,8 @@ const BookingDetailScreen = ({ navigation, route }) => {
                         setActionLoading(true);
                         try {
                             await dispatch(cancelBookingThunk({ id: bookingId, reason: 'Cancelled by user' })).unwrap();
-                            Alert.alert('Success', 'Booking has been cancelled.');
+                            EventBus.emit('SHOW_BANNER', { title: 'Success', message: 'Booking has been cancelled.', type: 'success' });
+                            dispatch(getMyBookingsThunk());
                         } catch (error) {
                             EventBus.emit('SHOW_ERROR_BANNER', { title: 'Error', message: error || 'Failed to cancel booking' });
                         } finally {
@@ -95,8 +97,10 @@ const BookingDetailScreen = ({ navigation, route }) => {
                     setActionLoading(true);
                     try {
                         await dispatch(approveBookingThunk(bookingId)).unwrap();
-                        Alert.alert('Success', 'Booking approved successfully!');
+                        EventBus.emit('SHOW_BANNER', { title: 'Success', message: 'Booking approved successfully!', type: 'success' });
                         dispatch(getBookingDetailThunk(bookingId));
+                        dispatch(getVendorBookingsThunk());
+                        dispatch(getPendingCountThunk());
                     } catch (error) {
                         EventBus.emit('SHOW_ERROR_BANNER', { title: 'Error', message: error || 'Failed to approve booking' });
                     } finally {
@@ -114,10 +118,12 @@ const BookingDetailScreen = ({ navigation, route }) => {
                 id: bookingId,
                 reason: rejectReason.trim() || 'Rejected by vendor',
             })).unwrap();
-            Alert.alert('Done', 'Booking has been rejected.');
+            EventBus.emit('SHOW_BANNER', { title: 'Done', message: 'Booking has been rejected.', type: 'success' });
             setRejectModalVisible(false);
             setRejectReason('');
             dispatch(getBookingDetailThunk(bookingId));
+            dispatch(getVendorBookingsThunk());
+            dispatch(getPendingCountThunk());
         } catch (error) {
             EventBus.emit('SHOW_ERROR_BANNER', { title: 'Error', message: error || 'Failed to reject booking' });
         } finally {
@@ -151,7 +157,9 @@ const BookingDetailScreen = ({ navigation, route }) => {
         setActionLoading(true);
         try {
             await dispatch(checkInBookingThunk(bookingId)).unwrap();
-            Alert.alert('Success', 'Checked in successfully!');
+            EventBus.emit('SHOW_BANNER', { title: 'Success', message: 'Checked in successfully!', type: 'success' });
+            dispatch(getMyBookingsThunk());
+            dispatch(getVendorBookingsThunk());
         } catch (error) {
             EventBus.emit('SHOW_ERROR_BANNER', { title: 'Error', message: error || 'Failed to check in' });
         } finally {
@@ -168,7 +176,9 @@ const BookingDetailScreen = ({ navigation, route }) => {
                     setActionLoading(true);
                     try {
                         await dispatch(checkOutBookingThunk(bookingId)).unwrap();
-                        Alert.alert('Success', 'Checked out successfully!');
+                        EventBus.emit('SHOW_BANNER', { title: 'Success', message: 'Checked out successfully!', type: 'success' });
+                        dispatch(getMyBookingsThunk());
+                        dispatch(getVendorBookingsThunk());
                     } catch (error) {
                         EventBus.emit('SHOW_ERROR_BANNER', { title: 'Error', message: error || 'Failed to check out' });
                     } finally {
@@ -188,9 +198,10 @@ const BookingDetailScreen = ({ navigation, route }) => {
         setActionLoading(true);
         try {
             await dispatch(extendBookingThunk({ id: bookingId, data: { additionalHours: hours } })).unwrap();
-            Alert.alert('Success', 'Extension request submitted!');
+            EventBus.emit('SHOW_BANNER', { title: 'Success', message: 'Extension request submitted!', type: 'success' });
             setExtendModalVisible(false);
             setExtendHours('');
+            dispatch(getMyBookingsThunk());
         } catch (error) {
             EventBus.emit('SHOW_ERROR_BANNER', { title: 'Error', message: error || 'Failed to request extension' });
         } finally {
@@ -202,7 +213,9 @@ const BookingDetailScreen = ({ navigation, route }) => {
         setActionLoading(true);
         try {
             await dispatch(approveExtensionThunk(bookingId)).unwrap();
-            Alert.alert('Success', 'Extension approved!');
+            EventBus.emit('SHOW_BANNER', { title: 'Success', message: 'Extension approved!', type: 'success' });
+            dispatch(getBookingDetailThunk(bookingId));
+            dispatch(getVendorBookingsThunk());
         } catch (error) {
             EventBus.emit('SHOW_ERROR_BANNER', { title: 'Error', message: error || 'Failed to approve extension' });
         } finally {
@@ -214,7 +227,9 @@ const BookingDetailScreen = ({ navigation, route }) => {
         setActionLoading(true);
         try {
             await dispatch(rejectExtensionThunk(bookingId)).unwrap();
-            Alert.alert('Done', 'Extension rejected.');
+            EventBus.emit('SHOW_BANNER', { title: 'Done', message: 'Extension rejected.', type: 'success' });
+            dispatch(getBookingDetailThunk(bookingId));
+            dispatch(getVendorBookingsThunk());
         } catch (error) {
             EventBus.emit('SHOW_ERROR_BANNER', { title: 'Error', message: error || 'Failed to reject extension' });
         } finally {

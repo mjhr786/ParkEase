@@ -5,6 +5,7 @@
  */
 
 import React, { useState, useCallback, useEffect } from 'react';
+import { EventBus } from '../../utils/EventBus';
 import {
     View, Text, ScrollView, TouchableOpacity, StyleSheet, Platform, Modal,
     KeyboardAvoidingView,
@@ -132,7 +133,17 @@ const BookingScreen = ({ navigation, route }) => {
             discountCode: discountCode || undefined,
         }));
         if (!result.error) {
+            EventBus.emit('SHOW_BANNER', { 
+                title: 'Booking Successful', 
+                message: 'Your booking has been created. You can view it in the Bookings tab.', 
+                type: 'success' 
+            });
             navigation.goBack();
+        } else {
+            EventBus.emit('SHOW_ERROR_BANNER', { 
+                title: 'Booking Failed', 
+                message: result.payload || 'Could not create booking. Please try again.' 
+            });
         }
     };
 

@@ -70,7 +70,7 @@ const ProfileScreen = ({ navigation }) => {
         const result = await updateProfile({ firstName, lastName, phoneNumber });
         if (!result.error) {
             setEditing(false);
-            Alert.alert('Success', 'Profile updated');
+            EventBus.emit('SHOW_BANNER', { title: 'Success', message: 'Profile updated', type: 'success' });
         }
     }, [updateProfile, firstName, lastName, phoneNumber]);
 
@@ -97,7 +97,7 @@ const ProfileScreen = ({ navigation }) => {
                     onPress: async () => {
                         try {
                             await dispatch(deleteAccountThunk()).unwrap();
-                            Alert.alert('Account Deleted', 'Your account has been permanently deleted.');
+                            EventBus.emit('SHOW_BANNER', { title: 'Account Deleted', message: 'Your account has been permanently deleted.', type: 'success' });
                         } catch (error) {
                             EventBus.emit('SHOW_ERROR_BANNER', { title: 'Error', message: error || 'Failed to delete account.' });
                         }

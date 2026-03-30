@@ -11,6 +11,8 @@ import {
     getNotificationsThunk,
     markNotificationReadThunk,
     deleteNotificationThunk,
+    clearAllNotificationsThunk,
+    markAllNotificationsAsReadThunk,
 } from '../../store/slices/notificationSlice';
 import ScreenLayout from '../../components/Layouts/ScreenLayout';
 import EmptyState from '../../components/Common/EmptyState';
@@ -181,6 +183,41 @@ const NotificationsScreen = ({ navigation }) => {
         [dispatch, onRefresh]
     );
 
+    const handleClearAll = useCallback(() => {
+        if (!notifications.length) return;
+        
+        Alert.alert(
+            'Clear All',
+            'Are you sure you want to remove all notifications?',
+            [
+                { text: 'Cancel', style: 'cancel' },
+                { 
+                    text: 'Clear All', 
+                    style: 'destructive', 
+                    onPress: async () => {
+                        try {
+                            const res = await dispatch(clearAllNotificationsThunk());
+                            if (res.error) {
+                                EventBus.emit('SHOW_ERROR_BANNER', { 
+                                    title: 'Error', 
+                                    message: res.payload || 'Failed to clear notifications' 
+                                });
+                            } else {
+                                EventBus.emit('SHOW_BANNER', {
+                                    title: 'Success',
+                                    message: 'All notifications cleared',
+                                    type: 'success'
+                                });
+                            }
+                        } catch (e) {
+                            console.error(e);
+                        }
+                    } 
+                },
+            ]
+        );
+    }, [dispatch, notifications.length]);
+
     if (loading && !notifications.length) {
         return (
             <ScreenLayout>
@@ -203,7 +240,9 @@ const NotificationsScreen = ({ navigation }) => {
                     <Ionicons name="arrow-back" size={24} color={colors.textPrimary} />
                 </TouchableOpacity>
                 <Text style={styles.title}>Notifications</Text>
-                <View style={{ width: 24 }} />
+                <TouchableOpacity onPress={handleClearAll} disabled={!notifications.length}>
+                    <Text style={[styles.clearBtn, !notifications.length && styles.disabledBtn]}>Clear All</Text>
+                </TouchableOpacity>
             </View>
             <FlatList
                 data={notifications}
@@ -247,6 +286,8 @@ const styles = StyleSheet.create({
         paddingHorizontal: spacing.screenHorizontal,
     },
     title: { ...typography.h3, color: colors.textPrimary },
+    clearBtn: { ...typography.bodySmall, color: colors.primary, fontWeight: '600' },
+    disabledBtn: { color: colors.textTertiary, opacity: 0.5 },
 });
 
 export default NotificationsScreen;

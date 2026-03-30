@@ -52,8 +52,17 @@ const ChatScreen = ({ route, navigation }) => {
         try {
             const result = await chatService.getMessages(activeConversationId);
             if (result.success) {
-                // Reverse to show oldest first (API returns newest first)
-                setMessages((result.data || []).reverse());
+                const newMessages = (result.data || []).reverse();
+                setMessages(prev => {
+                    // Keep optimistic messages that are still sending or have errors
+                    const optimistic = prev.filter(m => m.status === 'sending' || m.status === 'error');
+                    
+                    // Simple deduplication based on ID
+                    const realIds = new Set(newMessages.map(m => m.id));
+                    const filteredOptimistic = optimistic.filter(m => !realIds.has(m.id));
+                    
+                    return [...newMessages, ...filteredOptimistic];
+                });
             }
         } catch (error) {
             EventBus.emit('SHOW_ERROR_BANNER', { title: 'Network Issue', message: 'Failed to load messages' });
@@ -77,22 +86,41 @@ const ChatScreen = ({ route, navigation }) => {
         const content = newMessage.trim();
         if (!content || sending) return;
 
+        const tempId = `temp-${Date.now()}`;
+        const tempMessage = {
+            id: tempId,
+            content,
+            senderId: user?.id,
+            senderName: `${user?.firstName} ${user?.lastName}`,
+            createdAt: new Date().toISOString(),
+            status: 'sending',
+            isRead: false
+        };
+
+        // UI updates immediately for better UX
+        setMessages(prev => [...prev, tempMessage]);
+        setNewMessage('');
         setSending(true);
+
+        // Auto-scroll
+        setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 50);
+
         try {
             const result = await chatService.sendMessage(parkingSpaceId, content);
             if (result.success && result.data) {
-                setMessages(prev => [...prev, result.data]);
-                setNewMessage('');
+                // Replace optimistic message with real message from server
+                setMessages(prev => prev.map(m => m.id === tempId ? result.data : m));
 
                 // If this was a new conversation, set the active conversation ID to start polling
                 if (!activeConversationId && result.data.conversationId) {
                     setActiveConversationId(result.data.conversationId);
                 }
-
-                // Auto-scroll
-                setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
+            } else {
+                throw new Error('Failed to send');
             }
         } catch (error) {
+            // Update message status to error
+            setMessages(prev => prev.map(m => m.id === tempId ? { ...m, status: 'error' } : m));
             EventBus.emit('SHOW_ERROR_BANNER', { title: 'Network Issue', message: 'Failed to send message' });
         } finally {
             setSending(false);
@@ -107,9 +135,17 @@ const ChatScreen = ({ route, navigation }) => {
 
     const renderMessage = ({ item }) => {
         const isMine = item.senderId === user?.id;
+        const isSending = item.status === 'sending';
+        const isError = item.status === 'error';
+
         return (
             <View style={[styles.messageBubbleRow, isMine && styles.messageBubbleRowMine]}>
-                <View style={[styles.messageBubble, isMine ? styles.myBubble : styles.otherBubble]}>
+                <View style={[
+                    styles.messageBubble,
+                    isMine ? styles.myBubble : styles.otherBubble,
+                    isSending && { opacity: 0.7 },
+                    isError && { backgroundColor: '#FADBD8', borderColor: colors.danger, borderWidth: 1 }
+                ]}>
                     {!isMine && (
                         <Text style={styles.senderName}>{item.senderName}</Text>
                     )}
@@ -120,10 +156,16 @@ const ChatScreen = ({ route, navigation }) => {
                         <Text style={[styles.timestamp, isMine && styles.myTimestamp]}>
                             {formatTime(item.createdAt)}
                         </Text>
-                        {isMine && (
+                        {isMine && !isSending && !isError && (
                             <Text style={styles.readReceipt}>
                                 {item.isRead ? '✓✓' : '✓'}
                             </Text>
+                        )}
+                        {isSending && (
+                            <Ionicons name="time-outline" size={10} color={isMine ? 'rgba(255,255,255,0.7)' : colors.textTertiary} />
+                        )}
+                        {isError && (
+                            <Ionicons name="alert-circle" size={12} color={colors.danger} />
                         )}
                     </View>
                 </View>

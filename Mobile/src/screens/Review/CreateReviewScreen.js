@@ -4,7 +4,8 @@
  */
 
 import React, { useState, useCallback } from 'react';
-import { View, Text, TouchableOpacity, Alert, StyleSheet } from 'react-native';
+import { EventBus } from '../../utils/EventBus';
+import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { Ionicons } from '@expo/vector-icons';
 import { createReviewThunk } from '../../store/slices/reviewSlice';
@@ -26,7 +27,7 @@ const CreateReviewScreen = ({ navigation, route }) => {
 
     const handleSubmit = useCallback(async () => {
         if (rating === 0) {
-            Alert.alert('Rating Required', 'Please select a star rating');
+            EventBus.emit('SHOW_BANNER', { title: 'Rating Required', message: 'Please select a star rating', type: 'error' });
             return;
         }
 
@@ -38,9 +39,10 @@ const CreateReviewScreen = ({ navigation, route }) => {
         }));
 
         if (!result.error) {
-            Alert.alert('Thank You!', 'Your review has been submitted', [
-                { text: 'OK', onPress: () => navigation.goBack() },
-            ]);
+            EventBus.emit('SHOW_BANNER', { title: 'Thank You!', message: 'Your review has been submitted', type: 'success' });
+            navigation.goBack();
+        } else {
+            EventBus.emit('SHOW_ERROR_BANNER', { title: 'Error', message: result.payload || 'Failed to submit review' });
         }
     }, [dispatch, parkingSpaceId, rating, title, comment, navigation]);
 

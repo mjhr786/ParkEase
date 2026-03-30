@@ -5,7 +5,7 @@
 
 import React, { useState, useCallback } from 'react';
 import { EventBus } from '../../utils/EventBus';
-import { View, Text, StyleSheet, Alert } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { Ionicons } from '@expo/vector-icons';
 import { updateProfileThunk } from '../../store/slices/authSlice';
@@ -36,9 +36,8 @@ const EditProfileScreen = ({ navigation }) => {
         }));
 
         if (!result.error) {
-            Alert.alert('Success', 'Profile updated successfully.', [
-                { text: 'OK', onPress: () => navigation.goBack() },
-            ]);
+            EventBus.emit('SHOW_BANNER', { title: 'Success', message: 'Profile updated successfully.', type: 'success' });
+            navigation.goBack();
         } else {
             EventBus.emit('SHOW_ERROR_BANNER', { title: 'Error', message: result.payload || 'Failed to update profile.' });
         }
