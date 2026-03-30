@@ -5,11 +5,18 @@
  */
 
 import React from 'react';
+import { View, Text, AppState } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useSelector, useDispatch } from 'react-redux';
 import { colors } from '../styles/globalStyles';
+
+// Thunks for sync
+import { getNotificationsThunk } from '../store/slices/notificationSlice';
+import { getUnreadCountThunk } from '../store/slices/chatSlice';
+import { getMemberDashboardThunk, getVendorDashboardThunk } from '../store/slices/dashboardSlice';
 
 // Screens
 import UnifiedDashboardScreen from '../screens/Home/UnifiedDashboardScreen';
@@ -118,11 +125,45 @@ const ProfileStack = () => (
         <Stack.Screen name="Notifications" component={NotificationsScreen} />
         <Stack.Screen name="PaymentScreen" component={PaymentScreen} />
         <Stack.Screen name="MyListings" component={MyListingsScreen} />
+        <Stack.Screen name="BookingDetail" component={BookingDetailScreen} />
+        <Stack.Screen name="ParkingDetail" component={ParkingDetailScreen} />
+        <Stack.Screen name="ChatScreen" component={ChatScreen} />
     </Stack.Navigator>
 );
 
 const AppTabNavigator = () => {
+    const dispatch = useDispatch();
     const insets = useSafeAreaInsets();
+    const { unreadCount: notificationUnreadCount } = useSelector((s) => s.notification);
+    const { unreadCount: messageUnreadCount } = useSelector((s) => s.chat);
+
+    const refreshCounts = React.useCallback(() => {
+        dispatch(getNotificationsThunk());
+        dispatch(getUnreadCountThunk());
+        // Also refresh dashboard stats to keep everything in sync
+        dispatch(getMemberDashboardThunk());
+        dispatch(getVendorDashboardThunk());
+    }, [dispatch]);
+
+    React.useEffect(() => {
+        // Initial fetch
+        refreshCounts();
+
+        // 1. Listen for app state changes (background -> foreground)
+        const subscription = AppState.addEventListener('change', (nextAppState) => {
+            if (nextAppState === 'active') {
+                refreshCounts();
+            }
+        });
+
+        // 2. Periodic polling (every 60 seconds)
+        const interval = setInterval(refreshCounts, 60000);
+
+        return () => {
+            subscription.remove();
+            clearInterval(interval);
+        };
+    }, [refreshCounts]);
 
     return (
         <Tab.Navigator
@@ -154,12 +195,50 @@ const AppTabNavigator = () => {
                 },
             })}
         >
-            <Tab.Screen name="HomeTab" component={HomeStack} options={{ tabBarLabel: 'Home' }} />
-            <Tab.Screen name="SearchTab" component={SearchStack} options={{ tabBarLabel: 'Search' }} />
-            <Tab.Screen name="ListingsTab" component={ListingsStack} options={{ tabBarLabel: 'Listings' }} />
-            <Tab.Screen name="BookingsTab" component={BookingsStack} options={{ tabBarLabel: 'Bookings' }} />
-            <Tab.Screen name="MessagesTab" component={MessagesStack} options={{ tabBarLabel: 'Messages' }} />
-            <Tab.Screen name="ProfileTab" component={ProfileStack} options={{ tabBarLabel: 'Profile' }} />
+            <Tab.Screen 
+                name="HomeTab" 
+                component={HomeStack} 
+                options={{ tabBarLabel: 'Home' }} 
+                listeners={{ tabPress: refreshCounts }}
+            />
+            <Tab.Screen 
+                name="SearchTab" 
+                component={SearchStack} 
+                options={{ tabBarLabel: 'Search' }} 
+                listeners={{ tabPress: refreshCounts }}
+            />
+            <Tab.Screen 
+                name="ListingsTab" 
+                component={ListingsStack} 
+                options={{ tabBarLabel: 'Listings' }} 
+                listeners={{ tabPress: refreshCounts }}
+            />
+            <Tab.Screen 
+                name="BookingsTab" 
+                component={BookingsStack} 
+                options={{ tabBarLabel: 'Bookings' }} 
+                listeners={{ tabPress: refreshCounts }}
+            />
+            <Tab.Screen 
+                name="MessagesTab" 
+                component={MessagesStack} 
+                options={{ 
+                    tabBarLabel: 'Messages',
+                    tabBarBadge: messageUnreadCount > 0 ? messageUnreadCount : null,
+                    tabBarBadgeStyle: { backgroundColor: colors.primary, color: colors.white }
+                }} 
+                listeners={{ tabPress: refreshCounts }}
+            />
+            <Tab.Screen 
+                name="ProfileTab" 
+                component={ProfileStack} 
+                options={{ 
+                    tabBarLabel: 'Profile',
+                    tabBarBadge: notificationUnreadCount > 0 ? notificationUnreadCount : null,
+                    tabBarBadgeStyle: { backgroundColor: colors.danger, color: colors.white }
+                }} 
+                listeners={{ tabPress: refreshCounts }}
+            />
         </Tab.Navigator>
     );
 };

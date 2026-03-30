@@ -46,6 +46,7 @@ export const deleteNotificationThunk = createAsyncThunk(
 
 const initialState = {
     notifications: [],
+    unreadCount: 0,
     loading: false,
     error: null,
 };
@@ -64,7 +65,15 @@ const notificationSlice = createSlice({
             })
             .addCase(getNotificationsThunk.fulfilled, (state, action) => {
                 state.loading = false;
-                state.notifications = action.payload?.notifications || action.payload || [];
+                // Backend returns { notifications: { items: [], ... }, unreadCount: X }
+                const data = action.payload;
+                if (data?.notifications?.items) {
+                    state.notifications = data.notifications.items;
+                    state.unreadCount = data.unreadCount || 0;
+                } else {
+                    state.notifications = Array.isArray(data) ? data : [];
+                    state.unreadCount = state.notifications.filter(n => !n.isRead).length;
+                }
             })
             .addCase(getNotificationsThunk.rejected, (state, action) => {
                 state.loading = false;
@@ -74,6 +83,7 @@ const notificationSlice = createSlice({
                 const idx = state.notifications.findIndex((n) => n.id === action.payload);
                 if (idx !== -1) {
                     state.notifications[idx].isRead = true;
+                    state.unreadCount = Math.max(0, state.unreadCount - 1);
                 }
             })
             .addCase(deleteNotificationThunk.fulfilled, (state, action) => {

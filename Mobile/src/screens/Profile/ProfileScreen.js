@@ -18,13 +18,18 @@ import Input from '../../components/Common/Input';
 import { colors, spacing, typography, shadows } from '../../styles/globalStyles';
 
 
-const MenuItem = ({ icon, label, value, onPress, danger = false }) => (
+const MenuItem = ({ icon, label, value, onPress, danger = false, badge = 0 }) => (
     <TouchableOpacity style={menuStyles.item} onPress={onPress}>
         <Ionicons name={icon} size={22} color={danger ? colors.danger : colors.primary} />
         <View style={menuStyles.info}>
             <Text style={[menuStyles.label, danger && { color: colors.danger }]}>{label}</Text>
             {value && <Text style={menuStyles.value}>{value}</Text>}
         </View>
+        {badge > 0 && (
+            <View style={menuStyles.badge}>
+                <Text style={menuStyles.badgeText}>{badge > 99 ? '99+' : badge}</Text>
+            </View>
+        )}
         <Ionicons name="chevron-forward" size={18} color={colors.textTertiary} />
     </TouchableOpacity>
 );
@@ -34,6 +39,20 @@ const menuStyles = StyleSheet.create({
     info: { flex: 1 },
     label: { ...typography.body, color: colors.textPrimary },
     value: { ...typography.caption, color: colors.textTertiary, marginTop: 2 },
+    badge: {
+        backgroundColor: colors.danger,
+        paddingHorizontal: 6,
+        paddingVertical: 2,
+        borderRadius: 10,
+        marginRight: spacing.xs,
+        minWidth: 20,
+        alignItems: 'center',
+    },
+    badgeText: {
+        color: colors.white,
+        fontSize: 11,
+        fontWeight: '700',
+    },
 });
 
 const ProfileScreen = ({ navigation }) => {
@@ -45,8 +64,7 @@ const ProfileScreen = ({ navigation }) => {
     const [phoneNumber, setPhoneNumber] = useState(user?.phoneNumber || '');
 
     // Get unread count safely
-    const { notifications } = useSelector((s) => s.notification);
-    const unreadCount = (Array.isArray(notifications) ? notifications : []).filter((n) => !n.isRead).length;
+    const { unreadCount: notificationUnreadCount } = useSelector((s) => s.notification);
 
     const handleSaveProfile = useCallback(async () => {
         const result = await updateProfile({ firstName, lastName, phoneNumber });
@@ -130,7 +148,7 @@ const ProfileScreen = ({ navigation }) => {
                     <MenuItem icon="lock-closed-outline" label="Change Password" onPress={handleChangePassword} />
                     <MenuItem icon="car-outline" label="My Vehicles" onPress={() => navigation.navigate('Vehicles')} />
                     <MenuItem icon="heart-outline" label="Favorites" onPress={() => navigation.navigate('Favorites')} />
-                    <MenuItem icon="notifications-outline" label="Notifications" value={unreadCount > 0 ? `${unreadCount} Unread` : ''} onPress={() => navigation.navigate('Notifications')} />
+                    <MenuItem icon="notifications-outline" label="Notifications" badge={notificationUnreadCount} onPress={() => navigation.navigate('Notifications')} />
                 </Card>
 
                 <Card>

@@ -11,6 +11,8 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getMemberDashboardThunk, getVendorDashboardThunk } from '../../store/slices/dashboardSlice';
 import { getFavoritesThunk } from '../../store/slices/favoriteSlice';
+import { getNotificationsThunk } from '../../store/slices/notificationSlice';
+import { getUnreadCountThunk } from '../../store/slices/chatSlice';
 import { useAuth } from '../../hooks/useAuth';
 import ScreenLayout from '../../components/Layouts/ScreenLayout';
 import Card from '../../components/Common/Card';
@@ -126,6 +128,8 @@ const UnifiedDashboardScreen = ({ navigation }) => {
         dispatch(getMemberDashboardThunk());
         dispatch(getVendorDashboardThunk());
         dispatch(getFavoritesThunk());
+        dispatch(getNotificationsThunk());
+        dispatch(getUnreadCountThunk());
     }, [dispatch]);
 
     const fetchAll = useCallback(async () => {
@@ -133,6 +137,8 @@ const UnifiedDashboardScreen = ({ navigation }) => {
             dispatch(getMemberDashboardThunk()),
             dispatch(getVendorDashboardThunk()),
             dispatch(getFavoritesThunk()),
+            dispatch(getNotificationsThunk()),
+            dispatch(getUnreadCountThunk()),
         ]);
     }, [dispatch]);
 

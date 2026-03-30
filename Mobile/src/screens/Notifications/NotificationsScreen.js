@@ -17,32 +17,46 @@ import EmptyState from '../../components/Common/EmptyState';
 import LoadingScreen from '../../components/Common/LoadingScreen';
 import { NotificationsSkeleton } from '../../components/Common/ShimmerPlaceholder';
 import EnhancedRefreshControl from '../../components/Common/EnhancedRefreshControl';
+import SwipeableRow from '../../components/Common/SwipeableRow';
+import { EventBus } from '../../utils/EventBus';
 import { colors, spacing, typography, shadows } from '../../styles/globalStyles';
 import { formatDateTime } from '../../utils/formatters';
 
-const NotificationItem = ({ notification, onMarkRead, onDelete }) => {
+const NOTIFICATION_CONFIG = {
+    0: { icon: 'download-outline', color: '#3b82f6', label: 'New Request' },    // BookingRequest
+    1: { icon: 'checkmark-circle-outline', color: '#10b981', label: 'Approved' }, // BookingConfirmed
+    2: { icon: 'close-circle-outline', color: '#ef4444', label: 'Rejected' },    // BookingRejected
+    3: { icon: 'cash-outline', color: '#10b981', label: 'Payment' },            // PaymentReceived
+    4: { icon: 'chatbubble-outline', color: '#3b82f6', label: 'Message' },      // NewMessage
+    5: { icon: 'alert-circle-outline', color: '#6b7280', label: 'System' },     // SystemAlert
+    default: { icon: 'notifications-outline', color: colors.primary, label: 'Notification' }
+};
+
+const NotificationItem = ({ notification, onPress }) => {
     const isUnread = !notification.isRead;
+    const config = NOTIFICATION_CONFIG[notification.type] || NOTIFICATION_CONFIG.default;
 
     return (
-        <View style={[itemStyles.container, isUnread && itemStyles.unread]}>
-            <TouchableOpacity style={itemStyles.content} onPress={onMarkRead} activeOpacity={0.7}>
-                <View style={[itemStyles.dot, isUnread && itemStyles.dotActive]} />
-                <View style={itemStyles.textWrap}>
-                    <Text style={[itemStyles.title, isUnread && itemStyles.titleUnread]} numberOfLines={2}>
-                        {notification.title || notification.message}
-                    </Text>
-                    {notification.body ? (
-                        <Text style={itemStyles.body} numberOfLines={2}>{notification.body}</Text>
-                    ) : null}
+        <TouchableOpacity style={[itemStyles.container, isUnread && itemStyles.unread]} onPress={onPress} activeOpacity={0.8}>
+            <View style={[itemStyles.iconContainer, { backgroundColor: config.color + '15' }]}>
+                <Ionicons name={config.icon} size={22} color={config.color} />
+            </View>
+            <View style={itemStyles.textWrap}>
+                <View style={itemStyles.headerRow}>
+                    <Text style={itemStyles.typeLabel}>{config.label}</Text>
                     <Text style={itemStyles.time}>
                         {formatDateTime ? formatDateTime(notification.createdAt) : new Date(notification.createdAt).toLocaleString()}
                     </Text>
                 </View>
-            </TouchableOpacity>
-            <TouchableOpacity onPress={onDelete} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-                <Ionicons name="close-circle-outline" size={22} color={colors.textTertiary} />
-            </TouchableOpacity>
-        </View>
+                <Text style={[itemStyles.title, isUnread && itemStyles.titleUnread]} numberOfLines={1}>
+                    {notification.title || notification.message}
+                </Text>
+                <Text style={itemStyles.body} numberOfLines={2}>
+                    {notification.body || notification.message}
+                </Text>
+            </View>
+            {isUnread && <View style={itemStyles.unreadDot} />}
+        </TouchableOpacity>
     );
 };
 
@@ -54,40 +68,41 @@ const itemStyles = StyleSheet.create({
         marginHorizontal: spacing.screenHorizontal,
         marginBottom: spacing.sm,
         padding: spacing.md,
-        borderRadius: spacing.radius.md,
+        borderRadius: spacing.radius.lg,
         ...shadows.sm,
     },
     unread: {
-        borderLeftWidth: 3,
-        borderLeftColor: colors.primary,
+        backgroundColor: colors.surfaceAlt,
     },
-    content: {
-        flex: 1,
-        flexDirection: 'row',
-        alignItems: 'flex-start',
-        gap: spacing.sm,
+    iconContainer: {
+        width: 44,
+        height: 44,
+        borderRadius: 22,
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginRight: spacing.sm,
     },
-    dot: {
+    textWrap: { flex: 1 },
+    headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 },
+    typeLabel: { ...typography.caption, color: colors.textTertiary, fontWeight: '600', textTransform: 'uppercase' },
+    title: { ...typography.body, color: colors.textPrimary, marginBottom: 1 },
+    titleUnread: { fontWeight: '700' },
+    body: { ...typography.bodySmall, color: colors.textSecondary },
+    time: { ...typography.caption, color: colors.textTertiary },
+    unreadDot: {
         width: 8,
         height: 8,
         borderRadius: 4,
-        backgroundColor: 'transparent',
-        marginTop: 6,
-    },
-    dotActive: {
         backgroundColor: colors.primary,
+        marginLeft: spacing.xs,
     },
-    textWrap: { flex: 1 },
-    title: { ...typography.body, color: colors.textPrimary },
-    titleUnread: { fontWeight: '600' },
-    body: { ...typography.bodySmall, color: colors.textSecondary, marginTop: 2 },
-    time: { ...typography.caption, color: colors.textTertiary, marginTop: 4 },
 });
 
 const NotificationsScreen = ({ navigation }) => {
     const dispatch = useDispatch();
     const { notifications, loading } = useSelector((state) => state.notification);
     const [refreshing, setRefreshing] = useState(false);
+    const [deletingId, setDeletingId] = useState(null);
 
     useEffect(() => {
         dispatch(getNotificationsThunk());
@@ -99,19 +114,71 @@ const NotificationsScreen = ({ navigation }) => {
         setRefreshing(false);
     }, [dispatch]);
 
-    const handleMarkRead = useCallback(
-        (id) => dispatch(markNotificationReadThunk(id)),
-        [dispatch]
+    const handleNotificationPress = useCallback(
+        (notification) => {
+            // 1. Mark as read if unread
+            if (!notification.isRead) {
+                dispatch(markNotificationReadThunk(notification.id));
+            }
+
+            // 2. Parse data for deep-linking
+            let data = {};
+            try {
+                data = typeof notification.data === 'string' 
+                    ? JSON.parse(notification.data) 
+                    : (notification.data || {});
+            } catch (e) {
+                console.log('Failed to parse notification data', e);
+            }
+
+            // 3. Navigate
+            const bookingId = data.BookingId || data.bookingId;
+            const parkingId = data.ParkingSpaceId || data.parkingSpaceId || data.parkingId;
+            const conversationId = data.ConversationId || data.conversationId;
+
+            if (bookingId) {
+                navigation.navigate('BookingDetail', { bookingId });
+            } else if (parkingId) {
+                navigation.navigate('ParkingDetail', { parkingId });
+            } else if (conversationId) {
+                navigation.navigate('ChatScreen', { conversationId });
+            }
+        },
+        [dispatch, navigation]
     );
 
     const handleDelete = useCallback(
         (id) => {
             Alert.alert('Delete Notification', 'Remove this notification?', [
                 { text: 'Cancel', style: 'cancel' },
-                { text: 'Delete', style: 'destructive', onPress: () => dispatch(deleteNotificationThunk(id)) },
+                { 
+                    text: 'Delete', 
+                    style: 'destructive', 
+                    onPress: async () => {
+                        setDeletingId(id);
+                        try {
+                            const res = await dispatch(deleteNotificationThunk(id));
+                            if (res.error) {
+                                EventBus.emit('SHOW_ERROR_BANNER', { 
+                                    title: 'Error', 
+                                    message: res.payload || 'Failed to delete notification' 
+                                });
+                            } else {
+                                EventBus.emit('SHOW_BANNER', {
+                                    title: 'Success',
+                                    message: 'Notification removed',
+                                    type: 'success'
+                                });
+                                onRefresh();
+                            }
+                        } finally {
+                            setDeletingId(null);
+                        }
+                    } 
+                },
             ]);
         },
-        [dispatch]
+        [dispatch, onRefresh]
     );
 
     if (loading && !notifications.length) {
@@ -142,11 +209,16 @@ const NotificationsScreen = ({ navigation }) => {
                 data={notifications}
                 keyExtractor={(item) => item.id?.toString()}
                 renderItem={({ item }) => (
-                    <NotificationItem
-                        notification={item}
-                        onMarkRead={() => handleMarkRead(item.id)}
+                    <SwipeableRow 
                         onDelete={() => handleDelete(item.id)}
-                    />
+                        isDeleting={deletingId === item.id}
+                        disabled={loading || !!deletingId}
+                    >
+                        <NotificationItem
+                            notification={item}
+                            onPress={() => handleNotificationPress(item)}
+                        />
+                    </SwipeableRow>
                 )}
                 ListEmptyComponent={
                     <EmptyState

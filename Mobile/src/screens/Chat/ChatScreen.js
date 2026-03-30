@@ -13,12 +13,15 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../../styles/globalStyles';
 import { useAuth } from '../../hooks/useAuth';
+import { useDispatch } from 'react-redux';
+import { getUnreadCountThunk } from '../../store/slices/chatSlice';
 import chatService from '../../services/chat/chatService';
 import { EventBus } from '../../utils/EventBus';
 
 const ChatScreen = ({ route, navigation }) => {
     const { conversationId: initialConversationId, parkingSpaceId, participantName, parkingTitle } = route.params;
     const { user } = useAuth();
+    const dispatch = useDispatch();
     const insets = useSafeAreaInsets();
     const [activeConversationId, setActiveConversationId] = useState(initialConversationId);
     const [messages, setMessages] = useState([]);
@@ -63,7 +66,10 @@ const ChatScreen = ({ route, navigation }) => {
     const markRead = async () => {
         if (!activeConversationId) return;
         try {
-            await chatService.markAsRead(activeConversationId);
+            const result = await chatService.markAsRead(activeConversationId);
+            if (result.success) {
+                dispatch(getUnreadCountThunk());
+            }
         } catch { }
     };
 
