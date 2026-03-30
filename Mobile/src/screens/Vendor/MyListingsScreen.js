@@ -13,7 +13,7 @@ import ScreenLayout from '../../components/Layouts/ScreenLayout';
 import Card from '../../components/Common/Card';
 import Button from '../../components/Common/Button';
 import EmptyState from '../../components/Common/EmptyState';
-import { BookingCardSkeleton } from '../../components/Common/ShimmerPlaceholder';
+import { ListItemSkeleton } from '../../components/Common/ShimmerPlaceholder';
 import StarRating from '../../components/Common/StarRating';
 import { colors, spacing, typography, shadows } from '../../styles/globalStyles';
 import { formatCurrency } from '../../utils/formatters';
@@ -143,12 +143,13 @@ const MyListingsScreen = ({ navigation }) => {
                 <View style={styles.header}>
                     <Text style={styles.screenTitle}>My Listings</Text>
                     <TouchableOpacity style={styles.addBtn} onPress={() => navigation.navigate('CreateParking')}>
-                        <Ionicons name="add" size={20} color={colors.white} />
-                        <Text style={styles.addBtnText}>Add Listing</Text>
+                        <Ionicons name="add" size={24} color={colors.white} />
                     </TouchableOpacity>
                 </View>
-                <View style={{ flex: 1, paddingTop: 10 }}>
-                    <BookingCardSkeleton />
+                <View style={{ paddingHorizontal: spacing.screenHorizontal, paddingTop: spacing.md }}>
+                    {[1, 2, 3].map((i) => (
+                        <ListItemSkeleton key={i} />
+                    ))}
                 </View>
             </ScreenLayout>
         );
