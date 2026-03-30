@@ -9,7 +9,7 @@ import { View, Animated, StyleSheet } from 'react-native';
 import { colors, spacing } from '../../styles/globalStyles';
 
 // ── Base Shimmer Box ──
-const ShimmerBox = ({ width, height, borderRadius = spacing.radius.md, style }) => {
+const ShimmerBox = ({ width, height, borderRadius = spacing.radius.md, backgroundColor, style }) => {
     const opacity = useRef(new Animated.Value(0.3)).current;
 
     useEffect(() => {
@@ -28,7 +28,7 @@ const ShimmerBox = ({ width, height, borderRadius = spacing.radius.md, style }) 
             style={[
                 {
                     width, height, borderRadius,
-                    backgroundColor: colors.borderLight,
+                    backgroundColor: backgroundColor || colors.borderLight,
                     opacity,
                 },
                 style,
@@ -232,11 +232,11 @@ const ChatListSkeleton = () => (
 
 // ── Messages Skeleton (Chat Thread) ──
 const MessagesSkeleton = () => (
-    <View style={{ padding: 12, flex: 1 }}>
+    <View style={{ padding: 12, flex: 1, backgroundColor: colors.background }}>
         {[
             { width: '65%', align: 'left', name: true },
             { width: '45%', align: 'right' },
-            { width: '80%', align: 'left', name: true },
+            { width: '72%', align: 'left', name: true },
             { width: '35%', align: 'right' },
             { width: '50%', align: 'left', name: true },
             { width: '60%', align: 'right' },
@@ -246,7 +246,7 @@ const MessagesSkeleton = () => (
                 key={i} 
                 style={{ 
                     alignSelf: item.align === 'left' ? 'flex-start' : 'flex-end',
-                    marginBottom: spacing.md,
+                    marginBottom: spacing.sm,
                     width: '100%',
                     alignItems: item.align === 'left' ? 'flex-start' : 'flex-end'
                 }}
@@ -257,14 +257,14 @@ const MessagesSkeleton = () => (
                     { width: item.width }
                 ]}>
                     {item.name && (
-                        <ShimmerLine width="40%" height={10} style={{ marginBottom: 6 }} />
+                        <ShimmerLine width="40%" height={10} style={{ marginBottom: 6, backgroundColor: item.align === 'left' ? colors.borderLight : 'rgba(255,255,255,0.3)' }} />
                     )}
-                    <ShimmerLine width="90%" height={14} />
-                    {item.width === '80%' && (
-                        <ShimmerLine width="60%" height={14} style={{ marginTop: 6 }} />
+                    <ShimmerLine width="90%" height={14} style={{ backgroundColor: item.align === 'left' ? colors.borderLight : 'rgba(255,255,255,0.3)' }} />
+                    {item.width === '72%' && (
+                        <ShimmerLine width="60%" height={14} style={{ marginTop: 6, backgroundColor: item.align === 'left' ? colors.borderLight : 'rgba(255,255,255,0.3)' }} />
                     )}
                     <View style={{ alignSelf: 'flex-end', marginTop: 8 }}>
-                        <ShimmerLine width={30} height={8} />
+                        <ShimmerLine width={30} height={8} style={{ backgroundColor: item.align === 'left' ? colors.borderLight : 'rgba(255,255,255,0.3)' }} />
                     </View>
                 </View>
             </View>

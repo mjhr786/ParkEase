@@ -8,6 +8,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { EventBus } from '../../utils/EventBus';
 import {
     View, Text, ScrollView, TouchableOpacity, StyleSheet, Image, Dimensions, Share,
+    ActivityIndicator,
 } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { Ionicons } from '@expo/vector-icons';
@@ -218,8 +219,14 @@ const ParkingDetailScreen = ({ navigation, route }) => {
                                 </Text>
                             </View>
                             <View style={styles.chatActionBtn}>
-                                <Ionicons name="chatbubble-ellipses-outline" size={18} color={colors.primary} />
-                                <Text style={styles.chatActionText}>Chat</Text>
+                                {chatLoading ? (
+                                    <ActivityIndicator size="small" color={colors.primary} />
+                                ) : (
+                                    <>
+                                        <Ionicons name="chatbubble-ellipses-outline" size={18} color={colors.primary} />
+                                        <Text style={styles.chatActionText}>Chat</Text>
+                                    </>
+                                )}
                             </View>
                         </TouchableOpacity>
                     )}
