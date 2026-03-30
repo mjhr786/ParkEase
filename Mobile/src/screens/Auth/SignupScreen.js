@@ -86,7 +86,7 @@ const SignupScreen = ({ navigation }) => {
 
                         <Input label="Phone Number" value={formData.phoneNumber} onChangeText={updateField('phoneNumber')} placeholder="Enter phone number" keyboardType="phone-pad" leftIcon="call-outline" error={errors.phoneNumber} returnKeyType="next" />
 
-                        <Input label="Password" value={formData.password} onChangeText={updateField('password')} placeholder="Min. 8 characters" secureTextEntry leftIcon="lock-closed-outline" error={errors.password} textContentType="newPassword" autoComplete="new-password" importantForAutofill="yes" returnKeyType="done" onSubmitEditing={handleSignup} />
+                        <Input label="Password" value={formData.password} onChangeText={updateField('password')} placeholder="Min. 8 characters" secureTextEntry leftIcon="lock-closed-outline" error={errors.password} textContentType="newPassword" autoComplete="password-new" importantForAutofill="yes" returnKeyType="done" onSubmitEditing={handleSignup} />
 
                         <Button title="Create Account" onPress={handleSignup} loading={loading} style={styles.signupButton} />
 
