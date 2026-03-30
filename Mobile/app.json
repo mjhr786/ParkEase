@@ -41,6 +41,7 @@
       "@react-native-community/datetimepicker",
       "expo-web-browser",
       "@react-native-firebase/app",
+      "@react-native-firebase/messaging",
       "@react-native-firebase/crashlytics",
       [
         "expo-build-properties",

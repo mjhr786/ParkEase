@@ -1,0 +1,103 @@
+/**
+ * NotificationService.js
+ * Handles Firebase Cloud Messaging (FCM) for push notifications.
+ * Includes permission requests, token generation, and message listeners.
+ */
+
+import messaging from '@react-native-firebase/messaging';
+import { Alert, Platform } from 'react-native';
+import { EventBus } from '../../utils/EventBus';
+
+class NotificationService {
+    async initialize() {
+        // 1. Request permissions (required for iOS and Android 13+)
+        const hasPermission = await this.requestUserPermission();
+        if (!hasPermission) {
+            console.log('[NotificationService] User declined notification permissions.');
+            return;
+        }
+
+        // 2. Get FCM Device Token
+        const token = await this.getDeviceToken();
+        if (token) {
+            this.registerTokenWithBackend(token);
+        }
+
+        // 3. Listen for foreground messages
+        this.unsubscribeForegroundListener = messaging().onMessage(async remoteMessage => {
+            console.log('[NotificationService] Foreground message received:', remoteMessage);
+            
+            // Show a global banner instead of a disruptive alert
+            EventBus.emit('SHOW_BANNER', {
+                title: remoteMessage.notification?.title || 'New Notification',
+                message: remoteMessage.notification?.body || 'You have a new message',
+                type: 'info'
+            });
+        });
+
+        // 4. Handle background/quit-state clicks
+        messaging().onNotificationOpenedApp(remoteMessage => {
+            console.log('[NotificationService] Notification caused app to open from background:', remoteMessage);
+            this.handleNotificationOpening(remoteMessage);
+        });
+
+        messaging().getInitialNotification().then(remoteMessage => {
+            if (remoteMessage) {
+                console.log('[NotificationService] Notification caused app to open from quit state:', remoteMessage);
+                this.handleNotificationOpening(remoteMessage);
+            }
+        });
+
+        // 5. Setup background message handler (Outside the class typically, but we define it here)
+        // See: messaging().setBackgroundMessageHandler(...) in index.js
+    }
+
+    async requestUserPermission() {
+        if (Platform.OS === 'ios') {
+            const authStatus = await messaging().requestPermission();
+            const enabled =
+                authStatus === messaging.AuthorizationStatus.AUTHORIZED ||
+                authStatus === messaging.AuthorizationStatus.PROVISIONAL;
+            return enabled;
+        } else if (Platform.OS === 'android' && Platform.Version >= 33) {
+            // Android 13+ requires explicit POST_NOTIFICATIONS permission
+            // This is handled by @react-native-firebase/messaging automatically on requestPermission()
+            const authStatus = await messaging().requestPermission();
+            return authStatus === messaging.AuthorizationStatus.AUTHORIZED;
+        }
+        return true; // Android < 13 permissions are granted at install time
+    }
+
+    async getDeviceToken() {
+        try {
+            const token = await messaging().getToken();
+            console.log('\n--- 🔥 FIREBASE DEVICE TOKEN ---');
+            console.log(token);
+            console.log('--------------------------------\n');
+            return token;
+        } catch (error) {
+            console.error('[NotificationService] Failed to get device token:', error);
+            return null;
+        }
+    }
+
+    registerTokenWithBackend(token) {
+        // PLACEHOLDER: Send token to backend API
+        console.log('[NotificationService] Registering token with assumed backend service...');
+        // Example: await apiClient.post('/users/device-token', { token });
+    }
+
+    handleNotificationOpening(remoteMessage) {
+        if (!remoteMessage) return;
+        console.log('[NotificationService] Navigating based on notification data:', remoteMessage.data);
+        // Logic for deep-linking based on remoteMessage.data
+    }
+
+    cleanup() {
+        if (this.unsubscribeForegroundListener) {
+            this.unsubscribeForegroundListener();
+        }
+    }
+}
+
+export default new NotificationService();

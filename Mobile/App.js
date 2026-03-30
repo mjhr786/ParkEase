@@ -10,8 +10,14 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import store from './src/store';
 import RootNavigator from './src/navigation/RootNavigator';
 import GlobalErrorBanner from './src/components/Common/GlobalErrorBanner';
+import NotificationService from './src/services/notifications/NotificationService';
 
 export default function App() {
+  React.useEffect(() => {
+    NotificationService.initialize();
+    return () => NotificationService.cleanup();
+  }, []);
+
   return (
     <Provider store={store}>
       <SafeAreaProvider>
