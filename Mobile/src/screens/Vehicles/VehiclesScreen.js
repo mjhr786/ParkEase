@@ -156,7 +156,20 @@ const VehiclesScreen = ({ navigation, route }) => {
     }, [dispatch, make, model, licensePlate, vehicleColor, vehicleType, editingId]);
 
     if (loading && !vehicles.length) {
-        return <VehiclesSkeleton />;
+        return (
+            <ScreenLayout>
+                <View style={styles.header}>
+                    <TouchableOpacity onPress={() => navigation.goBack()}>
+                        <Ionicons name="arrow-back" size={24} color={colors.textPrimary} />
+                    </TouchableOpacity>
+                    <Text style={styles.title}>Garage</Text>
+                    <TouchableOpacity onPress={openAddModal}>
+                        <Ionicons name="add-circle-outline" size={28} color={colors.primary} />
+                    </TouchableOpacity>
+                </View>
+                <VehiclesSkeleton />
+            </ScreenLayout>
+        );
     }
 
     return (

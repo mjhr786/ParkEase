@@ -77,6 +77,32 @@ const MyBookingsScreen = ({ navigation }) => {
         </Card>
     );
 
+    if (myBookingsLoading && !myBookings.length) {
+        return (
+            <ScreenLayout>
+                <View style={styles.header}>
+                    <Text style={styles.screenTitle}>My Bookings</Text>
+                    <View style={styles.incomingBtn}>
+                        <Ionicons name="arrow-down-circle-outline" size={18} color={colors.primary} />
+                        <Text style={styles.incomingBtnText}>Incoming Requests</Text>
+                    </View>
+                </View>
+                <View style={styles.searchContainer}>
+                    <Ionicons name="search" size={18} color={colors.textTertiary} />
+                    <TextInput editable={false} style={styles.searchInput} placeholder="Search bookings..." placeholderTextColor={colors.textTertiary} />
+                </View>
+                <View style={styles.filterRow}>
+                    {FILTERS.map((filter, idx) => (
+                        <View key={idx} style={[styles.filterTab, activeFilter === idx && styles.filterTabActive]}>
+                            <Text style={[styles.filterTabText, activeFilter === idx && styles.filterTabTextActive]}>{filter.label}</Text>
+                        </View>
+                    ))}
+                </View>
+                <BookingCardSkeleton />
+            </ScreenLayout>
+        );
+    }
+
     return (
         <ScreenLayout>
             {/* Header */}
@@ -124,19 +150,15 @@ const MyBookingsScreen = ({ navigation }) => {
             </View>
 
             {/* List */}
-            {myBookingsLoading && !refreshing ? (
-                <BookingCardSkeleton />
-            ) : (
-                <FlatList
-                    data={filteredBookings}
-                    keyExtractor={(item) => item.id}
-                    renderItem={renderBookingItem}
-                    contentContainerStyle={styles.listContent}
-                    refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />}
-                    showsVerticalScrollIndicator={false}
-                    ListEmptyComponent={<EmptyState icon="calendar-outline" title="No bookings" message="You don't have any bookings yet" />}
-                />
-            )}
+            <FlatList
+                data={filteredBookings}
+                keyExtractor={(item) => item.id}
+                renderItem={renderBookingItem}
+                contentContainerStyle={styles.listContent}
+                refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />}
+                showsVerticalScrollIndicator={false}
+                ListEmptyComponent={<EmptyState icon="calendar-outline" title="No bookings" message="You don't have any bookings yet" />}
+            />
         </ScreenLayout>
     );
 };
