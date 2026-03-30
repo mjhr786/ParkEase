@@ -25,13 +25,14 @@ const ConversationListScreen = ({ navigation }) => {
 
     useFocusEffect(
         useCallback(() => {
-            loadConversations();
-        }, [])
+            // Only show skeleton on first load, otherwise refresh in background
+            loadConversations(conversations.length === 0);
+        }, [conversations.length])
     );
 
-    const loadConversations = async () => {
+    const loadConversations = async (showSkeleton = true) => {
         try {
-            setLoading(true);
+            if (showSkeleton) setLoading(true);
             const result = await chatService.getConversations();
             if (result.success) {
                 setConversations(result.data?.conversations || []);
