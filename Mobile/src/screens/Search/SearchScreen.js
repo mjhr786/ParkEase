@@ -13,9 +13,10 @@ import ScreenLayout from '../../components/Layouts/ScreenLayout';
 import Card from '../../components/Common/Card';
 import StarRating from '../../components/Common/StarRating';
 import EmptyState from '../../components/Common/EmptyState';
+import { Image } from 'react-native';
 import { SearchSkeleton } from '../../components/Common/ShimmerPlaceholder';
 import { colors, spacing, typography, shadows } from '../../styles/globalStyles';
-import { formatCurrency } from '../../utils/formatters';
+import { formatCurrency, resolveImageUrl } from '../../utils/formatters';
 import { VehicleTypeLabels, ParkingType, ParkingTypeLabels } from '../../utils/constants';
 
 /* ───── Sort Options ───── */
@@ -28,45 +29,53 @@ const SORT_OPTIONS = [
 ];
 
 /* ───── Parking Card ───── */
-const ParkingCard = ({ parking, onPress }) => (
-    <Card onPress={onPress} style={cardStyles.card}>
-        {/* Image placeholder */}
-        <View style={cardStyles.imageContainer}>
-            <View style={cardStyles.imagePlaceholder}>
-                <Ionicons name="car" size={40} color={colors.lightGray} />
-            </View>
-            <View style={cardStyles.priceTag}>
-                <Text style={cardStyles.priceText}>{formatCurrency(parking.hourlyRate)}/hr</Text>
-            </View>
-            {parking.is24Hours && (
-                <View style={cardStyles.badge24h}>
-                    <Text style={cardStyles.badge24hText}>24h</Text>
+const ParkingCard = ({ parking, onPress }) => {
+    const imageUrl = resolveImageUrl(parking.images?.[0]);
+    
+    return (
+        <Card onPress={onPress} style={cardStyles.card}>
+            {/* Image section */}
+            <View style={cardStyles.imageContainer}>
+                {imageUrl ? (
+                    <Image source={{ uri: imageUrl }} style={styles.cardImage} />
+                ) : (
+                    <View style={cardStyles.imagePlaceholder}>
+                        <Ionicons name="car" size={40} color={colors.lightGray} />
+                    </View>
+                )}
+                <View style={cardStyles.priceTag}>
+                    <Text style={cardStyles.priceText}>{formatCurrency(parking.hourlyRate)}/hr</Text>
                 </View>
-            )}
-        </View>
+                {parking.is24Hours && (
+                    <View style={cardStyles.badge24h}>
+                        <Text style={cardStyles.badge24hText}>24h</Text>
+                    </View>
+                )}
+            </View>
 
-        <View style={cardStyles.info}>
-            <Text style={cardStyles.title} numberOfLines={1}>{parking.title}</Text>
-            <View style={cardStyles.locationRow}>
-                <Ionicons name="location-outline" size={14} color={colors.textTertiary} />
-                <Text style={cardStyles.address} numberOfLines={1}>{parking.address}, {parking.city}</Text>
-            </View>
-            <View style={cardStyles.metaRow}>
-                <View style={cardStyles.ratingRow}>
-                    <StarRating rating={parking.averageRating} size={14} />
-                    <Text style={cardStyles.ratingText}>{parking.averageRating?.toFixed(1) || '0.0'}</Text>
-                    <Text style={cardStyles.reviewCount}>({parking.totalReviews})</Text>
+            <View style={cardStyles.info}>
+                <Text style={cardStyles.title} numberOfLines={1}>{parking.title}</Text>
+                <View style={cardStyles.locationRow}>
+                    <Ionicons name="location-outline" size={14} color={colors.textTertiary} />
+                    <Text style={cardStyles.address} numberOfLines={1}>{parking.address}, {parking.city}</Text>
                 </View>
-                <View style={cardStyles.spotsRow}>
-                    <Ionicons name="car-outline" size={14} color={parking.availableSpots > 0 ? colors.success : colors.danger} />
-                    <Text style={[cardStyles.spotsText, { color: parking.availableSpots > 0 ? colors.success : colors.danger }]}>
-                        {parking.availableSpots} spots
-                    </Text>
+                <View style={cardStyles.metaRow}>
+                    <View style={cardStyles.ratingRow}>
+                        <StarRating rating={parking.averageRating} size={14} />
+                        <Text style={cardStyles.ratingText}>{parking.averageRating?.toFixed(1) || '0.0'}</Text>
+                        <Text style={cardStyles.reviewCount}>({parking.totalReviews})</Text>
+                    </View>
+                    <View style={cardStyles.spotsRow}>
+                        <Ionicons name="car-outline" size={14} color={parking.availableSpots > 0 ? colors.success : colors.danger} />
+                        <Text style={[cardStyles.spotsText, { color: parking.availableSpots > 0 ? colors.success : colors.danger }]}>
+                            {parking.availableSpots} spots
+                        </Text>
+                    </View>
                 </View>
             </View>
-        </View>
-    </Card>
-);
+        </Card>
+    );
+};
 
 const cardStyles = StyleSheet.create({
     card: { marginHorizontal: spacing.screenHorizontal, overflow: 'hidden', padding: 0 },
@@ -429,6 +438,7 @@ const styles = StyleSheet.create({
     filterChipActive: { backgroundColor: colors.primarySoft, borderColor: colors.primary },
     filterChipText: { ...typography.caption, color: colors.textSecondary, fontWeight: '500' },
     filterChipTextActive: { color: colors.primary, fontWeight: '600' },
+    cardImage: { flex: 1, width: '100%', height: '100%' },
     resultCount: { ...typography.bodySmall, color: colors.textSecondary, paddingHorizontal: spacing.screenHorizontal, paddingVertical: spacing.md },
     // Sort Modal
     modalOverlay: {

@@ -19,7 +19,7 @@ import { useAuth } from '../../hooks/useAuth';
 import StarRating from '../../components/Common/StarRating';
 import { DetailSkeleton } from '../../components/Common/ShimmerPlaceholder';
 import { colors, spacing, typography, shadows } from '../../styles/globalStyles';
-import { formatCurrency, formatDate } from '../../utils/formatters';
+import { formatCurrency, formatDate, resolveImageUrl } from '../../utils/formatters';
 import { ParkingTypeLabels } from '../../utils/constants';
 import chatService from '../../services/chat/chatService';
 
@@ -124,7 +124,7 @@ const ParkingDetailScreen = ({ navigation, route }) => {
                 {/* Hero Image */}
                 <View style={styles.heroContainer}>
                     {hasImage ? (
-                        <Image source={{ uri: parking.images[0] }} style={styles.heroImage} />
+                        <Image source={{ uri: resolveImageUrl(parking.images[0]) }} style={styles.heroImage} />
                     ) : (
                         <View style={styles.heroPlaceholder}>
                             <Ionicons name="car" size={60} color={colors.lightGray} />

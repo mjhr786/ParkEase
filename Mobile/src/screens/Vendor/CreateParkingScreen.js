@@ -4,10 +4,11 @@
  */
 
 import React, { useState, useCallback } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, Alert, StyleSheet, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, Alert, StyleSheet, KeyboardAvoidingView, Platform, Image } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { Ionicons } from '@expo/vector-icons';
-import { createParkingThunk, updateParkingThunk, getMyListingsThunk } from '../../store/slices/parkingSlice';
+import * as ImagePicker from 'expo-image-picker';
+import { createParkingThunk, updateParkingThunk, uploadParkingImagesThunk, getMyListingsThunk } from '../../store/slices/parkingSlice';
 import ScreenLayout from '../../components/Layouts/ScreenLayout';
 import Card from '../../components/Common/Card';
 import Button from '../../components/Common/Button';
@@ -20,6 +21,8 @@ const CreateParkingScreen = ({ route, navigation }) => {
     const isEditing = !!editData;
     const dispatch = useDispatch();
     const { createLoading } = useSelector((s) => s.parking);
+    const [selectedImages, setSelectedImages] = useState([]);
+    const [uploading, setUploading] = useState(false);
 
     const [formData, setFormData] = useState({
         title: editData?.title || '',
@@ -54,6 +57,22 @@ const CreateParkingScreen = ({ route, navigation }) => {
         }));
     };
 
+    const pickImage = async () => {
+        const result = await ImagePicker.launchImageLibraryAsync({
+            mediaTypes: ImagePicker.MediaTypeOptions.Images,
+            allowsMultipleSelection: true,
+            quality: 0.8,
+        });
+
+        if (!result.canceled) {
+            setSelectedImages((prev) => [...prev, ...result.assets]);
+        }
+    };
+
+    const removeImage = (uri) => {
+        setSelectedImages((prev) => prev.filter((img) => img.uri !== uri));
+    };
+
     const handleCreate = useCallback(async () => {
         if (!formData.title || !formData.description || !formData.address || !formData.city || !formData.state || !formData.totalSpots || !formData.hourlyRate) {
             Alert.alert('Required Fields', 'Please fill in Title, Description, Address, City, State, Total Spots, and Hourly Rate.');
@@ -72,12 +91,41 @@ const CreateParkingScreen = ({ route, navigation }) => {
 
             if (isEditing) {
                 await dispatch(updateParkingThunk({ id: editData.id, data: payload })).unwrap();
-                dispatch(getMyListingsThunk()); // Refresh list safely
+                
+                // Upload images if any
+                if (selectedImages.length > 0) {
+                    setUploading(true);
+                    try {
+                        await dispatch(uploadParkingImagesThunk({ 
+                            parkingSpaceId: editData.id, 
+                            images: selectedImages 
+                        })).unwrap();
+                    } finally {
+                        setUploading(false);
+                    }
+                }
+
+                dispatch(getMyListingsThunk());
                 Alert.alert('Success', 'Parking space updated!', [
                     { text: 'OK', onPress: () => navigation.goBack() },
                 ]);
             } else {
-                await dispatch(createParkingThunk(payload)).unwrap();
+                const result = await dispatch(createParkingThunk(payload)).unwrap();
+                const newId = result.id || result._id;
+
+                // Upload images if any
+                if (selectedImages.length > 0 && newId) {
+                    setUploading(true);
+                    try {
+                        await dispatch(uploadParkingImagesThunk({ 
+                            parkingSpaceId: newId, 
+                            images: selectedImages 
+                        })).unwrap();
+                    } finally {
+                        setUploading(false);
+                    }
+                }
+
                 Alert.alert('Success', 'Parking space created!', [
                     { text: 'OK', onPress: () => navigation.goBack() },
                 ]);
@@ -197,11 +245,40 @@ const CreateParkingScreen = ({ route, navigation }) => {
                         </View>
                     </Card>
 
+                    {/* Images Section */}
+                    <Card>
+                        <View style={styles.sectionHeader}>
+                            <Text style={styles.sectionTitle}>Photos</Text>
+                            <TouchableOpacity onPress={pickImage} style={styles.addImgBtn}>
+                                <Ionicons name="camera-outline" size={20} color={colors.primary} />
+                                <Text style={styles.addImgText}>Add Photos</Text>
+                            </TouchableOpacity>
+                        </View>
+                        
+                        {selectedImages.length > 0 ? (
+                            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.imageScroll}>
+                                {selectedImages.map((img, idx) => (
+                                    <View key={idx} style={styles.imageContainer}>
+                                        <Image source={{ uri: img.uri }} style={styles.previewImage} />
+                                        <TouchableOpacity 
+                                            style={styles.removeImgBtn}
+                                            onPress={() => removeImage(img.uri)}
+                                        >
+                                            <Ionicons name="close-circle" size={22} color={colors.danger} />
+                                        </TouchableOpacity>
+                                    </View>
+                                ))}
+                            </ScrollView>
+                        ) : (
+                            <Text style={styles.emptyImgText}>No photos selected yet.</Text>
+                        )}
+                    </Card>
+
                     {/* Submit */}
                     <Button
                         title={isEditing ? "Save Changes" : "Create Parking Space"}
                         onPress={handleCreate}
-                        loading={createLoading}
+                        loading={createLoading || uploading}
                         style={styles.submitBtn}
                         icon={<Ionicons name={isEditing ? "save" : "checkmark-circle"} size={20} color={colors.white} />}
                     />
@@ -230,6 +307,14 @@ const styles = StyleSheet.create({
     amenityText: { ...typography.caption, color: colors.textSecondary },
     amenityTextActive: { color: colors.successDark, fontWeight: '500' },
     submitBtn: { marginTop: spacing.lg },
+    sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.md },
+    addImgBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 6, borderRadius: spacing.radius.md, backgroundColor: colors.primarySoft },
+    addImgText: { ...typography.caption, color: colors.primary, fontWeight: '600' },
+    imageScroll: { marginTop: spacing.sm },
+    imageContainer: { marginRight: spacing.md, position: 'relative' },
+    previewImage: { width: 100, height: 100, borderRadius: spacing.radius.md, backgroundColor: colors.background },
+    removeImgBtn: { position: 'absolute', top: -8, right: -8, backgroundColor: colors.white, borderRadius: 11 },
+    emptyImgText: { ...typography.caption, color: colors.textTertiary, textAlign: 'center', paddingVertical: spacing.md },
 });
 
 export default CreateParkingScreen;

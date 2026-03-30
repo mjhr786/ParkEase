@@ -13,6 +13,7 @@ import ScreenLayout from '../../components/Layouts/ScreenLayout';
 import Card from '../../components/Common/Card';
 import Button from '../../components/Common/Button';
 import EmptyState from '../../components/Common/EmptyState';
+import SwipeableRow from '../../components/Common/SwipeableRow';
 import { ListItemSkeleton } from '../../components/Common/ShimmerPlaceholder';
 import StarRating from '../../components/Common/StarRating';
 import { colors, spacing, typography, shadows } from '../../styles/globalStyles';
@@ -33,9 +34,6 @@ const ListingCard = ({ listing, onToggle, onEdit, onDelete, onPress, isToggling 
                 <View style={cardStyles.actionsWrapper}>
                     <TouchableOpacity style={cardStyles.iconBtn} onPress={() => onEdit(listing)}>
                         <Ionicons name="create-outline" size={18} color={colors.primary} />
-                    </TouchableOpacity>
-                    <TouchableOpacity style={[cardStyles.iconBtn, { backgroundColor: colors.dangerSoft }]} onPress={() => onDelete(listing.id)}>
-                        <Ionicons name="trash-outline" size={18} color={colors.danger} />
                     </TouchableOpacity>
                 </View>
             </View>
@@ -94,6 +92,7 @@ const MyListingsScreen = ({ navigation }) => {
     const { myListings, listingsLoading } = useSelector((s) => s.parking);
     const [refreshing, setRefreshing] = useState(false);
     const [togglingId, setTogglingId] = useState(null);
+    const [deletingId, setDeletingId] = useState(null);
 
     useEffect(() => {
         dispatch(getMyListingsThunk());
@@ -128,9 +127,17 @@ const MyListingsScreen = ({ navigation }) => {
                 text: 'Delete', 
                 style: 'destructive',
                 onPress: () => {
-                    dispatch(deleteParkingThunk(id)).then((res) => {
-                        if (res.error) EventBus.emit('SHOW_ERROR_BANNER', { title: 'Error', message: res.payload || 'Failed to delete listing' });
-                        else dispatch(getMyListingsThunk()); // Refresh list
+                    setDeletingId(id);
+                    dispatch(deleteParkingThunk(id)).then(async (res) => {
+                        if (res.error) {
+                            EventBus.emit('SHOW_ERROR_BANNER', { 
+                                title: 'Error', 
+                                message: res.payload || 'Failed to delete listing' 
+                            });
+                        } else {
+                            await dispatch(getMyListingsThunk()); // Refresh list
+                        }
+                        setDeletingId(null);
                     });
                 }
             }
@@ -156,14 +163,19 @@ const MyListingsScreen = ({ navigation }) => {
     }
 
     const renderListingItem = ({ item }) => (
-        <ListingCard 
-            listing={item} 
-            onToggle={handleToggle} 
-            isToggling={togglingId === item.id}
-            onEdit={(data) => navigation.navigate('CreateParking', { editData: data })} 
-            onDelete={handleDelete}
-            onPress={() => navigation.navigate('ParkingDetail', { parkingId: item.id })}
-        />
+        <SwipeableRow 
+            onDelete={() => handleDelete(item.id)}
+            isDeleting={deletingId === item.id}
+        >
+            <ListingCard 
+                listing={item} 
+                onToggle={handleToggle} 
+                isToggling={togglingId === item.id}
+                onEdit={(data) => navigation.navigate('CreateParking', { editData: data })} 
+                onDelete={handleDelete}
+                onPress={() => navigation.navigate('ParkingDetail', { parkingId: item.id })}
+            />
+        </SwipeableRow>
     );
 
     return (

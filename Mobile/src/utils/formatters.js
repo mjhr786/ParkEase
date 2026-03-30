@@ -115,3 +115,21 @@ export const formatRating = (rating) => {
     if (rating == null) return '0.0';
     return Number(rating).toFixed(1);
 };
+
+/**
+ * Resolve full image URL from backend path
+ * @param {string} imagePath 
+ * @returns {string}
+ */
+export const resolveImageUrl = (imagePath) => {
+    if (!imagePath) return null;
+    if (imagePath.startsWith('http')) return imagePath;
+
+    // Remove leading slash if present
+    const cleanPath = imagePath.startsWith('/') ? imagePath.substring(1) : imagePath;
+    
+    // Most backends store images in an 'uploads' or 'files' folder
+    // Based on environment.js, we have environment.apiUrl which is .../api
+    const API_BASE = 'https://parkeaseapp.runasp.net';
+    return `${API_BASE}/${cleanPath}`;
+};
