@@ -22,26 +22,24 @@ const GlobalErrorBanner = () => {
     const [visible, setVisible] = useState(false);
     const [message, setMessage] = useState('Something went wrong. Please try again later.');
     const [title, setTitle] = useState('Oops!');
+    const [type, setType] = useState('error'); // 'error', 'success', 'info'
     
-    // We use -150 to hide it fully off screen
     const translateY = useRef(new Animated.Value(-150)).current;
     const insets = useSafeAreaInsets();
-    // Use a ref to keep track of the timer so we can clear it if another error comes in
     const timerRef = useRef(null);
     
     useEffect(() => {
-        const handleShowError = (data) => {
-            setTitle(data?.title || 'Connection Issue');
-            setMessage(data?.message || 'We are having trouble connecting. Please try again later.');
+        const handleShowBanner = (data) => {
+            setTitle(data?.title || (data?.type === 'success' ? 'Success' : 'Oops!'));
+            setMessage(data?.message || 'Something happened. Please try again.');
+            setType(data?.type || 'error');
             
             setVisible(true);
             
-            // Clear any existing timeout
             if (timerRef.current) {
                 clearTimeout(timerRef.current);
             }
             
-            // Slide in
             Animated.spring(translateY, {
                 toValue: 0,
                 useNativeDriver: true,
@@ -49,14 +47,13 @@ const GlobalErrorBanner = () => {
                 bounciness: 4,
             }).start();
             
-            // Auto hide after 3.5 seconds
             timerRef.current = setTimeout(() => {
                 hideBanner();
             }, 3500);
         };
         
-        EventBus.on('SHOW_ERROR_BANNER', handleShowError);
-        return () => EventBus.off('SHOW_ERROR_BANNER', handleShowError);
+        EventBus.on('SHOW_BANNER', handleShowBanner);
+        return () => EventBus.off('SHOW_BANNER', handleShowBanner);
     }, [translateY]);
     
     const hideBanner = () => {
@@ -69,15 +66,34 @@ const GlobalErrorBanner = () => {
         });
     };
     
-    if (!visible) return null;
+    const getIcon = () => {
+        switch(type) {
+            case 'success': return 'checkmark-circle-outline';
+            case 'info': return 'information-circle-outline';
+            default: return 'warning-outline';
+        }
+    };
+
+    const getBackgroundColor = () => {
+        switch(type) {
+            case 'success': return colors.success;
+            case 'info': return colors.primary;
+            default: return colors.danger;
+        }
+    };
     
+    if (!visible) return null;
+
     const paddingTop = insets.top > 0 ? insets.top + 10 : (Platform.OS === 'android' ? 40 : 20);
     
     return (
-        <Animated.View style={[styles.container, { transform: [{ translateY }], paddingTop }]}>
+        <Animated.View style={[
+            styles.container, 
+            { transform: [{ translateY }], paddingTop, backgroundColor: getBackgroundColor() }
+        ]}>
             <TouchableOpacity activeOpacity={0.9} onPress={hideBanner} style={styles.content}>
                 <View style={styles.iconContainer}>
-                    <Ionicons name="warning-outline" size={24} color={colors.white} />
+                    <Ionicons name={getIcon()} size={24} color={colors.white} />
                 </View>
                 <View style={styles.textContainer}>
                     <Text style={styles.title} numberOfLines={1}>{title}</Text>
@@ -96,7 +112,6 @@ const styles = StyleSheet.create({
         left: 0,
         right: 0,
         zIndex: 99999,
-        backgroundColor: colors.danger,
         paddingBottom: 16,
         paddingHorizontal: 20,
         ...shadows.lg,

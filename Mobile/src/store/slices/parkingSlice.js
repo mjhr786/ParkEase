@@ -208,6 +208,19 @@ const parkingSlice = createSlice({
             .addCase(createParkingThunk.rejected, (state) => {
                 state.createLoading = false;
             })
+            .addCase(updateParkingThunk.pending, (state) => {
+                state.createLoading = true;
+            })
+            .addCase(updateParkingThunk.fulfilled, (state, action) => {
+                state.createLoading = false;
+                if (action.payload) {
+                    const idx = state.myListings.findIndex((l) => l.id === action.payload.id);
+                    if (idx !== -1) state.myListings[idx] = action.payload;
+                }
+            })
+            .addCase(updateParkingThunk.rejected, (state) => {
+                state.createLoading = false;
+            })
             .addCase(toggleParkingActiveThunk.fulfilled, (state, action) => {
                 if (action.payload) {
                     const idx = state.myListings.findIndex((l) => l.id === action.payload.id);

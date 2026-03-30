@@ -79,13 +79,18 @@ apiClient.interceptors.response.use(
         // We avoid showing generic banners for 401 (token refresh handles it silently), 
         // 404 (handled by ui state), or 422 (validation errors handled by form)
         if (!error.response || (error.response.status !== 401 && error.response.status !== 404 && error.response.status !== 422)) {
-            EventBus.emit('SHOW_ERROR_BANNER', {
-                title: 'Something went wrong',
-                message: 'We are having trouble connecting. Please try again later.'
+            EventBus.emit('SHOW_BANNER', {
+                title: 'Network Issue',
+                message: 'Failed to connect to server. Please check your internet.'
+            });
+        } else if (error.code === 'ECONNABORTED') {
+            EventBus.emit('SHOW_BANNER', {
+                title: 'Timeout',
+                message: 'Request took too long. Please try again.'
             });
         } else if (error.response && error.response.status === 401 && isAuthEndpoint) {
             // If it's a 401 on login/auth, show invalid credentials
-            EventBus.emit('SHOW_ERROR_BANNER', {
+            EventBus.emit('SHOW_BANNER', {
                 title: 'Authentication Failed',
                 message: error.response?.data?.message || 'Invalid email or password.'
             });
