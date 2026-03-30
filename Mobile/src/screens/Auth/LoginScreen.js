@@ -163,7 +163,7 @@ const LoginScreen = ({ navigation }) => {
                                     autoCapitalize="none"
                                     autoCorrect={false}
                                     textContentType="username"
-                                    autoComplete="username"
+                                    autoComplete="email"
                                     importantForAutofill="yes"
                                     returnKeyType="next"
                                     onSubmitEditing={() => passwordRef.current?.focus()}
