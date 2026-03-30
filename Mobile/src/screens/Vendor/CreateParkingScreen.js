@@ -5,6 +5,7 @@
 
 import React, { useState, useCallback } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, Alert, StyleSheet, KeyboardAvoidingView, Platform, Image } from 'react-native';
+import { EventBus } from '../../utils/EventBus';
 import { useDispatch, useSelector } from 'react-redux';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
@@ -75,7 +76,11 @@ const CreateParkingScreen = ({ route, navigation }) => {
 
     const handleCreate = useCallback(async () => {
         if (!formData.title || !formData.description || !formData.address || !formData.city || !formData.state || !formData.totalSpots || !formData.hourlyRate) {
-            Alert.alert('Required Fields', 'Please fill in Title, Description, Address, City, State, Total Spots, and Hourly Rate.');
+            EventBus.emit('SHOW_BANNER', { 
+                title: 'Required Fields', 
+                message: 'Please fill in Title, Description, Address, City, State, Total Spots, and Hourly Rate.',
+                type: 'error'
+            });
             return;
         }
 
@@ -106,9 +111,14 @@ const CreateParkingScreen = ({ route, navigation }) => {
                 }
 
                 dispatch(getMyListingsThunk());
-                Alert.alert('Success', 'Parking space updated!', [
-                    { text: 'OK', onPress: () => navigation.goBack() },
-                ]);
+                EventBus.emit('SHOW_BANNER', { 
+                    title: 'Success', 
+                    message: 'Parking space updated!',
+                    type: 'success'
+                });
+                
+                // Delay navigation slightly so user sees the banner
+                setTimeout(() => navigation.goBack(), 1500);
             } else {
                 const result = await dispatch(createParkingThunk(payload)).unwrap();
                 const newId = result.id || result._id;
@@ -126,12 +136,21 @@ const CreateParkingScreen = ({ route, navigation }) => {
                     }
                 }
 
-                Alert.alert('Success', 'Parking space created!', [
-                    { text: 'OK', onPress: () => navigation.goBack() },
-                ]);
+                EventBus.emit('SHOW_BANNER', { 
+                    title: 'Success', 
+                    message: 'Parking space created!',
+                    type: 'success'
+                });
+                
+                // Delay navigation slightly so user sees the banner
+                setTimeout(() => navigation.goBack(), 1500);
             }
         } catch (error) {
-            Alert.alert('Failed', typeof error === 'string' ? error : `Could not ${isEditing ? 'update' : 'create'} parking space. Please check all fields and try again.`);
+            EventBus.emit('SHOW_BANNER', { 
+                title: 'Failed', 
+                message: typeof error === 'string' ? error : `Could not ${isEditing ? 'update' : 'create'} parking space.`,
+                type: 'error'
+            });
         }
     }, [dispatch, formData, navigation, isEditing, editData]);
 
