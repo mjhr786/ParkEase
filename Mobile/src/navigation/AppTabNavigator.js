@@ -55,6 +55,7 @@ const HomeStack = () => (
         <Stack.Screen name="CreateReview" component={CreateReviewScreen} />
         <Stack.Screen name="ReviewsList" component={ReviewsListScreen} />
         <Stack.Screen name="ChatScreen" component={ChatScreen} />
+        <Stack.Screen name="CreateParking" component={CreateParkingScreen} />
     </Stack.Navigator>
 );
 
@@ -68,6 +69,7 @@ const SearchStack = () => (
         <Stack.Screen name="CreateReview" component={CreateReviewScreen} />
         <Stack.Screen name="ReviewsList" component={ReviewsListScreen} />
         <Stack.Screen name="ChatScreen" component={ChatScreen} />
+        <Stack.Screen name="CreateParking" component={CreateParkingScreen} />
     </Stack.Navigator>
 );
 
