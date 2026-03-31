@@ -5,6 +5,10 @@
   "scripts": {
     "start": "expo start",
     "android": "REACT_NATIVE_PACKAGER_HOSTNAME=localhost expo run:android",
+    "android:build:apk": "cd android && ./gradlew assembleRelease",
+    "android:build:aab": "cd android && ./gradlew bundleRelease",
+    "android:distribute:apk": "cd android && ./gradlew assembleRelease appDistributionUploadRelease -PFIREBASE_ARTIFACT_TYPE=APK",
+    "android:distribute:aab": "cd android && ./gradlew bundleRelease appDistributionUploadRelease -PFIREBASE_ARTIFACT_TYPE=AAB",
     "ios": "expo run:ios",
     "web": "expo start --web"
   },

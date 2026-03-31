@@ -80,21 +80,58 @@ In development environments, explicit `console.error` calls will normally trigge
 
 ## Generating an APK (Android Testing)
 
-To generate a standalone `.apk` Android installation file (independent of Expo Go) for friends, QA, or manual distribution:
+To generate a standalone `.apk` Android installation file locally from the native Android project:
 
-We utilize the customized `preview` profile located inside our `eas.json` configuration, which specifically requests an `apk` build type.
-
-1. **Log in to Expo Services** (required once):
+1. **Install Android prerequisites**:
    ```bash
-   eas login
+   Android Studio
+   Java 17
    ```
-2. **Trigger the APK build pipeline**:
+2. **Build the release APK locally**:
    ```bash
-   eas build -p android --profile preview
+   npm run android:build:apk
    ```
-3. **Wait & Download**: The process will upload your codebase to the Expo Cloud Servers. You will receive a direct tracking URL. Once compiled (approx 5-10 minutes), Expo will provide a direct download link for your `.apk` file!
+3. **Find the generated APK**:
+   ```bash
+   android/app/build/outputs/apk/release/app-release.apk
+   ```
+4. **Build an AAB instead when needed**:
+   ```bash
+   npm run android:build:aab
+   ```
+5. **Find the generated AAB**:
+   ```bash
+   android/app/build/outputs/bundle/release/app-release.aab
+   ```
 
-*(Note: To build entirely locally bypassing the queue, you can append the `--local` flag natively, provided your Mac has the extensive Android SDK/NDK locally installed.)*
+If `android/keystore.properties` is present, release builds use your release keystore. Otherwise they fall back to the debug keystore for local testing.
+
+## Firebase App Distribution
+
+This project can upload locally built Android releases directly to Firebase App Distribution through Gradle.
+
+1. **Create local config files**:
+   ```bash
+   cp android/firebase-app-distribution.properties.example android/firebase-app-distribution.properties
+   cp android/keystore.properties.example android/keystore.properties
+   ```
+2. **Fill in Firebase distribution values** in `android/firebase-app-distribution.properties`:
+   - `FIREBASE_GROUPS` or `FIREBASE_TESTERS`
+   - `FIREBASE_RELEASE_NOTES` or `FIREBASE_RELEASE_NOTES_FILE`
+   - `FIREBASE_CREDENTIALS_FILE` if you want Gradle to use a service account JSON directly
+3. **Authenticate with Firebase** using one of these options:
+   - Set `GOOGLE_APPLICATION_CREDENTIALS` to a Firebase service account JSON with App Distribution Admin access
+   - Or set `FIREBASE_TOKEN` after logging in with the Firebase CLI
+4. **Upload an APK to Firebase App Distribution**:
+   ```bash
+   npm run android:distribute:apk
+   ```
+5. **Upload an AAB to Firebase App Distribution**:
+   ```bash
+   npm run android:distribute:aab
+   ```
+
+The Gradle upload task is `appDistributionUploadRelease`. It builds locally on your machine first, then uploads the generated artifact to Firebase. Firebase stores the tester distribution; it does not compile the Android app for you.
 
 ---
 
