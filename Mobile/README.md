@@ -133,6 +133,49 @@ This project can upload locally built Android releases directly to Firebase App 
 
 The Gradle upload task is `appDistributionUploadRelease`. It builds locally on your machine first, then uploads the generated artifact to Firebase. Firebase stores the tester distribution; it does not compile the Android app for you.
 
+## Slack Build Notifications
+
+You can post each successful Firebase App Distribution release to Slack after upload.
+
+1. **Create a local `.env` file in the project root**:
+   ```bash
+   cat <<'EOF' > .env
+   SLACK_WEBHOOK_URL="your-incoming-webhook-url"
+   SLACK_CHANNEL="#qa-builds-android"
+   EOF
+   ```
+2. **Confirm Firebase local config exists**:
+   - `android/firebase-app-distribution.properties`
+   - `android/keystore.properties` if you want release signing instead of debug signing fallback
+3. **Run the combined Firebase + Slack flow for APK**:
+   ```bash
+   npm run android:distribute:apk:slack
+   ```
+4. **Run the combined Firebase + Slack flow for AAB**:
+   ```bash
+   npm run android:distribute:aab:slack
+   ```
+5. **What the script does**:
+   - increments Android `versionCode` in `android/app/build.gradle` before the release starts
+   - generates release notes from git commits and local file changes
+   - builds the Android artifact locally with Gradle
+   - uploads the build to Firebase App Distribution
+   - reads the Firebase release links from Gradle output
+   - posts those links to Slack using the webhook from `.env`
+6. **What success looks like**:
+   - the terminal prints the new Android build number
+   - the terminal prints the generated release notes summary
+   - Firebase prints a console URL, tester URL, and temporary binary download URL
+   - Slack receives a message with the Firebase tester link and console link
+
+The Slack release helper script is [distributeAndroidToFirebaseAndSlack.js](/Users/mohammad.shaikh/Documents/TOOL/agent/AG/Park/ParkEase/Mobile/scripts/distributeAndroidToFirebaseAndSlack.js). It automatically loads `.env` from the project root, so you do not need to export the Slack variables manually in your shell.
+
+The Slack message includes the generated release notes summary, Firebase tester link, Firebase console link, and the temporary direct binary download link when Firebase returns it.
+
+Important: Slack incoming webhooks post to the channel selected when the webhook was created. The `SLACK_CHANNEL` variable is included in the message for visibility, but incoming webhooks do not override the webhook's configured destination channel.
+
+If the Slack webhook is valid but the message does not appear in the channel you expect, check the webhook configuration inside Slack first. The webhook destination channel is controlled by Slack, not by the `SLACK_CHANNEL` value in `.env`.
+
 ---
 
 ## Deploying for Production

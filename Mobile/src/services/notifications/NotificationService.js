@@ -4,18 +4,24 @@
  * Includes permission requests, token generation, and message listeners.
  */
 
-import { Alert, Platform } from 'react-native';
+import { PermissionsAndroid, Platform } from 'react-native';
 import { EventBus } from '../../utils/EventBus';
 import messaging from '@react-native-firebase/messaging';
 
 class NotificationService {
     async initialize() {
+        if (this.isInitialized) {
+            return;
+        }
+
         // 1. Request permissions (required for iOS and Android 13+)
         const hasPermission = await this.requestUserPermission();
         if (!hasPermission) {
             console.log('[NotificationService] User declined notification permissions.');
             return;
         }
+
+        await messaging().registerDeviceForRemoteMessages();
 
         // 2. Get FCM Device Token
         const token = await this.getDeviceToken();
@@ -48,6 +54,8 @@ class NotificationService {
             }
         });
 
+        this.isInitialized = true;
+
         // 5. Setup background message handler (Outside the class typically, but we define it here)
         // See: messaging().setBackgroundMessageHandler(...) in index.js
     }
@@ -60,9 +68,19 @@ class NotificationService {
                 authStatus === messaging.AuthorizationStatus.PROVISIONAL;
             return enabled;
         } else if (Platform.OS === 'android' && Platform.Version >= 33) {
-            // Android 13+ requires explicit POST_NOTIFICATIONS permission
-            const authStatus = await messaging().requestPermission();
-            return authStatus === messaging.AuthorizationStatus.AUTHORIZED;
+            const hasPermission = await PermissionsAndroid.check(
+                PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS
+            );
+
+            if (hasPermission) {
+                return true;
+            }
+
+            const result = await PermissionsAndroid.request(
+                PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS
+            );
+
+            return result === PermissionsAndroid.RESULTS.GRANTED;
         }
         return true; // Android < 13 permissions are granted at install time
     }
@@ -95,7 +113,9 @@ class NotificationService {
     cleanup() {
         if (this.unsubscribeForegroundListener) {
             this.unsubscribeForegroundListener();
+            this.unsubscribeForegroundListener = null;
         }
+        this.isInitialized = false;
     }
 }
 
