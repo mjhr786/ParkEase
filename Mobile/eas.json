@@ -6,6 +6,10 @@
         "preview": {
             "android": {
                 "buildType": "apk"
+            },
+            "env": {
+                "GOOGLE_SERVICES_JSON": "secret:GOOGLE_SERVICES_JSON",
+                "GOOGLE_SERVICES_PLIST": "secret:GOOGLE_SERVICES_PLIST"
             }
         },
         "development": {

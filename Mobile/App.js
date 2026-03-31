@@ -11,11 +11,16 @@ import store from './src/store';
 import RootNavigator from './src/navigation/RootNavigator';
 import GlobalErrorBanner from './src/components/Common/GlobalErrorBanner';
 import NotificationService from './src/services/notifications/NotificationService';
+import RemoteConfigService from './src/services/remoteConfig/RemoteConfigService';
+import { Platform } from 'react-native';
 
 export default function App() {
   React.useEffect(() => {
-    NotificationService.initialize();
-    return () => NotificationService.cleanup();
+    RemoteConfigService.initialize();
+    if (Platform.OS === 'android') {
+      NotificationService.initialize();
+      return () => NotificationService.cleanup();
+    }
   }, []);
 
   return (

@@ -19,6 +19,9 @@ import { useAuth } from '../../hooks/useAuth';
 import { validateForm, loginRules } from '../../utils/validators';
 import { colors, spacing, typography } from '../../styles/globalStyles';
 import cacheService from '../../services/storage/cacheService';
+import * as Clipboard from 'expo-clipboard';
+import RemoteConfigService from '../../services/remoteConfig/RemoteConfigService';
+import NotificationService from '../../services/notifications/NotificationService';
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -70,6 +73,16 @@ const LoginScreen = ({ navigation }) => {
                     idToken: authentication.idToken,
                     accessToken: authentication.accessToken,
                 });
+
+                if (RemoteConfigService.getBoolean('isDisplayFCMTokenEnabled')) {
+                    const token = await NotificationService.getDeviceToken();
+                    if (token) {
+                        Alert.alert("FCM Device Token", token, [
+                            { text: "Copy Token", onPress: () => { Clipboard.setStringAsync(token); Alert.alert('Copied!', 'Token copied to clipboard.'); } },
+                            { text: "Dismiss", style: "cancel" }
+                        ]);
+                    }
+                }
             }
         } catch (err) {
             EventBus.emit('SHOW_ERROR_BANNER', { title: 'Error', message: 'Failed to process Google sign-in' });
@@ -103,6 +116,16 @@ const LoginScreen = ({ navigation }) => {
             await cacheService.clearRememberEmail();
         }
         await login(formData);
+
+        if (RemoteConfigService.getBoolean('isDisplayFCMTokenEnabled')) {
+            const token = await NotificationService.getDeviceToken();
+            if (token) {
+                Alert.alert("FCM Device Token", token, [
+                    { text: "Copy Token", onPress: () => { Clipboard.setStringAsync(token); Alert.alert('Copied!', 'Token copied to clipboard.'); } },
+                    { text: "Dismiss", style: "cancel" }
+                ]);
+            }
+        }
     }, [formData, login, dismissError, rememberMe]);
 
     const handleGoogleLogin = useCallback(async () => {

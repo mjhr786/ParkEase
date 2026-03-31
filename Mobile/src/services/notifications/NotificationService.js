@@ -4,9 +4,9 @@
  * Includes permission requests, token generation, and message listeners.
  */
 
-import messaging from '@react-native-firebase/messaging';
 import { Alert, Platform } from 'react-native';
 import { EventBus } from '../../utils/EventBus';
+import messaging from '@react-native-firebase/messaging';
 
 class NotificationService {
     async initialize() {
@@ -61,7 +61,6 @@ class NotificationService {
             return enabled;
         } else if (Platform.OS === 'android' && Platform.Version >= 33) {
             // Android 13+ requires explicit POST_NOTIFICATIONS permission
-            // This is handled by @react-native-firebase/messaging automatically on requestPermission()
             const authStatus = await messaging().requestPermission();
             return authStatus === messaging.AuthorizationStatus.AUTHORIZED;
         }
