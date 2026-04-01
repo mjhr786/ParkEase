@@ -46,9 +46,39 @@ Expo provides an interactive terminal UI. Start the Metro bundler using:
 npm start
 ```
 From the interactive terminal menu that launches, you can press:
-- `i` — To open the app on the **iOS Simulator** (requires Xcode). Alternatively, directly run `npx expo start --ios`.
+- `i` — To open the app on the **iOS Simulator** when using Expo Go-compatible features only.
 - `a` — To open the app on the **Android Emulator** (requires Android Studio). Alternatively, directly run `npx expo start --android`.
 - `Scan QR Code` — Download the **Expo Go** app on your physical iPhone/Android device and scan the terminal QR code to run it live.
+
+### iOS Simulator With Native Modules
+
+This app uses native Firebase modules such as `@react-native-firebase/app`, so **Expo Go is not sufficient for full iOS testing**.
+
+If you want to run the app on the iOS Simulator with all native modules available, use the native development build:
+
+```bash
+npm run ios -- --device "iPhone 17 Pro"
+```
+
+Or simply:
+
+```bash
+npm run ios
+```
+
+Notes:
+- The first native iOS run may take a while because it prepares native dependencies and CocoaPods.
+- If native iOS dependencies need to be refreshed manually, run:
+  ```bash
+  cd ios
+  pod install
+  ```
+- After the native app is installed once, Metro will open the development build using the app scheme instead of Expo Go.
+
+### When To Use Expo Go vs Native iOS Build
+
+- Use `npm start` or `npx expo start --ios` only for Expo Go-compatible flows.
+- Use `npm run ios` for any feature that depends on native modules, including Firebase, notifications, and native build plugins.
 
 ---
 

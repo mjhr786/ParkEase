@@ -4,7 +4,7 @@
  * Ownership-aware: own listings show manage options
  */
 
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { EventBus } from '../../utils/EventBus';
 import {
     View, Text, ScrollView, TouchableOpacity, StyleSheet, Image, Dimensions, Share,
@@ -20,7 +20,7 @@ import { useAuth } from '../../hooks/useAuth';
 import StarRating from '../../components/Common/StarRating';
 import { DetailSkeleton } from '../../components/Common/ShimmerPlaceholder';
 import { colors, spacing, typography, shadows } from '../../styles/globalStyles';
-import { formatCurrency, formatDate, resolveImageUrl } from '../../utils/formatters';
+import { formatCurrency, formatDate, getParkingImageUrls } from '../../utils/formatters';
 import { ParkingTypeLabels } from '../../utils/constants';
 import chatService from '../../services/chat/chatService';
 
@@ -37,6 +37,8 @@ const ParkingDetailScreen = ({ navigation, route }) => {
     const [chatLoading, setChatLoading] = useState(false);
     const [isFavorited, setIsFavorited] = useState(false);
     const [favLoading, setFavLoading] = useState(false);
+    const [activeImageIndex, setActiveImageIndex] = useState(0);
+    const heroScrollRef = useRef(null);
 
     useEffect(() => {
         dispatch(getParkingDetailThunk(parkingId));
@@ -46,6 +48,31 @@ const ParkingDetailScreen = ({ navigation, route }) => {
     useEffect(() => {
         if (parking?.isFavorited !== undefined) setIsFavorited(parking.isFavorited);
     }, [parking?.isFavorited]);
+
+    const imageUrls = useMemo(() => getParkingImageUrls(parking), [parking]);
+
+    useEffect(() => {
+        setActiveImageIndex(0);
+    }, [parking?.id]);
+
+    useEffect(() => {
+        if (imageUrls.length <= 1) {
+            return undefined;
+        }
+
+        const intervalId = setInterval(() => {
+            setActiveImageIndex((currentIndex) => {
+                const nextIndex = (currentIndex + 1) % imageUrls.length;
+                heroScrollRef.current?.scrollTo({
+                    x: nextIndex * width,
+                    animated: true,
+                });
+                return nextIndex;
+            });
+        }, 3500);
+
+        return () => clearInterval(intervalId);
+    }, [imageUrls]);
 
     const isOwnListing = parking?.ownerId === user?.id || parking?.userId === user?.id;
 
@@ -113,7 +140,7 @@ const ParkingDetailScreen = ({ navigation, route }) => {
         );
     }
 
-    const hasImage = parking.images?.length > 0;
+    const hasImage = imageUrls.length > 0;
     const typeLabel = ParkingTypeLabels[parking.parkingType] || 'Parking';
 
     return (
@@ -125,7 +152,63 @@ const ParkingDetailScreen = ({ navigation, route }) => {
                 {/* Hero Image */}
                 <View style={styles.heroContainer}>
                     {hasImage ? (
-                        <Image source={{ uri: resolveImageUrl(parking.images[0]) }} style={styles.heroImage} />
+                        <>
+                            <ScrollView
+                                ref={heroScrollRef}
+                                horizontal
+                                pagingEnabled
+                                showsHorizontalScrollIndicator={false}
+                                onMomentumScrollEnd={(event) => {
+                                    const nextIndex = Math.round(event.nativeEvent.contentOffset.x / width);
+                                    setActiveImageIndex(nextIndex);
+                                }}
+                            >
+                                {imageUrls.map((imageUrl) => (
+                                    <Image key={imageUrl} source={{ uri: imageUrl }} style={styles.heroImage} />
+                                ))}
+                            </ScrollView>
+                            {imageUrls.length > 1 && (
+                                <View style={styles.pagination}>
+                                    {imageUrls.map((imageUrl, index) => (
+                                        <View
+                                            key={`${imageUrl}-${index}`}
+                                            style={[
+                                                styles.paginationDot,
+                                                index === activeImageIndex && styles.paginationDotActive,
+                                            ]}
+                                        />
+                                    ))}
+                                </View>
+                            )}
+                            {imageUrls.length > 1 && (
+                                <ScrollView
+                                    horizontal
+                                    showsHorizontalScrollIndicator={false}
+                                    contentContainerStyle={styles.thumbnailRail}
+                                    style={styles.thumbnailRailWrapper}
+                                >
+                                    {imageUrls.map((imageUrl, index) => (
+                                        <TouchableOpacity
+                                            key={`thumb-${imageUrl}-${index}`}
+                                            activeOpacity={0.9}
+                                            onPress={() => {
+                                                setActiveImageIndex(index);
+                                                heroScrollRef.current?.scrollTo({
+                                                    x: index * width,
+                                                    animated: true,
+                                                });
+                                            }}
+                                            style={[
+                                                styles.thumbnailButton,
+                                                index === activeImageIndex && styles.thumbnailButtonActive,
+                                            ]}
+                                        >
+                                            <Image source={{ uri: imageUrl }} style={styles.thumbnailImage} />
+                                        </TouchableOpacity>
+                                    ))}
+                                </ScrollView>
+                            )}
+                        </>
                     ) : (
                         <View style={styles.heroPlaceholder}>
                             <Ionicons name="car" size={60} color={colors.lightGray} />
@@ -350,7 +433,7 @@ const styles = StyleSheet.create({
         position: 'relative',
     },
     heroImage: {
-        width: '100%',
+        width,
         height: '100%',
         resizeMode: 'cover',
     },
@@ -387,6 +470,53 @@ const styles = StyleSheet.create({
         paddingHorizontal: 14,
         paddingVertical: 8,
         ...shadows.md,
+    },
+    pagination: {
+        position: 'absolute',
+        bottom: 18,
+        left: 0,
+        right: 0,
+        flexDirection: 'row',
+        justifyContent: 'center',
+        alignItems: 'center',
+        gap: 8,
+    },
+    paginationDot: {
+        width: 8,
+        height: 8,
+        borderRadius: 4,
+        backgroundColor: 'rgba(255,255,255,0.55)',
+    },
+    paginationDotActive: {
+        width: 22,
+        backgroundColor: colors.white,
+    },
+    thumbnailRailWrapper: {
+        position: 'absolute',
+        left: 0,
+        right: 0,
+        bottom: 44,
+    },
+    thumbnailRail: {
+        paddingHorizontal: 16,
+        gap: 10,
+    },
+    thumbnailButton: {
+        width: 58,
+        height: 58,
+        borderRadius: 14,
+        borderWidth: 2,
+        borderColor: 'rgba(255,255,255,0.45)',
+        overflow: 'hidden',
+        backgroundColor: 'rgba(255,255,255,0.15)',
+    },
+    thumbnailButtonActive: {
+        borderColor: colors.white,
+        transform: [{ scale: 1.04 }],
+    },
+    thumbnailImage: {
+        width: '100%',
+        height: '100%',
     },
     heroPriceLabel: {
         fontSize: 10,

@@ -65,7 +65,7 @@ export const authService = {
         const response = await apiClient.post(ENDPOINTS.AUTH.REFRESH, { refreshToken });
         if (response.data.success && response.data.data) {
             const { accessToken, refreshToken: newRefreshToken } = response.data.data;
-            await storageService.setTokens(accessToken, newRefreshToken);
+            await storageService.setTokens(accessToken, newRefreshToken || refreshToken);
             return response.data.data;
         }
         return null;

@@ -124,7 +124,7 @@ apiClient.interceptors.response.use(
 
                 if (response.data.success && response.data.data) {
                     const { accessToken, refreshToken: newRefreshToken } = response.data.data;
-                    await storageService.setTokens(accessToken, newRefreshToken);
+                    await storageService.setTokens(accessToken, newRefreshToken || refreshToken);
                     originalRequest.headers.Authorization = `Bearer ${accessToken}`;
                     onTokenRefreshed(accessToken);
                     return apiClient(originalRequest);

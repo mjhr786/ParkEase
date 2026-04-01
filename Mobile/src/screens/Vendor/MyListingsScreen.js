@@ -5,7 +5,7 @@
 
 import React, { useEffect, useCallback, useState } from 'react';
 import { EventBus } from '../../utils/EventBus';
-import { View, Text, FlatList, TouchableOpacity, StyleSheet, RefreshControl, Alert } from 'react-native';
+import { View, Text, FlatList, TouchableOpacity, StyleSheet, RefreshControl, Alert, Image } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { Ionicons } from '@expo/vector-icons';
 import { getMyListingsThunk, toggleParkingActiveThunk, deleteParkingThunk } from '../../store/slices/parkingSlice';
@@ -17,12 +17,24 @@ import SwipeableRow from '../../components/Common/SwipeableRow';
 import { ListItemSkeleton } from '../../components/Common/ShimmerPlaceholder';
 import StarRating from '../../components/Common/StarRating';
 import { colors, spacing, typography, shadows } from '../../styles/globalStyles';
-import { formatCurrency } from '../../utils/formatters';
+import { formatCurrency, getPrimaryParkingImageUrl } from '../../utils/formatters';
 import { ParkingTypeLabels } from '../../utils/constants';
 
 const ListingCard = ({ listing, onToggle, onEdit, onDelete, onPress, isToggling }) => (
     <TouchableOpacity activeOpacity={0.8} onPress={onPress}>
         <Card>
+            <View style={cardStyles.mediaHeader}>
+                {getPrimaryParkingImageUrl(listing) ? (
+                    <Image
+                        source={{ uri: getPrimaryParkingImageUrl(listing) }}
+                        style={cardStyles.coverImage}
+                    />
+                ) : (
+                    <View style={cardStyles.coverPlaceholder}>
+                        <Ionicons name="image-outline" size={26} color={colors.textTertiary} />
+                    </View>
+                )}
+            </View>
             <View style={cardStyles.header}>
                 <View style={{ flex: 1 }}>
                     <Text style={cardStyles.title} numberOfLines={1}>{listing.title}</Text>
@@ -72,6 +84,23 @@ const ListingCard = ({ listing, onToggle, onEdit, onDelete, onPress, isToggling 
 );
 
 const cardStyles = StyleSheet.create({
+    mediaHeader: {
+        marginBottom: spacing.md,
+    },
+    coverImage: {
+        width: '100%',
+        height: 150,
+        borderRadius: spacing.radius.lg,
+        backgroundColor: colors.borderLight,
+    },
+    coverPlaceholder: {
+        width: '100%',
+        height: 150,
+        borderRadius: spacing.radius.lg,
+        backgroundColor: colors.background,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
     header: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' },
     title: { ...typography.h4, color: colors.textPrimary },
     locationRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 },

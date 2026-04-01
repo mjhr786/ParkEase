@@ -8,6 +8,9 @@ import apiClient from '../../services/api/apiClient';
 import ENDPOINTS from '../../services/api/endpoints';
 import { getErrorMessage } from '../../utils/errorHandler';
 
+const MAX_IMAGE_SIZE_BYTES = 5 * 1024 * 1024;
+const ALLOWED_IMAGE_TYPES = new Set(['image/jpeg', 'image/jpg', 'image/png', 'image/webp']);
+
 export const searchParkingThunk = createAsyncThunk(
     'parking/search',
     async (params, { rejectWithValue }) => {
@@ -97,27 +100,166 @@ export const deleteParkingThunk = createAsyncThunk(
 
 export const uploadParkingImagesThunk = createAsyncThunk(
     'parking/uploadImages',
-    async ({ parkingSpaceId, images }, { rejectWithValue }) => {
+    async ({ parkingSpaceId, images = [], existingImageUrls = [], callbacks = {} }, { rejectWithValue }) => {
+        const completedUploads = [];
+
         try {
-            const formData = new FormData();
-            images.forEach((image, index) => {
-                formData.append('files', {
-                    uri: image.uri,
-                    type: image.type || 'image/jpeg',
-                    name: image.fileName || `image_${index}.jpg`,
-                });
-            });
-            const response = await apiClient.post(
-                ENDPOINTS.FILES.UPLOAD(parkingSpaceId),
-                formData,
-                { headers: { 'Content-Type': 'multipart/form-data' } }
+            const {
+                onFileStart,
+                onProgress,
+                onFileComplete,
+                onFileError,
+            } = callbacks;
+
+            for (let index = 0; index < images.length; index += 1) {
+                const image = images[index];
+
+                try {
+                    const contentType = getImageContentType(image);
+                    const fileName = image.fileName || `image_${index}${getExtensionFromContentType(contentType)}`;
+
+                    validateImageForUpload(image, contentType, fileName);
+                    onFileStart?.(image, { index, fileName, contentType });
+
+                    const signResponse = await apiClient.post(
+                        ENDPOINTS.FILES.SIGN_UPLOAD(parkingSpaceId),
+                        { fileName, contentType }
+                    );
+
+                    const signData = signResponse.data?.data || signResponse.data;
+                    if (!signData?.uploadUrl || !signData?.publicUrl) {
+                        throw new Error('Upload URL generation failed.');
+                    }
+
+                    const localFileResponse = await fetch(image.uri);
+                    const fileBlob = await localFileResponse.blob();
+                    await uploadFileToPresignedUrl({
+                        uploadUrl: signData.uploadUrl,
+                        contentType,
+                        fileBlob,
+                        onProgress: (progress) => onProgress?.(image, progress, { index, fileName }),
+                    });
+
+                    completedUploads.push({
+                        image,
+                        index,
+                        fileName,
+                        publicUrl: signData.publicUrl,
+                    });
+                } catch (error) {
+                    onFileError?.({ image, index, error });
+                    throw error;
+                }
+            }
+
+            const publicUrls = [
+                ...sanitizePublicUrls(existingImageUrls),
+                ...completedUploads.map((item) => item.publicUrl),
+            ];
+            const confirmResponse = await apiClient.post(
+                ENDPOINTS.FILES.CONFIRM_UPLOAD(parkingSpaceId),
+                { fileUrls: publicUrls }
             );
-            return response.data.data;
+
+            completedUploads.forEach(({ image, index, fileName, publicUrl }) => {
+                onFileComplete?.(image, { index, fileName, publicUrl });
+            });
+
+            return confirmResponse.data?.data || { publicUrls };
         } catch (error) {
+            const normalizedError = error instanceof Error ? error : new Error(getErrorMessage(error));
+            completedUploads.forEach(({ image, index }) => {
+                onFileError?.({ image, index, error: normalizedError });
+            });
             return rejectWithValue(getErrorMessage(error));
         }
     }
 );
+
+const uploadFileToPresignedUrl = ({ uploadUrl, contentType, fileBlob, onProgress }) =>
+    new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+
+        xhr.open('PUT', uploadUrl);
+        xhr.setRequestHeader('Content-Type', contentType);
+
+        xhr.upload.onprogress = (event) => {
+            if (!event.lengthComputable) {
+                return;
+            }
+
+            const progress = Math.min(100, Math.round((event.loaded / event.total) * 100));
+            onProgress?.(progress);
+        };
+
+        xhr.onload = () => {
+            if (xhr.status >= 200 && xhr.status < 300) {
+                onProgress?.(100);
+                resolve();
+                return;
+            }
+
+            reject(new Error(`Direct upload failed with status ${xhr.status}.`));
+        };
+
+        xhr.onerror = () => reject(new Error('Direct upload failed.'));
+        xhr.onabort = () => reject(new Error('Direct upload was cancelled.'));
+        xhr.send(fileBlob);
+    });
+
+const getImageContentType = (image) => {
+    const explicitType = image.mimeType || image.type;
+    if (explicitType && explicitType.includes('/')) {
+        return explicitType.toLowerCase();
+    }
+
+    const fileName = (image.fileName || image.uri || '').toLowerCase();
+    if (fileName.endsWith('.png')) return 'image/png';
+    if (fileName.endsWith('.webp')) return 'image/webp';
+    return 'image/jpeg';
+};
+
+const getExtensionFromContentType = (contentType) => {
+    if (contentType === 'image/png') return '.png';
+    if (contentType === 'image/webp') return '.webp';
+    return '.jpg';
+};
+
+const validateImageForUpload = (image, contentType, fileName) => {
+    if (!ALLOWED_IMAGE_TYPES.has(contentType)) {
+        throw new Error(`Unsupported image type for ${fileName}. Allowed: JPG, PNG, WEBP.`);
+    }
+
+    if (image.fileSize && image.fileSize > MAX_IMAGE_SIZE_BYTES) {
+        throw new Error(`${fileName} exceeds the 5 MB upload limit.`);
+    }
+
+    if (!image.uri) {
+        throw new Error(`Invalid image selected for ${fileName}.`);
+    }
+};
+
+const sanitizePublicUrls = (urls = []) =>
+    urls
+        .map((item) => {
+            if (typeof item === 'string') {
+                return item.trim();
+            }
+
+            if (item && typeof item === 'object') {
+                return (
+                    item.publicUrl ||
+                    item.imageUrl ||
+                    item.url ||
+                    item.ImageUrl ||
+                    item.ImageURL ||
+                    ''
+                ).trim();
+            }
+
+            return '';
+        })
+        .filter(Boolean);
 
 export const getMapCoordinatesThunk = createAsyncThunk(
     'parking/getMapCoordinates',

@@ -133,3 +133,43 @@ export const resolveImageUrl = (imagePath) => {
     const API_BASE = 'https://parkeaseapp.runasp.net';
     return `${API_BASE}/${cleanPath}`;
 };
+
+/**
+ * Normalize parking image values into a display-ready URL array
+ * @param {Object} parking
+ * @returns {string[]}
+ */
+export const getParkingImageUrls = (parking) => {
+    if (!parking) {
+        return [];
+    }
+
+    const candidates = parking.imageUrls || parking.ImageUrls || parking.images || [];
+    if (!Array.isArray(candidates)) {
+        return [];
+    }
+
+    return candidates
+        .map((item) => {
+            if (typeof item === 'string') {
+                return resolveImageUrl(item.trim());
+            }
+
+            if (item && typeof item === 'object') {
+                const rawValue =
+                    item.publicUrl ||
+                    item.imageUrl ||
+                    item.url ||
+                    item.ImageUrl ||
+                    item.ImageURL ||
+                    '';
+
+                return resolveImageUrl(String(rawValue).trim());
+            }
+
+            return null;
+        })
+        .filter(Boolean);
+};
+
+export const getPrimaryParkingImageUrl = (parking) => getParkingImageUrls(parking)[0] || null;

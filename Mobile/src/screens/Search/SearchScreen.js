@@ -16,7 +16,7 @@ import EmptyState from '../../components/Common/EmptyState';
 import { Image } from 'react-native';
 import { SearchSkeleton } from '../../components/Common/ShimmerPlaceholder';
 import { colors, spacing, typography, shadows } from '../../styles/globalStyles';
-import { formatCurrency, resolveImageUrl } from '../../utils/formatters';
+import { formatCurrency, getPrimaryParkingImageUrl } from '../../utils/formatters';
 import { VehicleTypeLabels, ParkingType, ParkingTypeLabels } from '../../utils/constants';
 
 /* ───── Sort Options ───── */
@@ -30,7 +30,7 @@ const SORT_OPTIONS = [
 
 /* ───── Parking Card ───── */
 const ParkingCard = ({ parking, onPress }) => {
-    const imageUrl = resolveImageUrl(parking.images?.[0]);
+    const imageUrl = getPrimaryParkingImageUrl(parking);
     
     return (
         <Card onPress={onPress} style={cardStyles.card}>

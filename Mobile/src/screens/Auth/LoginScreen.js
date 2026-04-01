@@ -75,7 +75,7 @@ const LoginScreen = ({ navigation }) => {
                 });
 
                 if (RemoteConfigService.getBoolean('isDisplayFCMTokenEnabled')) {
-                    const token = await NotificationService.getDeviceToken();
+                    const token = await NotificationService.getAuthorizedDeviceToken();
                     if (token) {
                         Alert.alert("FCM Device Token", token, [
                             { text: "Copy Token", onPress: () => { Clipboard.setStringAsync(token); Alert.alert('Copied!', 'Token copied to clipboard.'); } },
@@ -118,7 +118,7 @@ const LoginScreen = ({ navigation }) => {
         await login(formData);
 
         if (RemoteConfigService.getBoolean('isDisplayFCMTokenEnabled')) {
-            const token = await NotificationService.getDeviceToken();
+            const token = await NotificationService.getAuthorizedDeviceToken();
             if (token) {
                 Alert.alert("FCM Device Token", token, [
                     { text: "Copy Token", onPress: () => { Clipboard.setStringAsync(token); Alert.alert('Copied!', 'Token copied to clipboard.'); } },

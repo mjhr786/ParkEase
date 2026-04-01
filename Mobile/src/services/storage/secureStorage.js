@@ -23,6 +23,9 @@ export const storageService = {
     },
 
     async setRefreshToken(token) {
+        if (!token) {
+            return;
+        }
         await SecureStore.setItemAsync(KEYS.REFRESH_TOKEN, token);
     },
 
@@ -31,10 +34,19 @@ export const storageService = {
     },
 
     async setTokens(accessToken, refreshToken) {
-        await Promise.all([
-            SecureStore.setItemAsync(KEYS.ACCESS_TOKEN, accessToken),
-            SecureStore.setItemAsync(KEYS.REFRESH_TOKEN, refreshToken),
-        ]);
+        const writes = [];
+
+        if (accessToken) {
+            writes.push(SecureStore.setItemAsync(KEYS.ACCESS_TOKEN, accessToken));
+        }
+
+        if (refreshToken) {
+            writes.push(SecureStore.setItemAsync(KEYS.REFRESH_TOKEN, refreshToken));
+        }
+
+        if (writes.length > 0) {
+            await Promise.all(writes);
+        }
     },
 
     async clearTokens() {

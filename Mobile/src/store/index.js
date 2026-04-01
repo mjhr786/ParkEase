@@ -33,6 +33,12 @@ export const store = configureStore({
         getDefaultMiddleware({
             serializableCheck: {
                 ignoredActions: ['auth/login/fulfilled', 'auth/register/fulfilled'],
+                ignoredActionPaths: [
+                    'meta.arg.callbacks.onFileStart',
+                    'meta.arg.callbacks.onProgress',
+                    'meta.arg.callbacks.onFileComplete',
+                    'meta.arg.callbacks.onFileError',
+                ],
             },
         }),
 });

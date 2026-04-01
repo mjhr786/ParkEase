@@ -101,7 +101,8 @@ export const ENDPOINTS = {
 
     // Files
     FILES: {
-        UPLOAD: (parkingSpaceId) => `/files/parking/${parkingSpaceId}/upload`,
+        SIGN_UPLOAD: (parkingSpaceId) => `/files/parking/${parkingSpaceId}/sign-upload`,
+        CONFIRM_UPLOAD: (parkingSpaceId) => `/files/parking/${parkingSpaceId}/confirm-upload`,
         DELETE: (parkingSpaceId, fileName) => `/files/parking/${parkingSpaceId}/${fileName}`,
         GET: (parkingSpaceId) => `/files/parking/${parkingSpaceId}`,
     },

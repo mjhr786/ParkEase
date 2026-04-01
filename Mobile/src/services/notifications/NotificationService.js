@@ -21,7 +21,7 @@ class NotificationService {
             return;
         }
 
-        await messaging().registerDeviceForRemoteMessages();
+        await this.ensureRemoteMessagesRegistration();
 
         // 2. Get FCM Device Token
         const token = await this.getDeviceToken();
@@ -85,8 +85,20 @@ class NotificationService {
         return true; // Android < 13 permissions are granted at install time
     }
 
+    async getAuthorizedDeviceToken() {
+        const hasPermission = await this.requestUserPermission();
+
+        if (!hasPermission) {
+            console.log('[NotificationService] Notification permission not granted. Skipping device token request.');
+            return null;
+        }
+
+        return this.getDeviceToken();
+    }
+
     async getDeviceToken() {
         try {
+            await this.ensureRemoteMessagesRegistration();
             const token = await messaging().getToken();
             console.log('\n--- 🔥 FIREBASE DEVICE TOKEN ---');
             console.log(token);
@@ -96,6 +108,16 @@ class NotificationService {
             console.error('[NotificationService] Failed to get device token:', error);
             return null;
         }
+    }
+
+    async ensureRemoteMessagesRegistration() {
+        const isRegistered = messaging().isDeviceRegisteredForRemoteMessages;
+
+        if (isRegistered) {
+            return;
+        }
+
+        await messaging().registerDeviceForRemoteMessages();
     }
 
     registerTokenWithBackend(token) {

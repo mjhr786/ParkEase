@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useCallback } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, Alert, StyleSheet, KeyboardAvoidingView, Platform, Image } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform, Image } from 'react-native';
 import { EventBus } from '../../utils/EventBus';
 import { useDispatch, useSelector } from 'react-redux';
 import { Ionicons } from '@expo/vector-icons';
@@ -17,12 +17,54 @@ import Input from '../../components/Common/Input';
 import { colors, spacing, typography, shadows } from '../../styles/globalStyles';
 import { ParkingType, ParkingTypeLabels, AMENITIES } from '../../utils/constants';
 
+const MAX_IMAGE_SIZE_BYTES = 5 * 1024 * 1024;
+
+const extractImageUrls = (listing) => {
+    if (!listing) {
+        return [];
+    }
+
+    const candidates = listing.imageUrls || listing.ImageUrls || listing.images || [];
+    if (!Array.isArray(candidates)) {
+        return [];
+    }
+
+    return candidates
+        .map((item) => {
+            if (typeof item === 'string') {
+                return item.trim();
+            }
+
+            if (item && typeof item === 'object') {
+                return (
+                    item.publicUrl ||
+                    item.imageUrl ||
+                    item.url ||
+                    item.ImageUrl ||
+                    item.ImageURL ||
+                    ''
+                ).trim();
+            }
+
+            return '';
+        })
+        .filter(Boolean);
+};
+
+const imageListsMatch = (left, right) =>
+    left.length === right.length && left.every((value, index) => value === right[index]);
+
+const getImageName = (image) => image.fileName || image.uri?.split('/').pop() || 'Selected image';
+
 const CreateParkingScreen = ({ route, navigation }) => {
     const { editData } = route.params || {};
     const isEditing = !!editData;
     const dispatch = useDispatch();
     const { createLoading } = useSelector((s) => s.parking);
+    const initialExistingImageUrls = extractImageUrls(editData);
     const [selectedImages, setSelectedImages] = useState([]);
+    const [existingImageUrls, setExistingImageUrls] = useState(initialExistingImageUrls);
+    const [uploadStateByUri, setUploadStateByUri] = useState({});
     const [uploading, setUploading] = useState(false);
 
     const [formData, setFormData] = useState({
@@ -66,13 +108,148 @@ const CreateParkingScreen = ({ route, navigation }) => {
         });
 
         if (!result.canceled) {
-            setSelectedImages((prev) => [...prev, ...result.assets]);
+            const acceptedAssets = [];
+            const rejectedFiles = [];
+
+            result.assets.forEach((asset) => {
+                if (asset.fileSize && asset.fileSize > MAX_IMAGE_SIZE_BYTES) {
+                    rejectedFiles.push(asset.fileName || asset.uri?.split('/').pop() || 'Selected image');
+                    return;
+                }
+                acceptedAssets.push(asset);
+            });
+
+            if (acceptedAssets.length > 0) {
+                setSelectedImages((prev) => [...prev, ...acceptedAssets]);
+                setUploadStateByUri((prev) => {
+                    const next = { ...prev };
+
+                    acceptedAssets.forEach((asset) => {
+                        next[asset.uri] = {
+                            status: 'pending',
+                            progress: 0,
+                            fileName: getImageName(asset),
+                            error: null,
+                        };
+                    });
+
+                    return next;
+                });
+            }
+
+            if (rejectedFiles.length > 0) {
+                EventBus.emit('SHOW_BANNER', {
+                    title: 'Upload limit',
+                    message: `${rejectedFiles.join(', ')} exceed the 5 MB image limit.`,
+                    type: 'error'
+                });
+            }
         }
     };
 
     const removeImage = (uri) => {
-        setSelectedImages((prev) => prev.filter((img) => img.uri !== uri));
+        setSelectedImages((prev) => {
+            const next = prev.filter((img) => img.uri !== uri);
+            if (next.length !== prev.length) {
+                setUploadStateByUri((current) => {
+                    const nextState = { ...current };
+                    delete nextState[uri];
+                    return nextState;
+                });
+                return next;
+            }
+            setExistingImageUrls((current) => current.filter((imageUrl) => imageUrl !== uri));
+            return prev;
+        });
     };
+
+    const displayedImages = [
+        ...existingImageUrls.map((uri) => ({
+            key: `remote-${uri}`,
+            uri,
+            isRemote: true,
+            status: 'existing',
+            statusLabel: 'Existing',
+        })),
+        ...selectedImages.map((img) => {
+            const uploadState = uploadStateByUri[img.uri];
+            const progress = uploadState?.progress || 0;
+            const status = uploadState?.status || 'pending';
+            const failedMessage = uploadState?.error;
+
+            let statusLabel = 'Ready to upload';
+            if (status === 'uploading') {
+                statusLabel = progress >= 100 ? 'Saving...' : `Uploading ${progress}%`;
+            } else if (status === 'uploaded') {
+                statusLabel = 'Uploaded';
+            } else if (status === 'failed') {
+                statusLabel = failedMessage || 'Upload failed';
+            }
+
+            return {
+                key: `local-${img.uri}`,
+                uri: img.uri,
+                isRemote: false,
+                status,
+                statusLabel,
+            };
+        }),
+    ];
+
+    const buildUploadCallbacks = useCallback(() => ({
+        onFileStart: (image) => {
+            setUploadStateByUri((prev) => ({
+                ...prev,
+                [image.uri]: {
+                    ...(prev[image.uri] || {}),
+                    status: 'uploading',
+                    progress: 0,
+                    fileName: getImageName(image),
+                    error: null,
+                },
+            }));
+        },
+        onProgress: (image, progress) => {
+            setUploadStateByUri((prev) => ({
+                ...prev,
+                [image.uri]: {
+                    ...(prev[image.uri] || {}),
+                    status: 'uploading',
+                    progress,
+                    fileName: getImageName(image),
+                    error: null,
+                },
+            }));
+        },
+        onFileComplete: (image) => {
+            setUploadStateByUri((prev) => ({
+                ...prev,
+                [image.uri]: {
+                    ...(prev[image.uri] || {}),
+                    status: 'uploaded',
+                    progress: 100,
+                    fileName: getImageName(image),
+                    error: null,
+                },
+            }));
+        },
+        onFileError: ({ image, error }) => {
+            if (!image?.uri) {
+                return;
+            }
+
+            setUploadStateByUri((prev) => ({
+                ...prev,
+                [image.uri]: {
+                    ...(prev[image.uri] || {}),
+                    status: 'failed',
+                    progress: 0,
+                    fileName: getImageName(image),
+                    error: typeof error === 'string' ? error : error?.message || 'Upload failed',
+                },
+            }));
+        },
+    }), []);
 
     const handleCreate = useCallback(async () => {
         if (!formData.title || !formData.description || !formData.address || !formData.city || !formData.state || !formData.totalSpots || !formData.hourlyRate) {
@@ -97,13 +274,18 @@ const CreateParkingScreen = ({ route, navigation }) => {
             if (isEditing) {
                 await dispatch(updateParkingThunk({ id: editData.id, data: payload })).unwrap();
                 
-                // Upload images if any
-                if (selectedImages.length > 0) {
+                const hasImageChanges =
+                    selectedImages.length > 0 || !imageListsMatch(existingImageUrls, initialExistingImageUrls);
+
+                if (hasImageChanges) {
                     setUploading(true);
                     try {
+                        const uploadCallbacks = buildUploadCallbacks();
                         await dispatch(uploadParkingImagesThunk({ 
                             parkingSpaceId: editData.id, 
-                            images: selectedImages 
+                            images: selectedImages,
+                            existingImageUrls,
+                            callbacks: uploadCallbacks,
                         })).unwrap();
                     } finally {
                         setUploading(false);
@@ -123,13 +305,15 @@ const CreateParkingScreen = ({ route, navigation }) => {
                 const result = await dispatch(createParkingThunk(payload)).unwrap();
                 const newId = result.id || result._id;
 
-                // Upload images if any
                 if (selectedImages.length > 0 && newId) {
                     setUploading(true);
                     try {
+                        const uploadCallbacks = buildUploadCallbacks();
                         await dispatch(uploadParkingImagesThunk({ 
                             parkingSpaceId: newId, 
-                            images: selectedImages 
+                            images: selectedImages,
+                            existingImageUrls: [],
+                            callbacks: uploadCallbacks,
                         })).unwrap();
                     } finally {
                         setUploading(false);
@@ -152,7 +336,7 @@ const CreateParkingScreen = ({ route, navigation }) => {
                 type: 'error'
             });
         }
-    }, [dispatch, formData, navigation, isEditing, editData]);
+    }, [dispatch, formData, navigation, isEditing, editData, selectedImages, existingImageUrls, initialExistingImageUrls, buildUploadCallbacks]);
 
     return (
         <ScreenLayout>
@@ -274,11 +458,30 @@ const CreateParkingScreen = ({ route, navigation }) => {
                             </TouchableOpacity>
                         </View>
                         
-                        {selectedImages.length > 0 ? (
+                        {displayedImages.length > 0 ? (
                             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.imageScroll}>
-                                {selectedImages.map((img, idx) => (
-                                    <View key={idx} style={styles.imageContainer}>
+                                {displayedImages.map((img) => (
+                                    <View key={img.key} style={styles.imageContainer}>
                                         <Image source={{ uri: img.uri }} style={styles.previewImage} />
+                                        <View
+                                            style={[
+                                                styles.imageStatusBadge,
+                                                img.status === 'uploaded' && styles.imageStatusSuccess,
+                                                img.status === 'failed' && styles.imageStatusError,
+                                                img.status === 'uploading' && styles.imageStatusUploading,
+                                            ]}
+                                        >
+                                            <Text
+                                                numberOfLines={2}
+                                                style={[
+                                                    styles.imageStatusText,
+                                                    img.status === 'uploaded' && styles.imageStatusSuccessText,
+                                                    img.status === 'failed' && styles.imageStatusErrorText,
+                                                ]}
+                                            >
+                                                {img.statusLabel}
+                                            </Text>
+                                        </View>
                                         <TouchableOpacity 
                                             style={styles.removeImgBtn}
                                             onPress={() => removeImage(img.uri)}
@@ -332,6 +535,38 @@ const styles = StyleSheet.create({
     imageScroll: { marginTop: spacing.sm },
     imageContainer: { marginRight: spacing.md, position: 'relative' },
     previewImage: { width: 100, height: 100, borderRadius: spacing.radius.md, backgroundColor: colors.background },
+    imageStatusBadge: {
+        position: 'absolute',
+        left: 6,
+        right: 6,
+        bottom: 6,
+        paddingHorizontal: 8,
+        paddingVertical: 4,
+        borderRadius: spacing.radius.sm,
+        backgroundColor: 'rgba(15, 23, 42, 0.72)',
+    },
+    imageStatusUploading: {
+        backgroundColor: 'rgba(29, 78, 216, 0.84)',
+    },
+    imageStatusSuccess: {
+        backgroundColor: 'rgba(22, 163, 74, 0.88)',
+    },
+    imageStatusError: {
+        backgroundColor: 'rgba(220, 38, 38, 0.88)',
+    },
+    imageStatusText: {
+        ...typography.caption,
+        color: colors.white,
+        fontSize: 11,
+        fontWeight: '600',
+        textAlign: 'center',
+    },
+    imageStatusSuccessText: {
+        color: colors.white,
+    },
+    imageStatusErrorText: {
+        color: colors.white,
+    },
     removeImgBtn: { position: 'absolute', top: -8, right: -8, backgroundColor: colors.white, borderRadius: 11 },
     emptyImgText: { ...typography.caption, color: colors.textTertiary, textAlign: 'center', paddingVertical: spacing.md },
 });
