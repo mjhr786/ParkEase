@@ -160,6 +160,15 @@ This project can upload locally built Android releases directly to Firebase App 
    ```bash
    npm run android:distribute:aab
    ```
+6. **When to use each command**:
+   - Use `npm run android:distribute:apk` for QA installs on devices when you want a directly installable Android package.
+   - Use `npm run android:distribute:aab` when you want to test the Play Store style bundle artifact instead of an APK.
+   - Use the npm scripts instead of calling `./gradlew` directly because the scripts now route through `scripts/runAndroidGradle.sh`, which sets `NODE_BINARY`, adds common Node install paths to `PATH`, and runs Gradle with `--no-daemon` so Expo and React Native autolinking can resolve Node correctly in non-interactive shells, CI, and agent environments.
+7. **Direct Gradle fallback**:
+   ```bash
+   scripts/runAndroidGradle.sh assembleRelease appDistributionUploadRelease -PFIREBASE_ARTIFACT_TYPE=APK
+   ```
+   Use this if your shell cannot find `npm`, or if you want to run the same Android distribution flow without going through npm first.
 
 The Gradle upload task is `appDistributionUploadRelease`. It builds locally on your machine first, then uploads the generated artifact to Firebase. Firebase stores the tester distribution; it does not compile the Android app for you.
 
@@ -188,7 +197,7 @@ You can post each successful Firebase App Distribution release to Slack after up
 5. **What the script does**:
    - increments Android `versionCode` in `android/app/build.gradle` before the release starts
    - generates release notes from git commits and local file changes
-   - builds the Android artifact locally with Gradle
+   - builds the Android artifact locally with the same Node-aware Gradle wrapper used by the npm Android distribution scripts
    - uploads the build to Firebase App Distribution
    - reads the Firebase release links from Gradle output
    - posts those links to Slack using the webhook from `.env`
@@ -199,6 +208,8 @@ You can post each successful Firebase App Distribution release to Slack after up
    - Slack receives a message with the Firebase tester link and console link
 
 The Slack release helper script is [distributeAndroidToFirebaseAndSlack.js](/Users/mohammad.shaikh/Documents/TOOL/agent/AG/Park/ParkEase/Mobile/scripts/distributeAndroidToFirebaseAndSlack.js). It automatically loads `.env` from the project root, so you do not need to export the Slack variables manually in your shell.
+
+It also reuses [runAndroidGradle.sh](/Users/mohammad.shaikh/Documents/TOOL/agent/AG/Park/ParkEase/Mobile/scripts/runAndroidGradle.sh), so use `npm run android:distribute:apk:slack` for the normal release path and reach for the wrapper script only when `npm` itself is unavailable in your shell.
 
 The Slack message includes the generated release notes summary, Firebase tester link, Firebase console link, and the temporary direct binary download link when Firebase returns it.
 

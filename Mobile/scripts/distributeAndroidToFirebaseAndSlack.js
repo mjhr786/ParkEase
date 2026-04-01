@@ -22,6 +22,7 @@ const projectRoot = path.resolve(__dirname, '..');
 const androidDir = path.join(projectRoot, 'android');
 const appBuildGradlePath = path.join(androidDir, 'app', 'build.gradle');
 const releaseStatePath = path.join(projectRoot, '.release-state.json');
+const gradleWrapperScript = path.join(projectRoot, 'scripts', 'runAndroidGradle.sh');
 const gradleTasks =
   artifactType === 'AAB'
     ? ['bundleRelease', 'appDistributionUploadRelease', '-PFIREBASE_ARTIFACT_TYPE=AAB']
@@ -42,10 +43,10 @@ console.log(
 console.log('[SlackRelease] Release notes summary:');
 console.log(generatedReleaseNotes);
 
-const gradleExecutable = process.platform === 'win32' ? 'gradlew.bat' : './gradlew';
+const gradleExecutable = process.platform === 'win32' ? 'gradlew.bat' : gradleWrapperScript;
 const gradle = spawn(gradleExecutable, gradleTasks, {
-  cwd: androidDir,
-  env: process.env,
+  cwd: process.platform === 'win32' ? androidDir : projectRoot,
+  env: buildGradleEnv(process.env),
   stdio: ['inherit', 'pipe', 'pipe'],
 });
 
@@ -99,6 +100,68 @@ function extractReleaseInfo(output) {
   const binaryUrl = matchLine(output, /Download the release binary \(link expires in 1 hour\):\s*(https:\/\/\S+)/);
 
   return { consoleUrl, testerUrl, binaryUrl };
+}
+
+function buildGradleEnv(currentEnv) {
+  const env = { ...currentEnv };
+  env.PATH = buildPathWithCommonNodeLocations(currentEnv.PATH || '');
+  env.NODE_BINARY = env.NODE_BINARY || resolveNodeBinary(env.PATH);
+  return env;
+}
+
+function buildPathWithCommonNodeLocations(currentPath) {
+  const entries = currentPath ? currentPath.split(path.delimiter).filter(Boolean) : [];
+  const preferredEntries = ['/opt/homebrew/bin', '/usr/local/bin', '/usr/bin', '/bin'];
+
+  for (const entry of preferredEntries.slice().reverse()) {
+    if (!entries.includes(entry)) {
+      entries.unshift(entry);
+    }
+  }
+
+  return entries.join(path.delimiter);
+}
+
+function resolveNodeBinary(resolvedPath) {
+  if (process.env.NODE_BINARY && fs.existsSync(process.env.NODE_BINARY)) {
+    return process.env.NODE_BINARY;
+  }
+
+  if (process.execPath && fs.existsSync(process.execPath)) {
+    return process.execPath;
+  }
+
+  for (const candidate of [
+    '/opt/homebrew/bin/node',
+    '/usr/local/bin/node',
+  ]) {
+    if (fs.existsSync(candidate)) {
+      return candidate;
+    }
+  }
+
+  const detectedNodePath = runCommand('/bin/sh', ['-lc', 'command -v node'], {
+    cwd: projectRoot,
+    env: { ...process.env, PATH: resolvedPath },
+  });
+
+  if (detectedNodePath) {
+    return detectedNodePath;
+  }
+
+  throw new Error('[SlackRelease] Unable to find Node.js. Set NODE_BINARY before running this script.');
+}
+
+function runCommand(command, args, options = {}) {
+  try {
+    return execFileSync(command, args, {
+      stdio: ['ignore', 'pipe', 'ignore'],
+      encoding: 'utf8',
+      ...options,
+    }).trim();
+  } catch (error) {
+    return '';
+  }
 }
 
 function matchLine(text, regex) {

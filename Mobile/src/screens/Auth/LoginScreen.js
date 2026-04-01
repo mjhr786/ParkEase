@@ -56,6 +56,34 @@ const LoginScreen = ({ navigation }) => {
         }
     }, [response]);
 
+    const showFcmTokenIfEnabled = useCallback(async () => {
+        const shouldDisplayFcmToken = await RemoteConfigService.getBooleanAsync(
+            'isDisplayFCMTokenEnabled',
+            { refresh: true }
+        );
+
+        if (!shouldDisplayFcmToken) {
+            return;
+        }
+
+        const token = await NotificationService.getAuthorizedDeviceToken();
+
+        if (!token) {
+            return;
+        }
+
+        Alert.alert('FCM Device Token', token, [
+            {
+                text: 'Copy Token',
+                onPress: async () => {
+                    await Clipboard.setStringAsync(token);
+                    Alert.alert('Copied!', 'Token copied to clipboard.');
+                },
+            },
+            { text: 'Dismiss', style: 'cancel' },
+        ]);
+    }, []);
+
     const handleGoogleToken = async (authentication) => {
         try {
             setGoogleLoading(true);
@@ -72,17 +100,9 @@ const LoginScreen = ({ navigation }) => {
                     profilePicture: userInfo.picture,
                     idToken: authentication.idToken,
                     accessToken: authentication.accessToken,
-                });
+                }).unwrap();
 
-                if (RemoteConfigService.getBoolean('isDisplayFCMTokenEnabled')) {
-                    const token = await NotificationService.getAuthorizedDeviceToken();
-                    if (token) {
-                        Alert.alert("FCM Device Token", token, [
-                            { text: "Copy Token", onPress: () => { Clipboard.setStringAsync(token); Alert.alert('Copied!', 'Token copied to clipboard.'); } },
-                            { text: "Dismiss", style: "cancel" }
-                        ]);
-                    }
-                }
+                await showFcmTokenIfEnabled();
             }
         } catch (err) {
             EventBus.emit('SHOW_ERROR_BANNER', { title: 'Error', message: 'Failed to process Google sign-in' });
@@ -115,18 +135,9 @@ const LoginScreen = ({ navigation }) => {
         } else {
             await cacheService.clearRememberEmail();
         }
-        await login(formData);
-
-        if (RemoteConfigService.getBoolean('isDisplayFCMTokenEnabled')) {
-            const token = await NotificationService.getAuthorizedDeviceToken();
-            if (token) {
-                Alert.alert("FCM Device Token", token, [
-                    { text: "Copy Token", onPress: () => { Clipboard.setStringAsync(token); Alert.alert('Copied!', 'Token copied to clipboard.'); } },
-                    { text: "Dismiss", style: "cancel" }
-                ]);
-            }
-        }
-    }, [formData, login, dismissError, rememberMe]);
+        await login(formData).unwrap();
+        await showFcmTokenIfEnabled();
+    }, [dismissError, formData, login, rememberMe, showFcmTokenIfEnabled]);
 
     const handleGoogleLogin = useCallback(async () => {
         setGoogleLoading(true);
