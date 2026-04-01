@@ -60,12 +60,13 @@ const ExploreStack = () => (
 // Bookings Stack
 const BookingsStack = () => (
     <Stack.Navigator screenOptions={stackOptions}>
-        <Stack.Screen name="MyBookings" component={MyBookingsScreen} />
+        <Stack.Screen name="MyBookings" component={MyBookingsScreen} options={{ animation: 'none' }} />
         <Stack.Screen name="BookingDetail" component={BookingDetailScreen} />
         <Stack.Screen name="PaymentScreen" component={PaymentScreen} />
         <Stack.Screen name="CreateReview" component={CreateReviewScreen} />
         <Stack.Screen name="ChatScreen" component={ChatScreen} />
         <Stack.Screen name="ParkingDetail" component={ParkingDetailScreen} />
+        <Stack.Screen name="IncomingBookings" component={VendorBookingsScreen} options={{ animation: 'none' }} />
     </Stack.Navigator>
 );
 

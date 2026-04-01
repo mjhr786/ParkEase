@@ -7,7 +7,7 @@ import React, { useEffect, useCallback, useState } from 'react';
 import { EventBus } from '../../utils/EventBus';
 import {
     View, Text, FlatList, TouchableOpacity, Alert, StyleSheet,
-    RefreshControl, Modal, TextInput, KeyboardAvoidingView, Platform
+    RefreshControl, Modal, TextInput, KeyboardAvoidingView, Platform, PanResponder
 } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { Ionicons } from '@expo/vector-icons';
@@ -18,7 +18,7 @@ import Badge from '../../components/Common/Badge';
 import Button from '../../components/Common/Button';
 import EmptyState from '../../components/Common/EmptyState';
 import { BookingCardSkeleton } from '../../components/Common/ShimmerPlaceholder';
-import { colors, spacing, typography } from '../../styles/globalStyles';
+import { colors, spacing, typography, shadows } from '../../styles/globalStyles';
 import { formatCurrency, formatDate, formatTime } from '../../utils/formatters';
 import { BookingStatus } from '../../utils/constants';
 import chatService from '../../services/chat/chatService';
@@ -127,6 +127,17 @@ const VendorBookingsScreen = ({ navigation }) => {
         return b.status === filter;
     });
 
+    const swipeResponder = React.useMemo(() => PanResponder.create({
+        onMoveShouldSetPanResponder: (_, gestureState) => (
+            Math.abs(gestureState.dx) > 18 && Math.abs(gestureState.dx) > Math.abs(gestureState.dy) * 1.25
+        ),
+        onPanResponderRelease: (_, gestureState) => {
+            if (gestureState.dx > 80) {
+                navigation.replace('MyBookings');
+            }
+        },
+    }), [navigation]);
+
     const renderBooking = ({ item }) => (
         <Card onPress={() => navigation.navigate('BookingDetail', { bookingId: item.id })}>
             <View style={styles.cardHeader}>
@@ -195,7 +206,17 @@ const VendorBookingsScreen = ({ navigation }) => {
     return (
         <ScreenLayout>
             <View style={styles.header}>
-                <Text style={styles.screenTitle}>Bookings</Text>
+                <View style={styles.topTabRow}>
+                    <TouchableOpacity
+                        style={styles.topTab}
+                        onPress={() => navigation.replace('MyBookings')}
+                    >
+                        <Text style={styles.topTabText}>Bookings</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={[styles.topTab, styles.topTabActive]}>
+                        <Text style={[styles.topTabText, styles.topTabTextActive]}>Incoming</Text>
+                    </TouchableOpacity>
+                </View>
             </View>
 
             {/* Filters */}
@@ -214,15 +235,17 @@ const VendorBookingsScreen = ({ navigation }) => {
             {vendorBookingsLoading && !refreshing ? (
                 <BookingCardSkeleton />
             ) : (
-                <FlatList
-                    data={filteredBookings}
-                    keyExtractor={(item) => item.id}
-                    renderItem={renderBooking}
-                    contentContainerStyle={styles.listContent}
-                    refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />}
-                    showsVerticalScrollIndicator={false}
-                    ListEmptyComponent={<EmptyState icon="calendar-outline" title="No bookings" message="Bookings for your parking spaces will show here" />}
-                />
+                <View style={styles.screenBody} {...swipeResponder.panHandlers}>
+                    <FlatList
+                        data={filteredBookings}
+                        keyExtractor={(item) => item.id}
+                        renderItem={renderBooking}
+                        contentContainerStyle={styles.listContent}
+                        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />}
+                        showsVerticalScrollIndicator={false}
+                        ListEmptyComponent={<EmptyState icon="calendar-outline" title="No bookings" message="Bookings for your parking spaces will show here" />}
+                    />
+                </View>
             )}
 
             {/* Reject Reason Modal */}
@@ -278,8 +301,29 @@ const VendorBookingsScreen = ({ navigation }) => {
 };
 
 const styles = StyleSheet.create({
-    header: { paddingTop: spacing.md, paddingHorizontal: spacing.screenHorizontal, paddingBottom: spacing.md },
-    screenTitle: { ...typography.h2, color: colors.textPrimary },
+    screenBody: { flex: 1 },
+    header: { paddingTop: spacing.sm, paddingHorizontal: spacing.screenHorizontal, paddingBottom: spacing.sm },
+    topTabRow: {
+        flexDirection: 'row',
+        padding: 4,
+        borderRadius: 16,
+        backgroundColor: colors.borderLight,
+        marginBottom: spacing.sm,
+    },
+    topTab: {
+        flex: 1,
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingHorizontal: spacing.base,
+        paddingVertical: 10,
+        borderRadius: 12,
+    },
+    topTabActive: {
+        backgroundColor: colors.surface,
+        ...shadows.sm,
+    },
+    topTabText: { ...typography.caption, color: colors.textSecondary, fontWeight: '700' },
+    topTabTextActive: { color: colors.textPrimary },
     filterRow: { flexDirection: 'row', paddingHorizontal: spacing.screenHorizontal, gap: spacing.sm, marginBottom: spacing.md },
     filterTab: { paddingHorizontal: spacing.base, paddingVertical: spacing.sm, borderRadius: spacing.radius.full, backgroundColor: colors.background, borderWidth: 1, borderColor: colors.border },
     filterTabActive: { backgroundColor: colors.primarySoft, borderColor: colors.primary },

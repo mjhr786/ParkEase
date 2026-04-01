@@ -4,100 +4,28 @@
  */
 
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
-import { View, Text, TextInput, FlatList, TouchableOpacity, StyleSheet, ScrollView, Modal } from 'react-native';
+import { View, Text, TextInput, FlatList, TouchableOpacity, StyleSheet, ScrollView, Modal, Image } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { Ionicons } from '@expo/vector-icons';
-import { searchParkingThunk, clearSearch } from '../../store/slices/parkingSlice';
+import { searchParkingThunk } from '../../store/slices/parkingSlice';
 import { getFavoritesThunk } from '../../store/slices/favoriteSlice';
 import ScreenLayout from '../../components/Layouts/ScreenLayout';
 import Card from '../../components/Common/Card';
 import StarRating from '../../components/Common/StarRating';
 import EmptyState from '../../components/Common/EmptyState';
-import { Image } from 'react-native';
 import { SearchSkeleton } from '../../components/Common/ShimmerPlaceholder';
 import { colors, spacing, typography, shadows } from '../../styles/globalStyles';
 import { formatCurrency, getPrimaryParkingImageUrl } from '../../utils/formatters';
-import { VehicleTypeLabels, ParkingType, ParkingTypeLabels } from '../../utils/constants';
+import { VehicleTypeLabels, ParkingTypeLabels } from '../../utils/constants';
 
-/* ───── Sort Options ───── */
 const SORT_OPTIONS = [
     { key: 'default', label: 'Default', icon: 'swap-vertical' },
-    { key: 'rating_desc', label: 'Rating: High → Low', icon: 'star' },
-    { key: 'price_asc', label: 'Price: Low → High', icon: 'arrow-up' },
-    { key: 'price_desc', label: 'Price: High → Low', icon: 'arrow-down' },
+    { key: 'rating_desc', label: 'Rating: High to Low', icon: 'star' },
+    { key: 'price_asc', label: 'Price: Low to High', icon: 'arrow-up' },
+    { key: 'price_desc', label: 'Price: High to Low', icon: 'arrow-down' },
     { key: 'spots_desc', label: 'Most Spots', icon: 'car' },
 ];
 
-/* ───── Parking Card ───── */
-const ParkingCard = ({ parking, onPress }) => {
-    const imageUrl = getPrimaryParkingImageUrl(parking);
-    
-    return (
-        <Card onPress={onPress} style={cardStyles.card}>
-            {/* Image section */}
-            <View style={cardStyles.imageContainer}>
-                {imageUrl ? (
-                    <Image source={{ uri: imageUrl }} style={styles.cardImage} />
-                ) : (
-                    <View style={cardStyles.imagePlaceholder}>
-                        <Ionicons name="car" size={40} color={colors.lightGray} />
-                    </View>
-                )}
-                <View style={cardStyles.priceTag}>
-                    <Text style={cardStyles.priceText}>{formatCurrency(parking.hourlyRate)}/hr</Text>
-                </View>
-                {parking.is24Hours && (
-                    <View style={cardStyles.badge24h}>
-                        <Text style={cardStyles.badge24hText}>24h</Text>
-                    </View>
-                )}
-            </View>
-
-            <View style={cardStyles.info}>
-                <Text style={cardStyles.title} numberOfLines={1}>{parking.title}</Text>
-                <View style={cardStyles.locationRow}>
-                    <Ionicons name="location-outline" size={14} color={colors.textTertiary} />
-                    <Text style={cardStyles.address} numberOfLines={1}>{parking.address}, {parking.city}</Text>
-                </View>
-                <View style={cardStyles.metaRow}>
-                    <View style={cardStyles.ratingRow}>
-                        <StarRating rating={parking.averageRating} size={14} />
-                        <Text style={cardStyles.ratingText}>{parking.averageRating?.toFixed(1) || '0.0'}</Text>
-                        <Text style={cardStyles.reviewCount}>({parking.totalReviews})</Text>
-                    </View>
-                    <View style={cardStyles.spotsRow}>
-                        <Ionicons name="car-outline" size={14} color={parking.availableSpots > 0 ? colors.success : colors.danger} />
-                        <Text style={[cardStyles.spotsText, { color: parking.availableSpots > 0 ? colors.success : colors.danger }]}>
-                            {parking.availableSpots} spots
-                        </Text>
-                    </View>
-                </View>
-            </View>
-        </Card>
-    );
-};
-
-const cardStyles = StyleSheet.create({
-    card: { marginHorizontal: spacing.screenHorizontal, overflow: 'hidden', padding: 0 },
-    imageContainer: { height: 140, backgroundColor: colors.borderLight, borderTopLeftRadius: spacing.cardRadius, borderTopRightRadius: spacing.cardRadius, position: 'relative' },
-    imagePlaceholder: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-    priceTag: { position: 'absolute', bottom: 8, right: 8, backgroundColor: colors.primary, paddingHorizontal: 10, paddingVertical: 4, borderRadius: spacing.radius.full },
-    priceText: { ...typography.caption, color: colors.white, fontWeight: '700' },
-    badge24h: { position: 'absolute', top: 8, left: 8, backgroundColor: colors.accent, paddingHorizontal: 8, paddingVertical: 2, borderRadius: spacing.radius.full },
-    badge24hText: { ...typography.caption, color: colors.white, fontWeight: '700', fontSize: 10 },
-    info: { padding: spacing.cardPadding },
-    title: { ...typography.h4, color: colors.textPrimary },
-    locationRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 },
-    address: { ...typography.caption, color: colors.textTertiary, flex: 1 },
-    metaRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: spacing.sm },
-    ratingRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-    ratingText: { ...typography.caption, fontWeight: '600', color: colors.textPrimary },
-    reviewCount: { ...typography.caption, color: colors.textTertiary },
-    spotsRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-    spotsText: { ...typography.caption, fontWeight: '600' },
-});
-
-/* ───── Filter Chip ───── */
 const FilterChip = ({ label, active, onPress }) => (
     <TouchableOpacity
         style={[styles.filterChip, active && styles.filterChipActive]}
@@ -109,10 +37,89 @@ const FilterChip = ({ label, active, onPress }) => (
     </TouchableOpacity>
 );
 
-/* ───── Sort by function ───── */
+const ParkingCard = ({ parking, onPress }) => {
+    const imageUrl = getPrimaryParkingImageUrl(parking);
+    const rating = parking.averageRating?.toFixed(1) || '0.0';
+    const availableSpots = parking.availableSpots || 0;
+    const typeLabel = ParkingTypeLabels[parking.parkingType] || 'Parking';
+
+    return (
+        <Card onPress={onPress} style={cardStyles.card}>
+            <View style={cardStyles.imageContainer}>
+                {imageUrl ? (
+                    <Image source={{ uri: imageUrl }} style={cardStyles.cardImage} />
+                ) : (
+                    <View style={cardStyles.imagePlaceholder}>
+                        <Ionicons name="image-outline" size={34} color={colors.lightGray} />
+                    </View>
+                )}
+                <View style={cardStyles.imageOverlay} />
+
+                <View style={cardStyles.topRow}>
+                    {parking.is24Hours ? (
+                        <View style={cardStyles.badge24h}>
+                            <Ionicons name="time-outline" size={12} color={colors.white} />
+                            <Text style={cardStyles.badge24hText}>24h</Text>
+                        </View>
+                    ) : (
+                        <View />
+                    )}
+
+                    <View style={cardStyles.ratingPill}>
+                        <Ionicons name="star" size={12} color={colors.accent} />
+                        <Text style={cardStyles.ratingPillText}>{rating}</Text>
+                    </View>
+                </View>
+
+                <View style={cardStyles.bottomRow}>
+                    <View style={cardStyles.typePill}>
+                        <Text style={cardStyles.typePillText}>{typeLabel}</Text>
+                    </View>
+                    <View style={cardStyles.priceTag}>
+                        <Text style={cardStyles.priceText}>{formatCurrency(parking.hourlyRate)}/hr</Text>
+                    </View>
+                </View>
+            </View>
+
+            <View style={cardStyles.info}>
+                <Text style={cardStyles.title} numberOfLines={1}>{parking.title}</Text>
+                <View style={cardStyles.locationRow}>
+                    <Ionicons name="location-outline" size={14} color={colors.textTertiary} />
+                    <Text style={cardStyles.address} numberOfLines={1}>
+                        {parking.address}, {parking.city}
+                    </Text>
+                </View>
+                <View style={cardStyles.metaRow}>
+                    <View style={cardStyles.metaChip}>
+                        <StarRating rating={parking.averageRating} size={13} />
+                        <Text style={cardStyles.metaChipText}>{rating}</Text>
+                        <Text style={cardStyles.metaChipMuted}>({parking.totalReviews})</Text>
+                    </View>
+                    <View style={cardStyles.metaChip}>
+                        <Ionicons
+                            name="car-sport-outline"
+                            size={14}
+                            color={availableSpots > 0 ? colors.successDark : colors.dangerDark}
+                        />
+                        <Text
+                            style={[
+                                cardStyles.metaChipText,
+                                { color: availableSpots > 0 ? colors.successDark : colors.dangerDark },
+                            ]}
+                        >
+                            {availableSpots} spot{availableSpots === 1 ? '' : 's'}
+                        </Text>
+                    </View>
+                </View>
+            </View>
+        </Card>
+    );
+};
+
 const sortResults = (results, sortKey) => {
     if (!sortKey || sortKey === 'default') return results;
     const sorted = [...results];
+
     switch (sortKey) {
         case 'rating_desc':
             return sorted.sort((a, b) => (b.averageRating || 0) - (a.averageRating || 0));
@@ -127,11 +134,11 @@ const sortResults = (results, sortKey) => {
     }
 };
 
-/* ───── Main Screen ───── */
 const SearchScreen = ({ navigation, route }) => {
     const dispatch = useDispatch();
     const { searchResults, searchLoading, searchTotalCount } = useSelector((s) => s.parking);
     const { favorites } = useSelector((s) => s.favorite);
+
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedVehicle, setSelectedVehicle] = useState(null);
     const [selectedParkingType, setSelectedParkingType] = useState(null);
@@ -139,25 +146,6 @@ const SearchScreen = ({ navigation, route }) => {
     const [favoritesOnly, setFavoritesOnly] = useState(false);
     const [showSortModal, setShowSortModal] = useState(false);
     const [hasSearched, setHasSearched] = useState(false);
-
-    useEffect(() => {
-        dispatch(getFavoritesThunk());
-        // Initial load only if we don't have a specific param to handle
-        if (route.params?.initialParkingType == null) {
-            loadParkings();
-        }
-    }, []); // Run on mount
-
-    useEffect(() => {
-        // Handle incoming params from navigation (e.g. from Garages tile)
-        // This runs both on initial mount (if param exists) and when navigating back to tab
-        if (route.params?.initialParkingType != null) {
-            setSelectedParkingType(route.params.initialParkingType);
-            loadParkings(searchQuery.trim() || undefined, selectedVehicle, route.params.initialParkingType);
-            // Clear the param so user can manually clear the filter later without it resetting
-            navigation.setParams({ initialParkingType: undefined });
-        }
-    }, [route.params?.initialParkingType, loadParkings, navigation, searchQuery, selectedVehicle]);
 
     const loadParkings = useCallback((city, vehicleType, parkingType) => {
         setHasSearched(true);
@@ -169,6 +157,21 @@ const SearchScreen = ({ navigation, route }) => {
             pageSize: 50,
         }));
     }, [dispatch]);
+
+    useEffect(() => {
+        dispatch(getFavoritesThunk());
+        if (route.params?.initialParkingType == null) {
+            loadParkings();
+        }
+    }, []);
+
+    useEffect(() => {
+        if (route.params?.initialParkingType != null) {
+            setSelectedParkingType(route.params.initialParkingType);
+            loadParkings(searchQuery.trim() || undefined, selectedVehicle, route.params.initialParkingType);
+            navigation.setParams({ initialParkingType: undefined });
+        }
+    }, [route.params?.initialParkingType, loadParkings, navigation, searchQuery, selectedVehicle]);
 
     const handleSearch = useCallback(() => {
         loadParkings(searchQuery.trim() || undefined, selectedVehicle, selectedParkingType);
@@ -195,63 +198,35 @@ const SearchScreen = ({ navigation, route }) => {
         loadParkings(searchQuery.trim() || undefined, selectedVehicle, newValue);
     }, [selectedParkingType, searchQuery, selectedVehicle, loadParkings]);
 
-    // Build set of favorite IDs for quick lookup
     const favoriteIds = useMemo(() => {
         const ids = new Set();
-        (favorites || []).forEach((f) => ids.add(f.parkingSpaceId || f.id));
+        (favorites || []).forEach((favorite) => ids.add(favorite.parkingSpaceId || favorite.id));
         return ids;
     }, [favorites]);
 
-    // Apply client-side filtering and sorting
     const displayResults = useMemo(() => {
         let results = searchResults;
         if (favoritesOnly) {
-            results = results.filter((p) => favoriteIds.has(p.id));
+            results = results.filter((parking) => favoriteIds.has(parking.id));
         }
         return sortResults(results, sortBy);
     }, [searchResults, favoritesOnly, favoriteIds, sortBy]);
 
     const vehicleTypes = Object.entries(VehicleTypeLabels);
     const parkingTypes = Object.entries(ParkingTypeLabels);
-    const activeSort = SORT_OPTIONS.find((o) => o.key === sortBy);
-    const hasActiveFilters = selectedVehicle != null || selectedParkingType != null || favoritesOnly || sortBy !== 'default';
+    const activeSort = SORT_OPTIONS.find((option) => option.key === sortBy);
+    const activeFilterCount = [
+        selectedVehicle != null,
+        selectedParkingType != null,
+        favoritesOnly,
+        sortBy !== 'default',
+    ].filter(Boolean).length;
+    const hasActiveFilters = activeFilterCount > 0;
+    const resultLabel = `${displayResults.length} of ${searchTotalCount || displayResults.length}`;
 
-    if (searchLoading && !searchResults.length) {
-        return (
-            <ScreenLayout>
-                <View style={styles.searchHeader}>
-                    <Text style={styles.screenTitle}>Find Parking</Text>
-                    <View style={styles.searchBar}>
-                        <Ionicons name="search" size={20} color={colors.textTertiary} />
-                        <TextInput
-                            value={searchQuery}
-                            editable={false}
-                            placeholder="Search by city or location..."
-                            placeholderTextColor={colors.textTertiary}
-                            style={styles.searchInput}
-                        />
-                    </View>
-                    <View style={styles.sortRow}>
-                        <View style={styles.sortBtn}>
-                            <Ionicons name="swap-vertical" size={16} color={colors.primary} />
-                            <Text style={styles.sortBtnText}>Sort</Text>
-                        </View>
-                        <View style={styles.favToggle}>
-                            <Ionicons name="heart-outline" size={16} color={colors.danger} />
-                            <Text style={styles.favToggleText}>Favorites</Text>
-                        </View>
-                    </View>
-                </View>
-                <SearchSkeleton />
-            </ScreenLayout>
-        );
-    }
-
-    return (
-        <ScreenLayout>
-            {/* Search Header */}
-            <View style={styles.searchHeader}>
-                <Text style={styles.screenTitle}>Find Parking</Text>
+    const headerContent = (
+        <>
+            <View style={styles.searchBarCard}>
                 <View style={styles.searchBar}>
                     <Ionicons name="search" size={20} color={colors.textTertiary} />
                     <TextInput
@@ -270,41 +245,58 @@ const SearchScreen = ({ navigation, route }) => {
                     ) : null}
                 </View>
 
-                {/* Sort & Favorites Toggle Row */}
-                <View style={styles.sortRow}>
+                <View style={styles.actionRow}>
                     <TouchableOpacity style={styles.sortBtn} onPress={() => setShowSortModal(true)}>
                         <Ionicons name="swap-vertical" size={16} color={colors.primary} />
                         <Text style={styles.sortBtnText}>{activeSort?.label || 'Sort'}</Text>
                         <Ionicons name="chevron-down" size={14} color={colors.primary} />
                     </TouchableOpacity>
+
                     <TouchableOpacity
                         style={[styles.favToggle, favoritesOnly && styles.favToggleActive]}
                         onPress={() => setFavoritesOnly(!favoritesOnly)}
                     >
-                        <Ionicons name={favoritesOnly ? 'heart' : 'heart-outline'} size={16} color={favoritesOnly ? colors.white : colors.danger} />
-                        <Text style={[styles.favToggleText, favoritesOnly && styles.favToggleTextActive]}>Favorites</Text>
+                        <Ionicons
+                            name={favoritesOnly ? 'heart' : 'heart-outline'}
+                            size={16}
+                            color={favoritesOnly ? colors.white : colors.danger}
+                        />
+                        <Text style={[styles.favToggleText, favoritesOnly && styles.favToggleTextActive]}>
+                            Favorites
+                        </Text>
                     </TouchableOpacity>
+
                     {hasActiveFilters && (
-                        <TouchableOpacity onPress={handleClearSearch}>
-                            <Text style={styles.clearText}>Clear All</Text>
+                        <TouchableOpacity onPress={handleClearSearch} style={styles.resetPill}>
+                            <Text style={styles.resetPillText}>Reset</Text>
                         </TouchableOpacity>
                     )}
                 </View>
+            </View>
 
-                {/* Vehicle Type Filters */}
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterScroll}>
+            <View style={styles.filterSection}>
+                <View style={styles.filterTitleRow}>
+                    <Text style={styles.filterTitle}>Vehicle Type</Text>
+                    {selectedVehicle != null && <Text style={styles.filterHint}>1 selected</Text>}
+                </View>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                     {vehicleTypes.map(([value, label]) => (
                         <FilterChip
-                            key={`v-${value}`}
+                            key={`vehicle-${value}`}
                             label={label}
                             active={selectedVehicle === Number(value)}
                             onPress={() => toggleVehicleFilter(Number(value))}
                         />
                     ))}
                 </ScrollView>
+            </View>
 
-                {/* Parking Type Filters */}
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterScroll}>
+            <View style={styles.filterSection}>
+                <View style={styles.filterTitleRow}>
+                    <Text style={styles.filterTitle}>Parking Type</Text>
+                    {selectedParkingType != null && <Text style={styles.filterHint}>Focused</Text>}
+                </View>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                     <FilterChip
                         label="All"
                         active={selectedParkingType === null}
@@ -312,7 +304,7 @@ const SearchScreen = ({ navigation, route }) => {
                     />
                     {parkingTypes.map(([value, label]) => (
                         <FilterChip
-                            key={`p-${value}`}
+                            key={`parking-${value}`}
                             label={label}
                             active={selectedParkingType === Number(value)}
                             onPress={() => toggleParkingTypeFilter(Number(value))}
@@ -321,36 +313,64 @@ const SearchScreen = ({ navigation, route }) => {
                 </ScrollView>
             </View>
 
-            {/* Results */}
-            {displayResults.length > 0 ? (
-                <FlatList
-                    data={displayResults}
-                    keyExtractor={(item) => item.id}
-                    renderItem={({ item }) => (
-                        <ParkingCard parking={item} onPress={() => navigation.navigate('ParkingDetail', { parkingId: item.id })} />
-                    )}
-                    ListHeaderComponent={
-                        <Text style={styles.resultCount}>
-                            {displayResults.length} parking space{displayResults.length !== 1 ? 's' : ''} available
-                            {favoritesOnly ? ' (favorites only)' : ''}
-                        </Text>
-                    }
-                    showsVerticalScrollIndicator={false}
-                    contentContainerStyle={{ paddingBottom: spacing['2xl'] }}
-                />
-            ) : hasSearched ? (
-                <EmptyState
-                    icon="car-outline"
-                    title="No parking spaces found"
-                    message="Try a different search or clear filters"
-                    buttonTitle="Clear Filters"
-                    onButtonPress={handleClearSearch}
-                />
-            ) : (
-                <EmptyState icon="search-outline" title="Find Parking" message="Loading available parking spaces..." />
-            )}
+            <View style={styles.resultsBanner}>
+                <View>
+                    <Text style={styles.resultsLabel}>Results</Text>
+                    <Text style={styles.resultsTitle}>{resultLabel} spaces</Text>
+                </View>
+                <View style={styles.resultsPill}>
+                    <Text style={styles.resultsPillText}>
+                        {hasActiveFilters ? `${activeFilterCount} filters active` : 'Browse all'}
+                    </Text>
+                </View>
+            </View>
+        </>
+    );
 
-            {/* Sort Modal */}
+    if (searchLoading && !searchResults.length) {
+        return (
+            <ScreenLayout>
+                <View style={styles.headerShell}>
+                    {headerContent}
+                </View>
+                <SearchSkeleton />
+            </ScreenLayout>
+        );
+    }
+
+    return (
+        <ScreenLayout>
+            <FlatList
+                data={displayResults}
+                keyExtractor={(item) => item.id}
+                renderItem={({ item }) => (
+                    <ParkingCard
+                        parking={item}
+                        onPress={() => navigation.navigate('ParkingDetail', { parkingId: item.id })}
+                    />
+                )}
+                ListHeaderComponent={<View style={styles.headerShell}>{headerContent}</View>}
+                ListEmptyComponent={
+                    hasSearched ? (
+                        <EmptyState
+                            icon="car-outline"
+                            title="No parking spaces found"
+                            message="Try a different search or clear filters"
+                            actionLabel="Clear Filters"
+                            onAction={handleClearSearch}
+                        />
+                    ) : (
+                        <EmptyState
+                            icon="search-outline"
+                            title="Find Parking"
+                            message="Loading available parking spaces..."
+                        />
+                    )
+                }
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={styles.listContent}
+            />
+
             <Modal visible={showSortModal} transparent animationType="fade" onRequestClose={() => setShowSortModal(false)}>
                 <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setShowSortModal(false)}>
                     <View style={styles.modalContent}>
@@ -384,79 +404,352 @@ const SearchScreen = ({ navigation, route }) => {
     );
 };
 
-const styles = StyleSheet.create({
-    searchHeader: {
-        paddingHorizontal: spacing.screenHorizontal,
-        paddingTop: spacing.md,
-        paddingBottom: spacing.base,
-        backgroundColor: colors.surface,
-        ...shadows.sm,
+const cardStyles = StyleSheet.create({
+    card: {
+        marginHorizontal: spacing.screenHorizontal,
+        marginBottom: spacing.base,
+        padding: 0,
+        borderRadius: 24,
+        overflow: 'hidden',
+        ...shadows.card,
     },
-    screenTitle: { ...typography.h2, color: colors.textPrimary, marginBottom: spacing.base },
+    imageContainer: {
+        height: 172,
+        backgroundColor: colors.borderLight,
+        position: 'relative',
+    },
+    cardImage: {
+        width: '100%',
+        height: '100%',
+    },
+    imagePlaceholder: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    imageOverlay: {
+        ...StyleSheet.absoluteFillObject,
+        backgroundColor: 'rgba(15, 23, 42, 0.16)',
+    },
+    topRow: {
+        position: 'absolute',
+        top: 12,
+        left: 12,
+        right: 12,
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+    },
+    bottomRow: {
+        position: 'absolute',
+        bottom: 12,
+        left: 12,
+        right: 12,
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        gap: spacing.sm,
+    },
+    badge24h: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
+        paddingHorizontal: 10,
+        paddingVertical: 5,
+        borderRadius: spacing.radius.full,
+        backgroundColor: colors.accent,
+    },
+    badge24hText: {
+        ...typography.caption,
+        color: colors.white,
+        fontWeight: '700',
+    },
+    ratingPill: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
+        paddingHorizontal: 10,
+        paddingVertical: 5,
+        borderRadius: spacing.radius.full,
+        backgroundColor: 'rgba(255,255,255,0.95)',
+    },
+    ratingPillText: {
+        ...typography.caption,
+        color: colors.textPrimary,
+        fontWeight: '700',
+    },
+    typePill: {
+        paddingHorizontal: 10,
+        paddingVertical: 6,
+        borderRadius: spacing.radius.full,
+        backgroundColor: 'rgba(255,255,255,0.94)',
+    },
+    typePillText: {
+        ...typography.caption,
+        color: colors.textPrimary,
+        fontWeight: '700',
+    },
+    priceTag: {
+        paddingHorizontal: 12,
+        paddingVertical: 7,
+        borderRadius: spacing.radius.full,
+        backgroundColor: colors.dark,
+    },
+    priceText: {
+        ...typography.caption,
+        color: colors.white,
+        fontWeight: '700',
+    },
+    info: {
+        padding: spacing.lg,
+    },
+    title: {
+        ...typography.h4,
+        color: colors.textPrimary,
+    },
+    locationRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
+        marginTop: 4,
+    },
+    address: {
+        ...typography.caption,
+        color: colors.textTertiary,
+        flex: 1,
+    },
+    metaRow: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: spacing.sm,
+        marginTop: spacing.md,
+    },
+    metaChip: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+        paddingHorizontal: 10,
+        paddingVertical: 7,
+        borderRadius: spacing.radius.full,
+        backgroundColor: colors.background,
+        borderWidth: 1,
+        borderColor: colors.border,
+    },
+    metaChipText: {
+        ...typography.caption,
+        color: colors.textPrimary,
+        fontWeight: '700',
+    },
+    metaChipMuted: {
+        ...typography.caption,
+        color: colors.textTertiary,
+    },
+});
+
+const styles = StyleSheet.create({
+    headerShell: {
+        paddingTop: spacing.xs,
+        paddingBottom: spacing.base,
+    },
+    searchBarCard: {
+        marginHorizontal: spacing.screenHorizontal,
+        marginTop: spacing.xs,
+        padding: spacing.base,
+        borderRadius: 18,
+        backgroundColor: colors.surface,
+        ...shadows.card,
+    },
     searchBar: {
         flexDirection: 'row',
         alignItems: 'center',
         backgroundColor: colors.background,
-        borderRadius: spacing.inputRadius,
+        borderRadius: 18,
         paddingHorizontal: spacing.base,
         gap: spacing.sm,
         borderWidth: 1,
         borderColor: colors.border,
     },
-    searchInput: { flex: 1, ...typography.body, color: colors.textPrimary, paddingVertical: spacing.inputPaddingV },
-    sortRow: {
+    searchInput: {
+        flex: 1,
+        ...typography.body,
+        color: colors.textPrimary,
+        paddingVertical: spacing.inputPaddingV,
+    },
+    actionRow: {
         flexDirection: 'row',
+        flexWrap: 'wrap',
         alignItems: 'center',
         gap: spacing.sm,
         marginTop: spacing.md,
     },
     sortBtn: {
-        flexDirection: 'row', alignItems: 'center', gap: 4,
-        paddingHorizontal: spacing.md, paddingVertical: spacing.sm,
-        borderRadius: spacing.radius.full, backgroundColor: colors.primarySoft,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
+        paddingHorizontal: spacing.md,
+        paddingVertical: 10,
+        borderRadius: spacing.radius.full,
+        backgroundColor: colors.primarySoft,
     },
-    sortBtnText: { ...typography.caption, color: colors.primary, fontWeight: '600' },
+    sortBtnText: {
+        ...typography.caption,
+        color: colors.primary,
+        fontWeight: '700',
+    },
     favToggle: {
-        flexDirection: 'row', alignItems: 'center', gap: 4,
-        paddingHorizontal: spacing.md, paddingVertical: spacing.sm,
-        borderRadius: spacing.radius.full, borderWidth: 1, borderColor: colors.danger,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
+        paddingHorizontal: spacing.md,
+        paddingVertical: 10,
+        borderRadius: spacing.radius.full,
+        borderWidth: 1,
+        borderColor: colors.danger,
     },
-    favToggleActive: { backgroundColor: colors.danger, borderColor: colors.danger },
-    favToggleText: { ...typography.caption, color: colors.danger, fontWeight: '600' },
-    favToggleTextActive: { color: colors.white },
-    clearText: { ...typography.caption, color: colors.textTertiary, fontWeight: '500', marginLeft: 'auto' },
-    filterScroll: { marginTop: spacing.sm },
+    favToggleActive: {
+        backgroundColor: colors.danger,
+        borderColor: colors.danger,
+    },
+    favToggleText: {
+        ...typography.caption,
+        color: colors.danger,
+        fontWeight: '700',
+    },
+    favToggleTextActive: {
+        color: colors.white,
+    },
+    resetPill: {
+        marginLeft: 'auto',
+        paddingHorizontal: spacing.base,
+        paddingVertical: 10,
+        borderRadius: spacing.radius.full,
+        backgroundColor: colors.borderLight,
+    },
+    resetPillText: {
+        ...typography.caption,
+        color: colors.textSecondary,
+        fontWeight: '700',
+    },
+    filterSection: {
+        marginHorizontal: spacing.screenHorizontal,
+        marginTop: spacing.base,
+    },
+    filterTitleRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        marginBottom: spacing.sm,
+    },
+    filterTitle: {
+        ...typography.label,
+        color: colors.textPrimary,
+        fontWeight: '700',
+    },
+    filterHint: {
+        ...typography.caption,
+        color: colors.textTertiary,
+    },
     filterChip: {
         paddingHorizontal: spacing.base,
-        paddingVertical: spacing.sm,
-        borderRadius: spacing.radius.full,
-        backgroundColor: colors.background,
+        paddingVertical: 10,
+        borderRadius: 18,
+        backgroundColor: colors.surface,
         borderWidth: 1,
         borderColor: colors.border,
         marginRight: spacing.sm,
     },
-    filterChipActive: { backgroundColor: colors.primarySoft, borderColor: colors.primary },
-    filterChipText: { ...typography.caption, color: colors.textSecondary, fontWeight: '500' },
-    filterChipTextActive: { color: colors.primary, fontWeight: '600' },
-    cardImage: { flex: 1, width: '100%', height: '100%' },
-    resultCount: { ...typography.bodySmall, color: colors.textSecondary, paddingHorizontal: spacing.screenHorizontal, paddingVertical: spacing.md },
-    // Sort Modal
+    filterChipActive: {
+        backgroundColor: colors.primarySoft,
+        borderColor: colors.primary,
+    },
+    filterChipText: {
+        ...typography.caption,
+        color: colors.textSecondary,
+        fontWeight: '600',
+    },
+    filterChipTextActive: {
+        color: colors.primary,
+        fontWeight: '700',
+    },
+    resultsBanner: {
+        marginHorizontal: spacing.screenHorizontal,
+        marginTop: spacing.sm,
+        marginBottom: spacing.base,
+        paddingHorizontal: spacing.base,
+        paddingVertical: spacing.md,
+        borderRadius: 16,
+        backgroundColor: colors.surface,
+        borderWidth: 1,
+        borderColor: colors.border,
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        gap: spacing.base,
+    },
+    resultsLabel: {
+        ...typography.caption,
+        color: colors.textTertiary,
+    },
+    resultsTitle: {
+        ...typography.caption,
+        color: colors.textPrimary,
+        fontWeight: '700',
+    },
+    resultsPill: {
+        paddingHorizontal: spacing.sm,
+        paddingVertical: 6,
+        borderRadius: spacing.radius.full,
+        backgroundColor: colors.primarySoft,
+    },
+    resultsPillText: {
+        ...typography.caption,
+        color: colors.primaryDark,
+        fontWeight: '700',
+    },
+    listContent: {
+        paddingBottom: spacing['2xl'],
+        flexGrow: 1,
+    },
     modalOverlay: {
-        flex: 1, backgroundColor: 'rgba(0,0,0,0.4)',
+        flex: 1,
+        backgroundColor: 'rgba(0,0,0,0.4)',
         justifyContent: 'flex-end',
     },
     modalContent: {
-        backgroundColor: colors.surface, borderTopLeftRadius: spacing.radius.xl, borderTopRightRadius: spacing.radius.xl,
-        padding: spacing.xl, paddingBottom: 40,
+        backgroundColor: colors.surface,
+        borderTopLeftRadius: spacing.radius.xl,
+        borderTopRightRadius: spacing.radius.xl,
+        padding: spacing.xl,
+        paddingBottom: 40,
     },
-    modalTitle: { ...typography.h3, color: colors.textPrimary, marginBottom: spacing.lg },
+    modalTitle: {
+        ...typography.h3,
+        color: colors.textPrimary,
+        marginBottom: spacing.lg,
+    },
     sortOption: {
-        flexDirection: 'row', alignItems: 'center', gap: spacing.md,
-        paddingVertical: spacing.md, borderBottomWidth: 1, borderBottomColor: colors.borderLight,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: spacing.md,
+        paddingVertical: spacing.md,
+        borderBottomWidth: 1,
+        borderBottomColor: colors.borderLight,
     },
-    sortOptionActive: { backgroundColor: colors.primarySoft, marginHorizontal: -spacing.md, paddingHorizontal: spacing.md, borderRadius: spacing.radius.md },
-    sortOptionText: { ...typography.body, color: colors.textSecondary, flex: 1 },
-    sortOptionTextActive: { color: colors.primary, fontWeight: '600' },
+    sortOptionActive: {
+        backgroundColor: colors.primarySoft,
+        marginHorizontal: -spacing.md,
+        paddingHorizontal: spacing.md,
+        borderRadius: spacing.radius.md,
+    },
+    sortOptionText: {
+        ...typography.body,
+        color: colors.textSecondary,
+        flex: 1,
+    },
+    sortOptionTextActive: {
+        color: colors.primary,
+        fontWeight: '700',
+    },
 });
 
 export default SearchScreen;
