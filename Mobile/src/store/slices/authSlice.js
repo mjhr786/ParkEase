@@ -224,8 +224,16 @@ const authSlice = createSlice({
                 state.error = action.payload;
             })
             // Logout
+            .addCase(logoutThunk.pending, (state) => {
+                state.loading = true;
+                state.error = null;
+            })
             .addCase(logoutThunk.fulfilled, (state) => {
                 Object.assign(state, { ...initialState, isSessionChecked: true });
+            })
+            .addCase(logoutThunk.rejected, (state, action) => {
+                state.loading = false;
+                state.error = action.payload;
             })
             // Restore Session
             .addCase(restoreSessionThunk.pending, (state) => {

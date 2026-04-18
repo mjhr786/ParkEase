@@ -59,6 +59,7 @@ const ProfileScreen = ({ navigation }) => {
     const dispatch = useDispatch();
     const { user, logout, updateProfile, loading } = useAuth();
     const [editing, setEditing] = useState(false);
+    const [isLoggingOut, setIsLoggingOut] = useState(false);
     const [firstName, setFirstName] = useState(user?.firstName || '');
     const [lastName, setLastName] = useState(user?.lastName || '');
     const [phoneNumber, setPhoneNumber] = useState(user?.phoneNumber || '');
@@ -75,11 +76,31 @@ const ProfileScreen = ({ navigation }) => {
     }, [updateProfile, firstName, lastName, phoneNumber]);
 
     const handleLogout = useCallback(() => {
+        if (isLoggingOut) {
+            return;
+        }
+
         Alert.alert('Logout', 'Are you sure you want to logout?', [
             { text: 'Cancel', style: 'cancel' },
-            { text: 'Logout', style: 'destructive', onPress: logout },
+            {
+                text: 'Logout',
+                style: 'destructive',
+                onPress: async () => {
+                    try {
+                        setIsLoggingOut(true);
+                        await logout().unwrap();
+                    } catch (error) {
+                        setIsLoggingOut(false);
+                        EventBus.emit('SHOW_BANNER', {
+                            title: 'Logout Failed',
+                            message: error || 'Could not log out right now.',
+                            type: 'error',
+                        });
+                    }
+                },
+            },
         ]);
-    }, [logout]);
+    }, [isLoggingOut, logout]);
 
     const handleChangePassword = () => {
         navigation.navigate('ChangePassword');
@@ -155,7 +176,14 @@ const ProfileScreen = ({ navigation }) => {
                     <MenuItem icon="trash-outline" label="Delete Account" onPress={handleDeleteAccount} danger />
                 </Card>
 
-                <Button title="Logout" onPress={handleLogout} variant="danger" style={styles.logoutBtn} icon={<Ionicons name="log-out-outline" size={20} color={colors.white} />} />
+                <Button
+                    title={isLoggingOut ? 'Logging out...' : 'Logout'}
+                    onPress={handleLogout}
+                    loading={isLoggingOut}
+                    variant="danger"
+                    style={styles.logoutBtn}
+                    icon={!isLoggingOut ? <Ionicons name="log-out-outline" size={20} color={colors.white} /> : undefined}
+                />
             </View>
         </ScreenLayout>
     );

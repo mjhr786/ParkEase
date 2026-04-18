@@ -5,7 +5,7 @@
  */
 
 import React from 'react';
-import { View, Text, AppState } from 'react-native';
+import { View, Text, AppState, Platform } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
@@ -17,6 +17,7 @@ import { colors } from '../styles/globalStyles';
 import { getNotificationsThunk } from '../store/slices/notificationSlice';
 import { getUnreadCountThunk } from '../store/slices/chatSlice';
 import { getMemberDashboardThunk, getVendorDashboardThunk } from '../store/slices/dashboardSlice';
+import NotificationService from '../services/notifications/NotificationService';
 
 // Screens
 import UnifiedDashboardScreen from '../screens/Home/UnifiedDashboardScreen';
@@ -46,6 +47,13 @@ const Stack = createNativeStackNavigator();
 const stackOptions = {
     headerShown: false,
     animation: 'slide_from_right',
+};
+
+const NOTIFICATION_ROUTE_TAB_MAP = {
+    ChatScreen: 'MessagesTab',
+    ConversationList: 'MessagesTab',
+    Notifications: 'ProfileTab',
+    Profile: 'ProfileTab',
 };
 
 // ── Home Stack ──
@@ -131,7 +139,7 @@ const ProfileStack = () => (
     </Stack.Navigator>
 );
 
-const AppTabNavigator = () => {
+const AppTabNavigator = ({ navigation }) => {
     const dispatch = useDispatch();
     const insets = useSafeAreaInsets();
     const { unreadCount: notificationUnreadCount } = useSelector((s) => s.notification);
@@ -146,6 +154,18 @@ const AppTabNavigator = () => {
     }, [dispatch]);
 
     React.useEffect(() => {
+        // Supply navigation dispatcher so NotificationService can route
+        // background/quit-state notification taps to the correct screen.
+        NotificationService.setNavigationRef((screen, params) => {
+            const tabName = NOTIFICATION_ROUTE_TAB_MAP[screen] || 'HomeTab';
+            navigation.navigate(tabName, { screen, params });
+        });
+
+        if (Platform.OS === 'android') {
+            // Register only after the user is authenticated and Android permission is granted.
+            NotificationService.registerCurrentDevice();
+        }
+
         // Initial fetch
         refreshCounts();
 
