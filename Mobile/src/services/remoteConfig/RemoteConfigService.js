@@ -17,6 +17,7 @@ class RemoteConfigService {
         // Set default values so the app works before cloud fetch
         await remoteConfig().setDefaults({
           isDisplayFCMTokenEnabled: false,
+          isDebuggerEnabled: false,
         });
 
         // 0 means fetch aggressively for development, 3600 (1 hour) for production
