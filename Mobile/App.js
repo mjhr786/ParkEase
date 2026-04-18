@@ -26,6 +26,7 @@ import RootNavigator from './src/navigation/RootNavigator';
 import GlobalErrorBanner from './src/components/Common/GlobalErrorBanner';
 import NotificationService from './src/services/notifications/NotificationService';
 import RemoteConfigService from './src/services/remoteConfig/RemoteConfigService';
+import AnalyticsService from './src/services/analytics/AnalyticsService';
 
 const FAB_WIDTH = 112;
 const FAB_HEIGHT = 44;
@@ -106,6 +107,7 @@ export default function App() {
 
   React.useEffect(() => {
     let isMounted = true;
+    let previousUserSignature = null;
 
     const syncDebuggerFlag = async (refresh = false) => {
       const shouldEnableDebugger = await RemoteConfigService.getBooleanAsync('isDebuggerEnabled', { refresh });
@@ -127,6 +129,8 @@ export default function App() {
     };
 
     const initializeApp = async () => {
+      await AnalyticsService.initialize();
+      await AnalyticsService.syncUserContext(store.getState().auth?.user);
       await RemoteConfigService.initialize();
       await syncDebuggerFlag(true);
     };
@@ -143,9 +147,22 @@ export default function App() {
       }
     });
 
+    const unsubscribeStore = store.subscribe(() => {
+      const currentUser = store.getState().auth?.user || null;
+      const nextUserSignature = getUserAnalyticsSignature(currentUser);
+
+      if (nextUserSignature === previousUserSignature) {
+        return;
+      }
+
+      previousUserSignature = nextUserSignature;
+      AnalyticsService.syncUserContext(currentUser);
+    });
+
     return () => {
       isMounted = false;
       appStateSubscription.remove();
+      unsubscribeStore();
 
       if (Platform.OS === 'android') {
         NotificationService.cleanup();
@@ -272,4 +289,24 @@ function getInitialFabPosition() {
     x: Math.max(FAB_MARGIN, width - FAB_WIDTH - FAB_MARGIN),
     y: Math.max(FAB_MARGIN, height - FAB_HEIGHT - FAB_BOTTOM_OFFSET),
   };
+}
+
+function getUserAnalyticsSignature(user) {
+  if (!user) {
+    return 'guest';
+  }
+
+  return JSON.stringify({
+    id: user.id || user.userId || user._id || '',
+    role: user.role || user.userRole || '',
+    email: user.email || '',
+    phoneNumber: user.phoneNumber || user.phone || '',
+    firstName: user.firstName || '',
+    lastName: user.lastName || '',
+    city: user.city || '',
+    state: user.state || '',
+    country: user.country || '',
+    status: user.status || user.accountStatus || '',
+    provider: user.provider || user.authProvider || '',
+  });
 }

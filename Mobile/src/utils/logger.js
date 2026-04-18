@@ -3,6 +3,8 @@
  * Structured logging with levels
  */
 
+import AnalyticsService from '../services/analytics/AnalyticsService';
+
 const LOG_LEVELS = {
     DEBUG: 0,
     INFO: 1,
@@ -37,6 +39,8 @@ class Logger {
         if (this.logLevel <= LOG_LEVELS.ERROR) {
             console.log(`[ERROR] ${tag}: ${message}`, error || '');
         }
+
+        AnalyticsService.trackError(tag, message, error);
     }
 }
 

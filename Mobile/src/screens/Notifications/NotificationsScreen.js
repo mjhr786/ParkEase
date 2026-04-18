@@ -67,8 +67,6 @@ const itemStyles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         backgroundColor: colors.surface,
-        marginHorizontal: spacing.screenHorizontal,
-        marginBottom: spacing.sm,
         padding: spacing.md,
         borderRadius: spacing.radius.lg,
         ...shadows.sm,
@@ -248,16 +246,18 @@ const NotificationsScreen = ({ navigation }) => {
                 data={notifications}
                 keyExtractor={(item) => item.id?.toString()}
                 renderItem={({ item }) => (
-                    <SwipeableRow 
-                        onDelete={() => handleDelete(item.id)}
-                        isDeleting={deletingId === item.id}
-                        disabled={loading || !!deletingId}
-                    >
-                        <NotificationItem
-                            notification={item}
-                            onPress={() => handleNotificationPress(item)}
-                        />
-                    </SwipeableRow>
+                    <View style={styles.rowWrap}>
+                        <SwipeableRow 
+                            onDelete={() => handleDelete(item.id)}
+                            isDeleting={deletingId === item.id}
+                            disabled={loading || !!deletingId}
+                        >
+                            <NotificationItem
+                                notification={item}
+                                onPress={() => handleNotificationPress(item)}
+                            />
+                        </SwipeableRow>
+                    </View>
                 )}
                 ListEmptyComponent={
                     <EmptyState
@@ -288,6 +288,10 @@ const styles = StyleSheet.create({
     title: { ...typography.h3, color: colors.textPrimary },
     clearBtn: { ...typography.bodySmall, color: colors.primary, fontWeight: '600' },
     disabledBtn: { color: colors.textTertiary, opacity: 0.5 },
+    rowWrap: {
+        marginHorizontal: spacing.screenHorizontal,
+        marginBottom: spacing.sm,
+    },
 });
 
 export default NotificationsScreen;
