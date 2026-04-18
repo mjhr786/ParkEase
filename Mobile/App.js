@@ -7,7 +7,18 @@ import React from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { Provider } from 'react-redux';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { Modal, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import {
+  AppState,
+  Animated,
+  Dimensions,
+  Modal,
+  PanResponder,
+  Platform,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import NetworkLogger, { startNetworkLogging, stopNetworkLogging } from 'react-native-network-logger';
 import store from './src/store';
@@ -16,17 +27,88 @@ import GlobalErrorBanner from './src/components/Common/GlobalErrorBanner';
 import NotificationService from './src/services/notifications/NotificationService';
 import RemoteConfigService from './src/services/remoteConfig/RemoteConfigService';
 
+const FAB_WIDTH = 112;
+const FAB_HEIGHT = 44;
+const FAB_MARGIN = 16;
+const FAB_BOTTOM_OFFSET = 24;
+const TAP_THRESHOLD = 6;
+
 export default function App() {
   const [isNetworkLoggerVisible, setIsNetworkLoggerVisible] = React.useState(false);
   const [isDebuggerEnabled, setIsDebuggerEnabled] = React.useState(false);
+  const dragPosition = React.useRef(
+    new Animated.ValueXY(getInitialFabPosition())
+  ).current;
+  const dragOffset = React.useRef(getInitialFabPosition());
+
+  const clampFabPosition = React.useCallback((x, y) => {
+    const { width, height } = Dimensions.get('window');
+    const maxX = Math.max(FAB_MARGIN, width - FAB_WIDTH - FAB_MARGIN);
+    const maxY = Math.max(FAB_MARGIN, height - FAB_HEIGHT - FAB_MARGIN);
+
+    return {
+      x: Math.min(Math.max(FAB_MARGIN, x), maxX),
+      y: Math.min(Math.max(FAB_MARGIN, y), maxY),
+    };
+  }, []);
+
+  const panResponder = React.useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: (_, gestureState) =>
+        Math.abs(gestureState.dx) > 2 || Math.abs(gestureState.dy) > 2,
+      onPanResponderGrant: () => {
+        dragPosition.stopAnimation((value) => {
+          dragOffset.current = value;
+        });
+      },
+      onPanResponderMove: (_, gestureState) => {
+        const nextPosition = clampFabPosition(
+          dragOffset.current.x + gestureState.dx,
+          dragOffset.current.y + gestureState.dy
+        );
+
+        dragPosition.setValue(nextPosition);
+      },
+      onPanResponderRelease: (_, gestureState) => {
+        const didTap =
+          Math.abs(gestureState.dx) < TAP_THRESHOLD &&
+          Math.abs(gestureState.dy) < TAP_THRESHOLD;
+
+        const nextPosition = clampFabPosition(
+          dragOffset.current.x + gestureState.dx,
+          dragOffset.current.y + gestureState.dy
+        );
+
+        dragOffset.current = nextPosition;
+
+        Animated.spring(dragPosition, {
+          toValue: nextPosition,
+          useNativeDriver: false,
+          speed: 20,
+          bounciness: 6,
+        }).start();
+
+        if (didTap) {
+          setIsNetworkLoggerVisible(true);
+        }
+      },
+      onPanResponderTerminate: () => {
+        Animated.spring(dragPosition, {
+          toValue: dragOffset.current,
+          useNativeDriver: false,
+          speed: 20,
+          bounciness: 6,
+        }).start();
+      },
+    })
+  ).current;
 
   React.useEffect(() => {
     let isMounted = true;
 
-    const initializeApp = async () => {
-      await RemoteConfigService.initialize();
-
-      const shouldEnableDebugger = await RemoteConfigService.getBooleanAsync('isDebuggerEnabled');
+    const syncDebuggerFlag = async (refresh = false) => {
+      const shouldEnableDebugger = await RemoteConfigService.getBooleanAsync('isDebuggerEnabled', { refresh });
       if (isMounted) {
         setIsDebuggerEnabled(shouldEnableDebugger);
       }
@@ -35,7 +117,18 @@ export default function App() {
         startNetworkLogging({
           ignoredPatterns: [/^GET https:\/\/firebaseremoteconfig\.googleapis\.com\//],
         });
+        return;
       }
+
+      stopNetworkLogging();
+      if (isMounted) {
+        setIsNetworkLoggerVisible(false);
+      }
+    };
+
+    const initializeApp = async () => {
+      await RemoteConfigService.initialize();
+      await syncDebuggerFlag(true);
     };
 
     initializeApp();
@@ -44,8 +137,15 @@ export default function App() {
       NotificationService.initialize();
     }
 
+    const appStateSubscription = AppState.addEventListener('change', (nextAppState) => {
+      if (nextAppState === 'active') {
+        syncDebuggerFlag(true);
+      }
+    });
+
     return () => {
       isMounted = false;
+      appStateSubscription.remove();
 
       if (Platform.OS === 'android') {
         NotificationService.cleanup();
@@ -65,14 +165,21 @@ export default function App() {
 
           {isDebuggerEnabled ? (
             <>
-              <TouchableOpacity
-                activeOpacity={0.9}
-                onPress={() => setIsNetworkLoggerVisible(true)}
-                style={styles.debugFab}
+              <Animated.View
+                {...panResponder.panHandlers}
+                style={[
+                  styles.debugFab,
+                  {
+                    left: dragPosition.x,
+                    top: dragPosition.y,
+                  },
+                ]}
               >
-                <Ionicons name="pulse-outline" size={18} color="#FFFFFF" />
-                <Text style={styles.debugFabText}>Network</Text>
-              </TouchableOpacity>
+                <View style={styles.debugFabContent}>
+                  <Ionicons name="pulse-outline" size={18} color="#FFFFFF" />
+                  <Text style={styles.debugFabText}>Network</Text>
+                </View>
+              </Animated.View>
 
               <Modal
                 visible={isNetworkLoggerVisible}
@@ -108,8 +215,9 @@ const styles = StyleSheet.create({
   },
   debugFab: {
     position: 'absolute',
-    right: 16,
-    bottom: 24,
+    zIndex: 999,
+  },
+  debugFabContent: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
@@ -156,3 +264,12 @@ const styles = StyleSheet.create({
     flex: 1,
   },
 });
+
+function getInitialFabPosition() {
+  const { width, height } = Dimensions.get('window');
+
+  return {
+    x: Math.max(FAB_MARGIN, width - FAB_WIDTH - FAB_MARGIN),
+    y: Math.max(FAB_MARGIN, height - FAB_HEIGHT - FAB_BOTTOM_OFFSET),
+  };
+}
