@@ -8,8 +8,10 @@ import environment from '../../config/environment';
 import { storageService } from '../storage/secureStorage';
 import logger from '../../utils/logger';
 import { EventBus } from '../../utils/EventBus';
+import { AppError } from '../../utils/errorHandler';
 
 const TAG = 'ApiClient';
+export const AUTH_SESSION_EXPIRED_EVENT = 'AUTH_SESSION_EXPIRED';
 
 // Create axios instance
 const apiClient = axios.create({
@@ -24,13 +26,34 @@ const apiClient = axios.create({
 let isRefreshing = false;
 let refreshSubscribers = [];
 
-const subscribeTokenRefresh = (callback) => {
-    refreshSubscribers.push(callback);
+const subscribeTokenRefresh = (resolve, reject) => {
+    refreshSubscribers.push({ resolve, reject });
 };
 
 const onTokenRefreshed = (newToken) => {
-    refreshSubscribers.forEach((callback) => callback(newToken));
+    refreshSubscribers.forEach(({ resolve }) => resolve(newToken));
     refreshSubscribers = [];
+};
+
+const onTokenRefreshFailed = (error) => {
+    refreshSubscribers.forEach(({ reject }) => reject(error));
+    refreshSubscribers = [];
+};
+
+const getSessionExpiredError = () =>
+    new AppError('Your session expired. Please sign in again.', 'SESSION_EXPIRED', 401);
+
+const notifySessionExpired = () => {
+    const sessionError = getSessionExpiredError();
+
+    EventBus.emit('SHOW_BANNER', {
+        title: 'Session Expired',
+        message: sessionError.message,
+        type: 'info',
+    });
+    EventBus.emit(AUTH_SESSION_EXPIRED_EVENT, sessionError);
+
+    return sessionError;
 };
 
 // Request interceptor - attach token
@@ -98,12 +121,16 @@ apiClient.interceptors.response.use(
 
         if (error.response?.status === 401 && !originalRequest._retry && !isAuthEndpoint) {
             if (isRefreshing) {
-                // Wait for ongoing refresh
-                return new Promise((resolve) => {
-                    subscribeTokenRefresh((newToken) => {
-                        originalRequest.headers.Authorization = `Bearer ${newToken}`;
-                        resolve(apiClient(originalRequest));
-                    });
+                // Wait for the ongoing refresh attempt, then retry or fail with the same reason.
+                return new Promise((resolve, reject) => {
+                    subscribeTokenRefresh(
+                        (newToken) => {
+                            originalRequest.headers = originalRequest.headers || {};
+                            originalRequest.headers.Authorization = `Bearer ${newToken}`;
+                            resolve(apiClient(originalRequest));
+                        },
+                        (refreshError) => reject(refreshError)
+                    );
                 });
             }
 
@@ -125,6 +152,7 @@ apiClient.interceptors.response.use(
                 if (response.data.success && response.data.data) {
                     const { accessToken, refreshToken: newRefreshToken } = response.data.data;
                     await storageService.setTokens(accessToken, newRefreshToken || refreshToken);
+                    originalRequest.headers = originalRequest.headers || {};
                     originalRequest.headers.Authorization = `Bearer ${accessToken}`;
                     onTokenRefreshed(accessToken);
                     return apiClient(originalRequest);
@@ -134,8 +162,9 @@ apiClient.interceptors.response.use(
             } catch (refreshError) {
                 logger.error(TAG, 'Token refresh failed', refreshError);
                 await storageService.clearAll();
-                // The auth state will be reset by the store listener
-                return Promise.reject(refreshError);
+                const sessionError = notifySessionExpired();
+                onTokenRefreshFailed(sessionError);
+                return Promise.reject(sessionError);
             } finally {
                 isRefreshing = false;
             }

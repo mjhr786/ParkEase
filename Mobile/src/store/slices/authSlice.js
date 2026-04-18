@@ -168,6 +168,9 @@ const authSlice = createSlice({
             state.error = null;
         },
         resetAuth: () => initialState,
+        sessionExpired: (state) => {
+            Object.assign(state, { ...initialState, isSessionChecked: true });
+        },
     },
     extraReducers: (builder) => {
         builder
@@ -262,5 +265,5 @@ const authSlice = createSlice({
     },
 });
 
-export const { clearError, resetAuth } = authSlice.actions;
+export const { clearError, resetAuth, sessionExpired } = authSlice.actions;
 export default authSlice.reducer;

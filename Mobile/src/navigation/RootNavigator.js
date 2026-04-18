@@ -8,10 +8,12 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useDispatch } from 'react-redux';
 import { useAuth } from '../hooks/useAuth';
-import { restoreSessionThunk } from '../store/slices/authSlice';
+import { restoreSessionThunk, sessionExpired } from '../store/slices/authSlice';
 import LoadingScreen from '../components/Common/LoadingScreen';
 import AuthNavigator from './AuthNavigator';
 import AppTabNavigator from './AppTabNavigator';
+import { EventBus } from '../utils/EventBus';
+import { AUTH_SESSION_EXPIRED_EVENT } from '../services/api/apiClient';
 
 const Stack = createNativeStackNavigator();
 
@@ -21,6 +23,16 @@ const RootNavigator = () => {
 
     useEffect(() => {
         dispatch(restoreSessionThunk());
+    }, [dispatch]);
+
+    useEffect(() => {
+        const handleSessionExpired = () => {
+            dispatch(sessionExpired());
+        };
+
+        EventBus.on(AUTH_SESSION_EXPIRED_EVENT, handleSessionExpired);
+
+        return () => EventBus.off(AUTH_SESSION_EXPIRED_EVENT, handleSessionExpired);
     }, [dispatch]);
 
     if (!isSessionChecked || loading) {
