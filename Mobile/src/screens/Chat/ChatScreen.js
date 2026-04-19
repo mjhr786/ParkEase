@@ -30,6 +30,7 @@ const ChatScreen = ({ route, navigation }) => {
     const [sending, setSending] = useState(false);
     const flatListRef = useRef(null);
     const pollInterval = useRef(null);
+    const isSendingRef = useRef(false); // Pause poll during send to prevent race conditions
 
     useEffect(() => {
         if (activeConversationId) {
@@ -37,7 +38,7 @@ const ChatScreen = ({ route, navigation }) => {
             markRead();
 
             // Poll for new messages every 5 seconds (lightweight real-time substitute for mobile)
-            pollInterval.current = setInterval(loadMessages, 5000);
+            pollInterval.current = setInterval(() => loadMessages(true), 5000);
         } else {
             // Ensure minimum shimmer time for smooth transition even on new chat
             setTimeout(() => setLoading(false), 600);
@@ -47,25 +48,28 @@ const ChatScreen = ({ route, navigation }) => {
         };
     }, [activeConversationId]);
 
-    const loadMessages = async () => {
+    const loadMessages = async (isSilent = false) => {
         if (!activeConversationId) return;
+        // Skip poll if a send is in progress to avoid race conditions causing duplicates
+        if (isSendingRef.current) return;
         try {
             const result = await chatService.getMessages(activeConversationId);
             if (result.success) {
-                const newMessages = (result.data || []).reverse();
+                const serverMessages = (result.data || []).reverse();
                 setMessages(prev => {
-                    // Keep optimistic messages that are still sending or have errors
-                    const optimistic = prev.filter(m => m.status === 'sending' || m.status === 'error');
-                    
-                    // Simple deduplication based on ID
-                    const realIds = new Set(newMessages.map(m => m.id));
-                    const filteredOptimistic = optimistic.filter(m => !realIds.has(m.id));
-                    
-                    return [...newMessages, ...filteredOptimistic];
+                    // Build a set of all IDs we already have confirmed from server
+                    const serverIds = new Set(serverMessages.map(m => m.id));
+                    // Keep only optimistic (sending/error) messages that haven't been confirmed by server yet
+                    const pendingOptimistic = prev.filter(
+                        m => (m.status === 'sending' || m.status === 'error') && !serverIds.has(m.id)
+                    );
+                    return [...serverMessages, ...pendingOptimistic];
                 });
             }
         } catch (error) {
-            EventBus.emit('SHOW_ERROR_BANNER', { title: 'Network Issue', message: 'Failed to load messages' });
+            if (!isSilent) {
+                EventBus.emit('SHOW_ERROR_BANNER', { title: 'Network Issue', message: 'Failed to load messages' });
+            }
         } finally {
             // Ensure minimum shimmer time for smooth transition
             setTimeout(() => setLoading(false), 600);
@@ -82,11 +86,39 @@ const ChatScreen = ({ route, navigation }) => {
         } catch { }
     };
 
+    const sendingRef = useRef(false);
+
+    const doSend = async (content, tempId) => {
+        try {
+            const result = await chatService.sendMessage(parkingSpaceId, content, activeConversationId);
+            if (result.success && result.data) {
+                // Replace the optimistic message with the confirmed server message
+                setMessages(prev => prev.map(m => m.id === tempId ? { ...result.data, status: 'sent' } : m));
+                if (!activeConversationId && result.data.conversationId) {
+                    setActiveConversationId(result.data.conversationId);
+                }
+            } else {
+                throw new Error('Failed to send');
+            }
+        } catch (error) {
+            setMessages(prev => prev.map(m => m.id === tempId ? { ...m, status: 'error' } : m));
+            EventBus.emit('SHOW_ERROR_BANNER', { title: 'Network Issue', message: 'Tap the message to retry.' });
+        } finally {
+            isSendingRef.current = false;
+            sendingRef.current = false;
+            setSending(false);
+        }
+    };
+
     const handleSend = async () => {
         const content = newMessage.trim();
-        if (!content || sending) return;
+        if (!content || sendingRef.current) return;
 
-        const tempId = `temp-${Date.now()}`;
+        sendingRef.current = true;
+        isSendingRef.current = true; // Pause the poll
+        setSending(true);
+
+        const tempId = `temp-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
         const tempMessage = {
             id: tempId,
             content,
@@ -97,35 +129,20 @@ const ChatScreen = ({ route, navigation }) => {
             isRead: false
         };
 
-        // UI updates immediately for better UX
         setMessages(prev => [...prev, tempMessage]);
         setNewMessage('');
-        setSending(true);
-
-        // Auto-scroll
         setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 50);
 
-        try {
-            const result = await chatService.sendMessage(parkingSpaceId, content);
-            if (result.success && result.data) {
-                // Replace optimistic message with real message from server
-                setMessages(prev => prev.map(m => m.id === tempId ? result.data : m));
-
-                // If this was a new conversation, set the active conversation ID to start polling
-                if (!activeConversationId && result.data.conversationId) {
-                    setActiveConversationId(result.data.conversationId);
-                }
-            } else {
-                throw new Error('Failed to send');
-            }
-        } catch (error) {
-            // Update message status to error
-            setMessages(prev => prev.map(m => m.id === tempId ? { ...m, status: 'error' } : m));
-            EventBus.emit('SHOW_ERROR_BANNER', { title: 'Network Issue', message: 'Failed to send message' });
-        } finally {
-            setSending(false);
-        }
+        doSend(content, tempId);
     };
+
+    const handleRetry = useCallback((msg) => {
+        if (msg.status !== 'error') return;
+        const tempId = msg.id;
+        setMessages(prev => prev.map(m => m.id === tempId ? { ...m, status: 'sending' } : m));
+        isSendingRef.current = true;
+        doSend(msg.content, tempId);
+    }, [activeConversationId, parkingSpaceId]);
 
     const formatTime = (dateStr) => {
         if (!dateStr) return '';
@@ -139,11 +156,15 @@ const ChatScreen = ({ route, navigation }) => {
         const isError = item.status === 'error';
 
         return (
-            <View style={[styles.messageBubbleRow, isMine && styles.messageBubbleRowMine]}>
+            <TouchableOpacity
+                activeOpacity={isError ? 0.6 : 1}
+                onPress={() => isError && handleRetry(item)}
+                style={[styles.messageBubbleRow, isMine && styles.messageBubbleRowMine]}
+            >
                 <View style={[
                     styles.messageBubble,
                     isMine ? styles.myBubble : styles.otherBubble,
-                    isSending && { opacity: 0.7 },
+                    isSending && { opacity: 0.6 },
                     isError && { backgroundColor: '#FADBD8', borderColor: colors.danger, borderWidth: 1 }
                 ]}>
                     {!isMine && (
@@ -165,11 +186,14 @@ const ChatScreen = ({ route, navigation }) => {
                             <Ionicons name="time-outline" size={10} color={isMine ? 'rgba(255,255,255,0.7)' : colors.textTertiary} />
                         )}
                         {isError && (
-                            <Ionicons name="alert-circle" size={12} color={colors.danger} />
+                            <>
+                                <Ionicons name="alert-circle" size={12} color={colors.danger} />
+                                <Text style={styles.retryHint}>Tap to retry</Text>
+                            </>
                         )}
                     </View>
                 </View>
-            </View>
+            </TouchableOpacity>
         );
     };
 
@@ -214,7 +238,7 @@ const ChatScreen = ({ route, navigation }) => {
                 ref={flatListRef}
                 data={messages}
                 renderItem={renderMessage}
-                keyExtractor={(item) => item.id}
+                keyExtractor={(item, index) => item?.id ? item.id.toString() : index.toString()}
                 contentContainerStyle={styles.messagesList}
                 onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: false })}
                 ListEmptyComponent={
@@ -298,6 +322,7 @@ const styles = StyleSheet.create({
         backgroundColor: colors.primary, justifyContent: 'center', alignItems: 'center',
     },
     sendBtnDisabled: { backgroundColor: colors.borderLight },
+    retryHint: { fontSize: 10, color: colors.danger, marginLeft: 2 },
 });
 
 export default ChatScreen;

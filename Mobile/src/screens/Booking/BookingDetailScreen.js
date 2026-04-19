@@ -54,6 +54,7 @@ const BookingDetailScreen = ({ navigation, route }) => {
     const [actionLoading, setActionLoading] = useState(false);
     const [rejectModalVisible, setRejectModalVisible] = useState(false);
     const [rejectReason, setRejectReason] = useState('');
+    const [rejectType, setRejectType] = useState('booking'); // 'booking' | 'extension'
     const [chatLoading, setChatLoading] = useState(false);
     const [extendModalVisible, setExtendModalVisible] = useState(false);
     const [extendHours, setExtendHours] = useState('');
@@ -197,7 +198,11 @@ const BookingDetailScreen = ({ navigation, route }) => {
         }
         setActionLoading(true);
         try {
-            await dispatch(extendBookingThunk({ id: bookingId, data: { additionalHours: hours } })).unwrap();
+            const currentEndTime = new Date(booking.endDateTime);
+            currentEndTime.setHours(currentEndTime.getHours() + hours);
+            const newEndDateTime = currentEndTime.toISOString();
+
+            await dispatch(extendBookingThunk({ id: bookingId, data: { newEndDateTime } })).unwrap();
             EventBus.emit('SHOW_BANNER', { title: 'Success', message: 'Extension request submitted!', type: 'success' });
             setExtendModalVisible(false);
             setExtendHours('');
@@ -226,8 +231,10 @@ const BookingDetailScreen = ({ navigation, route }) => {
     const handleRejectExtension = useCallback(async () => {
         setActionLoading(true);
         try {
-            await dispatch(rejectExtensionThunk(bookingId)).unwrap();
+            await dispatch(rejectExtensionThunk({ id: bookingId, reason: rejectReason.trim() || 'Rejected by vendor' })).unwrap();
             EventBus.emit('SHOW_BANNER', { title: 'Done', message: 'Extension rejected.', type: 'success' });
+            setRejectModalVisible(false);
+            setRejectReason('');
             dispatch(getBookingDetailThunk(bookingId));
             dispatch(getVendorBookingsThunk());
         } catch (error) {
@@ -235,7 +242,7 @@ const BookingDetailScreen = ({ navigation, route }) => {
         } finally {
             setActionLoading(false);
         }
-    }, [dispatch, bookingId]);
+    }, [dispatch, bookingId, rejectReason]);
 
     if (detailLoading || !booking || booking.id !== bookingId) {
         return (
@@ -344,6 +351,7 @@ const BookingDetailScreen = ({ navigation, route }) => {
                                 <Button
                                     title="Reject"
                                     onPress={() => {
+                                        setRejectType('booking');
                                         setRejectReason('');
                                         setRejectModalVisible(true);
                                     }}
@@ -405,7 +413,7 @@ const BookingDetailScreen = ({ navigation, route }) => {
                                 </Text>
                                 <View style={styles.vendorActions}>
                                     <Button title="Approve" onPress={handleApproveExtension} loading={actionLoading} style={{ flex: 1 }} />
-                                    <Button title="Reject" onPress={handleRejectExtension} variant="danger" loading={actionLoading} style={{ flex: 1 }} />
+                                    <Button title="Reject" onPress={() => { setRejectType('extension'); setRejectReason(''); setRejectModalVisible(true); }} variant="danger" loading={actionLoading} style={{ flex: 1 }} />
                                 </View>
                             </Card>
                         )}
@@ -479,7 +487,7 @@ const BookingDetailScreen = ({ navigation, route }) => {
                         <View style={styles.modalActions}>
                             <Button
                                 title="Confirm Reject"
-                                onPress={handleReject}
+                                onPress={rejectType === 'booking' ? handleReject : handleRejectExtension}
                                 variant="danger"
                                 loading={actionLoading}
                                 style={{ flex: 1 }}

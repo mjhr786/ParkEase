@@ -38,9 +38,13 @@ const chatService = {
     /**
      * Send a message (creates conversation if needed)
      */
-    async sendMessage(parkingSpaceId, content) {
+    async sendMessage(parkingSpaceId, content, conversationId = null) {
         try {
-            const response = await apiClient.post('/chat/send', { parkingSpaceId, content });
+            const payload = { parkingSpaceId, content };
+            if (conversationId) {
+                payload.conversationId = conversationId;
+            }
+            const response = await apiClient.post('/chat/send', payload);
             return response.data;
         } catch (error) {
             logger.error(TAG, 'Failed to send message', error);

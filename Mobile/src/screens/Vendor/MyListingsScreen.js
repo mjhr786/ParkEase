@@ -200,6 +200,7 @@ const MyListingsScreen = ({ navigation }) => {
                     <SwipeableRow
                         onDelete={() => handleDelete(item.id)}
                         isDeleting={deletingId === item.id}
+                        style={{ borderRadius: 24, marginBottom: spacing.base }}
                     >
                         <ListingCard
                             listing={item}
@@ -232,7 +233,7 @@ const cardStyles = StyleSheet.create({
     card: {
         borderRadius: 24,
         padding: spacing.base,
-        marginBottom: spacing.base,
+        marginBottom: 0,
     },
     mediaHeader: {
         marginBottom: spacing.md,

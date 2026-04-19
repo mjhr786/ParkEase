@@ -133,9 +133,9 @@ export const approveExtensionThunk = createAsyncThunk(
 
 export const rejectExtensionThunk = createAsyncThunk(
     'booking/rejectExtension',
-    async (id, { rejectWithValue }) => {
+    async ({ id, reason }, { rejectWithValue }) => {
         try {
-            const response = await apiClient.post(ENDPOINTS.BOOKINGS.REJECT_EXTENSION(id));
+            const response = await apiClient.post(ENDPOINTS.BOOKINGS.REJECT_EXTENSION(id), { reason });
             return response.data.data;
         } catch (error) {
             return rejectWithValue(getErrorMessage(error));

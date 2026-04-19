@@ -20,13 +20,13 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const SWIPE_THRESHOLD = -60; // Max swipe distance to reveal delete button
 const SNAP_THRESHOLD = -40; // Snap to open if swiped past this
 
-const SwipeableRow = ({ children, onDelete, isDeleting }) => {
+const SwipeableRow = ({ children, onDelete, isDeleting, style }) => {
     const translateX = useRef(new Animated.Value(0)).current;
     const [isOpen, setIsOpen] = useState(false);
 
     const panResponder = useRef(
         PanResponder.create({
-            onStartShouldSetPanResponder: () => true,
+            onStartShouldSetPanResponder: () => false,
             onMoveShouldSetPanResponder: (_, gestureState) => {
                 // Only respond to horizontal swipes
                 return Math.abs(gestureState.dx) > Math.abs(gestureState.dy) && Math.abs(gestureState.dx) > 10;
@@ -81,7 +81,7 @@ const SwipeableRow = ({ children, onDelete, isDeleting }) => {
     };
 
     return (
-        <View style={styles.container}>
+        <View style={[styles.container, style]}>
             {/* Background Actions Layer */}
             <View style={styles.actionsContainer}>
                 <TouchableOpacity 
@@ -120,7 +120,6 @@ const SwipeableRow = ({ children, onDelete, isDeleting }) => {
 const styles = StyleSheet.create({
     container: {
         position: 'relative',
-        marginBottom: spacing.md,
         backgroundColor: colors.danger,
         borderRadius: spacing.cardRadius,
         overflow: 'hidden',

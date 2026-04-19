@@ -67,12 +67,16 @@ const itemStyles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         backgroundColor: colors.surface,
+        width: '100%',
         padding: spacing.md,
         borderRadius: spacing.radius.lg,
+        borderWidth: 1,
+        borderColor: 'transparent',
         ...shadows.sm,
     },
     unread: {
-        backgroundColor: colors.surfaceAlt,
+        borderColor: colors.primarySoft,
+        borderLeftWidth: 3,
     },
     iconContainer: {
         width: 44,

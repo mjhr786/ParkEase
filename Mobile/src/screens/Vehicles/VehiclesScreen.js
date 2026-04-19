@@ -54,7 +54,7 @@ const VehicleItem = ({ vehicle, onEdit }) => {
 };
 
 const vStyles = StyleSheet.create({
-    card: { marginHorizontal: spacing.screenHorizontal },
+    card: { marginBottom: 0 },
     row: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
     iconWrap: {
         width: 48,
@@ -211,6 +211,7 @@ const VehiclesScreen = ({ navigation, route }) => {
                         onDelete={() => handleDelete(item.id)}
                         isDeleting={deletingId === item.id}
                         disabled={loading || !!deletingId}
+                        style={{ marginHorizontal: spacing.screenHorizontal, marginBottom: spacing.md }}
                     >
                         <VehicleItem 
                             vehicle={item} 

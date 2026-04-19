@@ -36,9 +36,13 @@ export const getMessagesThunk = createAsyncThunk(
 
 export const sendMessageThunk = createAsyncThunk(
     'chat/sendMessage',
-    async ({ parkingSpaceId, content }, { rejectWithValue }) => {
+    async ({ parkingSpaceId, content, conversationId }, { rejectWithValue }) => {
         try {
-            const response = await apiClient.post(ENDPOINTS.CHAT.SEND, { parkingSpaceId, content });
+            const payload = { parkingSpaceId, content };
+            if (conversationId) {
+                payload.conversationId = conversationId;
+            }
+            const response = await apiClient.post(ENDPOINTS.CHAT.SEND, payload);
             return response.data.data;
         } catch (error) {
             return rejectWithValue(getErrorMessage(error));

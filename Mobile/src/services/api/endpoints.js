@@ -93,6 +93,12 @@ export const ENDPOINTS = {
         OWNER_RESPONSE: (id) => `/reviews/${id}/owner-response`,
     },
 
+    // Device Tokens (FCM)
+    DEVICE_TOKENS: {
+        REGISTER: '/device-tokens/register',
+        DEREGISTER: '/device-tokens/deregister',
+    },
+
     // Dashboard
     DASHBOARD: {
         VENDOR: '/dashboard/vendor',

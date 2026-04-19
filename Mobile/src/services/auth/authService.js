@@ -7,6 +7,7 @@ import apiClient from '../api/apiClient';
 import ENDPOINTS from '../api/endpoints';
 import { storageService } from '../storage/secureStorage';
 import logger from '../../utils/logger';
+import NotificationService from '../notifications/NotificationService';
 
 const TAG = 'AuthService';
 
@@ -55,6 +56,8 @@ export const authService = {
         } catch (error) {
             logger.warn(TAG, 'Logout API call failed', error);
         }
+        // Deregister FCM token before clearing storage (deviceId still readable)
+        await NotificationService.deregisterToken();
         await storageService.clearAll();
     },
 
@@ -88,6 +91,8 @@ export const authService = {
 
     async deleteAccount() {
         const response = await apiClient.delete(ENDPOINTS.USERS.ME);
+        // Deregister FCM token before clearing storage
+        await NotificationService.deregisterToken();
         await storageService.clearAll();
         return response.data;
     },

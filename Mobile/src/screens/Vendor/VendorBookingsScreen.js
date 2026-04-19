@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { Ionicons } from '@expo/vector-icons';
-import { getVendorBookingsThunk, approveBookingThunk, rejectBookingThunk, getPendingCountThunk } from '../../store/slices/bookingSlice';
+import { getVendorBookingsThunk, approveBookingThunk, rejectBookingThunk, getPendingCountThunk, approveExtensionThunk, rejectExtensionThunk } from '../../store/slices/bookingSlice';
 import ScreenLayout from '../../components/Layouts/ScreenLayout';
 import Card from '../../components/Common/Card';
 import Badge from '../../components/Common/Badge';
@@ -39,6 +39,7 @@ const VendorBookingsScreen = ({ navigation }) => {
     const [rejectModalVisible, setRejectModalVisible] = useState(false);
     const [rejectBookingId, setRejectBookingId] = useState(null);
     const [rejectReason, setRejectReason] = useState('');
+    const [rejectType, setRejectType] = useState('booking'); // 'booking' | 'extension'
     const [actionLoading, setActionLoading] = useState(null);
 
     useEffect(() => {
@@ -72,7 +73,8 @@ const VendorBookingsScreen = ({ navigation }) => {
         ]);
     }, [dispatch]);
 
-    const openRejectModal = useCallback((id) => {
+    const openRejectModal = useCallback((id, type = 'booking') => {
+        setRejectType(type);
         setRejectBookingId(id);
         setRejectReason('');
         setRejectModalVisible(true);
@@ -93,6 +95,43 @@ const VendorBookingsScreen = ({ navigation }) => {
             setRejectReason('');
         } catch (error) {
             EventBus.emit('SHOW_ERROR_BANNER', { title: 'Error', message: error || 'Failed to reject booking' });
+        } finally {
+            setActionLoading(null);
+        }
+    }, [dispatch, rejectBookingId, rejectReason]);
+
+    const handleApproveExtension = useCallback((id) => {
+        Alert.alert('Approve Extension', 'Confirm approval?', [
+            { text: 'Cancel', style: 'cancel' },
+            {
+                text: 'Approve',
+                onPress: async () => {
+                    setActionLoading(id);
+                    try {
+                        await dispatch(approveExtensionThunk(id)).unwrap();
+                        EventBus.emit('SHOW_BANNER', { title: 'Success', message: 'Extension approved!', type: 'success' });
+                    } catch (error) {
+                        EventBus.emit('SHOW_ERROR_BANNER', { title: 'Error', message: error || 'Failed to approve extension' });
+                    } finally {
+                        setActionLoading(null);
+                    }
+                },
+            },
+        ]);
+    }, [dispatch]);
+
+    const handleRejectExtension = useCallback(async () => {
+        if (!rejectBookingId) return;
+        setActionLoading(rejectBookingId);
+        try {
+            await dispatch(rejectExtensionThunk({ id: rejectBookingId, reason: rejectReason.trim() || 'Rejected by vendor' })).unwrap();
+            EventBus.emit('SHOW_BANNER', { title: 'Success', message: 'Extension rejected.', type: 'success' });
+            dispatch(getPendingCountThunk());
+            setRejectModalVisible(false);
+            setRejectBookingId(null);
+            setRejectReason('');
+        } catch (error) {
+            EventBus.emit('SHOW_ERROR_BANNER', { title: 'Error', message: error || 'Failed to reject extension' });
         } finally {
             setActionLoading(null);
         }
@@ -145,7 +184,12 @@ const VendorBookingsScreen = ({ navigation }) => {
                     <Text style={styles.bookingTitle}>{item.userName}</Text>
                     <Text style={styles.parkingName}>{item.parkingSpaceTitle}</Text>
                 </View>
-                <Badge status={item.status} />
+                <View style={{ alignItems: 'flex-end', gap: 4 }}>
+                    <Badge status={item.status} />
+                    {item.hasPendingExtension && (
+                        <Text style={styles.extensionBadge}>Ext. Pending</Text>
+                    )}
+                </View>
             </View>
 
             <View style={styles.detailRow}>
@@ -188,7 +232,6 @@ const VendorBookingsScreen = ({ navigation }) => {
                 </View>
             )}
 
-            {/* Chat button for non-pending bookings */}
             {item.status !== BookingStatus.Pending && (
                 <View style={styles.actionRow}>
                     <TouchableOpacity
@@ -198,6 +241,23 @@ const VendorBookingsScreen = ({ navigation }) => {
                         <Ionicons name="chatbubble-ellipses-outline" size={18} color={colors.primary} />
                         <Text style={styles.chatBtnText}>Chat with User</Text>
                     </TouchableOpacity>
+                    {item.hasPendingExtension && (
+                        <>
+                            <TouchableOpacity
+                                style={styles.extApproveBtn}
+                                onPress={() => handleApproveExtension(item.id)}
+                            >
+                                <Ionicons name="checkmark" size={18} color={colors.white} />
+                                <Text style={styles.extBtnText}>Approve Ext.</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                style={styles.extRejectBtn}
+                                onPress={() => openRejectModal(item.id, 'extension')}
+                            >
+                                <Ionicons name="close" size={18} color={colors.danger} />
+                            </TouchableOpacity>
+                        </>
+                    )}
                 </View>
             )}
         </Card>
@@ -277,7 +337,7 @@ const VendorBookingsScreen = ({ navigation }) => {
                         <View style={styles.modalActions}>
                             <Button
                                 title={actionLoading === rejectBookingId ? 'Rejecting...' : 'Confirm Reject'}
-                                onPress={handleReject}
+                                onPress={rejectType === 'booking' ? handleReject : handleRejectExtension}
                                 variant="danger"
                                 loading={actionLoading === rejectBookingId}
                                 style={{ flex: 1 }}
@@ -337,10 +397,14 @@ const styles = StyleSheet.create({
     detailItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
     detailText: { ...typography.caption, color: colors.textSecondary },
     amount: { ...typography.label, color: colors.primary, marginLeft: 'auto' },
+    extensionBadge: { ...typography.caption, color: colors.warningDark, fontWeight: '700', marginTop: 2, paddingHorizontal: 6, paddingVertical: 2, backgroundColor: colors.warningSoft, borderRadius: 4, overflow: 'hidden' },
     actionRow: { flexDirection: 'row', gap: spacing.md, marginTop: spacing.md, paddingTop: spacing.md, borderTopWidth: 1, borderTopColor: colors.borderLight, alignItems: 'center' },
     chatIconBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.primarySoft, justifyContent: 'center', alignItems: 'center' },
     chatBtn: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingVertical: spacing.sm, paddingHorizontal: spacing.base, borderRadius: spacing.radius.full, backgroundColor: colors.primarySoft },
     chatBtnText: { ...typography.caption, color: colors.primary, fontWeight: '600' },
+    extApproveBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: spacing.sm, paddingHorizontal: spacing.sm, borderRadius: spacing.radius.full, backgroundColor: colors.success },
+    extBtnText: { ...typography.caption, color: colors.white, fontWeight: '600' },
+    extRejectBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: colors.dangerSoft, justifyContent: 'center', alignItems: 'center' },
     // Modal
     modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', padding: spacing.lg },
     modalContent: { backgroundColor: colors.surface, borderRadius: spacing.radius.xl, padding: spacing.xl, width: '100%', maxWidth: 400 },
