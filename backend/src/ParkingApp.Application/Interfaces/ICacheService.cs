@@ -41,4 +41,14 @@ public interface ICacheService
     /// Gets or sets a value using a factory function if not cached.
     /// </summary>
     Task<T> GetOrSetAsync<T>(string key, Func<Task<T>> factory, TimeSpan? expiry = null, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Acquires a distributed lock.
+    /// </summary>
+    Task<bool> AcquireLockAsync(string key, TimeSpan expiry, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Releases a distributed lock.
+    /// </summary>
+    Task ReleaseLockAsync(string key, CancellationToken cancellationToken = default);
 }

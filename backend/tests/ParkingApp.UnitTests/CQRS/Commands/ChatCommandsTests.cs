@@ -24,6 +24,7 @@ public class ChatCommandsTests
     private readonly Mock<IChatMessageRepository> _mockChatMessageRepo;
     private readonly Mock<IUserRepository> _mockUserRepo;
     private readonly Mock<ILogger<SendMessageHandler>> _mockSendLogger;
+    private readonly Mock<IPushNotificationService> _mockPushService;
 
     public ChatCommandsTests()
     {
@@ -39,13 +40,14 @@ public class ChatCommandsTests
         _mockUow.Setup(u => u.Users).Returns(_mockUserRepo.Object);
 
         _mockSendLogger = new Mock<ILogger<SendMessageHandler>>();
+        _mockPushService = new Mock<IPushNotificationService>();
     }
 
     // SendMessageHandler Tests
     [Fact]
     public async Task SendMessageHandler_ShouldFail_WhenContentEmpty()
     {
-        var handler = new SendMessageHandler(_mockUow.Object, _mockSendLogger.Object);
+        var handler = new SendMessageHandler(_mockUow.Object, _mockSendLogger.Object, _mockPushService.Object);
 
         var res = await handler.HandleAsync(new SendMessageCommand(Guid.NewGuid(), new SendMessageDto(Guid.NewGuid(), "   ", null)));
 
@@ -56,7 +58,7 @@ public class ChatCommandsTests
     [Fact]
     public async Task SendMessageHandler_ShouldFail_WhenContentTooLong()
     {
-        var handler = new SendMessageHandler(_mockUow.Object, _mockSendLogger.Object);
+        var handler = new SendMessageHandler(_mockUow.Object, _mockSendLogger.Object, _mockPushService.Object);
 
         var res = await handler.HandleAsync(new SendMessageCommand(Guid.NewGuid(), new SendMessageDto(Guid.NewGuid(), new string('A', 2001), null)));
 
@@ -67,7 +69,7 @@ public class ChatCommandsTests
     [Fact]
     public async Task SendMessageHandler_ShouldFail_WhenParkingNotFound()
     {
-        var handler = new SendMessageHandler(_mockUow.Object, _mockSendLogger.Object);
+        var handler = new SendMessageHandler(_mockUow.Object, _mockSendLogger.Object, _mockPushService.Object);
         _mockParkingRepo.Setup(r => r.GetByIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>())).ReturnsAsync((ParkingSpace)null);
 
         var res = await handler.HandleAsync(new SendMessageCommand(Guid.NewGuid(), new SendMessageDto(Guid.NewGuid(), "Test", null)));
@@ -79,7 +81,7 @@ public class ChatCommandsTests
     [Fact]
     public async Task SendMessageHandler_ShouldFail_WhenUnauthorizedForConversation()
     {
-        var handler = new SendMessageHandler(_mockUow.Object, _mockSendLogger.Object);
+        var handler = new SendMessageHandler(_mockUow.Object, _mockSendLogger.Object, _mockPushService.Object);
         var parking = new ParkingSpace { Id = Guid.NewGuid() };
         var conversation = new Conversation { Id = Guid.NewGuid(), UserId = Guid.NewGuid(), VendorId = Guid.NewGuid() };
         
@@ -95,7 +97,7 @@ public class ChatCommandsTests
     [Fact]
     public async Task SendMessageHandler_ShouldSucceed_WithExistingConversation()
     {
-        var handler = new SendMessageHandler(_mockUow.Object, _mockSendLogger.Object);
+        var handler = new SendMessageHandler(_mockUow.Object, _mockSendLogger.Object, _mockPushService.Object);
         var senderId = Guid.NewGuid();
         var parking = new ParkingSpace { Id = Guid.NewGuid() };
         var conversation = new Conversation { Id = Guid.NewGuid(), UserId = senderId, VendorId = Guid.NewGuid() };
@@ -115,7 +117,7 @@ public class ChatCommandsTests
     [Fact]
     public async Task SendMessageHandler_ShouldFail_WhenSendingToSelf()
     {
-        var handler = new SendMessageHandler(_mockUow.Object, _mockSendLogger.Object);
+        var handler = new SendMessageHandler(_mockUow.Object, _mockSendLogger.Object, _mockPushService.Object);
         var senderId = Guid.NewGuid();
         var parking = new ParkingSpace { Id = Guid.NewGuid(), OwnerId = senderId };
 

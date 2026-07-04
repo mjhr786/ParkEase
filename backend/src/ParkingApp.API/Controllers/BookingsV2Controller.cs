@@ -131,12 +131,14 @@ public class BookingsV2Controller : ControllerBase
     [ProducesResponseType(typeof(ApiResponse<PriceBreakdownDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> CalculatePrice([FromBody] PriceCalculationDto dto, CancellationToken cancellationToken)
     {
+        var userId = GetUserId();
         var query = new CalculatePriceQuery(
             dto.ParkingSpaceId,
             dto.StartDateTime,
             dto.EndDateTime,
             (int)dto.PricingType,
-            dto.DiscountCode
+            dto.DiscountCode,
+            userId
         );
         var result = await _dispatcher.QueryAsync(query, cancellationToken);
 

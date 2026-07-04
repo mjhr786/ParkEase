@@ -44,7 +44,11 @@ public record ParkingSpaceDto(
     DateTime CreatedAt,
     double? DistanceKm = null,
     int? EstimatedTimeMinutes = null,
-    List<ReservationPeriodDto>? ActiveReservations = null
+    List<ReservationPeriodDto>? ActiveReservations = null,
+    string? ZoneCode = null,
+    Guid? CompanyOwnerId = null,
+    ParkingSpaceOwnershipType OwnershipType = ParkingSpaceOwnershipType.IndividualVendor,
+    bool IsCorporateOnly = false
 );
 
 public record CreateParkingSpaceDto(
@@ -69,7 +73,8 @@ public record CreateParkingSpaceDto(
     List<string>? Amenities = null,
     List<VehicleType>? AllowedVehicleTypes = null,
     List<string>? ImageUrls = null,
-    string? SpecialInstructions = null
+    string? SpecialInstructions = null,
+    string? ZoneCode = null
 );
 
 public record UpdateParkingSpaceDto(
@@ -95,7 +100,8 @@ public record UpdateParkingSpaceDto(
     List<VehicleType>? AllowedVehicleTypes,
     List<string>? ImageUrls,
     string? SpecialInstructions,
-    bool? IsActive
+    bool? IsActive,
+    string? ZoneCode = null
 );
 
 public record ParkingSearchDto(

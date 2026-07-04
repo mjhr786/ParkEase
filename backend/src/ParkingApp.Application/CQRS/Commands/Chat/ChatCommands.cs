@@ -3,6 +3,7 @@ using ParkingApp.Application.DTOs;
 using ParkingApp.Application.Mappings;
 using ParkingApp.Domain.Entities;
 using ParkingApp.Domain.Interfaces;
+using ParkingApp.Application.Interfaces;
 using Microsoft.Extensions.Logging;
 
 namespace ParkingApp.Application.CQRS.Commands.Chat;
@@ -22,11 +23,13 @@ public sealed class SendMessageHandler : ICommandHandler<SendMessageCommand, Api
 {
     private readonly IUnitOfWork _unitOfWork;
     private readonly ILogger<SendMessageHandler> _logger;
+    private readonly IPushNotificationService _pushService;
 
-    public SendMessageHandler(IUnitOfWork unitOfWork, ILogger<SendMessageHandler> logger)
+    public SendMessageHandler(IUnitOfWork unitOfWork, ILogger<SendMessageHandler> logger, IPushNotificationService pushService)
     {
         _unitOfWork = unitOfWork;
         _logger = logger;
+        _pushService = pushService;
     }
 
     public async Task<ApiResponse<ChatMessageDto>> HandleAsync(SendMessageCommand command, CancellationToken cancellationToken = default)
@@ -115,6 +118,29 @@ public sealed class SendMessageHandler : ICommandHandler<SendMessageCommand, Api
 
         _logger.LogInformation("Message sent in conversation {ConversationId} by user {SenderId}",
             conversation.Id, command.SenderId);
+
+        // Determine recipient
+        Guid recipientId = conversation.UserId == command.SenderId ? conversation.VendorId : conversation.UserId;
+        
+        // Dispatch Push Notification
+        try
+        {
+            var payload = new PushNotificationPayload(
+                Title: $"New message from {sender.FirstName}",
+                Body: content.Length > 100 ? content[..100] + "..." : content,
+                Data: new Dictionary<string, string>
+                {
+                    { "type", "chat_message" },
+                    { "conversationId", conversation.Id.ToString() }
+                },
+                Priority: PushPriority.High
+            );
+            await _pushService.SendToUserAsync(recipientId, payload, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to send chat push notification to recipient {RecipientId}", recipientId);
+        }
 
         return new ApiResponse<ChatMessageDto>(true, "Message sent", message.ToDto());
     }

@@ -20,9 +20,24 @@ public class StripePaymentService : IPaymentService
     {
         try
         {
+            long stripeAmount = (long)(amount * 100);
+            
+            // Stripe strictly enforces a minimum charge equivalent to $0.50 USD.
+            // For INR, it is roughly 40.00 INR. Enforcing minimum of 50.00 INR (5000 paise).
+            if (currency.Equals("inr", StringComparison.OrdinalIgnoreCase) && stripeAmount < 5000)
+            {
+                stripeAmount = 5000;
+                _logger.LogWarning("Amount {Amount} {Currency} is below Stripe's minimum. Bumped to 50.00 INR.", amount, currency);
+            }
+            else if (currency.Equals("usd", StringComparison.OrdinalIgnoreCase) && stripeAmount < 50)
+            {
+                stripeAmount = 50;
+                _logger.LogWarning("Amount {Amount} {Currency} is below Stripe's minimum. Bumped to 0.50 USD.", amount, currency);
+            }
+
             var options = new PaymentIntentCreateOptions
             {
-                Amount = (long)(amount * 100), // Convert to smallest currency unit (paisa)
+                Amount = stripeAmount,
                 Currency = currency.ToLower(),
                 PaymentMethodTypes = new List<string> { "card" },
                 Metadata = notes ?? new Dictionary<string, string>()
@@ -41,6 +56,11 @@ public class StripePaymentService : IPaymentService
         {
             _logger.LogError(ex, "Failed to create Stripe PaymentIntent");
             throw;
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogError(ex, "Failed to create Stripe PaymentIntent");
+            throw new StripeException("Failed to create Stripe PaymentIntent", ex);
         }
     }
 
@@ -62,16 +82,35 @@ public class StripePaymentService : IPaymentService
             _logger.LogError(ex, "Failed to verify Stripe payment {PaymentIntentId}", paymentIntentId);
             return false;
         }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogError(ex, "Failed to verify Stripe payment {PaymentIntentId}", paymentIntentId);
+            return false;
+        }
     }
 
     public async Task<PaymentResult> ProcessPaymentAsync(PaymentRequest request, CancellationToken cancellationToken = default)
     {
         try
         {
+            long stripeAmount = (long)(request.Amount * 100);
+            
+            // Stripe strictly enforces a minimum charge equivalent to $0.50 USD.
+            if (request.Currency.Equals("inr", StringComparison.OrdinalIgnoreCase) && stripeAmount < 5000)
+            {
+                stripeAmount = 5000;
+                _logger.LogWarning("Amount {Amount} {Currency} is below Stripe's minimum. Bumped to 50.00 INR.", request.Amount, request.Currency);
+            }
+            else if (request.Currency.Equals("usd", StringComparison.OrdinalIgnoreCase) && stripeAmount < 50)
+            {
+                stripeAmount = 50;
+                _logger.LogWarning("Amount {Amount} {Currency} is below Stripe's minimum. Bumped to 0.50 USD.", request.Amount, request.Currency);
+            }
+
             // Create a PaymentIntent for server-side processing
             var options = new PaymentIntentCreateOptions
             {
-                Amount = (long)(request.Amount * 100),
+                Amount = stripeAmount,
                 Currency = request.Currency.ToLower(),
                 PaymentMethodTypes = new List<string> { "card" },
                 Description = request.Description,
@@ -95,6 +134,16 @@ public class StripePaymentService : IPaymentService
             };
         }
         catch (StripeException ex)
+        {
+            _logger.LogError(ex, "Stripe payment processing failed for booking {BookingId}", request.BookingId);
+            return new PaymentResult
+            {
+                Success = false,
+                Status = PaymentStatus.Failed,
+                ErrorMessage = ex.Message
+            };
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
             _logger.LogError(ex, "Stripe payment processing failed for booking {BookingId}", request.BookingId);
             return new PaymentResult
@@ -136,6 +185,15 @@ public class StripePaymentService : IPaymentService
                 ErrorMessage = ex.Message
             };
         }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogError(ex, "Stripe refund failed for payment {PaymentId}", request.PaymentId);
+            return new RefundResult
+            {
+                Success = false,
+                ErrorMessage = ex.Message
+            };
+        }
     }
 
     public async Task<PaymentStatus> GetPaymentStatusAsync(string transactionId, CancellationToken cancellationToken = default)
@@ -147,6 +205,11 @@ public class StripePaymentService : IPaymentService
             return MapStripeStatus(paymentIntent.Status);
         }
         catch (StripeException ex)
+        {
+            _logger.LogError(ex, "Failed to get status for Stripe payment {TransactionId}", transactionId);
+            return PaymentStatus.Failed;
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
             _logger.LogError(ex, "Failed to get status for Stripe payment {TransactionId}", transactionId);
             return PaymentStatus.Failed;

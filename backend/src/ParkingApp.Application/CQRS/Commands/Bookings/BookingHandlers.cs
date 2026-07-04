@@ -1,6 +1,7 @@
 using ParkingApp.Application.DTOs;
 using ParkingApp.Application.Interfaces;
 using ParkingApp.Application.Mappings;
+using ParkingApp.Application.Services;
 using ParkingApp.Domain.Entities;
 using ParkingApp.Domain.Enums;
 using ParkingApp.Domain.Interfaces;
@@ -14,17 +15,36 @@ public class CreateBookingHandler : ICommandHandler<CreateBookingCommand, ApiRes
     private readonly INotificationCoordinator _notificationCoordinator;
     private readonly IEmailService _emailService;
     private readonly ICacheService _cache;
+    private readonly IParkingPassPricingService _pricingService;
 
-    public CreateBookingHandler(IUnitOfWork unitOfWork, INotificationCoordinator notificationCoordinator, IEmailService emailService, ICacheService cache)
+    public CreateBookingHandler(
+        IUnitOfWork unitOfWork,
+        INotificationCoordinator notificationCoordinator,
+        IEmailService emailService,
+        ICacheService cache,
+        IParkingPassPricingService pricingService)
     {
         _unitOfWork = unitOfWork;
         _notificationCoordinator = notificationCoordinator;
         _emailService = emailService;
         _cache = cache;
+        _pricingService = pricingService;
+    }
+
+    public CreateBookingHandler(
+        IUnitOfWork unitOfWork,
+        INotificationCoordinator notificationCoordinator,
+        IEmailService emailService,
+        ICacheService cache)
+        : this(unitOfWork, notificationCoordinator, emailService, cache, new ParkingPassPricingService(unitOfWork))
+    {
     }
 
     public async Task<ApiResponse<BookingDto>> HandleAsync(CreateBookingCommand command, CancellationToken cancellationToken = default)
     {
+        var startDateTimeUtc = command.StartDateTime.ToUtc();
+        var endDateTimeUtc = command.EndDateTime.ToUtc();
+
         // Validate parking space exists and is active
         var parking = await _unitOfWork.ParkingSpaces.GetByIdAsync(command.ParkingSpaceId, cancellationToken);
         if (parking == null || !parking.IsActive)
@@ -33,12 +53,12 @@ public class CreateBookingHandler : ICommandHandler<CreateBookingCommand, ApiRes
         }
 
         // Validate dates
-        if (command.StartDateTime < DateTime.UtcNow)
+        if (startDateTimeUtc < DateTime.UtcNow)
         {
             return new ApiResponse<BookingDto>(false, "Start date must be in the future", null);
         }
 
-        if (command.EndDateTime <= command.StartDateTime)
+        if (endDateTimeUtc <= startDateTimeUtc)
         {
             return new ApiResponse<BookingDto>(false, "End date must be after start date", null);
         }
@@ -57,7 +77,7 @@ public class CreateBookingHandler : ICommandHandler<CreateBookingCommand, ApiRes
                 b.VehicleNumber.Trim().Equals(command.VehicleNumber.Trim(), StringComparison.OrdinalIgnoreCase) &&
                 (b.Status == BookingStatus.Pending || b.Status == BookingStatus.AwaitingPayment ||
                  b.Status == BookingStatus.Confirmed || b.Status == BookingStatus.InProgress) &&
-                b.StartDateTime < command.EndDateTime && b.EndDateTime > command.StartDateTime
+                b.StartDateTime < endDateTimeUtc && b.EndDateTime > startDateTimeUtc
             );
 
             if (vehicleOverlap != null)
@@ -69,12 +89,12 @@ public class CreateBookingHandler : ICommandHandler<CreateBookingCommand, ApiRes
 
         // Check parking space overlap
         var hasOverlap = await _unitOfWork.Bookings.HasOverlappingBookingAsync(
-            command.ParkingSpaceId, command.StartDateTime, command.EndDateTime, null, cancellationToken);
+            command.ParkingSpaceId, startDateTimeUtc, endDateTimeUtc, null, cancellationToken);
 
         if (hasOverlap)
         {
             var activeCount = await _unitOfWork.Bookings.GetActiveBookingsCountAsync(
-                command.ParkingSpaceId, command.StartDateTime, command.EndDateTime, cancellationToken);
+                command.ParkingSpaceId, startDateTimeUtc, endDateTimeUtc, cancellationToken);
             if (activeCount >= parking.TotalSpots)
             {
                 return new ApiResponse<BookingDto>(false, "No spots available for the selected time", null);
@@ -90,8 +110,8 @@ public class CreateBookingHandler : ICommandHandler<CreateBookingCommand, ApiRes
                  b.Status == BookingStatus.AwaitingPayment ||
                  b.Status == BookingStatus.Confirmed ||
                  b.Status == BookingStatus.InProgress) &&
-                b.StartDateTime < command.EndDateTime &&
-                b.EndDateTime > command.StartDateTime,
+                b.StartDateTime < endDateTimeUtc &&
+                b.EndDateTime > startDateTimeUtc,
                 cancellationToken);
 
             if (isSelectedSlotBooked)
@@ -100,39 +120,36 @@ public class CreateBookingHandler : ICommandHandler<CreateBookingCommand, ApiRes
             }
         }
 
-        // Calculate pricing
-        var duration = command.EndDateTime - command.StartDateTime;
-        decimal baseAmount = command.PricingType switch
-        {
-            PricingType.Hourly => parking.HourlyRate * (decimal)Math.Ceiling(duration.TotalHours),
-            PricingType.Daily => parking.DailyRate * (decimal)Math.Ceiling(duration.TotalDays),
-            PricingType.Weekly => parking.WeeklyRate * (decimal)Math.Ceiling(duration.TotalDays / 7),
-            PricingType.Monthly => parking.MonthlyRate * (decimal)Math.Ceiling(duration.TotalDays / 30),
-            _ => parking.HourlyRate * (decimal)Math.Ceiling(duration.TotalHours)
-        };
-
-        var taxAmount = baseAmount * 0.18m; // 18% GST
-        var serviceFee = baseAmount * 0.05m; // 5% service fee
-        var totalAmount = baseAmount + taxAmount + serviceFee;
+        var pricing = await _pricingService.CalculateAsync(
+            command.UserId,
+            parking,
+            startDateTimeUtc,
+            endDateTimeUtc,
+            command.PricingType,
+            command.DiscountCode,
+            null,
+            cancellationToken);
 
         // Create booking
         var booking = new Booking
         {
             UserId = command.UserId,
             ParkingSpaceId = command.ParkingSpaceId,
-            StartDateTime = command.StartDateTime.ToUtc(),
-            EndDateTime = command.EndDateTime.ToUtc(),
+            StartDateTime = startDateTimeUtc,
+            EndDateTime = endDateTimeUtc,
             PricingType = command.PricingType,
             VehicleType = command.VehicleType,
             SlotNumber = command.SlotNumber,
             VehicleNumber = command.VehicleNumber?.Trim(),
             VehicleModel = command.VehicleModel?.Trim(),
             VehicleColor = command.VehicleColor?.Trim(),
-            BaseAmount = baseAmount,
-            TaxAmount = taxAmount,
-            ServiceFee = serviceFee,
-            TotalAmount = totalAmount,
-            DiscountCode = command.DiscountCode,
+            BaseAmount = pricing.BaseAmount,
+            TaxAmount = pricing.TaxAmount,
+            ServiceFee = pricing.ServiceFee,
+            DiscountAmount = pricing.DiscountAmount,
+            TotalAmount = pricing.TotalAmount,
+            DiscountCode = pricing.IsPassApplied ? null : command.DiscountCode,
+            ParkingPassId = pricing.ParkingPassId,
             Status = BookingStatus.Pending,
             BookingReference = $"BK{DateTime.UtcNow:yyyyMMdd}{Guid.NewGuid().ToString()[..6].ToUpper()}"
         };
@@ -151,7 +168,7 @@ public class CreateBookingHandler : ICommandHandler<CreateBookingCommand, ApiRes
                 NotificationType.BookingRequest.ToString(),
                 "New Booking Request",
                 $"New booking request from {memberName} for {parking.Title}",
-                NotificationChannels.InApp,
+                NotificationChannels.All,
                 new Dictionary<string, string> { { "BookingId", booking!.Id.ToString() }, { "BookingReference", booking.BookingReference ?? string.Empty } }
             ),
             cancellationToken);
@@ -227,7 +244,7 @@ public class CancelBookingHandler : ICommandHandler<CancelBookingCommand, ApiRes
                         NotificationType.BookingRejected.ToString(),
                         "Booking Cancelled",
                         $"Booking {booking.BookingReference} has been cancelled",
-                        NotificationChannels.InApp,
+                        NotificationChannels.All,
                         new Dictionary<string, string> { { "BookingId", command.BookingId.ToString() }, { "BookingReference", booking.BookingReference ?? string.Empty } }
                     ),
                     cancellationToken);
@@ -293,14 +310,24 @@ public class ApproveBookingHandler : ICommandHandler<ApproveBookingCommand, ApiR
             return new ApiResponse<BookingDto>(false, "Booking not found", null);
         }
 
-        if (booking.ParkingSpace.OwnerId != command.VendorId)
+        var ownerId = booking.ParkingSpace?.OwnerId;
+        if (ownerId != command.VendorId)
         {
             return new ApiResponse<BookingDto>(false, "Unauthorized", null);
         }
 
         try
         {
-            booking.AwaitPayment();
+            var isPassCoveredBooking = booking.ParkingPassId.HasValue && booking.TotalAmount <= 0;
+            if (isPassCoveredBooking)
+            {
+                booking.Confirm();
+            }
+            else
+            {
+                booking.AwaitPayment();
+            }
+
             _unitOfWork.Bookings.Update(booking);
             await _unitOfWork.SaveChangesAsync(cancellationToken);
 
@@ -309,21 +336,25 @@ public class ApproveBookingHandler : ICommandHandler<ApproveBookingCommand, ApiR
                 booking.UserId,
                 new NotificationRequest(
                     NotificationType.BookingConfirmed.ToString(),
-                    "Booking Approved!",
-                    $"Your booking for {booking.ParkingSpace?.Title} has been approved. Please complete payment.",
-                    NotificationChannels.InApp,
+                    isPassCoveredBooking ? "Booking Confirmed!" : "Booking Approved!",
+                    isPassCoveredBooking
+                        ? $"Your booking for {booking.ParkingSpace?.Title} has been approved and confirmed with your parking pass pricing."
+                        : booking.TotalAmount > 0
+                            ? $"Your booking for {booking.ParkingSpace?.Title} has been approved. Please complete payment."
+                            : $"Your booking for {booking.ParkingSpace?.Title} has been approved and is awaiting final settlement.",
+                    NotificationChannels.All,
                     new Dictionary<string, string> { { "BookingId", command.BookingId.ToString() }, { "BookingReference", booking.BookingReference ?? string.Empty } }
                 ),
                 cancellationToken);
 
             // Notify vendor (owner) so UI count refreshes
             await _notificationCoordinator.SendAsync(
-                booking.ParkingSpace.OwnerId,
+                ownerId.Value,
                 new NotificationRequest(
                     NotificationType.BookingConfirmed.ToString(),
                     "Booking Approved",
                     $"You have approved booking {booking.BookingReference}",
-                    NotificationChannels.InApp,
+                    NotificationChannels.All,
                     new Dictionary<string, string> { { "BookingId", command.BookingId.ToString() }, { "BookingReference", booking.BookingReference ?? string.Empty }, { "Silent", "true" } }
                 ),
                 cancellationToken);
@@ -333,8 +364,12 @@ public class ApproveBookingHandler : ICommandHandler<ApproveBookingCommand, ApiR
             {
                 await _emailService.SendEmailAsync(
                     booking.User.Email,
-                    $"Booking Approved: {booking.BookingReference}",
-                    $"<p>Hello {booking.User.FirstName},</p><p>Great news! Your booking for <strong>{booking.ParkingSpace?.Title}</strong> has been approved.</p><p>Please log in and complete your payment to confirm the reservation.</p>"
+                    isPassCoveredBooking ? $"Booking Confirmed: {booking.BookingReference}" : $"Booking Approved: {booking.BookingReference}",
+                    isPassCoveredBooking
+                        ? $"<p>Hello {booking.User.FirstName},</p><p>Great news! Your booking for <strong>{booking.ParkingSpace?.Title}</strong> has been approved and confirmed.</p><p>Your active parking pass covered this booking, so no payment is required.</p>"
+                        : booking.TotalAmount > 0
+                            ? $"<p>Hello {booking.User.FirstName},</p><p>Great news! Your booking for <strong>{booking.ParkingSpace?.Title}</strong> has been approved.</p><p>Please log in and complete your payment to confirm the reservation.</p>"
+                            : $"<p>Hello {booking.User.FirstName},</p><p>Great news! Your booking for <strong>{booking.ParkingSpace?.Title}</strong> has been approved.</p><p>No payment is due, but the booking will remain pending final settlement until it is fully confirmed.</p>"
                 );
             }
 
@@ -342,7 +377,10 @@ public class ApproveBookingHandler : ICommandHandler<ApproveBookingCommand, ApiR
             await _cache.RemoveAsync($"parking:{booking.ParkingSpaceId}", cancellationToken);
             await _cache.RemoveByPatternAsync("search:*", cancellationToken);
 
-            return new ApiResponse<BookingDto>(true, "Booking approved, awaiting payment", booking.ToDto());
+            return new ApiResponse<BookingDto>(
+                true,
+                isPassCoveredBooking ? "Booking approved and confirmed with parking pass pricing" : "Booking approved, awaiting final settlement",
+                booking.ToDto());
         }
         catch (InvalidOperationException ex)
         {
@@ -374,7 +412,8 @@ public class RejectBookingHandler : ICommandHandler<RejectBookingCommand, ApiRes
             return new ApiResponse<BookingDto>(false, "Booking not found", null);
         }
 
-        if (booking.ParkingSpace.OwnerId != command.VendorId)
+        var ownerId = booking.ParkingSpace?.OwnerId;
+        if (ownerId != command.VendorId)
         {
             return new ApiResponse<BookingDto>(false, "Unauthorized", null);
         }
@@ -392,19 +431,19 @@ public class RejectBookingHandler : ICommandHandler<RejectBookingCommand, ApiRes
                     NotificationType.BookingRejected.ToString(),
                     "Booking Rejected",
                     $"Your booking for {booking.ParkingSpace?.Title} was rejected. Reason: {booking.CancellationReason}",
-                    NotificationChannels.InApp,
+                    NotificationChannels.All,
                     new Dictionary<string, string> { { "BookingId", command.BookingId.ToString() }, { "BookingReference", booking.BookingReference ?? string.Empty }, { "Reason", booking.CancellationReason ?? string.Empty } }
                 ),
                 cancellationToken);
 
             // Notify vendor (owner) so UI count refreshes
             await _notificationCoordinator.SendAsync(
-                booking.ParkingSpace.OwnerId,
+                ownerId.Value,
                 new NotificationRequest(
                     NotificationType.BookingRejected.ToString(),
                     "Booking Rejected",
                     $"You have rejected booking {booking.BookingReference}",
-                    NotificationChannels.InApp,
+                    NotificationChannels.All,
                     new Dictionary<string, string> { { "BookingId", command.BookingId.ToString() }, { "BookingReference", booking.BookingReference ?? string.Empty }, { "Silent", "true" } }
                 ),
                 cancellationToken);
@@ -471,7 +510,7 @@ public class CheckInHandler : ICommandHandler<CheckInCommand, ApiResponse<Bookin
                         NotificationType.SystemAlert.ToString(),
                         "Guest Checked In",
                         $"{booking.User?.FirstName} has checked in at {booking.ParkingSpace.Title}",
-                        NotificationChannels.InApp,
+                        NotificationChannels.All,
                         new Dictionary<string, string> { { "BookingId", command.BookingId.ToString() }, { "BookingReference", booking.BookingReference ?? string.Empty } }
                     ),
                     cancellationToken);
@@ -529,17 +568,29 @@ public class RequestExtensionHandler : ICommandHandler<RequestExtensionCommand, 
     private readonly INotificationCoordinator _notificationCoordinator;
     private readonly IEmailService _emailService;
     private readonly ICacheService _cache;
+    private readonly IParkingPassPricingService _pricingService;
+
+    public RequestExtensionHandler(
+        IUnitOfWork unitOfWork,
+        INotificationCoordinator notificationCoordinator,
+        IEmailService emailService,
+        ICacheService cache,
+        IParkingPassPricingService pricingService)
+    {
+        _unitOfWork = unitOfWork;
+        _notificationCoordinator = notificationCoordinator;
+        _emailService = emailService;
+        _cache = cache;
+        _pricingService = pricingService;
+    }
 
     public RequestExtensionHandler(
         IUnitOfWork unitOfWork,
         INotificationCoordinator notificationCoordinator,
         IEmailService emailService,
         ICacheService cache)
+        : this(unitOfWork, notificationCoordinator, emailService, cache, new ParkingPassPricingService(unitOfWork))
     {
-        _unitOfWork = unitOfWork;
-        _notificationCoordinator = notificationCoordinator;
-        _emailService = emailService;
-        _cache = cache;
     }
 
     public async Task<ApiResponse<BookingDto>> HandleAsync(RequestExtensionCommand command, CancellationToken cancellationToken = default)
@@ -572,18 +623,18 @@ public class RequestExtensionHandler : ICommandHandler<RequestExtensionCommand, 
                 return new ApiResponse<BookingDto>(false, "Parking spot is not available for the extended period", null);
         }
 
-        // Calculate extra cost (only for the extension window)
-        decimal extraBaseAmount = booking.PricingType switch
-        {
-            PricingType.Hourly => parking.HourlyRate * (decimal)Math.Ceiling((newEndDateTime - booking.EndDateTime).TotalHours),
-            PricingType.Daily  => parking.DailyRate  * (decimal)Math.Ceiling((newEndDateTime - booking.EndDateTime).TotalDays),
-            PricingType.Weekly => parking.WeeklyRate  * (decimal)Math.Ceiling((newEndDateTime - booking.EndDateTime).TotalDays / 7),
-            PricingType.Monthly=> parking.MonthlyRate * (decimal)Math.Ceiling((newEndDateTime - booking.EndDateTime).TotalDays / 30),
-            _                  => parking.HourlyRate  * (decimal)Math.Ceiling((newEndDateTime - booking.EndDateTime).TotalHours)
-        };
-        var extraTax = Math.Round(extraBaseAmount * 0.18m, 2);
-        var extraFee = Math.Round(extraBaseAmount * 0.05m, 2);
-        var totalExtra = extraBaseAmount + extraTax + extraFee;
+        var repricedBooking = await _pricingService.CalculateAsync(
+            command.UserId,
+            parking,
+            booking.StartDateTime,
+            newEndDateTime,
+            booking.PricingType,
+            booking.DiscountCode,
+            booking.Id,
+            cancellationToken);
+
+        var totalExtra = Math.Max(0, repricedBooking.TotalAmount - booking.TotalAmount);
+        var requiresExtensionPayment = totalExtra > 0;
 
         try
         {
@@ -604,7 +655,7 @@ public class RequestExtensionHandler : ICommandHandler<RequestExtensionCommand, 
                 NotificationType.BookingRequest.ToString(),
                 "Extension Request",
                 $"{memberName} has requested an extension for booking {booking.BookingReference} at {parking.Title}",
-                NotificationChannels.InApp,
+                NotificationChannels.All,
                 new Dictionary<string, string>
                 {
                     { "BookingId", booking.Id.ToString() },
@@ -633,6 +684,9 @@ public class RequestExtensionHandler : ICommandHandler<RequestExtensionCommand, 
                 $"Extension Requested: {booking.BookingReference}",
                 $"<p>Hello {booking.User.FirstName},</p>" +
                 $"<p>Your extension request for <strong>{parking.Title}</strong> has been sent to the owner.</p>" +
+                (requiresExtensionPayment
+                    ? $"<p>If approved, an additional charge of <strong>INR {totalExtra:F2}</strong> will be due.</p>"
+                    : "<p>If approved, your active parking pass pricing means no additional payment will be required.</p>") +
                 "<p>You will be notified once the owner responds.</p>");
         }
 
@@ -669,12 +723,24 @@ public class ApproveExtensionHandler : ICommandHandler<ApproveExtensionCommand, 
         if (booking == null)
             return new ApiResponse<BookingDto>(false, "Booking not found", null);
 
-        if (booking.ParkingSpace?.OwnerId != command.VendorId)
+        var ownerId = booking.ParkingSpace?.OwnerId;
+        if (ownerId != command.VendorId)
             return new ApiResponse<BookingDto>(false, "Unauthorized", null);
+
+        var pendingExtensionAmount = booking.PendingExtensionAmount ?? 0m;
+        var requiresExtensionPayment = pendingExtensionAmount > 0;
 
         try
         {
-            booking.ApproveExtension();
+            if (requiresExtensionPayment)
+            {
+                booking.ApproveExtension();
+            }
+            else
+            {
+                booking.ConfirmExtension();
+            }
+
             _unitOfWork.Bookings.Update(booking);
             await _unitOfWork.SaveChangesAsync(cancellationToken);
         }
@@ -683,14 +749,16 @@ public class ApproveExtensionHandler : ICommandHandler<ApproveExtensionCommand, 
             return new ApiResponse<BookingDto>(false, ex.Message, null);
         }
 
-        // Notify user to pay
+        // Notify user
         await _notificationCoordinator.SendAsync(
             booking.UserId,
             new NotificationRequest(
                 NotificationType.BookingConfirmed.ToString(),
-                "Extension Approved!",
-                $"Your extension request for {booking.ParkingSpace?.Title} was approved. Please complete the payment.",
-                NotificationChannels.InApp,
+                requiresExtensionPayment ? "Extension Approved!" : "Extension Confirmed!",
+                requiresExtensionPayment
+                    ? $"Your extension request for {booking.ParkingSpace?.Title} was approved. Please complete the payment."
+                    : $"Your extension request for {booking.ParkingSpace?.Title} was approved and confirmed with your parking pass pricing.",
+                NotificationChannels.All,
                 new Dictionary<string, string>
                 {
                     { "BookingId", booking.Id.ToString() },
@@ -701,12 +769,12 @@ public class ApproveExtensionHandler : ICommandHandler<ApproveExtensionCommand, 
 
         // Notify vendor so UI count refreshes
         await _notificationCoordinator.SendAsync(
-            booking.ParkingSpace.OwnerId,
+            ownerId.Value,
             new NotificationRequest(
                 NotificationType.BookingConfirmed.ToString(),
                 "Extension Approved",
                 $"You have approved the extension for {booking.BookingReference}",
-                NotificationChannels.InApp,
+                NotificationChannels.All,
                 new Dictionary<string, string>
                 {
                     { "BookingId", booking.Id.ToString() },
@@ -716,22 +784,34 @@ public class ApproveExtensionHandler : ICommandHandler<ApproveExtensionCommand, 
                 }),
             cancellationToken);
 
-        if (booking.User?.Email != null)
+        if (booking.User?.Email != null && !requiresExtensionPayment)
+        {
+            await _emailService.SendEmailAsync(
+                booking.User.Email,
+                $"Extension Confirmed: {booking.BookingReference}",
+                $"<p>Hello {booking.User.FirstName},</p>" +
+                $"<p>Great news! Your extension request for <strong>{booking.ParkingSpace?.Title}</strong> has been approved and confirmed.</p>" +
+                "<p>Your active parking pass covered the extension, so no additional payment is required.</p>");
+        }
+
+        if (booking.User?.Email != null && requiresExtensionPayment)
         {
             await _emailService.SendEmailAsync(
                 booking.User.Email,
                 $"Extension Approved: {booking.BookingReference}",
                 $"<p>Hello {booking.User.FirstName},</p>" +
                 $"<p>Great news! Your extension request for <strong>{booking.ParkingSpace?.Title}</strong> has been approved.</p>" +
-                $"<p>Additional charge: <strong>₹{booking.PendingExtensionAmount:F2}</strong>.</p>" +
+                $"<p>Additional charge: <strong>INR {pendingExtensionAmount:F2}</strong>.</p>" +
                 "<p>Please log in and complete payment to confirm the extension.</p>");
         }
 
         await _cache.RemoveAsync($"parking:{booking.ParkingSpaceId}", cancellationToken);
         await _cache.RemoveByPatternAsync("search:*", cancellationToken);
 
-        return new ApiResponse<BookingDto>(true,
-            "Extension approved. Awaiting member payment.", booking.ToDto());
+        return new ApiResponse<BookingDto>(
+            true,
+            requiresExtensionPayment ? "Extension approved. Awaiting member payment." : "Extension approved and confirmed with parking pass pricing.",
+            booking.ToDto());
     }
 }
 
@@ -760,7 +840,8 @@ public class RejectExtensionHandler : ICommandHandler<RejectExtensionCommand, Ap
         if (booking == null)
             return new ApiResponse<BookingDto>(false, "Booking not found", null);
 
-        if (booking.ParkingSpace?.OwnerId != command.VendorId)
+        var ownerId = booking.ParkingSpace?.OwnerId;
+        if (ownerId != command.VendorId)
             return new ApiResponse<BookingDto>(false, "Unauthorized", null);
 
         try
@@ -781,7 +862,7 @@ public class RejectExtensionHandler : ICommandHandler<RejectExtensionCommand, Ap
                 NotificationType.BookingRejected.ToString(),
                 "Extension Request Rejected",
                 $"Your extension request for {booking.ParkingSpace?.Title} was rejected. Reason: {command.Reason ?? "Rejected by parking owner"}",
-                NotificationChannels.InApp,
+                NotificationChannels.All,
                 new Dictionary<string, string>
                 {
                     { "BookingId", booking.Id.ToString() },
@@ -793,12 +874,12 @@ public class RejectExtensionHandler : ICommandHandler<RejectExtensionCommand, Ap
 
         // Notify vendor so UI count refreshes
         await _notificationCoordinator.SendAsync(
-            booking.ParkingSpace.OwnerId,
+            ownerId.Value,
             new NotificationRequest(
                 NotificationType.BookingRejected.ToString(),
                 "Extension Rejected",
                 $"You have rejected the extension for {booking.BookingReference}",
-                NotificationChannels.InApp,
+                NotificationChannels.All,
                 new Dictionary<string, string>
                 {
                     { "BookingId", booking.Id.ToString() },
@@ -878,7 +959,7 @@ public class ConfirmExtensionPaymentHandler : ICommandHandler<ConfirmExtensionPa
                     NotificationType.PaymentReceived.ToString(),
                     "Extension Payment Received",
                     $"{memberName} has paid ₹{extensionAmount:F2} to extend booking {booking.BookingReference}",
-                    NotificationChannels.InApp,
+                    NotificationChannels.All,
                     new Dictionary<string, string>
                     {
                         { "BookingId", booking.Id.ToString() },

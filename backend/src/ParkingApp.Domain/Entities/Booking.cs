@@ -6,6 +6,7 @@ public class Booking : BaseEntity
 {
     public Guid UserId { get; set; }
     public Guid ParkingSpaceId { get; set; }
+    public Guid? ParkingPassId { get; set; }
     
     // Booking period
     public DateTime StartDateTime { get; set; }
@@ -54,6 +55,7 @@ public class Booking : BaseEntity
     // Navigation properties
     public virtual User User { get; set; } = null!;
     public virtual ParkingSpace ParkingSpace { get; set; } = null!;
+    public virtual ParkingPass? ParkingPass { get; set; }
     public virtual Payment? Payment { get; set; }
     
     // Calculated properties
@@ -174,10 +176,12 @@ public class Booking : BaseEntity
     /// </summary>
     public void ConfirmExtension()
     {
-        if (Status != BookingStatus.AwaitingExtensionPayment)
-            throw new InvalidOperationException("Extension must be awaiting payment to confirm");
+        if (Status != BookingStatus.AwaitingExtensionPayment && Status != BookingStatus.PendingExtension)
+            throw new InvalidOperationException("Extension must be approved before it can be confirmed");
         if (!PendingExtensionEndDateTime.HasValue || !PendingExtensionAmount.HasValue)
             throw new InvalidOperationException("No pending extension to confirm");
+        if (Status == BookingStatus.PendingExtension && PendingExtensionAmount.Value > 0)
+            throw new InvalidOperationException("Extensions with a payment due must wait for payment confirmation");
 
         EndDateTime = PendingExtensionEndDateTime.Value;
         TotalAmount += PendingExtensionAmount.Value;

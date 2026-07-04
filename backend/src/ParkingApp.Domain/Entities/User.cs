@@ -24,6 +24,8 @@ public class User : BaseEntity
     public virtual ICollection<Favorite> Favorites { get; set; } = new List<Favorite>();
     public virtual ICollection<Notification> Notifications { get; set; } = new List<Notification>();
     public virtual ICollection<Vehicle> Vehicles { get; set; } = new List<Vehicle>();
+    public virtual ICollection<DeviceToken> DeviceTokens { get; set; } = new List<DeviceToken>();
+    public virtual ICollection<ParkingPass> ParkingPasses { get; set; } = new List<ParkingPass>();
     
     public string FullName => $"{FirstName} {LastName}".Trim();
 }

@@ -41,7 +41,8 @@ public record CalculatePriceQuery(
     DateTime StartDateTime,
     DateTime EndDateTime,
     int PricingType,
-    string? DiscountCode
+    string? DiscountCode,
+    Guid? UserId = null
 ) : IQuery<ApiResponse<PriceBreakdownDto>>;
 
 /// <summary>

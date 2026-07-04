@@ -1,5 +1,8 @@
 using ParkingApp.Application.DTOs;
+using ParkingApp.Application.Interfaces;
 using ParkingApp.Application.Mappings;
+using ParkingApp.Application.Services;
+using ParkingApp.BuildingBlocks.Extensions;
 using ParkingApp.Domain.Enums;
 using ParkingApp.Domain.Interfaces;
 
@@ -140,10 +143,17 @@ public class GetVendorBookingsHandler : IQueryHandler<GetVendorBookingsQuery, Ap
 public class CalculatePriceHandler : IQueryHandler<CalculatePriceQuery, ApiResponse<PriceBreakdownDto>>
 {
     private readonly IUnitOfWork _unitOfWork;
+    private readonly IParkingPassPricingService _pricingService;
 
-    public CalculatePriceHandler(IUnitOfWork unitOfWork)
+    public CalculatePriceHandler(IUnitOfWork unitOfWork, IParkingPassPricingService pricingService)
     {
         _unitOfWork = unitOfWork;
+        _pricingService = pricingService;
+    }
+
+    public CalculatePriceHandler(IUnitOfWork unitOfWork)
+        : this(unitOfWork, new ParkingPassPricingService(unitOfWork))
+    {
     }
 
     public async Task<ApiResponse<PriceBreakdownDto>> HandleAsync(CalculatePriceQuery query, CancellationToken cancellationToken = default)
@@ -154,30 +164,29 @@ public class CalculatePriceHandler : IQueryHandler<CalculatePriceQuery, ApiRespo
             return new ApiResponse<PriceBreakdownDto>(false, "Parking space not found", null);
         }
 
-        var duration = query.EndDateTime - query.StartDateTime;
-        var pricingType = (PricingType)query.PricingType;
-
-        decimal baseAmount = pricingType switch
-        {
-            PricingType.Hourly => parking.HourlyRate * (decimal)Math.Ceiling(duration.TotalHours),
-            PricingType.Daily => parking.DailyRate * (decimal)Math.Ceiling(duration.TotalDays),
-            PricingType.Weekly => parking.WeeklyRate * (decimal)Math.Ceiling(duration.TotalDays / 7),
-            PricingType.Monthly => parking.MonthlyRate * (decimal)Math.Ceiling(duration.TotalDays / 30),
-            _ => parking.HourlyRate * (decimal)Math.Ceiling(duration.TotalHours)
-        };
-
-        var taxAmount = baseAmount * 0.18m;
-        var serviceFee = baseAmount * 0.05m;
-        decimal discountAmount = 0;
-
-        // TODO: Apply discount code logic if needed
-
-        var totalAmount = baseAmount + taxAmount + serviceFee - discountAmount;
+        var pricingResult = await _pricingService.CalculateAsync(
+            query.UserId,
+            parking,
+            query.StartDateTime.ToUtc(),
+            query.EndDateTime.ToUtc(),
+            (PricingType)query.PricingType,
+            query.DiscountCode,
+            null,
+            cancellationToken);
 
         var breakdown = new PriceBreakdownDto(
-            baseAmount, taxAmount, serviceFee, discountAmount, totalAmount,
-            pricingType.ToString(), (int)duration.TotalHours, "hours"
-        );
+            pricingResult.BaseAmount,
+            pricingResult.TaxAmount,
+            pricingResult.ServiceFee,
+            pricingResult.DiscountAmount,
+            pricingResult.TotalAmount,
+            pricingResult.PricingDescription,
+            pricingResult.Duration,
+            pricingResult.DurationUnit,
+            pricingResult.ParkingPassId,
+            pricingResult.ParkingPassType,
+            pricingResult.AppliedDiscountPercentage,
+            pricingResult.IsPassApplied);
 
         return new ApiResponse<PriceBreakdownDto>(true, null, breakdown);
     }

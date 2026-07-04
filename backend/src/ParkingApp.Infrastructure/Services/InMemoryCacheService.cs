@@ -125,4 +125,28 @@ public class InMemoryCacheService : ICacheService
         
         return value;
     }
+
+    public Task<bool> AcquireLockAsync(string key, TimeSpan expiry, CancellationToken cancellationToken = default)
+    {
+        lock (_keys)
+        {
+            if (_cache.TryGetValue(key, out _))
+            {
+                return Task.FromResult(false);
+            }
+            _cache.Set(key, true, new MemoryCacheEntryOptions().SetAbsoluteExpiration(expiry));
+            _keys.TryAdd(key, 0);
+            return Task.FromResult(true);
+        }
+    }
+
+    public Task ReleaseLockAsync(string key, CancellationToken cancellationToken = default)
+    {
+        lock (_keys)
+        {
+            _cache.Remove(key);
+            _keys.TryRemove(key, out _);
+        }
+        return Task.CompletedTask;
+    }
 }

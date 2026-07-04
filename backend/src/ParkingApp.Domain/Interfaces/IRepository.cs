@@ -79,6 +79,31 @@ public interface IBookingRepository : IRepository<Booking>
     Task<bool> HasOverlappingBookingAsync(Guid parkingSpaceId, DateTime startDateTime, DateTime endDateTime, Guid? excludeBookingId = null, CancellationToken cancellationToken = default);
     Task<int> GetActiveBookingsCountAsync(Guid parkingSpaceId, DateTime startDateTime, DateTime endDateTime, CancellationToken cancellationToken = default);
     Task<IEnumerable<Booking>> GetActiveBookingsForSpacesAsync(IEnumerable<Guid> parkingSpaceIds, CancellationToken cancellationToken = default);
+    Task<IEnumerable<Booking>> GetForecastRelevantBookingsForSpacesAsync(
+        IEnumerable<Guid> parkingSpaceIds,
+        DateTime fromUtc,
+        DateTime toUtc,
+        CancellationToken cancellationToken = default);
+}
+
+public interface IParkingPassRepository : IRepository<ParkingPass>
+{
+    Task<IReadOnlyList<ParkingPass>> GetActiveByUserIdAsync(Guid userId, DateTime utcNow, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<ParkingPass>> GetByUserIdAsync(Guid userId, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<ParkingPass>> GetCandidatePassesForBookingAsync(
+        Guid userId,
+        Guid parkingSpaceId,
+        string? parkingZoneCode,
+        DateTime bookingStartUtc,
+        DateTime bookingEndUtc,
+        CancellationToken cancellationToken = default);
+    Task<IReadOnlyDictionary<DateOnly, decimal>> GetBookedHoursByDayAsync(
+        Guid parkingPassId,
+        Guid userId,
+        DateTime bookingStartUtc,
+        DateTime bookingEndUtc,
+        Guid? excludeBookingId = null,
+        CancellationToken cancellationToken = default);
 }
 
 public interface IPaymentRepository : IRepository<Payment>
@@ -129,4 +154,48 @@ public interface IVehicleRepository : IRepository<Vehicle>
 {
     Task<IEnumerable<Vehicle>> GetByUserIdAsync(Guid userId, CancellationToken cancellationToken = default);
     Task<Vehicle?> GetDefaultVehicleAsync(Guid userId, CancellationToken cancellationToken = default);
+}
+
+public interface IDeviceTokenRepository : IRepository<DeviceToken>
+{
+    Task<IEnumerable<DeviceToken>> GetByUserIdAsync(Guid userId, CancellationToken cancellationToken = default);
+    Task<DeviceToken?> GetByDeviceIdAndUserIdAsync(string deviceId, Guid userId, CancellationToken cancellationToken = default);
+    Task<IEnumerable<string>> GetFcmTokensByUserIdAsync(Guid userId, CancellationToken cancellationToken = default);
+}
+
+// ══════════════════════════════════════════════════════
+// CORPORATE MODULE REPOSITORIES
+// ══════════════════════════════════════════════════════
+
+public interface ICompanyRepository : IRepository<Entities.Corporate.Company>
+{
+    Task<Entities.Corporate.Company?> GetWithMembershipsAsync(Guid companyId, CancellationToken cancellationToken = default);
+    Task<Entities.Corporate.Company?> GetWithAllocationsAsync(Guid companyId, CancellationToken cancellationToken = default);
+    Task<Entities.Corporate.Company?> GetFullAsync(Guid companyId, CancellationToken cancellationToken = default);
+    Task<Entities.Corporate.Company?> GetAggregateForBookingAsync(Guid companyId, Guid userId, Guid allocationId, DateTime bookingStart, DateTime bookingEnd, CancellationToken cancellationToken = default);
+    Task<Entities.Corporate.Company?> GetAggregateForInvitationAcceptanceAsync(string invitationToken, Guid userId, CancellationToken cancellationToken = default);
+    Task<Entities.Corporate.Company?> GetAggregateByAllocationAsync(Guid allocationId, CancellationToken cancellationToken = default);
+    Task<bool> IsUserMemberAsync(Guid companyId, Guid userId, CancellationToken cancellationToken = default);
+    Task<Entities.Corporate.UserCompanyMembership?> GetMembershipAsync(Guid companyId, Guid userId, CancellationToken cancellationToken = default);
+    Task<bool> ExistsByRegistrationNumberAsync(string registrationNumber, CancellationToken cancellationToken = default);
+}
+
+public interface ICorporateBookingRepository : IRepository<Entities.Corporate.CorporateBooking>
+{
+    Task<IEnumerable<Entities.Corporate.CorporateBooking>> GetByCompanyIdAsync(Guid companyId, int page, int pageSize, CancellationToken cancellationToken = default);
+    Task<IEnumerable<Entities.Corporate.CorporateBooking>> GetByMembershipIdAsync(Guid companyId, Guid membershipId, int page, int pageSize, CancellationToken cancellationToken = default);
+    Task<int> GetMembershipBookingCountForDateAsync(Guid companyId, Guid membershipId, DateOnly date, CancellationToken cancellationToken = default);
+    Task<int> GetMembershipBookingCountForWeekAsync(Guid companyId, Guid membershipId, DateOnly weekStart, CancellationToken cancellationToken = default);
+    Task<int> GetActiveSharedBookingsCountAsync(Guid companyId, Guid allocationId, DateTime start, DateTime end, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<int>> GetOccupiedSharedSlotNumbersAsync(Guid companyId, Guid allocationId, DateTime start, DateTime end, CancellationToken cancellationToken = default);
+    Task<IReadOnlyDictionary<int, int>> GetSharedSlotUsageCountsAsync(Guid companyId, Guid allocationId, DateTime sinceUtc, CancellationToken cancellationToken = default);
+    Task<bool> HasOverlappingBookingAsync(Guid companyId, Guid membershipId, DateTime start, DateTime end, CancellationToken cancellationToken = default);
+    Task<bool> HasOverlappingVehicleBookingAsync(Guid companyId, Guid allocationId, string vehicleNumber, DateTime start, DateTime end, CancellationToken cancellationToken = default);
+    Task<int> GetRecentBookingCreateCountAsync(Guid companyId, Guid membershipId, DateTime sinceUtc, CancellationToken cancellationToken = default);
+    Task<int> GetCompanyBookingCountAsync(Guid companyId, CancellationToken cancellationToken = default);
+}
+
+public interface IEmployeeInvitationRepository : IRepository<Entities.Corporate.EmployeeInvitation>
+{
+    Task<bool> HasPendingInvitationAsync(Guid companyId, string email, CancellationToken cancellationToken = default);
 }

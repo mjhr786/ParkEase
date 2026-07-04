@@ -1,5 +1,6 @@
 using FluentValidation;
 using ParkingApp.Application.DTOs;
+using ParkingApp.Domain.Enums;
 
 namespace ParkingApp.Application.Validators;
 
@@ -82,6 +83,10 @@ public class CreateParkingSpaceDtoValidator : AbstractValidator<CreateParkingSpa
             .NotEmpty().WithMessage("Postal code is required")
             .MaximumLength(20).WithMessage("Postal code must not exceed 20 characters");
 
+        RuleFor(x => x.ZoneCode)
+            .MaximumLength(64).WithMessage("Zone code must not exceed 64 characters")
+            .When(x => !string.IsNullOrWhiteSpace(x.ZoneCode));
+
         RuleFor(x => x.Latitude)
             .InclusiveBetween(-90, 90).WithMessage("Latitude must be between -90 and 90");
 
@@ -148,5 +153,86 @@ public class CreateReviewDtoValidator : AbstractValidator<CreateReviewDto>
         RuleFor(x => x.Comment)
             .MaximumLength(2000).WithMessage("Comment must not exceed 2000 characters")
             .When(x => !string.IsNullOrEmpty(x.Comment));
+    }
+}
+
+public class CreateParkingPassDtoValidator : AbstractValidator<CreateParkingPassDto>
+{
+    public CreateParkingPassDtoValidator()
+    {
+        RuleFor(x => x.PassType)
+            .IsInEnum().WithMessage("A valid parking pass type is required.")
+            .NotEqual(PassTypeKind.Corporate).WithMessage("Corporate passes must be created through the corporate endpoint.");
+
+        RuleFor(x => x.StartDateUtc)
+            .GreaterThan(DateTime.UtcNow.AddMinutes(-1)).WithMessage("Pass start date must not be in the past.");
+
+        RuleFor(x => x.EndDateUtc)
+            .GreaterThan(x => x.StartDateUtc).WithMessage("Pass end date must be after the start date.");
+
+        RuleFor(x => x.DiscountPercentage)
+            .InclusiveBetween(0, 100).WithMessage("Discount percentage must be between 0 and 100.");
+
+        RuleFor(x => x.ParkingSpaceId)
+            .Must(id => !id.HasValue || id.Value != Guid.Empty).WithMessage("Parking space is required.")
+            .Must((dto, parkingSpaceId) => parkingSpaceId.HasValue ^ !string.IsNullOrWhiteSpace(dto.ParkingZoneCode))
+            .WithMessage("Select either a parking space or a parking zone.");
+
+        RuleFor(x => x.ParkingZoneCode)
+            .MaximumLength(64).WithMessage("Parking zone code must not exceed 64 characters.")
+            .When(x => !string.IsNullOrWhiteSpace(x.ParkingZoneCode));
+
+        RuleFor(x => x.UsageMode)
+            .IsInEnum().WithMessage("A valid pass usage mode is required.");
+
+        RuleFor(x => x.DailyHourLimit)
+            .Null().WithMessage("Unlimited entry passes cannot define a daily hour limit.")
+            .When(x => x.UsageMode == PassUsageMode.UnlimitedEntries);
+
+        RuleFor(x => x.DailyHourLimit)
+            .InclusiveBetween(1, 24).WithMessage("Daily hour limit must be between 1 and 24.")
+            .When(x => x.UsageMode == PassUsageMode.LimitedHoursPerDay);
+    }
+}
+
+public class AssignCorporatePassDtoValidator : AbstractValidator<AssignCorporatePassDto>
+{
+    public AssignCorporatePassDtoValidator()
+    {
+        RuleFor(x => x.EmployeeUserIds)
+            .NotNull().WithMessage("At least one employee is required.")
+            .Must(ids => ids != null && ids.Any()).WithMessage("At least one employee is required.");
+
+        RuleForEach(x => x.EmployeeUserIds)
+            .NotEmpty().WithMessage("Employee user id is required.");
+
+        RuleFor(x => x.StartDateUtc)
+            .GreaterThan(DateTime.UtcNow.AddMinutes(-1)).WithMessage("Pass start date must not be in the past.");
+
+        RuleFor(x => x.EndDateUtc)
+            .GreaterThan(x => x.StartDateUtc).WithMessage("Pass end date must be after the start date.");
+
+        RuleFor(x => x.DiscountPercentage)
+            .InclusiveBetween(0, 100).WithMessage("Discount percentage must be between 0 and 100.");
+
+        RuleFor(x => x.ParkingSpaceId)
+            .Must(id => !id.HasValue || id.Value != Guid.Empty).WithMessage("Parking space is required.")
+            .Must((dto, parkingSpaceId) => parkingSpaceId.HasValue ^ !string.IsNullOrWhiteSpace(dto.ParkingZoneCode))
+            .WithMessage("Select either a parking space or a parking zone.");
+
+        RuleFor(x => x.ParkingZoneCode)
+            .MaximumLength(64).WithMessage("Parking zone code must not exceed 64 characters.")
+            .When(x => !string.IsNullOrWhiteSpace(x.ParkingZoneCode));
+
+        RuleFor(x => x.UsageMode)
+            .IsInEnum().WithMessage("A valid pass usage mode is required.");
+
+        RuleFor(x => x.DailyHourLimit)
+            .Null().WithMessage("Unlimited entry passes cannot define a daily hour limit.")
+            .When(x => x.UsageMode == PassUsageMode.UnlimitedEntries);
+
+        RuleFor(x => x.DailyHourLimit)
+            .InclusiveBetween(1, 24).WithMessage("Daily hour limit must be between 1 and 24.")
+            .When(x => x.UsageMode == PassUsageMode.LimitedHoursPerDay);
     }
 }

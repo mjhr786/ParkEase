@@ -21,10 +21,14 @@ public static class DependencyInjection
         services.AddScoped<IValidator<CreateParkingSpaceDto>, CreateParkingSpaceDtoValidator>();
         services.AddScoped<IValidator<CreateBookingDto>, CreateBookingDtoValidator>();
         services.AddScoped<IValidator<CreateReviewDto>, CreateReviewDtoValidator>();
+        services.AddScoped<IValidator<CreateParkingPassDto>, CreateParkingPassDtoValidator>();
+        services.AddScoped<IValidator<AssignCorporatePassDto>, AssignCorporatePassDtoValidator>();
 
         services.AddScoped<IAuthService, AuthService>();
         services.AddScoped<IUserService, UserService>();
         services.AddScoped<IParkingSpaceService, ParkingSpaceService>();
+        services.AddScoped<IParkingAvailabilityPredictionService, ParkingAvailabilityPredictionService>();
+        services.AddScoped<IParkingPassPricingService, ParkingPassPricingService>();
         services.AddScoped<IBookingService, BookingService>();
         services.AddScoped<IPaymentAppService, PaymentAppService>();
         services.AddScoped<IReviewService, ReviewService>();

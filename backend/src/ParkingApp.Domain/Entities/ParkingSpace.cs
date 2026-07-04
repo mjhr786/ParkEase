@@ -6,6 +6,9 @@ namespace ParkingApp.Domain.Entities;
 public class ParkingSpace : BaseEntity
 {
     public Guid OwnerId { get; set; }
+    public Guid? CompanyOwnerId { get; set; }
+    public ParkingSpaceOwnershipType OwnershipType { get; set; } = ParkingSpaceOwnershipType.IndividualVendor;
+    public bool IsCorporateOnly { get; set; } = false;
     public string Title { get; set; } = string.Empty;
     public string Description { get; set; } = string.Empty;
     
@@ -15,6 +18,7 @@ public class ParkingSpace : BaseEntity
     public string State { get; set; } = string.Empty;
     public string Country { get; set; } = string.Empty;
     public string PostalCode { get; set; } = string.Empty;
+    public string? ZoneCode { get; set; }
     public double Latitude { get; set; }
     public double Longitude { get; set; }
     
@@ -58,10 +62,12 @@ public class ParkingSpace : BaseEntity
     
     // Navigation properties
     public virtual User Owner { get; set; } = null!;
+    public virtual ParkingApp.Domain.Entities.Corporate.Company? CompanyOwner { get; set; }
     public virtual ICollection<Booking> Bookings { get; set; } = new List<Booking>();
     public virtual ICollection<Review> Reviews { get; set; } = new List<Review>();
     public virtual ICollection<ParkingAvailability> Availabilities { get; set; } = new List<ParkingAvailability>();
     public virtual ICollection<Favorite> FavoritedBy { get; set; } = new List<Favorite>();
+    public virtual ICollection<ParkingPass> ParkingPasses { get; set; } = new List<ParkingPass>();
 }
 
 public class ParkingAvailability : BaseEntity

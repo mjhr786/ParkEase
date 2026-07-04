@@ -2,7 +2,9 @@ import { BrowserRouter, Routes, Route, Navigate, Link, useNavigate } from 'react
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { ChatProvider, useChatContext } from './contexts/ChatContext';
 import { NotificationProvider, useNotificationContext } from './context/NotificationContext';
+import { CompanyProvider, useCompany } from './contexts/CompanyContext';
 import NotificationDropdown from './components/NotificationDropdown';
+import CompanySwitcher from './components/CompanySwitcher';
 import toast, { Toaster } from 'react-hot-toast';
 import React, { Suspense } from 'react';
 import './index.css';
@@ -23,6 +25,12 @@ const MyFavorites = React.lazy(() => import('./pages/MyFavorites'));
 const MyGarage = React.lazy(() => import('./pages/MyGarage'));
 const Profile = React.lazy(() => import('./pages/Profile'));
 
+const CorporateDashboard = React.lazy(() => import('./pages/Corporate/CorporateDashboard'));
+const CorporateParkingSpaces = React.lazy(() => import('./pages/Corporate/CorporateParkingSpaces'));
+const CompanyMembers = React.lazy(() => import('./pages/Corporate/CompanyMembers'));
+const CompanyAllocations = React.lazy(() => import('./pages/Corporate/CompanyAllocations'));
+const AcceptInvitation = React.lazy(() => import('./pages/Corporate/AcceptInvitation'));
+
 function Loading() {
   return (
     <div className="loading" style={{ minHeight: '60vh', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
@@ -33,6 +41,7 @@ function Loading() {
 
 function Header() {
   const { isAuthenticated, user, logout } = useAuth();
+  const { isCorporateMode } = useCompany();
   const { unreadCount } = useChatContext();
   const navigate = useNavigate();
   const [profileOpen, setProfileOpen] = React.useState(false);
@@ -134,6 +143,9 @@ function Header() {
 
               {/* Notification Bell */}
               <NotificationDropdown />
+              
+              {/* Company Switcher */}
+              <CompanySwitcher />
 
               {/* Profile Avatar Dropdown */}
               <div ref={profileRef} style={{ position: 'relative' }}>
@@ -208,15 +220,21 @@ function Header() {
                     </div>
 
                     {/* Links */}
-                    {[
+                    {(isCorporateMode ? [
+                      { to: '/corporate/dashboard', icon: '🏢', label: 'Corporate Dash' },
+                      { to: '/corporate/parking-spaces', icon: '🏗️', label: 'Parking Inventory' },
+                      { to: '/corporate/members', icon: '👥', label: 'Members' },
+                      { to: '/corporate/allocations', icon: '🅿️', label: 'Allocations' },
+                      { to: '/profile', icon: '👤', label: 'My Profile' }
+                    ] : [
                       { to: '/dashboard', icon: '🏠', label: 'Dashboard' },
                       { to: '/bookings', icon: '📅', label: 'My Bookings' },
                       { to: '/garage', icon: '🚗', label: 'My Garage' },
                       { to: '/favorites', icon: '❤️', label: 'Favorites' },
                       { to: '/profile', icon: '👤', label: 'My Profile' },
-                      { to: '/my/listings', icon: '🅿️', label: 'My Listings' },
-                      { to: '/my/requests', icon: '📋', label: 'Requests', badge: pendingRequests > 0 ? pendingRequests : null },
-                    ].map(item => (
+                      { to: '/my/listings', icon: '💰', label: 'My Listings' },
+                      { to: '/my/requests', icon: '📋', label: 'Vendor Inbox', badge: pendingRequests > 0 ? pendingRequests : null },
+                    ]).map(item => (
                       <Link
                         key={item.to}
                         to={item.to}
@@ -394,6 +412,46 @@ function AppRoutes() {
             </ProtectedRoute>
           }
         />
+        <Route
+          path="/corporate/dashboard"
+          element={
+            <ProtectedRoute>
+              <CorporateDashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/corporate/parking-spaces"
+          element={
+            <ProtectedRoute>
+              <CorporateParkingSpaces />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/corporate/members"
+          element={
+            <ProtectedRoute>
+              <CompanyMembers />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/corporate/allocations"
+          element={
+            <ProtectedRoute>
+              <CompanyAllocations />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/invite/accept/:token"
+          element={
+            <ProtectedRoute>
+              <AcceptInvitation />
+            </ProtectedRoute>
+          }
+        />
         <Route path="*" element={<Navigate to="/" />} />
       </Routes>
     </Suspense>
@@ -422,10 +480,11 @@ function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
-        <NotificationProvider>
-          <ChatProvider>
-            <Toaster
-              position="top-right"
+        <CompanyProvider>
+          <NotificationProvider>
+            <ChatProvider>
+              <Toaster
+                position="top-right"
               reverseOrder={false}
               gutter={12}
               toastOptions={{
@@ -469,7 +528,8 @@ function App() {
             <AppRoutes />
             <Footer />
           </ChatProvider>
-        </NotificationProvider>
+          </NotificationProvider>
+        </CompanyProvider>
       </AuthProvider>
     </BrowserRouter>
   );

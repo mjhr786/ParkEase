@@ -35,7 +35,10 @@ public record BookingDto(
     // Extension request fields
     DateTime? PendingExtensionEndDateTime,
     decimal? PendingExtensionAmount,
-    bool HasPendingExtension
+    bool HasPendingExtension,
+    Guid? ParkingPassId = null,
+    string? ParkingPassType = null,
+    bool IsPassApplied = false
 )
 {
     public BookingDto() : this(Guid.Empty, Guid.Empty, string.Empty, Guid.Empty, string.Empty, string.Empty, 0, 0, DateTime.MinValue, DateTime.MinValue, default, default, null, null, null, null, 0, 0, 0, 0, 0, null, default, null, null, null, null, DateTime.MinValue, null, null, false) { }
@@ -108,7 +111,11 @@ public record PriceBreakdownDto(
     decimal TotalAmount,
     string PricingDescription,
     int Duration,
-    string DurationUnit
+    string DurationUnit,
+    Guid? ParkingPassId = null,
+    string? ParkingPassType = null,
+    decimal? AppliedDiscountPercentage = null,
+    bool IsPassApplied = false
 );
 
 public record ExtendBookingDto(

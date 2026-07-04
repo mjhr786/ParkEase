@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { useAuth } from '../contexts/AuthContext';
 import { useNotificationContext } from '../context/NotificationContext';
 import api from '../services/api';
 import { handleApiError } from '../utils/errorHandler';
@@ -24,6 +23,7 @@ const REFRESH_TRIGGERS = [
 
 export default function VendorListings() {
     const [listings, setListings] = useState([]);
+    const [availabilityForecasts, setAvailabilityForecasts] = useState({});
     const [loading, setLoading] = useState(true);
     const [showForm, setShowForm] = useState(false);
     const [editingId, setEditingId] = useState(null);
@@ -80,18 +80,41 @@ export default function VendorListings() {
         }
     }, []);
 
+    const fetchAvailabilityForecasts = useCallback(async () => {
+        try {
+            const response = await api.getMyListingAvailabilityForecasts({
+                horizonHours: 12,
+                intervalMinutes: 60,
+            });
+
+            if (response.success && Array.isArray(response.data)) {
+                const byListingId = response.data.reduce((acc, forecast) => {
+                    acc[forecast.parkingSpaceId] = forecast;
+                    return acc;
+                }, {});
+                setAvailabilityForecasts(byListingId);
+            } else {
+                setAvailabilityForecasts({});
+            }
+        } catch (err) {
+            console.error('Fetch availability forecasts error:', err);
+            setAvailabilityForecasts({});
+        }
+    }, []);
+
     // Initial data load
     useEffect(() => {
         const loadData = async () => {
             setLoading(true);
             await Promise.all([
                 fetchListings(false),
-                fetchBookings()
+                fetchBookings(),
+                fetchAvailabilityForecasts()
             ]);
             setLoading(false);
         };
         loadData();
-    }, [fetchListings, fetchBookings]);
+    }, [fetchListings, fetchBookings, fetchAvailabilityForecasts]);
 
     // Subscribe to real-time refresh events
     useEffect(() => {
@@ -99,9 +122,10 @@ export default function VendorListings() {
             // console.log('🔄 VendorListings: Auto-refreshing due to notification');
             fetchListings(false); // background refresh
             fetchBookings();
+            fetchAvailabilityForecasts();
         });
         return unsubscribe;
-    }, [subscribeToRefresh, fetchListings, fetchBookings]);
+    }, [subscribeToRefresh, fetchListings, fetchBookings, fetchAvailabilityForecasts]);
 
     const getActiveBookingsForListing = (listingId, listingReservations = []) => {
         const now = new Date();
@@ -155,6 +179,58 @@ export default function VendorListings() {
             ' ' + d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
     };
 
+    const formatForecastTime = (dateStr) => {
+        const d = new Date(dateStr);
+        return d.toLocaleString('en-IN', {
+            day: 'numeric',
+            month: 'short',
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+    };
+
+    const getForecastBandStyle = (band) => {
+        switch (band) {
+            case 'High':
+                return {
+                    background: 'rgba(16, 185, 129, 0.18)',
+                    border: '1px solid rgba(16, 185, 129, 0.32)',
+                    color: '#10b981'
+                };
+            case 'Good':
+                return {
+                    background: 'rgba(59, 130, 246, 0.16)',
+                    border: '1px solid rgba(59, 130, 246, 0.32)',
+                    color: '#60a5fa'
+                };
+            case 'Limited':
+                return {
+                    background: 'rgba(245, 158, 11, 0.16)',
+                    border: '1px solid rgba(245, 158, 11, 0.32)',
+                    color: '#f59e0b'
+                };
+            case 'Very limited':
+            case 'Full likely':
+                return {
+                    background: 'rgba(239, 68, 68, 0.16)',
+                    border: '1px solid rgba(239, 68, 68, 0.32)',
+                    color: '#f87171'
+                };
+            case 'Listing inactive':
+                return {
+                    background: 'rgba(107, 114, 128, 0.18)',
+                    border: '1px solid rgba(107, 114, 128, 0.3)',
+                    color: '#cbd5e1'
+                };
+            default:
+                return {
+                    background: 'rgba(148, 163, 184, 0.16)',
+                    border: '1px solid rgba(148, 163, 184, 0.28)',
+                    color: '#cbd5e1'
+                };
+        }
+    };
+
     const handleSubmit = async (e) => {
         e.preventDefault();
 
@@ -184,7 +260,11 @@ export default function VendorListings() {
                 setShowForm(false);
                 setEditingId(null);
                 setForm(emptyForm);
-                fetchListings();
+                await Promise.all([
+                    fetchListings(),
+                    fetchBookings(),
+                    fetchAvailabilityForecasts(),
+                ]);
             } else {
                 showToast.error(response.message || 'Operation failed');
             }
@@ -215,7 +295,11 @@ export default function VendorListings() {
             const response = await api.deleteParking(id);
             if (response.success) {
                 showToast.success('Listing deleted successfully!');
-                fetchListings();
+                await Promise.all([
+                    fetchListings(),
+                    fetchBookings(),
+                    fetchAvailabilityForecasts(),
+                ]);
             } else {
                 showToast.error(response.message || 'Delete failed');
             }
@@ -276,7 +360,10 @@ export default function VendorListings() {
                         showToast.error(`Failed to upload: ${errors.join(', ')}`);
                     }
 
-                    fetchListings();
+                    await Promise.all([
+                        fetchListings(),
+                        fetchAvailabilityForecasts(),
+                    ]);
                 } else {
                     showToast.error('Failed to confirm uploads');
                 }
@@ -301,7 +388,10 @@ export default function VendorListings() {
             const response = await api.deleteParkingFile(listingId, fileName);
             if (response.success) {
                 showToast.success('File deleted');
-                fetchListings();
+                await Promise.all([
+                    fetchListings(),
+                    fetchAvailabilityForecasts(),
+                ]);
             } else {
                 showToast.error(response.message || 'Delete failed');
             }
@@ -583,6 +673,110 @@ export default function VendorListings() {
                     <div className="grid grid-2">
                         {listings.map(listing => (
                             <div key={listing.id} className="card hover-card">
+                                {(() => {
+                                    const forecast = availabilityForecasts[listing.id];
+                                    if (!forecast) return null;
+
+                                    const previewBuckets = forecast.buckets?.slice(0, 4) || [];
+                                    const confidence = Math.round((forecast.currentConfidenceScore || 0) * 100);
+
+                                    return (
+                                        <div style={{
+                                            marginBottom: '1rem',
+                                            padding: '0.85rem',
+                                            background: 'rgba(15, 23, 42, 0.45)',
+                                            borderRadius: 'var(--radius-sm)',
+                                            border: '1px solid rgba(148, 163, 184, 0.18)'
+                                        }}>
+                                            <div style={{
+                                                display: 'flex',
+                                                justifyContent: 'space-between',
+                                                gap: '0.75rem',
+                                                alignItems: 'center',
+                                                marginBottom: '0.75rem',
+                                                flexWrap: 'wrap'
+                                            }}>
+                                                <div>
+                                                    <div style={{ fontSize: '0.78rem', color: 'var(--color-text-muted)', marginBottom: '0.2rem' }}>
+                                                        Availability Prediction Engine
+                                                    </div>
+                                                    <strong style={{ fontSize: '0.95rem' }}>
+                                                        {forecast.currentPredictedAvailableSpots}/{forecast.totalSpots} spots likely free now
+                                                    </strong>
+                                                </div>
+                                                <span style={{
+                                                    padding: '0.3rem 0.55rem',
+                                                    borderRadius: '999px',
+                                                    fontSize: '0.74rem',
+                                                    fontWeight: 700,
+                                                    ...getForecastBandStyle(forecast.currentAvailabilityBand),
+                                                }}>
+                                                    {forecast.currentAvailabilityBand}
+                                                </span>
+                                            </div>
+
+                                            <div style={{
+                                                display: 'grid',
+                                                gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))',
+                                                gap: '0.65rem',
+                                                marginBottom: '0.75rem'
+                                            }}>
+                                                <div>
+                                                    <div style={{ fontSize: '0.72rem', color: 'var(--color-text-muted)' }}>Booked now</div>
+                                                    <div style={{ fontWeight: 700 }}>{forecast.currentPredictedBookedSpots}</div>
+                                                </div>
+                                                <div>
+                                                    <div style={{ fontSize: '0.72rem', color: 'var(--color-text-muted)' }}>Avg next 12h</div>
+                                                    <div style={{ fontWeight: 700 }}>{forecast.averagePredictedAvailableSpotsAcrossForecast} free</div>
+                                                </div>
+                                                <div>
+                                                    <div style={{ fontSize: '0.72rem', color: 'var(--color-text-muted)' }}>Confidence</div>
+                                                    <div style={{ fontWeight: 700 }}>{confidence}%</div>
+                                                </div>
+                                            </div>
+
+                                            {forecast.likelyFullAtUtc && (
+                                                <div style={{ fontSize: '0.75rem', color: '#fbbf24', marginBottom: previewBuckets.length ? '0.7rem' : 0 }}>
+                                                    Likely to get tight/full around {formatForecastTime(forecast.likelyFullAtUtc)}
+                                                </div>
+                                            )}
+
+                                            {previewBuckets.length > 0 && (
+                                                <div style={{ display: 'grid', gap: '0.45rem' }}>
+                                                    {previewBuckets.map(bucket => (
+                                                        <div key={bucket.startDateTimeUtc} style={{
+                                                            display: 'grid',
+                                                            gridTemplateColumns: '1.3fr 1fr auto',
+                                                            gap: '0.5rem',
+                                                            alignItems: 'center',
+                                                            fontSize: '0.78rem',
+                                                            padding: '0.45rem 0.5rem',
+                                                            background: 'rgba(255,255,255,0.03)',
+                                                            borderRadius: '8px'
+                                                        }}>
+                                                            <span style={{ color: 'var(--color-text-muted)' }}>
+                                                                {formatForecastTime(bucket.startDateTimeUtc)}
+                                                            </span>
+                                                            <span>
+                                                                {bucket.predictedAvailableSpots} free / {forecast.totalSpots}
+                                                            </span>
+                                                            <span style={{
+                                                                justifySelf: 'end',
+                                                                padding: '0.2rem 0.45rem',
+                                                                borderRadius: '999px',
+                                                                fontSize: '0.68rem',
+                                                                ...getForecastBandStyle(bucket.availabilityBand),
+                                                            }}>
+                                                                {bucket.availabilityBand}
+                                                            </span>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+                                    );
+                                })()}
+
                                 <div className="flex-between">
                                     <h3 className="card-title">{listing.title}</h3>
                                     <span className={`parking-tag ${listing.isActive ? '' : 'inactive'}`}

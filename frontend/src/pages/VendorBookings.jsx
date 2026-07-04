@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { useNotificationContext } from '../context/NotificationContext';
 import api from '../services/api';
+import corporateService from '../services/corporateService';
 import { handleApiError } from '../utils/errorHandler';
 import showToast from '../utils/toast.jsx';
 
@@ -35,9 +36,11 @@ export default function VendorBookings() {
     const [bookings, setBookings] = useState([]);
     const [loading, setLoading] = useState(true);
     const [filter, setFilter] = useState('requests'); // Pending + extension pending
+    const [allocations, setAllocations] = useState([]);
     const [processingId, setProcessingId] = useState(null);
     const [rejectReason, setRejectReason] = useState('');
     const [showRejectModal, setShowRejectModal] = useState(null);
+    const [rejectingAllocation, setRejectingAllocation] = useState(false);
 
     const { subscribeToRefresh } = useNotificationContext();
 
@@ -57,6 +60,20 @@ export default function VendorBookings() {
                 }
             } else {
                 setBookings([]);
+            }
+
+            if (filter === 'allocations' || filter === '') {
+                try {
+                    const allocRes = await corporateService.getVendorAllocations();
+                    if (allocRes.success && allocRes.data) {
+                        setAllocations(allocRes.data);
+                    } else {
+                        setAllocations([]);
+                    }
+                } catch (allocErr) {
+                    console.error("Failed to load generic corporate vendor allocations", allocErr);
+                    setAllocations([]);
+                }
             }
         } catch (err) {
             showToast.error(handleApiError(err, 'Failed to load bookings'));
@@ -146,6 +163,41 @@ export default function VendorBookings() {
         setProcessingId(null);
     };
 
+    const handleApproveAllocation = async (id) => {
+        setProcessingId(id);
+        try {
+            const response = await corporateService.approveAllocation(id);
+            if (response.success) {
+                showToast.success('Corporate Allocation approved successfully!');
+                fetchBookings();
+            } else {
+                showToast.error(response.message || 'Failed to approve allocation');
+            }
+        } catch (err) {
+            showToast.error(handleApiError(err, 'Failed to approve allocation'));
+        }
+        setProcessingId(null);
+    };
+
+    const handleRejectAllocation = async (id) => {
+        setProcessingId(id);
+        try {
+            const response = await corporateService.rejectAllocation(id, rejectReason);
+            if (response.success) {
+                showToast.success('Corporate Allocation rejected');
+                setShowRejectModal(null);
+                setRejectReason('');
+                setRejectingAllocation(false);
+                fetchBookings();
+            } else {
+                showToast.error(response.message || 'Failed to reject allocation');
+            }
+        } catch (err) {
+            showToast.error(handleApiError(err, 'Failed to reject allocation'));
+        }
+        setProcessingId(null);
+    };
+
     return (
         <div className="page">
             <div className="container">
@@ -158,7 +210,8 @@ export default function VendorBookings() {
                         onChange={(e) => setFilter(e.target.value)}
                     >
                         <option value="requests">Pending Requests</option>
-                        <option value="">All Bookings</option>
+                        <option value="allocations">Corporate Allocations</option>
+                        <option value="">All Bookings & Allocations</option>
                         {BOOKING_STATUS.map((status, i) => (
                             <option key={i} value={i}>{status}</option>
                         ))}
@@ -284,6 +337,76 @@ export default function VendorBookings() {
                                 )}
                             </div>
                         ))}
+
+                        {/* Rendering Corporate Allocations */}
+                        {(filter === 'allocations' || filter === '') && allocations.map(allocation => (
+                            <div key={`alloc-${allocation.id}`} className="card hover-card" style={{ borderLeft: '4px solid #8b5cf6' }}>
+                                <div className="flex-between">
+                                    <div>
+                                        <h3 className="card-title">🏢 {allocation.parkingSpaceTitle}</h3>
+                                        <div className="card-subtitle">
+                                            Corporate Allocation: <strong>{allocation.companyName || 'Corporate Client'}</strong>
+                                        </div>
+                                    </div>
+                                    <div style={{ textAlign: 'right' }}>
+                                        <span
+                                            className="parking-tag"
+                                            style={{
+                                                background: allocation.status === 0 ? '#f59e0b20' : allocation.status === 1 ? '#10b98120' : '#ef444420',
+                                                color: allocation.status === 0 ? '#f59e0b' : allocation.status === 1 ? '#10b981' : '#ef4444',
+                                                border: `1px solid ${allocation.status === 0 ? '#f59e0b' : allocation.status === 1 ? '#10b981' : '#ef4444'}50`,
+                                            }}
+                                        >
+                                            {allocation.status === 0 ? 'Pending Approval' : allocation.status === 1 ? 'Active' : 'Rejected'}
+                                        </span>
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-3 mt-2" style={{ fontSize: '0.9rem' }}>
+                                    <div>
+                                        <small style={{ color: 'var(--color-text-muted)' }}>Slots Requested</small>
+                                        <div style={{ fontWeight: 'bold' }}>{allocation.totalSlots}</div>
+                                    </div>
+                                    <div>
+                                        <small style={{ color: 'var(--color-text-muted)' }}>Start Date</small>
+                                        <div>{new Date(allocation.startDate).toLocaleDateString()}</div>
+                                    </div>
+                                    <div>
+                                        <small style={{ color: 'var(--color-text-muted)' }}>End Date</small>
+                                        <div>{new Date(allocation.endDate).toLocaleDateString()}</div>
+                                    </div>
+                                </div>
+
+                                {allocation.status === 0 && (
+                                    <div className="flex gap-1 mt-2 pt-2" style={{ borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+                                        <button
+                                            className="btn btn-primary"
+                                            onClick={() => handleApproveAllocation(allocation.id)}
+                                            disabled={processingId === allocation.id}
+                                        >
+                                            {processingId === allocation.id ? 'Processing...' : '✓ Approve Allocation'}
+                                        </button>
+                                        <button
+                                            className="btn btn-danger"
+                                            onClick={() => {
+                                                setShowRejectModal(allocation.id);
+                                                setRejectingAllocation(true);
+                                            }}
+                                            disabled={processingId === allocation.id}
+                                        >
+                                            ✗ Reject
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+                        ))}
+
+                        {(filter === 'allocations' && allocations.length === 0) && (
+                            <div className="empty-state">
+                                <h3>No corporate allocations</h3>
+                                <p>No companies have requested allocations for your parking spaces.</p>
+                            </div>
+                        )}
                     </div>
                 )}
 
@@ -311,7 +434,7 @@ export default function VendorBookings() {
                             <div className="flex gap-1 mt-2">
                                 <button
                                     className="btn btn-danger"
-                                    onClick={() => handleReject(showRejectModal)}
+                                    onClick={() => rejectingAllocation ? handleRejectAllocation(showRejectModal) : handleReject(showRejectModal)}
                                     disabled={processingId === showRejectModal}
                                 >
                                     {processingId === showRejectModal ? 'Rejecting...' : 'Confirm Reject'}

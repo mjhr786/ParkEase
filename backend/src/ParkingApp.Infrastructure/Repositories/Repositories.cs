@@ -146,7 +146,7 @@ public class ParkingSpaceRepository : Repository<ParkingSpace>, IParkingSpaceRep
         int pageSize = 20,
         CancellationToken cancellationToken = default)
     {
-        var query = _dbSet.AsNoTracking().Include(p => p.Owner).Where(p => p.IsActive);
+        var query = _dbSet.AsNoTracking().Include(p => p.Owner).Where(p => p.IsActive && !p.IsCorporateOnly);
         query = ApplySearchFilters(query, state, city, address, latitude, longitude, radiusKm, minPrice, maxPrice, parkingType, vehicleType, amenities, minRating);
 
         // Sorting
@@ -194,7 +194,7 @@ public class ParkingSpaceRepository : Repository<ParkingSpace>, IParkingSpaceRep
         double? minRating = null,
         CancellationToken cancellationToken = default)
     {
-        var query = _dbSet.AsNoTracking().Where(p => p.IsActive);
+        var query = _dbSet.AsNoTracking().Where(p => p.IsActive && !p.IsCorporateOnly);
         query = ApplySearchFilters(query, state, city, address, latitude, longitude, radiusKm, minPrice, maxPrice, parkingType, vehicleType, amenities, minRating);
 
         return await query.Select(p => new ParkingApp.Domain.Models.ParkingMapModel(
@@ -295,6 +295,7 @@ public class BookingRepository : Repository<Booking>, IBookingRepository
         return await _dbSet
             .Include(b => b.User)
             .Include(b => b.ParkingSpace)
+            .Include(b => b.ParkingPass)
             .Include(b => b.Payment)
             .FirstOrDefaultAsync(b => b.Id == id, cancellationToken);
     }
@@ -305,6 +306,7 @@ public class BookingRepository : Repository<Booking>, IBookingRepository
             .Include(b => b.User)
             .Include(b => b.ParkingSpace)
                 .ThenInclude(p => p.Owner)
+            .Include(b => b.ParkingPass)
             .Include(b => b.Payment)
             .FirstOrDefaultAsync(b => b.Id == id, cancellationToken);
     }
@@ -314,6 +316,7 @@ public class BookingRepository : Repository<Booking>, IBookingRepository
         return await _dbSet
             .AsNoTracking()
             .Include(b => b.ParkingSpace)
+            .Include(b => b.ParkingPass)
             .Include(b => b.Payment)
             .Where(b => b.UserId == userId)
             .OrderByDescending(b => b.CreatedAt)
@@ -325,6 +328,7 @@ public class BookingRepository : Repository<Booking>, IBookingRepository
         return await _dbSet
             .AsNoTracking()
             .Include(b => b.User)
+            .Include(b => b.ParkingPass)
             .Include(b => b.Payment)
             .Where(b => b.ParkingSpaceId == parkingSpaceId)
             .OrderByDescending(b => b.CreatedAt)
@@ -337,6 +341,7 @@ public class BookingRepository : Repository<Booking>, IBookingRepository
             .AsNoTracking()
             .Include(b => b.User)
             .Include(b => b.ParkingSpace)
+            .Include(b => b.ParkingPass)
             .Include(b => b.Payment)
             .Where(b => b.ParkingSpace.OwnerId == vendorId)
             .OrderByDescending(b => b.CreatedAt)
@@ -349,6 +354,7 @@ public class BookingRepository : Repository<Booking>, IBookingRepository
             .AsNoTracking()
             .Include(b => b.User)
             .Include(b => b.ParkingSpace)
+            .Include(b => b.ParkingPass)
             .Include(b => b.Payment)
             .FirstOrDefaultAsync(b => b.BookingReference == bookingReference, cancellationToken);
     }
@@ -392,6 +398,29 @@ public class BookingRepository : Repository<Booking>, IBookingRepository
                         b.Status == BookingStatus.PendingExtension ||
                         b.Status == BookingStatus.AwaitingExtensionPayment) &&
                        b.EndDateTime > DateTime.UtcNow)
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task<IEnumerable<Booking>> GetForecastRelevantBookingsForSpacesAsync(
+        IEnumerable<Guid> parkingSpaceIds,
+        DateTime fromUtc,
+        DateTime toUtc,
+        CancellationToken cancellationToken = default)
+    {
+        var parkingIdList = parkingSpaceIds.Distinct().ToList();
+        if (parkingIdList.Count == 0)
+        {
+            return new List<Booking>();
+        }
+
+        return await _dbSet
+            .AsNoTracking()
+            .Where(b => parkingIdList.Contains(b.ParkingSpaceId) &&
+                        b.StartDateTime < toUtc &&
+                        b.EndDateTime > fromUtc &&
+                        b.Status != BookingStatus.Cancelled &&
+                        b.Status != BookingStatus.Rejected &&
+                        b.Status != BookingStatus.Expired)
             .ToListAsync(cancellationToken);
     }
 }

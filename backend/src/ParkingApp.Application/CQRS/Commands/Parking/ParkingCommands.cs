@@ -93,6 +93,7 @@ public sealed class UpdateParkingHandler : ICommandHandler<UpdateParkingCommand,
         if (!string.IsNullOrEmpty(dto.State)) parking.State = dto.State;
         if (!string.IsNullOrEmpty(dto.Country)) parking.Country = dto.Country;
         if (!string.IsNullOrEmpty(dto.PostalCode)) parking.PostalCode = dto.PostalCode;
+        if (dto.ZoneCode != null) parking.ZoneCode = string.IsNullOrWhiteSpace(dto.ZoneCode) ? null : dto.ZoneCode.Trim().ToUpperInvariant();
         if (dto.Latitude.HasValue) parking.Latitude = dto.Latitude.Value;
         if (dto.Longitude.HasValue) parking.Longitude = dto.Longitude.Value;
 

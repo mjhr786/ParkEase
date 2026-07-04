@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using ParkingApp.Application.Interfaces;
@@ -21,6 +22,7 @@ public static class DependencyInjection
         services.AddDbContext<ApplicationDbContext>(options =>
             options.UseNpgsql(connectionString, npgsqlOptions =>
                 npgsqlOptions.UseNetTopologySuite()));
+        services.AddMemoryCache();
 
         // Dapper SQL connection factory (uses same connection string, Npgsql pooling)
         services.AddSingleton<ISqlConnectionFactory>(new NpgsqlConnectionFactory(connectionString));
@@ -39,10 +41,14 @@ public static class DependencyInjection
         services.AddScoped<IConversationRepository, ConversationRepository>();
         services.AddScoped<IChatMessageRepository, ChatMessageRepository>();
         services.AddScoped<IDashboardRepository, DashboardRepository>();
+        services.AddScoped<IDeviceTokenRepository, DeviceTokenRepository>();
 
         // Services
+        services.AddScoped<ICorporateTenantContext, CorporateTenantContext>();
+        services.AddScoped<ICompanyQuotaCache, CompanyQuotaCache>();
         services.AddScoped<ITokenService, JwtTokenService>();
         services.AddScoped<IPaymentService, StripePaymentService>();
+        services.AddScoped<IParkingAvailabilityModelService, ParkingAvailabilityMlModelService>();
         services.AddHttpClient<IEmailService, ResendEmailService>();
         services.AddHttpClient<IRoutingService, OSRMService>();
         
@@ -73,7 +79,6 @@ public static class DependencyInjection
         else
         {
             // Fallback to In-Memory Cache
-            services.AddMemoryCache();
             services.AddSingleton<ICacheService, InMemoryCacheService>();
             Console.WriteLine(">> Using IN-MEMORY Cache (Redis not configured)");
         }

@@ -134,7 +134,7 @@ public sealed class ProcessPaymentHandler : ICommandHandler<ProcessPaymentComman
                     NotificationType.PaymentReceived.ToString(), 
                     "Payment Received",
                     $"{payerName} has completed payment for booking {booking.BookingReference}",
-                    NotificationChannels.InApp,
+                    NotificationChannels.All,
                     new Dictionary<string, string> { { "BookingId", booking.Id.ToString() }, { "BookingReference", booking.BookingReference ?? string.Empty }, { "Amount", booking.TotalAmount.ToString() } }),
                 cancellationToken);
 
@@ -349,7 +349,7 @@ public sealed class VerifyPaymentHandler : ICommandHandler<VerifyPaymentCommand,
                 isExtensionPayment
                     ? $"{payerName} paid INR {amountText} for extension on booking {booking.BookingReference}"
                     : $"{payerName} has completed payment for booking {booking.BookingReference}",
-                NotificationChannels.InApp,
+                NotificationChannels.All,
                 new Dictionary<string, string>
                 {
                     { "BookingId", booking.Id.ToString() },

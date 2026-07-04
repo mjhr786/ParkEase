@@ -8,6 +8,8 @@ import ImageGallery from '../components/ImageGallery';
 import ParkingSlotModal from '../components/ParkingSlotModal';
 import { getErrorMessage, handleApiError } from '../utils/errorHandler';
 import showToast from '../utils/toast.jsx';
+import { useCompany } from '../contexts/CompanyContext';
+import corporateService from '../services/corporateService';
 
 const PARKING_TYPES = ['Open', 'Covered', 'Garage', 'Street', 'Underground'];
 import { API_BASE_URL } from '../config';
@@ -21,6 +23,7 @@ export default function ParkingDetails() {
     const { id } = useParams();
     const navigate = useNavigate();
     const { isAuthenticated, user } = useAuth();
+    const { activeCompanyId, isCorporateMode } = useCompany();
 
     const [parking, setParking] = useState(null);
     const [reviews, setReviews] = useState([]);
@@ -46,6 +49,29 @@ export default function ParkingDetails() {
     const [bookingSuccess, setBookingSuccess] = useState(null);
     const [showPayment, setShowPayment] = useState(false);
     const [pendingBooking, setPendingBooking] = useState(null);
+    
+    // Corporate state
+    const [corporateAllocation, setCorporateAllocation] = useState(null);
+    const [isVisitor, setIsVisitor] = useState(false);
+    const [visitorName, setVisitorName] = useState('');
+    const [visitorPlate, setVisitorPlate] = useState('');
+    const [showAllocationRequest, setShowAllocationRequest] = useState(false);
+    const [allocationRequesting, setAllocationRequesting] = useState(false);
+    const [allocationRequest, setAllocationRequest] = useState({
+        totalSlots: 1,
+        fixedSlots: 0,
+        sharedSlots: 1,
+        monthlyRate: 0,
+        startDate: '',
+        endDate: '',
+        maxBookingsPerEmployeePerDay: 1,
+        maxBookingsPerEmployeePerWeek: 5,
+        priorityThreshold: 1,
+        allowedStartTime: '07:00',
+        allowedEndTime: '22:00',
+        allowWeekends: false,
+        leaseReference: '',
+    });
     const [paymentMethod, setPaymentMethod] = useState(0);
     const [savedVehicles, setSavedVehicles] = useState([]);
     const [selectedVehicleId, setSelectedVehicleId] = useState('');
@@ -59,6 +85,94 @@ export default function ParkingDetails() {
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [id, isAuthenticated]);
+
+    useEffect(() => {
+        if (isCorporateMode && activeCompanyId) {
+            checkCorporateAllocation();
+        } else {
+            setCorporateAllocation(null);
+        }
+    }, [isCorporateMode, activeCompanyId, id]);
+
+    const checkCorporateAllocation = async () => {
+        try {
+            const res = await corporateService.getAllocations();
+            if (res.success && res.data) {
+                const activeAlloc = res.data.find(a => a.parkingSpaceId === id && a.status === 1);
+                setCorporateAllocation(activeAlloc || null);
+            }
+        } catch (err) {
+            console.error("Failed to fetch corporate allocations", err);
+        }
+    };
+
+    const handleAllocationRequestChange = (field, value) => {
+        setAllocationRequest(prev => {
+            const next = { ...prev, [field]: value };
+            if (field === 'totalSlots') {
+                const total = Math.max(1, parseInt(value, 10) || 1);
+                next.totalSlots = total;
+                next.fixedSlots = Math.min(parseInt(next.fixedSlots, 10) || 0, total);
+                next.sharedSlots = Math.min(parseInt(next.sharedSlots, 10) || 0, total - next.fixedSlots);
+            }
+            if (field === 'fixedSlots' || field === 'sharedSlots') {
+                next[field] = Math.max(0, parseInt(value, 10) || 0);
+            }
+            return next;
+        });
+    };
+
+    const handleRequestAllocation = async (e) => {
+        e.preventDefault();
+
+        const totalSlots = parseInt(allocationRequest.totalSlots, 10);
+        const fixedSlots = parseInt(allocationRequest.fixedSlots, 10);
+        const sharedSlots = parseInt(allocationRequest.sharedSlots, 10);
+
+        if (fixedSlots + sharedSlots > totalSlots) {
+            showToast.error('Fixed and shared slots cannot exceed total slots.');
+            return;
+        }
+
+        if (allocationRequest.allowedEndTime <= allocationRequest.allowedStartTime) {
+            showToast.error('Allowed end time must be after allowed start time.');
+            return;
+        }
+
+        setAllocationRequesting(true);
+        try {
+            const response = await corporateService.requestAllocation({
+                parkingSpaceId: id,
+                totalSlots,
+                fixedSlots,
+                sharedSlots,
+                monthlyRate: parseFloat(allocationRequest.monthlyRate) || 0,
+                startDate: new Date(allocationRequest.startDate).toISOString(),
+                endDate: new Date(allocationRequest.endDate).toISOString(),
+                leaseReference: allocationRequest.leaseReference || null,
+                policy: {
+                    maxBookingsPerEmployeePerDay: parseInt(allocationRequest.maxBookingsPerEmployeePerDay, 10),
+                    maxBookingsPerEmployeePerWeek: parseInt(allocationRequest.maxBookingsPerEmployeePerWeek, 10),
+                    priorityThreshold: parseInt(allocationRequest.priorityThreshold, 10),
+                    allowedStartTime: `${allocationRequest.allowedStartTime}:00`,
+                    allowedEndTime: `${allocationRequest.allowedEndTime}:00`,
+                    allowWeekends: allocationRequest.allowWeekends,
+                },
+            });
+
+            if (response.success) {
+                showToast.success('Allocation request submitted for owner approval.');
+                setShowAllocationRequest(false);
+                checkCorporateAllocation();
+            } else {
+                showToast.error(response.message || 'Failed to request allocation.');
+            }
+        } catch (err) {
+            showToast.error(handleApiError(err, 'Failed to request allocation.'));
+        } finally {
+            setAllocationRequesting(false);
+        }
+    };
 
     const fetchUserVehicles = async () => {
         try {
@@ -225,12 +339,12 @@ export default function ParkingDetails() {
             return;
         }
 
-        if (parking?.totalSpots > 1 && !booking.slotNumber) {
+        if (parking?.totalSpots > 1 && !booking.slotNumber && !corporateAllocation) {
             showToast.error('Please select a parking slot');
             return;
         }
 
-        if (parking?.totalSpots > 1 && booking.slotNumber && booking.startDateTime && booking.endDateTime) {
+        if (parking?.totalSpots > 1 && booking.slotNumber && booking.startDateTime && booking.endDateTime && !corporateAllocation) {
             const selectedSlotNumber = parseInt(booking.slotNumber, 10);
             const selectedSlot = slotAvailability.find(s => s.slotNumber === selectedSlotNumber);
             if (selectedSlot?.blockedForSelection) {
@@ -242,6 +356,47 @@ export default function ParkingDetails() {
         setBookingLoading(true);
 
         try {
+            // Corporate Booking Flow
+            if (corporateAllocation) {
+                const payload = {
+                    allocationId: corporateAllocation.id,
+                    startDateTime: new Date(booking.startDateTime).toISOString(),
+                    endDateTime: new Date(booking.endDateTime).toISOString(),
+                };
+                
+                let res;
+                if (isVisitor) {
+                    res = await corporateService.bookVisitorParking({
+                        ...payload,
+                        visitorName: visitorName,
+                        visitorLicensePlate: visitorPlate,
+                        accessExpiry: new Date(booking.endDateTime).toISOString()
+                    });
+                } else {
+                    res = await corporateService.bookEmployeeParking({
+                        ...payload,
+                        vehicleType: booking.vehicleType,
+                        vehicleNumber: booking.vehicleNumber || null
+                    });
+                }
+                
+                if (res.success) {
+                    setBookingSuccess({
+                        reference: res.data.booking?.bookingReference || 'WAITLIST',
+                        message: res.data.waitlist ? 'Added to waitlist based on allocation policy.' : 'Corporate Booking Confirmed!',
+                        isPending: false,
+                    });
+                    showToast.success('Corporate booking handled successfully');
+                    setBooking(prev => ({ ...prev, slotNumber: '' }));
+                    fetchParkingDetails();
+                } else {
+                    showToast.error(res.message || 'Corporate booking failed');
+                }
+                setBookingLoading(false);
+                return;
+            }
+
+            // Standard User Booking Flow
             const response = await api.createBooking({
                 parkingSpaceId: id,
                 startDateTime: new Date(booking.startDateTime).toISOString(),
@@ -553,7 +708,33 @@ export default function ParkingDetails() {
                             </div>
                         ) : (
                             <div className="booking-summary">
-                                <h3 style={{ marginBottom: '1rem' }}>Book This Space</h3>
+                                {corporateAllocation ? (
+                                    <div style={{ background: 'rgba(16, 185, 129, 0.1)', border: '1px solid #10b981', padding: '15px', borderRadius: '8px', marginBottom: '1rem', color: '#10b981' }}>
+                                        <strong>🏢 Corporate Booking Available</strong>
+                                        <p style={{ margin: '5px 0 0', fontSize: '0.9rem' }}>
+                                            Your company has an active allocation here. Costs are covered by {activeCompanyId ? 'your employer' : 'your company'}!
+                                        </p>
+                                    </div>
+                                ) : (
+                                    <>
+                                        <h3 style={{ marginBottom: '1rem' }}>Book This Space</h3>
+                                        {isCorporateMode && activeCompanyId && (
+                                            <div style={{ background: 'rgba(139, 92, 246, 0.1)', border: '1px solid rgba(139, 92, 246, 0.45)', padding: '15px', borderRadius: '8px', marginBottom: '1rem' }}>
+                                                <strong style={{ color: '#c4b5fd' }}>No corporate allocation at this parking space</strong>
+                                                <p style={{ margin: '5px 0 12px', fontSize: '0.9rem', color: '#cbd5e1' }}>
+                                                    Request slots for your company and the parking owner can approve them from vendor bookings.
+                                                </p>
+                                                <button
+                                                    type="button"
+                                                    className="btn btn-secondary"
+                                                    onClick={() => setShowAllocationRequest(true)}
+                                                >
+                                                    Request Corporate Allocation
+                                                </button>
+                                            </div>
+                                        )}
+                                    </>
+                                )}
 
                                 <form onSubmit={handleBooking}>
                                     <div className="form-group">
@@ -578,7 +759,7 @@ export default function ParkingDetails() {
                                         />
                                     </div>
 
-                                    {parking.totalSpots > 1 && (
+                                    {parking.totalSpots > 1 && !corporateAllocation && (
                                         <div className="form-group">
                                             <label className="form-label">Parking Slot</label>
                                             {/* Selected slot preview */}
@@ -630,91 +811,140 @@ export default function ParkingDetails() {
                                         </div>
                                     )}
 
-                                    <div className="form-group">
-                                        <label className="form-label">Pricing Type</label>
-                                        <select
-                                            className="form-select"
-                                            value={booking.pricingType}
-                                            onChange={(e) => setBooking(prev => ({ ...prev, pricingType: parseInt(e.target.value) }))}
-                                        >
-                                            {PRICING_TYPES.map((type, i) => (
-                                                <option key={i} value={i}>{type}</option>
-                                            ))}
-                                        </select>
-                                    </div>
+                                    {!corporateAllocation && (
+                                        <div className="form-group">
+                                            <label className="form-label">Pricing Type</label>
+                                            <select
+                                                className="form-select"
+                                                value={booking.pricingType}
+                                                onChange={(e) => setBooking(prev => ({ ...prev, pricingType: parseInt(e.target.value) }))}
+                                            >
+                                                {PRICING_TYPES.map((type, i) => (
+                                                    <option key={i} value={i}>{type}</option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                    )}
 
-                                    <div className="form-group">
-                                        <label className="form-label">Saved Vehicles</label>
-                                        <select
-                                            className="form-select"
-                                            value={selectedVehicleId}
-                                            onChange={(e) => handleSelectSavedVehicle(e.target.value)}
-                                        >
-                                            <option value="">-- Enter Details Manually --</option>
-                                            {savedVehicles.map(v => (
-                                                <option key={v.id} value={v.id}>
-                                                    {v.make} {v.model} ({v.licensePlate})
-                                                </option>
-                                            ))}
-                                        </select>
-                                    </div>
+                                    {corporateAllocation && (
+                                        <div className="form-group" style={{ background: 'var(--color-bg-tertiary)', padding: '10px', borderRadius: '8px', marginBottom: '15px' }}>
+                                            <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', margin: 0 }}>
+                                                <input 
+                                                    type="checkbox" 
+                                                    checked={isVisitor}
+                                                    onChange={e => setIsVisitor(e.target.checked)}
+                                                    style={{ width: '18px', height: '18px', accentColor: '#10b981' }}
+                                                />
+                                                <strong style={{ color: 'white' }}>This is for a Visitor</strong>
+                                            </label>
+                                        </div>
+                                    )}
 
-                                    <div className="form-group">
-                                        <label className="form-label">Vehicle Type</label>
-                                        <select
-                                            className="form-select"
-                                            value={booking.vehicleType}
-                                            onChange={(e) => {
-                                                setBooking(prev => ({ ...prev, vehicleType: parseInt(e.target.value) }));
-                                                setSelectedVehicleId('');
-                                            }}
-                                        >
-                                            {VEHICLE_TYPES.map((type, i) => (
-                                                <option key={i} value={i}>{type}</option>
-                                            ))}
-                                        </select>
-                                    </div>
+                                    {isVisitor ? (
+                                        <>
+                                            <div className="form-group">
+                                                <label className="form-label">Visitor Name</label>
+                                                <input
+                                                    type="text"
+                                                    className="form-input"
+                                                    placeholder="Required"
+                                                    value={visitorName}
+                                                    onChange={(e) => setVisitorName(e.target.value)}
+                                                    required
+                                                />
+                                            </div>
+                                            <div className="form-group">
+                                                <label className="form-label">Visitor License Plate</label>
+                                                <input
+                                                    type="text"
+                                                    className="form-input"
+                                                    placeholder="Required"
+                                                    value={visitorPlate}
+                                                    onChange={(e) => setVisitorPlate(e.target.value)}
+                                                    required
+                                                />
+                                            </div>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <div className="form-group">
+                                                <label className="form-label">Saved Vehicles</label>
+                                                <select
+                                                    className="form-select"
+                                                    value={selectedVehicleId}
+                                                    onChange={(e) => handleSelectSavedVehicle(e.target.value)}
+                                                >
+                                                    <option value="">-- Enter Details Manually --</option>
+                                                    {savedVehicles.map(v => (
+                                                        <option key={v.id} value={v.id}>
+                                                            {v.make} {v.model} ({v.licensePlate})
+                                                        </option>
+                                                    ))}
+                                                </select>
+                                            </div>
 
-                                    <div className="form-group">
-                                        <label className="form-label">Vehicle Number (Optional)</label>
-                                        <input
-                                            type="text"
-                                            className="form-input"
-                                            placeholder="e.g., MH12AB1234"
-                                            value={booking.vehicleNumber}
-                                            onChange={(e) => {
-                                                setBooking(prev => ({ ...prev, vehicleNumber: e.target.value }));
-                                                setSelectedVehicleId('');
-                                            }}
-                                        />
-                                    </div>
+                                            <div className="form-group">
+                                                <label className="form-label">Vehicle Type</label>
+                                                <select
+                                                    className="form-select"
+                                                    value={booking.vehicleType}
+                                                    onChange={(e) => {
+                                                        setBooking(prev => ({ ...prev, vehicleType: parseInt(e.target.value) }));
+                                                        setSelectedVehicleId('');
+                                                    }}
+                                                >
+                                                    {VEHICLE_TYPES.map((type, i) => (
+                                                        <option key={i} value={i}>{type}</option>
+                                                    ))}
+                                                </select>
+                                            </div>
 
-                                    <div className="form-group">
-                                        <label className="form-label">Vehicle Color (Optional)</label>
-                                        <input
-                                            type="text"
-                                            className="form-input"
-                                            placeholder="e.g., Red, Blue"
-                                            value={booking.vehicleColor}
-                                            onChange={(e) => {
-                                                setBooking(prev => ({ ...prev, vehicleColor: e.target.value }));
-                                                setSelectedVehicleId('');
-                                            }}
-                                        />
-                                    </div>
+                                            <div className="form-group">
+                                                <label className="form-label">Vehicle Number (Optional)</label>
+                                                <input
+                                                    type="text"
+                                                    className="form-input"
+                                                    placeholder="e.g., MH12AB1234"
+                                                    value={booking.vehicleNumber}
+                                                    onChange={(e) => {
+                                                        setBooking(prev => ({ ...prev, vehicleNumber: e.target.value }));
+                                                        setSelectedVehicleId('');
+                                                    }}
+                                                />
+                                            </div>
+                                            
+                                            {!corporateAllocation && (
+                                                <div className="form-group">
+                                                    <label className="form-label">Vehicle Color (Optional)</label>
+                                                    <input
+                                                        type="text"
+                                                        className="form-input"
+                                                        placeholder="e.g., Red, Blue"
+                                                        value={booking.vehicleColor}
+                                                        onChange={(e) => {
+                                                            setBooking(prev => ({ ...prev, vehicleColor: e.target.value }));
+                                                            setSelectedVehicleId('');
+                                                        }}
+                                                    />
+                                                </div>
+                                            )}
+                                        </>
+                                    )}
 
-                                    <div className="form-group">
-                                        <label className="form-label">Discount Code</label>
-                                        <input
-                                            type="text"
-                                            className="form-input"
-                                            placeholder="Enter code"
-                                            value={booking.discountCode}
-                                            onChange={(e) => setBooking(prev => ({ ...prev, discountCode: e.target.value }))}
-                                        />
-                                    </div>
+                                    {!corporateAllocation && (
+                                        <div className="form-group">
+                                            <label className="form-label">Discount Code</label>
+                                            <input
+                                                type="text"
+                                                className="form-input"
+                                                placeholder="Enter code"
+                                                value={booking.discountCode}
+                                                onChange={(e) => setBooking(prev => ({ ...prev, discountCode: e.target.value }))}
+                                            />
+                                        </div>
+                                    )}
 
-                                    {priceBreakdown && (
+                                    {priceBreakdown && !corporateAllocation && (
                                         <div style={{ borderTop: '1px solid var(--color-border)', paddingTop: '1rem', marginTop: '1rem' }}>
                                             <div className="price-row">
                                                 <span>Base ({priceBreakdown.duration} {priceBreakdown.durationUnit})</span>
@@ -746,9 +976,10 @@ export default function ParkingDetails() {
                                     <button
                                         type="submit"
                                         className="btn btn-primary btn-full mt-2"
-                                        disabled={bookingLoading || !priceBreakdown}
+                                        disabled={bookingLoading || (!priceBreakdown && !corporateAllocation) || (corporateAllocation && (!booking.startDateTime || !booking.endDateTime))}
+                                        style={corporateAllocation ? { background: '#10b981', borderColor: '#10b981' } : {}}
                                     >
-                                        {bookingLoading ? 'Submitting Request...' : 'Request Booking'}
+                                        {bookingLoading ? 'Submitting Request...' : corporateAllocation ? 'Confirm Corporate Booking' : 'Request Booking'}
                                     </button>
                                 </form>
                             </div>
@@ -756,6 +987,97 @@ export default function ParkingDetails() {
                     </div>
                 </div>
             </div>
+
+            {showAllocationRequest && (
+                <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.72)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '1rem' }}>
+                    <div className="card" style={{ width: '100%', maxWidth: '620px', maxHeight: '90vh', overflowY: 'auto' }}>
+                        <h3 className="card-title">Request Corporate Allocation</h3>
+                        <p className="card-subtitle mb-2">{parking?.title}</p>
+                        <form onSubmit={handleRequestAllocation}>
+                            <div className="grid grid-3" style={{ gap: '1rem' }}>
+                                <div className="form-group">
+                                    <label className="form-label">Total Slots</label>
+                                    <input type="number" min="1" max={parking?.totalSpots || 1000} className="form-input" value={allocationRequest.totalSlots} onChange={(e) => handleAllocationRequestChange('totalSlots', e.target.value)} required />
+                                </div>
+                                <div className="form-group">
+                                    <label className="form-label">Fixed Slots</label>
+                                    <input type="number" min="0" className="form-input" value={allocationRequest.fixedSlots} onChange={(e) => handleAllocationRequestChange('fixedSlots', e.target.value)} required />
+                                </div>
+                                <div className="form-group">
+                                    <label className="form-label">Shared Slots</label>
+                                    <input type="number" min="0" className="form-input" value={allocationRequest.sharedSlots} onChange={(e) => handleAllocationRequestChange('sharedSlots', e.target.value)} required />
+                                </div>
+                            </div>
+
+                            <div className="grid grid-3" style={{ gap: '1rem' }}>
+                                <div className="form-group">
+                                    <label className="form-label">Monthly Rate</label>
+                                    <input type="number" min="0" step="0.01" className="form-input" value={allocationRequest.monthlyRate} onChange={(e) => handleAllocationRequestChange('monthlyRate', e.target.value)} required />
+                                </div>
+                                <div className="form-group">
+                                    <label className="form-label">Start Date</label>
+                                    <input type="date" className="form-input" value={allocationRequest.startDate} onChange={(e) => handleAllocationRequestChange('startDate', e.target.value)} required />
+                                </div>
+                                <div className="form-group">
+                                    <label className="form-label">End Date</label>
+                                    <input type="date" className="form-input" value={allocationRequest.endDate} onChange={(e) => handleAllocationRequestChange('endDate', e.target.value)} required />
+                                </div>
+                            </div>
+
+                            <div className="form-group">
+                                <label className="form-label">Lease Reference</label>
+                                <input
+                                    type="text"
+                                    maxLength="100"
+                                    className="form-input"
+                                    placeholder="Optional contract or purchase order reference"
+                                    value={allocationRequest.leaseReference}
+                                    onChange={(e) => handleAllocationRequestChange('leaseReference', e.target.value)}
+                                />
+                            </div>
+
+                            <div className="grid grid-3" style={{ gap: '1rem' }}>
+                                <div className="form-group">
+                                    <label className="form-label">Max/Day</label>
+                                    <input type="number" min="1" className="form-input" value={allocationRequest.maxBookingsPerEmployeePerDay} onChange={(e) => handleAllocationRequestChange('maxBookingsPerEmployeePerDay', e.target.value)} required />
+                                </div>
+                                <div className="form-group">
+                                    <label className="form-label">Max/Week</label>
+                                    <input type="number" min="1" className="form-input" value={allocationRequest.maxBookingsPerEmployeePerWeek} onChange={(e) => handleAllocationRequestChange('maxBookingsPerEmployeePerWeek', e.target.value)} required />
+                                </div>
+                                <div className="form-group">
+                                    <label className="form-label">Min Priority</label>
+                                    <input type="number" min="1" max="10" className="form-input" value={allocationRequest.priorityThreshold} onChange={(e) => handleAllocationRequestChange('priorityThreshold', e.target.value)} required />
+                                </div>
+                            </div>
+
+                            <div className="grid grid-3" style={{ gap: '1rem' }}>
+                                <div className="form-group">
+                                    <label className="form-label">Allowed Start</label>
+                                    <input type="time" className="form-input" value={allocationRequest.allowedStartTime} onChange={(e) => handleAllocationRequestChange('allowedStartTime', e.target.value)} required />
+                                </div>
+                                <div className="form-group">
+                                    <label className="form-label">Allowed End</label>
+                                    <input type="time" className="form-input" value={allocationRequest.allowedEndTime} onChange={(e) => handleAllocationRequestChange('allowedEndTime', e.target.value)} required />
+                                </div>
+                                <div className="form-group" style={{ display: 'flex', alignItems: 'center', paddingTop: '1.8rem' }}>
+                                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', cursor: 'pointer' }}>
+                                        <input type="checkbox" checked={allocationRequest.allowWeekends} onChange={(e) => handleAllocationRequestChange('allowWeekends', e.target.checked)} />
+                                        Allow weekends
+                                    </label>
+                                </div>
+                            </div>
+
+                            <div className="flex gap-1 mt-2" style={{ justifyContent: 'flex-end' }}>
+                                <button type="button" className="btn btn-secondary" onClick={() => setShowAllocationRequest(false)}>Cancel</button>
+                                <button type="submit" className="btn btn-primary" disabled={allocationRequesting}>
+                                    {allocationRequesting ? 'Submitting...' : 'Submit Request'}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
 
             {/* Slot selection modal */}
             {parking?.totalSpots > 1 && (

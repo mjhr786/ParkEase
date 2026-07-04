@@ -430,3 +430,14 @@ backend/src/ParkingApp.API/wwwroot/assets/
 
 # Production secrets
 appsettings.Production.json
+
+# Development secrets
+appsettings.Development.json
+appsettings.Development.*.json
+
+# Deployment artifacts / scripts
+deploy-monsterapp/
+deploy-monsterapp
+deploy-monsterapp.bat
+deploy-monsterasp.bat
+deploy-monsterasp*

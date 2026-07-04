@@ -1,32 +1,31 @@
 # ParkEase - Smart Parking Management System
 
-A full-stack parking space management application built with **.NET 9 Web API** and **React**. Enables property owners to list parking spaces and users to discover, book, and pay for parking in real-time.
+A full-stack parking space management application built with **.NET 9 Web API** and **React**. Enables users to host parking spaces, discover spots, book, pay, and forecast likely parking availability in real-time.
 
 ## 🚀 Features
 
-### For Users (Members)
+### For Users (Unified Account)
 - 📅 **Flexible Booking**: Reserve parking with hourly, daily, or monthly pricing models.
-- ⏳ **Booking Extensions**: Seamlessly request to extend an active booking (requires vendor approval).
+- ⏳ **Booking Extensions**: Seamlessly request to extend an active booking (requires owner approval).
 - 🚗 **My Garage**: Save and manage multiple vehicles (License Plate, Make, Model, Color) for faster checkout.
 - ❤️ **Favorites**: Save and quickly access your most-used parking locations.
 - 📍 **Advanced Search**: Discover parking by location, radius, date range, vehicle type, and specific amenities.
 - 🗺️ **Interactive Map View**: Visualize parking locations with real-time availability and distance estimates using **Leaflet** and **OSRM**.
 - 💬 **Direct Messaging**: Chat in real-time with parking owners to coordinate arrivals or ask questions.
-- 🔔 **Notification Center**: Manage real-time alerts for booking updates, payment requests, and system alerts.
-- ⭐ **Reviews & Ratings**: Share experiences with multi-media reviews, helpfulness votes, and vendor interactions.
+- 🔔 **Notification Center**: Manage real-time alerts and FCM push notifications for booking updates, payment requests, and system alerts.
+- ⭐ **Reviews & Ratings**: Share experiences with multi-media reviews, helpfulness votes, and host interactions.
 - 💳 **Secure Payments**: Integrated with **Stripe** for one-time payments and booking extensions.
-
-### For Vendors (Parking Owners)
-- 🏢 **Listing Management**: Effortlessly list parking spaces with detailed descriptions, pricing, and rules.
-- 🔌 **Availability Toggle**: Quickly enable or disable listings to manage temporary closures.
+- 🏢 **Host Parking Spaces**: Effortlessly list your own parking spaces with detailed descriptions, pricing, and rules.
+- 🔌 **Availability Toggle**: Quickly enable or disable your listings to manage temporary closures.
 - 📸 **Rich Media**: Upload high-quality bucket-stored images and videos for parking spots.
-- ✅ **Booking Operations**: Review, approve, or reject booking and extension requests in real-time.
-- 📊 **Advanced Analytics**: Interactive dashboard with revenue charts (Area) and booking volume (Bar) using **Recharts**.
+- ✅ **Host Operations**: Review, approve, or reject booking and extension requests in real-time.
+- 📊 **Host Analytics**: Interactive dashboard with revenue charts (Area) and booking volume (Bar) using **Recharts**.
 - 📟 **Occupancy Tracking**: Real-time view of current bookings with manual check-in/out capabilities.
-- 💬 **Vendor Chat**: Communication portal to manage user inquiries directly from the dashboard.
-- 🔔 **Real-Time Notifications**: Instant SignalR-driven alerts for new requests and successful payments.
+
+- **Parking Availability Prediction Engine**: Forecast likely free spots, occupancy risk, confidence scores, and upcoming tight/full windows for your hosted listings.
 
 ### Technical Highlights
+- **Custom CQRS Implementation**: Manually registered commands and queries with vertical slice handlers instead of a third-party mediator stack.
 - 🏗️ **Clean Architecture**: Domain-Driven Design (DDD) with a clear separation of concerns.
 - 📨 **CQRS Pattern**: Decoupled commands and queries for high performance and scalability.
 - ⚡ **SignalR Integration**: Robust real-time engine with automatic reconnection and "silent" UI update support.
@@ -44,9 +43,21 @@ A full-stack parking space management application built with **.NET 9 Web API** 
 | **Frontend** | React 18, Vite, Recharts, Axios |
 | **Database** | SQLite (Dev) / SQL Server (Prod) |
 | **Real-time** | SignalR (WebSockets) |
+| **Push Notifications**| Firebase Cloud Messaging (FCM) |
 | **Auth** | JWT Bearer Tokens |
 | **Maps & Geo** | Leaflet, NetTopologySuite, OSRM (Distance API) |
+| **Forecasting** | In-house hybrid prediction engine (deterministic logic + ML.NET) |
 | **Gateway** | YARP (Yet Another Reverse Proxy) |
+
+## Parking Availability Prediction
+
+- Built on the existing Clean Architecture, DDD, and custom CQRS setup.
+- Uses a hybrid forecasting service that combines deterministic booking math with an ML.NET regression model trained from historical occupancy patterns.
+- The deterministic layer preserves hard business constraints such as active bookings, cancellation handling, listing status, and total spot capacity.
+- The ML layer adds pattern recognition for weekday/hour trends, recent occupancy momentum, pricing, ratings, and listing characteristics without introducing any paid dependencies.
+- Returns forecast buckets with likely booked spots, likely available spots, predicted occupancy rate, confidence score, and availability bands.
+- Keeps server storage overhead low by caching a shared in-memory model per forecast interval instead of generating separate model files per listing or user.
+- Powers the `My Listings` experience so the same unified user account can act as host and see near-term availability risk for hosted spaces.
 
 ---
 
@@ -109,8 +120,7 @@ npm run dev
 
 | Role | Email | Password |
 |------|-------|----------|
-| Member | Register via UI | - |
-| Vendor | Register via UI (select "List your parking") | - |
+| User | Register via UI | - |
 
 ---
 
@@ -126,15 +136,17 @@ npm run dev
 - `GET /api/parking/search` - Advanced search (radius, pricing, amenities)
 - `GET /api/parking/map` - Geo-coordinates for map visualization
 - `GET /api/parking/{id}` - Comprehensive parking details
-- `POST /api/parking` - Create new listing (Vendor)
-- `POST /api/parking/{id}/toggle-active` - Enable/Disable listing (Vendor)
+- `POST /api/parking` - Create new listing (Owner)
+- `POST /api/parking/{id}/toggle-active` - Enable/Disable listing (Owner)
+- `GET /api/parking-availability/{parkingSpaceId}/forecast` - Get forecast buckets for a parking space
+- `GET /api/parking-availability/my-listings` - Get forecast summaries for the current user's hosted listings
 
 ### Bookings (V2)
 - `POST /api/v2/bookings` - Create reservation
-- `GET /api/v2/bookings/my-bookings` - Filtered history for members
-- `GET /api/v2/bookings/vendor-bookings` - Management portal for vendors
+- `GET /api/v2/bookings/my-bookings` - Filtered history for your bookings
+- `GET /api/v2/bookings/vendor-bookings` - Management portal for your listed spaces
 - `POST /api/v2/bookings/{id}/extend` - Request booking extension
-- `POST /api/v2/bookings/{id}/approve-extension` - Approve extension (Vendor)
+- `POST /api/v2/bookings/{id}/approve-extension` - Approve extension (Owner)
 - `POST /api/v2/bookings/{id}/check-in` - Manual check-in
 - `POST /api/v2/bookings/{id}/check-out` - Manual check-out
 
@@ -154,6 +166,7 @@ npm run dev
 ## 🔔 Real-Time Event Engine
 
 SignalR hub: `ws://localhost:5129/hubs/notifications`
+Push Notifications: Firebase Cloud Messaging (FCM)
 
 | Event | Status |
 |-------|--------|

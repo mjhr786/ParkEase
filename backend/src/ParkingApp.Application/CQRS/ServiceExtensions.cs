@@ -11,6 +11,7 @@ using ParkingApp.Application.CQRS.Queries.Bookings;
 using ParkingApp.Application.CQRS.Queries.Chat;
 using ParkingApp.Application.CQRS.Queries.Dashboard;
 using ParkingApp.Application.CQRS.Queries.Parking;
+using ParkingApp.Application.CQRS.Queries.ParkingAvailability;
 using ParkingApp.Application.CQRS.Queries.Payments;
 using ParkingApp.Application.CQRS.Queries.Reviews;
 using ParkingApp.Application.CQRS.Commands.Favorites;
@@ -19,7 +20,10 @@ using ParkingApp.Application.CQRS.Commands.Notifications;
 using ParkingApp.Application.CQRS.Queries.Notifications;
 using ParkingApp.Application.CQRS.Commands.Vehicles;
 using ParkingApp.Application.CQRS.Queries.Vehicles;
+using ParkingApp.Application.CQRS.Commands.DeviceTokens;
+using ParkingApp.Application.CQRS.Commands.ParkingPasses;
 using ParkingApp.Application.DTOs;
+using ParkingApp.Application.CQRS.Queries.ParkingPasses;
 
 namespace ParkingApp.Application.CQRS;
 
@@ -109,6 +113,8 @@ public static class CQRSServiceExtensions
         services.AddScoped<IQueryHandler<GetOwnerParkingsQuery, ApiResponse<List<ParkingSpaceDto>>>, GetOwnerParkingsHandler>();
         services.AddScoped<IQueryHandler<SearchParkingQuery, ApiResponse<ParkingSearchResultDto>>, SearchParkingHandler>();
         services.AddScoped<IQueryHandler<GetMapCoordinatesQuery, ApiResponse<List<ParkingMapDto>>>, GetMapCoordinatesHandler>();
+        services.AddScoped<IQueryHandler<GetParkingAvailabilityForecastQuery, ApiResponse<ParkingAvailabilityForecastDto>>, GetParkingAvailabilityForecastHandler>();
+        services.AddScoped<IQueryHandler<GetOwnerParkingAvailabilityForecastsQuery, ApiResponse<List<ParkingAvailabilityForecastDto>>>, GetOwnerParkingAvailabilityForecastsHandler>();
 
         // ── Payments ──
         services.AddScoped<IQueryHandler<GetPaymentByIdQuery, ApiResponse<PaymentDto>>, GetPaymentByIdHandler>();
@@ -138,6 +144,51 @@ public static class CQRSServiceExtensions
 
         // ── Vehicles ──
         services.AddScoped<IQueryHandler<GetMyVehiclesQuery, ApiResponse<IEnumerable<VehicleDto>>>, GetMyVehiclesQueryHandler>();
+
+        // ── Device Tokens ──
+        services.AddScoped<ICommandHandler<RegisterDeviceTokenCommand, ApiResponse<bool>>, RegisterDeviceTokenCommandHandler>();
+
+        // —— Parking Passes ——
+        services.AddScoped<ICommandHandler<CreateParkingPassCommand, ApiResponse<ParkingPassDto>>, CreateParkingPassHandler>();
+        services.AddScoped<ICommandHandler<AssignCorporatePassCommand, ApiResponse<CorporatePassAssignmentResultDto>>, AssignCorporatePassHandler>();
+        services.AddScoped<IQueryHandler<GetUserActivePassQuery, ApiResponse<ActiveParkingPassesDto>>, GetUserActivePassHandler>();
+
+        // ══════════════════════════════════════════════════════
+        // CORPORATE MODULE
+        // ══════════════════════════════════════════════════════
+        
+        // Commands
+        services.AddScoped<ICommandHandler<ParkingApp.Application.CQRS.Commands.Corporate.CreateCompanyCommand, ApiResponse<ParkingApp.Application.DTOs.CompanyDto>>, ParkingApp.Application.CQRS.Commands.Corporate.CreateCompanyHandler>();
+        services.AddScoped<ICommandHandler<ParkingApp.Application.CQRS.Commands.Corporate.AddMemberCommand, ApiResponse<ParkingApp.Application.DTOs.MembershipDto>>, ParkingApp.Application.CQRS.Commands.Corporate.AddMemberHandler>();
+        services.AddScoped<ICommandHandler<ParkingApp.Application.CQRS.Commands.Corporate.InviteMemberCommand, ApiResponse<ParkingApp.Application.DTOs.InvitationDto>>, ParkingApp.Application.CQRS.Commands.Corporate.InviteMemberHandler>();
+        services.AddScoped<ICommandHandler<ParkingApp.Application.CQRS.Commands.Corporate.AcceptInvitationCommand, ApiResponse<ParkingApp.Application.DTOs.MembershipDto>>, ParkingApp.Application.CQRS.Commands.Corporate.AcceptInvitationHandler>();
+        services.AddScoped<ICommandHandler<ParkingApp.Application.CQRS.Commands.Corporate.RemoveMemberCommand, ApiResponse<bool>>, ParkingApp.Application.CQRS.Commands.Corporate.RemoveMemberHandler>();
+        services.AddScoped<ICommandHandler<ParkingApp.Application.CQRS.Commands.Corporate.CreateCorporateParkingSpaceCommand, ApiResponse<ParkingApp.Application.DTOs.CorporateParkingSpaceDto>>, ParkingApp.Application.CQRS.Commands.Corporate.CreateCorporateParkingSpaceHandler>();
+        services.AddScoped<ICommandHandler<ParkingApp.Application.CQRS.Commands.Corporate.ToggleCorporateParkingSpaceCommand, ApiResponse<ParkingApp.Application.DTOs.CorporateParkingSpaceDto>>, ParkingApp.Application.CQRS.Commands.Corporate.ToggleCorporateParkingSpaceHandler>();
+        services.AddScoped<ICommandHandler<ParkingApp.Application.CQRS.Commands.Corporate.UpdateCorporateParkingSpaceCommand, ApiResponse<ParkingApp.Application.DTOs.CorporateParkingSpaceDto>>, ParkingApp.Application.CQRS.Commands.Corporate.UpdateCorporateParkingSpaceHandler>();
+        services.AddScoped<ICommandHandler<ParkingApp.Application.CQRS.Commands.Corporate.RetireCorporateParkingSpaceCommand, ApiResponse<bool>>, ParkingApp.Application.CQRS.Commands.Corporate.RetireCorporateParkingSpaceHandler>();
+        services.AddScoped<ICommandHandler<ParkingApp.Application.CQRS.Commands.Corporate.AllocateParkingSlotsCommand, ApiResponse<ParkingApp.Application.DTOs.ParkingAllocationDto>>, ParkingApp.Application.CQRS.Commands.Corporate.AllocateParkingSlotsHandler>();
+        services.AddScoped<ICommandHandler<ParkingApp.Application.CQRS.Commands.Corporate.CreateOwnedParkingAllocationCommand, ApiResponse<ParkingApp.Application.DTOs.ParkingAllocationDto>>, ParkingApp.Application.CQRS.Commands.Corporate.CreateOwnedParkingAllocationHandler>();
+        services.AddScoped<ICommandHandler<ParkingApp.Application.CQRS.Commands.Corporate.ApproveAllocationCommand, ApiResponse<ParkingApp.Application.DTOs.ParkingAllocationDto>>, ParkingApp.Application.CQRS.Commands.Corporate.ApproveAllocationHandler>();
+        services.AddScoped<ICommandHandler<ParkingApp.Application.CQRS.Commands.Corporate.RejectAllocationCommand, ApiResponse<ParkingApp.Application.DTOs.ParkingAllocationDto>>, ParkingApp.Application.CQRS.Commands.Corporate.RejectAllocationHandler>();
+        services.AddScoped<ICommandHandler<ParkingApp.Application.CQRS.Commands.Corporate.BookCorporateParkingCommand, ApiResponse<ParkingApp.Application.DTOs.CorporateReservationResultDto>>, ParkingApp.Application.CQRS.Commands.Corporate.BookCorporateParkingHandler>();
+        services.AddScoped<ICommandHandler<ParkingApp.Application.CQRS.Commands.Corporate.BookVisitorParkingCommand, ApiResponse<ParkingApp.Application.DTOs.CorporateReservationResultDto>>, ParkingApp.Application.CQRS.Commands.Corporate.BookVisitorParkingHandler>();
+        services.AddScoped<ICommandHandler<ParkingApp.Application.CQRS.Commands.Corporate.UpdateBookingPolicyCommand, ApiResponse<ParkingApp.Application.DTOs.ParkingAllocationDto>>, ParkingApp.Application.CQRS.Commands.Corporate.UpdateBookingPolicyHandler>();
+        services.AddScoped<ICommandHandler<ParkingApp.Application.CQRS.Commands.Corporate.AssignFixedSlotCommand, ApiResponse<ParkingApp.Application.DTOs.ParkingAllocationDto>>, ParkingApp.Application.CQRS.Commands.Corporate.AssignFixedSlotHandler>();
+        services.AddScoped<ICommandHandler<ParkingApp.Application.CQRS.Commands.Corporate.RemoveFixedSlotCommand, ApiResponse<ParkingApp.Application.DTOs.ParkingAllocationDto>>, ParkingApp.Application.CQRS.Commands.Corporate.RemoveFixedSlotHandler>();
+        services.AddScoped<ICommandHandler<ParkingApp.Application.CQRS.Commands.Corporate.CancelWaitlistEntryCommand, ApiResponse<bool>>, ParkingApp.Application.CQRS.Commands.Corporate.CancelWaitlistEntryHandler>();
+        services.AddScoped<ICommandHandler<ParkingApp.Application.CQRS.Commands.Corporate.PromoteWaitlistEntryCommand, ApiResponse<ParkingApp.Application.DTOs.CorporateReservationResultDto>>, ParkingApp.Application.CQRS.Commands.Corporate.PromoteWaitlistEntryHandler>();
+
+        // Queries
+        services.AddScoped<IQueryHandler<ParkingApp.Application.CQRS.Queries.Corporate.GetMyCompaniesQuery, ApiResponse<List<ParkingApp.Application.DTOs.CompanyDto>>>, ParkingApp.Application.CQRS.Queries.Corporate.GetMyCompaniesHandler>();
+        services.AddScoped<IQueryHandler<ParkingApp.Application.CQRS.Queries.Corporate.GetCompanyDashboardQuery, ApiResponse<ParkingApp.Application.DTOs.CompanyDashboardDto>>, ParkingApp.Application.CQRS.Queries.Corporate.GetCompanyDashboardHandler>();
+        services.AddScoped<IQueryHandler<ParkingApp.Application.CQRS.Queries.Corporate.GetMemberBookingsQuery, ApiResponse<ParkingApp.Application.DTOs.MemberBookingsDto>>, ParkingApp.Application.CQRS.Queries.Corporate.GetMemberBookingsHandler>();
+        services.AddScoped<IQueryHandler<ParkingApp.Application.CQRS.Queries.Corporate.GetCompanyWaitlistQuery, ApiResponse<List<ParkingApp.Application.DTOs.CorporateWaitlistDto>>>, ParkingApp.Application.CQRS.Queries.Corporate.GetCompanyWaitlistHandler>();
+        services.AddScoped<IQueryHandler<ParkingApp.Application.CQRS.Queries.Corporate.GetCompanyAllocationsQuery, ApiResponse<List<ParkingApp.Application.DTOs.ParkingAllocationDto>>>, ParkingApp.Application.CQRS.Queries.Corporate.GetCompanyAllocationsHandler>();
+        services.AddScoped<IQueryHandler<ParkingApp.Application.CQRS.Queries.Corporate.GetCompanyParkingSpacesQuery, ApiResponse<List<ParkingApp.Application.DTOs.CorporateParkingSpaceDto>>>, ParkingApp.Application.CQRS.Queries.Corporate.GetCompanyParkingSpacesHandler>();
+        services.AddScoped<IQueryHandler<ParkingApp.Application.CQRS.Queries.Corporate.GetVendorAllocationsQuery, ApiResponse<List<ParkingApp.Application.DTOs.VendorParkingAllocationDto>>>, ParkingApp.Application.CQRS.Queries.Corporate.GetVendorAllocationsHandler>();
+        services.AddScoped<IQueryHandler<ParkingApp.Application.CQRS.Queries.Corporate.GetCompanyMembersQuery, ApiResponse<ParkingApp.Application.DTOs.CompanyMembersDto>>, ParkingApp.Application.CQRS.Queries.Corporate.GetCompanyMembersHandler>();
+        services.AddScoped<IQueryHandler<ParkingApp.Application.CQRS.Queries.Corporate.GetCompanyDetailsQuery, ApiResponse<ParkingApp.Application.DTOs.CompanyDto>>, ParkingApp.Application.CQRS.Queries.Corporate.GetCompanyDetailsHandler>();
 
         return services;
     }

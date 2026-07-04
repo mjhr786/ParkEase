@@ -1,6 +1,9 @@
 using ParkingApp.Application.CQRS.Commands.Bookings;
 using ParkingApp.Application.DTOs;
+using ParkingApp.Application.Interfaces;
 using ParkingApp.Application.Mappings;
+using ParkingApp.Application.Services;
+using ParkingApp.BuildingBlocks.Extensions;
 using ParkingApp.Domain.Enums;
 using ParkingApp.Domain.Interfaces;
 
@@ -9,12 +12,17 @@ namespace ParkingApp.Application.CQRS.Handlers.Bookings;
 public class UpdateBookingHandler : ICommandHandler<UpdateBookingCommand, ApiResponse<BookingDto>>
 {
     private readonly IUnitOfWork _unitOfWork;
-    private const decimal TaxRate = 0.18m;
-    private const decimal ServiceFeeRate = 0.10m;
+    private readonly IParkingPassPricingService _pricingService;
 
-    public UpdateBookingHandler(IUnitOfWork unitOfWork)
+    public UpdateBookingHandler(IUnitOfWork unitOfWork, IParkingPassPricingService pricingService)
     {
         _unitOfWork = unitOfWork;
+        _pricingService = pricingService;
+    }
+
+    public UpdateBookingHandler(IUnitOfWork unitOfWork)
+        : this(unitOfWork, new ParkingPassPricingService(unitOfWork))
+    {
     }
 
     public async Task<ApiResponse<BookingDto>> HandleAsync(UpdateBookingCommand command, CancellationToken cancellationToken = default)
@@ -45,8 +53,8 @@ public class UpdateBookingHandler : ICommandHandler<UpdateBookingCommand, ApiRes
         // If dates changed, recalculate pricing
         if (dto.StartDateTime.HasValue || dto.EndDateTime.HasValue)
         {
-            var startDateTime = dto.StartDateTime ?? booking.StartDateTime;
-            var endDateTime = dto.EndDateTime ?? booking.EndDateTime;
+            var startDateTime = (dto.StartDateTime ?? booking.StartDateTime).ToUtc();
+            var endDateTime = (dto.EndDateTime ?? booking.EndDateTime).ToUtc();
 
             // Validate new dates
             if (startDateTime < DateTime.UtcNow)
@@ -80,11 +88,23 @@ public class UpdateBookingHandler : ICommandHandler<UpdateBookingCommand, ApiRes
             // Recalculate pricing
             if (parking != null)
             {
-                var (baseAmount, _, _) = CalculateBaseAmount(parking, startDateTime, endDateTime, booking.PricingType);
-                booking.BaseAmount = baseAmount;
-                booking.TaxAmount = Math.Round(baseAmount * TaxRate, 2);
-                booking.ServiceFee = Math.Round(baseAmount * ServiceFeeRate, 2);
-                booking.TotalAmount = booking.BaseAmount + booking.TaxAmount + booking.ServiceFee - booking.DiscountAmount;
+                var pricing = await _pricingService.CalculateAsync(
+                    command.UserId,
+                    parking,
+                    startDateTime,
+                    endDateTime,
+                    booking.PricingType,
+                    booking.DiscountCode,
+                    booking.Id,
+                    cancellationToken);
+
+                booking.BaseAmount = pricing.BaseAmount;
+                booking.TaxAmount = pricing.TaxAmount;
+                booking.ServiceFee = pricing.ServiceFee;
+                booking.DiscountAmount = pricing.DiscountAmount;
+                booking.TotalAmount = pricing.TotalAmount;
+                booking.ParkingPassId = pricing.ParkingPassId;
+                booking.DiscountCode = pricing.IsPassApplied ? null : booking.DiscountCode;
             }
         }
 
@@ -92,28 +112,5 @@ public class UpdateBookingHandler : ICommandHandler<UpdateBookingCommand, ApiRes
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         return new ApiResponse<BookingDto>(true, "Booking updated", booking.ToDto());
-    }
-
-    private (decimal BaseAmount, decimal DiscountAmount, decimal FinalAmount) CalculateBaseAmount(
-        ParkingApp.Domain.Entities.ParkingSpace space,
-        DateTime startDateTime,
-        DateTime endDateTime,
-        PricingType pricingType)
-    {
-        var duration = endDateTime - startDateTime;
-        var totalHours = Math.Ceiling(duration.TotalHours);
-        var totalDays = Math.Ceiling(duration.TotalDays);
-        var totalMonths = Math.Ceiling(duration.TotalDays / 30);
-
-        var amount = pricingType switch
-        {
-            PricingType.Hourly => space.HourlyRate * (decimal)totalHours,
-            PricingType.Daily => space.DailyRate > 0 ? space.DailyRate : (space.HourlyRate * 24),
-            PricingType.Weekly => space.WeeklyRate > 0 ? space.WeeklyRate : ((space.DailyRate > 0 ? space.DailyRate : (space.HourlyRate * 24)) * 7),
-            PricingType.Monthly => space.MonthlyRate > 0 ? space.MonthlyRate : ((space.DailyRate > 0 ? space.DailyRate : (space.HourlyRate * 24)) * 30),
-            _ => space.HourlyRate * (decimal)totalHours
-        };
-
-        return (amount, 0, amount);
     }
 }

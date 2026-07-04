@@ -91,7 +91,10 @@ public class BookingsController : ControllerBase
     [AllowAnonymous]
     public async Task<IActionResult> CalculatePrice([FromBody] PriceCalculationDto dto, CancellationToken cancellationToken)
     {
-        var result = await _bookingService.CalculatePriceAsync(dto, cancellationToken);
+        var userId = GetUserId();
+        var result = userId.HasValue
+            ? await _bookingService.CalculatePriceAsync(dto, userId, cancellationToken)
+            : await _bookingService.CalculatePriceAsync(dto, cancellationToken);
         if (!result.Success)
         {
             return BadRequest(result);
@@ -285,7 +288,7 @@ public class BookingsController : ControllerBase
 
     private Guid? GetUserId()
     {
-        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        var userIdClaim = HttpContext?.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
         return Guid.TryParse(userIdClaim, out var userId) ? userId : null;
     }
 }

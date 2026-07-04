@@ -17,17 +17,35 @@ public class BookingService : IBookingService
     private readonly ICacheService _cache;
     private readonly ILogger<BookingService> _logger;
     private readonly IEmailService _emailService;
+    private readonly IParkingPassPricingService _pricingService;
 
     private const decimal TaxRate = 0.18m; // 18% tax
     private const decimal ServiceFeeRate = 0.05m; // 5% service fee
 
-    public BookingService(IUnitOfWork unitOfWork, INotificationCoordinator notificationCoordinator, ICacheService cache, ILogger<BookingService> logger, IEmailService emailService)
+    public BookingService(
+        IUnitOfWork unitOfWork,
+        INotificationCoordinator notificationCoordinator,
+        ICacheService cache,
+        ILogger<BookingService> logger,
+        IEmailService emailService,
+        IParkingPassPricingService pricingService)
     {
         _unitOfWork = unitOfWork;
         _notificationCoordinator = notificationCoordinator;
         _cache = cache;
         _logger = logger;
         _emailService = emailService;
+        _pricingService = pricingService;
+    }
+
+    public BookingService(
+        IUnitOfWork unitOfWork,
+        INotificationCoordinator notificationCoordinator,
+        ICacheService cache,
+        ILogger<BookingService> logger,
+        IEmailService emailService)
+        : this(unitOfWork, notificationCoordinator, cache, logger, emailService, new ParkingPassPricingService(unitOfWork))
+    {
     }
 
     public async Task<ApiResponse<BookingDto>> GetByIdAsync(Guid id, Guid userId, CancellationToken cancellationToken = default)
@@ -121,7 +139,12 @@ public class BookingService : IBookingService
         return new ApiResponse<BookingListResultDto>(true, null, result);
     }
 
-    public async Task<ApiResponse<PriceBreakdownDto>> CalculatePriceAsync(PriceCalculationDto dto, CancellationToken cancellationToken = default)
+    public Task<ApiResponse<PriceBreakdownDto>> CalculatePriceAsync(PriceCalculationDto dto, CancellationToken cancellationToken = default)
+    {
+        return CalculatePriceAsync(dto, null, cancellationToken);
+    }
+
+    public async Task<ApiResponse<PriceBreakdownDto>> CalculatePriceAsync(PriceCalculationDto dto, Guid? userId, CancellationToken cancellationToken = default)
     {
         var parking = await _unitOfWork.ParkingSpaces.GetByIdAsync(dto.ParkingSpaceId, cancellationToken);
         if (parking == null)
@@ -129,30 +152,29 @@ public class BookingService : IBookingService
             return new ApiResponse<PriceBreakdownDto>(false, "Parking space not found", null);
         }
 
-        var duration = dto.EndDateTime.ToUtc() - dto.StartDateTime.ToUtc();
-        var (baseAmount, durationValue, durationUnit) = CalculateBaseAmount(parking, dto.StartDateTime.ToUtc(), dto.EndDateTime.ToUtc(), dto.PricingType);
-
-        var taxAmount = Math.Round(baseAmount * TaxRate, 2);
-        var serviceFee = Math.Round(baseAmount * ServiceFeeRate, 2);
-        var discountAmount = 0m;
-
-        // Apply discount if code provided
-        if (!string.IsNullOrEmpty(dto.DiscountCode))
-        {
-            discountAmount = ApplyDiscount(baseAmount, dto.DiscountCode);
-        }
-
-        var totalAmount = baseAmount + taxAmount + serviceFee - discountAmount;
+        var pricing = await _pricingService.CalculateAsync(
+            userId,
+            parking,
+            dto.StartDateTime.ToUtc(),
+            dto.EndDateTime.ToUtc(),
+            dto.PricingType,
+            dto.DiscountCode,
+            null,
+            cancellationToken);
 
         var result = new PriceBreakdownDto(
-            baseAmount,
-            taxAmount,
-            serviceFee,
-            discountAmount,
-            totalAmount,
-            $"{dto.PricingType} rate applied",
-            durationValue,
-            durationUnit
+            pricing.BaseAmount,
+            pricing.TaxAmount,
+            pricing.ServiceFee,
+            pricing.DiscountAmount,
+            pricing.TotalAmount,
+            pricing.PricingDescription,
+            pricing.Duration,
+            pricing.DurationUnit,
+            pricing.ParkingPassId,
+            pricing.ParkingPassType,
+            pricing.AppliedDiscountPercentage,
+            pricing.IsPassApplied
         );
 
         return new ApiResponse<PriceBreakdownDto>(true, null, result);
@@ -265,12 +287,15 @@ public class BookingService : IBookingService
             }
         }
 
-        // Calculate pricing
-        var (baseAmount, _, _) = CalculateBaseAmount(parking, dto.StartDateTime.ToUtc(), dto.EndDateTime.ToUtc(), dto.PricingType);
-        var taxAmount = Math.Round(baseAmount * TaxRate, 2);
-        var serviceFee = Math.Round(baseAmount * ServiceFeeRate, 2);
-        var discountAmount = ApplyDiscount(baseAmount, dto.DiscountCode);
-        var totalAmount = baseAmount + taxAmount + serviceFee - discountAmount;
+        var pricing = await _pricingService.CalculateAsync(
+            userId,
+            parking,
+            dto.StartDateTime.ToUtc(),
+            dto.EndDateTime.ToUtc(),
+            dto.PricingType,
+            dto.DiscountCode,
+            null,
+            cancellationToken);
 
         // Create booking
         var booking = new Booking
@@ -284,12 +309,14 @@ public class BookingService : IBookingService
             SlotNumber = dto.SlotNumber,
             VehicleNumber = dto.VehicleNumber?.Trim().ToUpper(),
             VehicleModel = dto.VehicleModel?.Trim(),
-            BaseAmount = baseAmount,
-            TaxAmount = taxAmount,
-            ServiceFee = serviceFee,
-            DiscountAmount = discountAmount,
-            DiscountCode = dto.DiscountCode,
-            TotalAmount = totalAmount,
+            VehicleColor = dto.VehicleColor?.Trim(),
+            BaseAmount = pricing.BaseAmount,
+            TaxAmount = pricing.TaxAmount,
+            ServiceFee = pricing.ServiceFee,
+            DiscountAmount = pricing.DiscountAmount,
+            DiscountCode = pricing.IsPassApplied ? null : dto.DiscountCode,
+            TotalAmount = pricing.TotalAmount,
+            ParkingPassId = pricing.ParkingPassId,
             Status = BookingStatus.Pending,
             BookingReference = GenerateBookingReference()
         };
@@ -298,7 +325,7 @@ public class BookingService : IBookingService
         await _unitOfWork.SaveChangesAsync(cancellationToken);
         
         _logger.LogInformation("Booking {BookingReference} created successfully for user {UserId}, total amount: {TotalAmount:C}", 
-            booking.BookingReference, userId, totalAmount);
+            booking.BookingReference, userId, pricing.TotalAmount);
 
         // Reload with navigation properties
         booking = await _unitOfWork.Bookings.GetByIdAsync(booking.Id, cancellationToken);
@@ -311,7 +338,7 @@ public class BookingService : IBookingService
                 NotificationType.BookingRequest.ToString(),
                 "New Booking Request",
                 $"New booking request from {memberName} for {parking.Title}",
-                NotificationChannels.InApp,
+                NotificationChannels.All,
                 new Dictionary<string, string> { { "BookingId", booking!.Id.ToString() }, { "BookingReference", booking.BookingReference ?? string.Empty } }
             ),
             cancellationToken);
@@ -410,11 +437,23 @@ public class BookingService : IBookingService
             // Recalculate pricing
             if (parking != null)
             {
-                var (baseAmount, _, _) = CalculateBaseAmount(parking, startDateTime, endDateTime, booking.PricingType);
-                booking.BaseAmount = baseAmount;
-                booking.TaxAmount = Math.Round(baseAmount * TaxRate, 2);
-                booking.ServiceFee = Math.Round(baseAmount * ServiceFeeRate, 2);
-                booking.TotalAmount = booking.BaseAmount + booking.TaxAmount + booking.ServiceFee - booking.DiscountAmount;
+                var pricing = await _pricingService.CalculateAsync(
+                    userId,
+                    parking,
+                    startDateTime,
+                    endDateTime,
+                    booking.PricingType,
+                    booking.DiscountCode,
+                    booking.Id,
+                    cancellationToken);
+
+                booking.BaseAmount = pricing.BaseAmount;
+                booking.TaxAmount = pricing.TaxAmount;
+                booking.ServiceFee = pricing.ServiceFee;
+                booking.DiscountAmount = pricing.DiscountAmount;
+                booking.TotalAmount = pricing.TotalAmount;
+                booking.ParkingPassId = pricing.ParkingPassId;
+                booking.DiscountCode = pricing.IsPassApplied ? null : booking.DiscountCode;
             }
         }
 
@@ -481,7 +520,7 @@ public class BookingService : IBookingService
                     NotificationType.BookingRejected.ToString(),
                     "Booking Cancelled",
                     $"Booking {booking.BookingReference} has been cancelled",
-                    NotificationChannels.InApp,
+                    NotificationChannels.All,
                     new Dictionary<string, string> { { "BookingId", id.ToString() }, { "BookingReference", booking.BookingReference ?? string.Empty } }
                 ),
                 cancellationToken);
@@ -569,7 +608,7 @@ public class BookingService : IBookingService
                     NotificationType.SystemAlert.ToString(),
                     "Guest Checked In",
                     $"{booking.User?.FirstName} has checked in at {booking.ParkingSpace.Title}",
-                    NotificationChannels.InApp,
+                    NotificationChannels.All,
                     new Dictionary<string, string> { { "BookingId", id.ToString() }, { "BookingReference", booking.BookingReference ?? string.Empty } }
                 ),
                 cancellationToken);
@@ -705,7 +744,8 @@ public class BookingService : IBookingService
             return new ApiResponse<BookingDto>(false, "Only pending bookings can be approved", null);
         }
 
-        booking.Status = BookingStatus.AwaitingPayment;
+        var isPassCoveredBooking = booking.ParkingPassId.HasValue && booking.TotalAmount <= 0;
+        booking.Status = isPassCoveredBooking ? BookingStatus.Confirmed : BookingStatus.AwaitingPayment;
         
         _unitOfWork.Bookings.Update(booking);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
@@ -717,9 +757,13 @@ public class BookingService : IBookingService
             booking.UserId,
             new NotificationRequest(
                 NotificationType.BookingConfirmed.ToString(),
-                "Booking Approved!",
-                $"Your booking for {booking.ParkingSpace?.Title} has been approved. Please complete payment.",
-                NotificationChannels.InApp,
+                isPassCoveredBooking ? "Booking Confirmed!" : "Booking Approved!",
+                isPassCoveredBooking
+                    ? $"Your booking for {booking.ParkingSpace?.Title} has been approved and confirmed with your parking pass pricing."
+                    : booking.TotalAmount > 0
+                        ? $"Your booking for {booking.ParkingSpace?.Title} has been approved. Please complete payment."
+                        : $"Your booking for {booking.ParkingSpace?.Title} has been approved and is awaiting final settlement.",
+                NotificationChannels.All,
                 new Dictionary<string, string> { { "BookingId", id.ToString() }, { "BookingReference", booking.BookingReference ?? string.Empty } }
             ),
             cancellationToken);
@@ -729,8 +773,12 @@ public class BookingService : IBookingService
         {
             await _emailService.SendEmailAsync(
                 booking.User.Email,
-                $"Booking Approved: {booking.BookingReference}",
-                $"<p>Hello {booking.User.FirstName},</p><p>Great news! Your booking for <strong>{booking.ParkingSpace?.Title}</strong> has been approved.</p><p>Please log in and complete your payment to confirm the reservation.</p>"
+                isPassCoveredBooking ? $"Booking Confirmed: {booking.BookingReference}" : $"Booking Approved: {booking.BookingReference}",
+                isPassCoveredBooking
+                    ? $"<p>Hello {booking.User.FirstName},</p><p>Great news! Your booking for <strong>{booking.ParkingSpace?.Title}</strong> has been approved and confirmed.</p><p>Your active parking pass covered this booking, so no payment is required.</p>"
+                    : booking.TotalAmount > 0
+                        ? $"<p>Hello {booking.User.FirstName},</p><p>Great news! Your booking for <strong>{booking.ParkingSpace?.Title}</strong> has been approved.</p><p>Please log in and complete your payment to confirm the reservation.</p>"
+                        : $"<p>Hello {booking.User.FirstName},</p><p>Great news! Your booking for <strong>{booking.ParkingSpace?.Title}</strong> has been approved.</p><p>No payment is due, but the booking will remain pending final settlement until it is fully confirmed.</p>"
             );
         }
 
@@ -741,7 +789,10 @@ public class BookingService : IBookingService
         await _cache.RemoveAsync($"parking:{booking.ParkingSpaceId}", cancellationToken);
         await _cache.RemoveByPatternAsync("search:*", cancellationToken);
 
-        return new ApiResponse<BookingDto>(true, "Booking approved. Awaiting member payment.", booking.ToDto());
+        return new ApiResponse<BookingDto>(
+            true,
+            isPassCoveredBooking ? "Booking approved and confirmed with parking pass pricing." : "Booking approved. Awaiting final settlement.",
+            booking.ToDto());
     }
 
     public async Task<ApiResponse<BookingDto>> ExtendAsync(Guid id, Guid userId, ExtendBookingDto dto, CancellationToken cancellationToken = default)
@@ -791,20 +842,27 @@ public class BookingService : IBookingService
             }
         }
 
-        // Calculate additional pricing
-        var extraDuration = newEndDateTime - booking.EndDateTime;
-        var (extraBaseAmount, _, _) = CalculateBaseAmount(parking, booking.EndDateTime, newEndDateTime, booking.PricingType);
-        
-        var extraTaxAmount = Math.Round(extraBaseAmount * TaxRate, 2);
-        var extraServiceFee = Math.Round(extraBaseAmount * ServiceFeeRate, 2);
-        var totalExtraAmount = extraBaseAmount + extraTaxAmount + extraServiceFee;
+        var repricedBooking = await _pricingService.CalculateAsync(
+            userId,
+            parking,
+            booking.StartDateTime,
+            newEndDateTime,
+            booking.PricingType,
+            booking.DiscountCode,
+            booking.Id,
+            cancellationToken);
+
+        var totalExtraAmount = Math.Max(0, repricedBooking.TotalAmount - booking.TotalAmount);
 
         // Update booking
         booking.EndDateTime = newEndDateTime;
-        booking.BaseAmount += extraBaseAmount;
-        booking.TaxAmount += extraTaxAmount;
-        booking.ServiceFee += extraServiceFee;
-        booking.TotalAmount += totalExtraAmount;
+        booking.BaseAmount = repricedBooking.BaseAmount;
+        booking.TaxAmount = repricedBooking.TaxAmount;
+        booking.ServiceFee = repricedBooking.ServiceFee;
+        booking.DiscountAmount = repricedBooking.DiscountAmount;
+        booking.TotalAmount = repricedBooking.TotalAmount;
+        booking.ParkingPassId = repricedBooking.ParkingPassId;
+        booking.DiscountCode = repricedBooking.IsPassApplied ? null : booking.DiscountCode;
 
         _unitOfWork.Bookings.Update(booking);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
@@ -855,7 +913,7 @@ public class BookingService : IBookingService
                 NotificationType.BookingRejected.ToString(),
                 "Booking Rejected",
                 $"Your booking for {booking.ParkingSpace?.Title} was rejected. Reason: {booking.CancellationReason}",
-                NotificationChannels.InApp,
+                NotificationChannels.All,
                 new Dictionary<string, string> { { "BookingId", id.ToString() }, { "BookingReference", booking.BookingReference ?? string.Empty }, { "Reason", booking.CancellationReason ?? string.Empty } }
             ),
             cancellationToken);

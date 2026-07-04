@@ -52,7 +52,13 @@ public static class MappingExtensions
         parking.TotalReviews,
         parking.SpecialInstructions,
         parking.CreatedAt,
-        null
+        null,
+        null,
+        null,
+        parking.ZoneCode,
+        parking.CompanyOwnerId,
+        parking.OwnershipType,
+        parking.IsCorporateOnly
     );
 
     public static ParkingSpaceDto ToDtoWithReservations(this ParkingSpace parking, IEnumerable<Booking> activeBookings)
@@ -103,7 +109,11 @@ public static class MappingExtensions
             parking.CreatedAt,
             null, // DistanceKm
             null, // EstimatedTimeMinutes
-            reservations
+            reservations,
+            parking.ZoneCode,
+            parking.CompanyOwnerId,
+            parking.OwnershipType,
+            parking.IsCorporateOnly
         );
     }
 
@@ -159,7 +169,11 @@ public static class MappingExtensions
             parking.CreatedAt,
             distanceKm,
             durationMinutes,
-            reservations
+            reservations,
+            parking.ZoneCode,
+            parking.CompanyOwnerId,
+            parking.OwnershipType,
+            parking.IsCorporateOnly
         );
     }
 
@@ -191,7 +205,8 @@ public static class MappingExtensions
             ? string.Join(",", dto.AllowedVehicleTypes.Select(v => v.ToString())) 
             : null,
         ImageUrls = dto.ImageUrls != null ? string.Join(",", dto.ImageUrls) : null,
-        SpecialInstructions = dto.SpecialInstructions
+        SpecialInstructions = dto.SpecialInstructions,
+        ZoneCode = dto.ZoneCode?.Trim().ToUpperInvariant()
     };
 
     // Booking mappings
@@ -226,7 +241,32 @@ public static class MappingExtensions
         booking.CreatedAt,
         booking.PendingExtensionEndDateTime,
         booking.PendingExtensionAmount,
-        booking.HasPendingExtension
+        booking.HasPendingExtension,
+        booking.ParkingPassId,
+        booking.ParkingPass?.PassType.Kind.ToString(),
+        booking.ParkingPassId.HasValue
+    );
+
+    public static ParkingPassDto ToDto(this ParkingPass parkingPass, DateTime? utcNow = null) => new(
+        parkingPass.Id,
+        parkingPass.UserId,
+        parkingPass.User?.FullName ?? "Unknown",
+        parkingPass.PassType.Kind,
+        parkingPass.Duration.StartDateUtc,
+        parkingPass.Duration.EndDateUtc,
+        parkingPass.CoverageType,
+        parkingPass.ParkingSpaceId,
+        parkingPass.ParkingSpace?.Title,
+        parkingPass.ParkingZoneCode,
+        parkingPass.UsagePolicy.Mode,
+        parkingPass.UsagePolicy.DailyHourLimit,
+        parkingPass.DiscountPercentage,
+        parkingPass.GetState(utcNow ?? DateTime.UtcNow),
+        parkingPass.IsActiveOn(utcNow ?? DateTime.UtcNow),
+        parkingPass.IsExpiredOn(utcNow ?? DateTime.UtcNow),
+        parkingPass.AllocatedByUserId,
+        parkingPass.CorporateBatchReference,
+        parkingPass.CreatedAt
     );
 
     // Payment mappings

@@ -1,4 +1,5 @@
 using FluentAssertions;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using ParkingApp.Application.Interfaces;
 using ParkingApp.Notifications;
@@ -17,17 +18,26 @@ public class DependencyInjectionTests
         services.AddSignalR();
         services.AddLogging();
 
-        // Act
-        services.AddNotificationServices();
-        var provider = services.BuildServiceProvider();
+        // Build an empty configuration (no Firebase credentials — triggers graceful fallback)
+        var config = new ConfigurationBuilder().Build();
 
-        // Assert
-        provider.GetService<INotificationService>().Should().BeOfType<SignalRNotificationService>();
-        provider.GetService<ISmsNotificationService>().Should().BeOfType<MockSmsNotificationService>();
-        provider.GetService<IPushNotificationService>().Should().BeOfType<MockPushNotificationService>();
-        
-        // NotificationCoordinator requires dependencies not mocked here (IUnitOfWork, etc.), so just check the descriptor
-        services.Should().Contain(d => d.ServiceType == typeof(INotificationCoordinator) 
+        // Act
+        services.AddNotificationServices(config);
+
+        // Assert - check service descriptors without resolving (avoids missing IUnitOfWork etc.)
+        services.Should().Contain(d => d.ServiceType == typeof(INotificationService)
+                                       && d.ImplementationType == typeof(SignalRNotificationService)
+                                       && d.Lifetime == ServiceLifetime.Scoped);
+
+        services.Should().Contain(d => d.ServiceType == typeof(ISmsNotificationService)
+                                       && d.ImplementationType == typeof(MockSmsNotificationService)
+                                       && d.Lifetime == ServiceLifetime.Scoped);
+
+        services.Should().Contain(d => d.ServiceType == typeof(IPushNotificationService)
+                                       && d.ImplementationType == typeof(FirebasePushNotificationService)
+                                       && d.Lifetime == ServiceLifetime.Scoped);
+
+        services.Should().Contain(d => d.ServiceType == typeof(INotificationCoordinator)
                                        && d.ImplementationType == typeof(NotificationCoordinator)
                                        && d.Lifetime == ServiceLifetime.Scoped);
     }

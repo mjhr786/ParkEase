@@ -44,7 +44,7 @@ try
     // Use Serilog for logging
     builder.Host.UseSerilog();
 builder.Services.AddInfrastructure(builder.Configuration);
-builder.Services.AddNotificationServices();
+builder.Services.AddNotificationServices(builder.Configuration);
 builder.Services.AddApplication();
 
 // Add Controllers
@@ -241,6 +241,7 @@ app.UseStaticFiles(new StaticFileOptions
 
 app.UseAuthentication();
 app.UseAuthorization();
+app.UseMiddleware<CorporateTenantMiddleware>();
 
 app.MapControllers();
 

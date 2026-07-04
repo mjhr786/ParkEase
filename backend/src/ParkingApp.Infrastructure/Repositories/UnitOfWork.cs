@@ -15,6 +15,7 @@ public class UnitOfWork : IUnitOfWork
     private IUserRepository? _users;
     private IParkingSpaceRepository? _parkingSpaces;
     private IBookingRepository? _bookings;
+    private IParkingPassRepository? _parkingPasses;
     private IPaymentRepository? _payments;
     private IReviewRepository? _reviews;
     private IConversationRepository? _conversations;
@@ -22,6 +23,12 @@ public class UnitOfWork : IUnitOfWork
     private IFavoriteRepository? _favorites;
     private INotificationRepository? _notifications;
     private IVehicleRepository? _vehicles;
+    private IDeviceTokenRepository? _deviceTokens;
+
+    // Corporate Module
+    private ICompanyRepository? _companies;
+    private ICorporateBookingRepository? _corporateBookings;
+    private IEmployeeInvitationRepository? _employeeInvitations;
 
     public UnitOfWork(ApplicationDbContext context, IDomainEventDispatcher eventDispatcher)
     {
@@ -32,6 +39,7 @@ public class UnitOfWork : IUnitOfWork
     public IUserRepository Users => _users ??= new UserRepository(_context);
     public IParkingSpaceRepository ParkingSpaces => _parkingSpaces ??= new ParkingSpaceRepository(_context);
     public IBookingRepository Bookings => _bookings ??= new BookingRepository(_context);
+    public IParkingPassRepository ParkingPasses => _parkingPasses ??= new ParkingPassRepository(_context);
     public IPaymentRepository Payments => _payments ??= new PaymentRepository(_context);
     public IReviewRepository Reviews => _reviews ??= new ReviewRepository(_context);
     public IConversationRepository Conversations => _conversations ??= new ConversationRepository(_context);
@@ -39,6 +47,12 @@ public class UnitOfWork : IUnitOfWork
     public IFavoriteRepository Favorites => _favorites ??= new FavoriteRepository(_context);
     public INotificationRepository Notifications => _notifications ??= new NotificationRepository(_context);
     public IVehicleRepository Vehicles => _vehicles ??= new VehicleRepository(_context);
+    public IDeviceTokenRepository DeviceTokens => _deviceTokens ??= new DeviceTokenRepository(_context);
+
+    // Corporate Module
+    public ICompanyRepository Companies => _companies ??= new CompanyRepository(_context);
+    public ICorporateBookingRepository CorporateBookings => _corporateBookings ??= new CorporateBookingRepository(_context);
+    public IEmployeeInvitationRepository EmployeeInvitations => _employeeInvitations ??= new EmployeeInvitationRepository(_context);
 
     public async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
     {
@@ -101,4 +115,3 @@ public class UnitOfWork : IUnitOfWork
         _context.Dispose();
     }
 }
-

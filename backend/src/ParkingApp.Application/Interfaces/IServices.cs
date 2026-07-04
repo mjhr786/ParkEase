@@ -30,6 +30,21 @@ public interface IParkingSpaceService
     Task<ApiResponse<List<ParkingMapDto>>> GetMapCoordinatesAsync(ParkingSearchDto dto, CancellationToken cancellationToken = default);
 }
 
+public interface IParkingAvailabilityPredictionService
+{
+    Task<ApiResponse<ParkingAvailabilityForecastDto>> GetForecastAsync(
+        Guid parkingSpaceId,
+        int horizonHours = 24,
+        int intervalMinutes = 60,
+        CancellationToken cancellationToken = default);
+
+    Task<ApiResponse<List<ParkingAvailabilityForecastDto>>> GetOwnerForecastsAsync(
+        Guid ownerId,
+        int horizonHours = 12,
+        int intervalMinutes = 60,
+        CancellationToken cancellationToken = default);
+}
+
 public interface IBookingService
 {
     Task<ApiResponse<BookingDto>> GetByIdAsync(Guid id, Guid userId, CancellationToken cancellationToken = default);
@@ -39,6 +54,7 @@ public interface IBookingService
     Task<ApiResponse<BookingListResultDto>> GetVendorBookingsAsync(Guid vendorId, BookingFilterDto? filter, CancellationToken cancellationToken = default);
     Task<ApiResponse<int>> GetPendingRequestsCountAsync(Guid vendorId, CancellationToken cancellationToken = default);
     Task<ApiResponse<PriceBreakdownDto>> CalculatePriceAsync(PriceCalculationDto dto, CancellationToken cancellationToken = default);
+    Task<ApiResponse<PriceBreakdownDto>> CalculatePriceAsync(PriceCalculationDto dto, Guid? userId, CancellationToken cancellationToken = default);
     Task<ApiResponse<BookingDto>> CreateAsync(Guid userId, CreateBookingDto dto, CancellationToken cancellationToken = default);
     Task<ApiResponse<BookingDto>> UpdateAsync(Guid id, Guid userId, UpdateBookingDto dto, CancellationToken cancellationToken = default);
     Task<ApiResponse<BookingDto>> CancelAsync(Guid id, Guid userId, CancelBookingDto dto, CancellationToken cancellationToken = default);

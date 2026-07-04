@@ -216,6 +216,22 @@ class ApiService {
     return this.request('/parking/my-listings');
   }
 
+  async getParkingAvailabilityForecast(parkingSpaceId, params = {}) {
+    const queryString = new URLSearchParams(
+      Object.entries(params).filter(([, v]) => v != null)
+    ).toString();
+    const suffix = queryString ? `?${queryString}` : '';
+    return this.request(`/parking-availability/${parkingSpaceId}/forecast${suffix}`);
+  }
+
+  async getMyListingAvailabilityForecasts(params = {}) {
+    const queryString = new URLSearchParams(
+      Object.entries(params).filter(([, v]) => v != null)
+    ).toString();
+    const suffix = queryString ? `?${queryString}` : '';
+    return this.request(`/parking-availability/my-listings${suffix}`);
+  }
+
   async createParking(data) {
     return this.request('/parking', {
       method: 'POST',

@@ -166,4 +166,31 @@ public class RedisCacheService : ICacheService
 
         return value;
     }
+
+    public async Task<bool> AcquireLockAsync(string key, TimeSpan expiry, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var redisKey = GetKey(key);
+            return await _database.StringSetAsync(redisKey, "LOCKED", expiry, When.NotExists);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error acquiring lock: {Key}", key);
+            return false;
+        }
+    }
+
+    public async Task ReleaseLockAsync(string key, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var redisKey = GetKey(key);
+            await _database.KeyDeleteAsync(redisKey);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error releasing lock: {Key}", key);
+        }
+    }
 }
