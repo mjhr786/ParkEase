@@ -1,6 +1,7 @@
 using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using Moq;
+using ParkingApp.Application.Caching;
 using ParkingApp.Application.EventHandlers;
 using ParkingApp.Application.Interfaces;
 using ParkingApp.Domain.Shared;
@@ -28,22 +29,38 @@ public class DomainEventHandlerTests
 
         await handler.HandleAsync(new ParkingSpaceUpdatedEvent(parkingId, "Lot A"));
 
-        cache.Verify(c => c.RemoveAsync($"parking:{parkingId}", It.IsAny<CancellationToken>()), Times.Once);
-        cache.Verify(c => c.RemoveByPatternAsync("search:*", It.IsAny<CancellationToken>()), Times.Once);
-        cache.Verify(c => c.RemoveByPatternAsync("map:*", It.IsAny<CancellationToken>()), Times.Once);
+        cache.Verify(c => c.RemoveAsync(CacheKeys.Parking(parkingId), It.IsAny<CancellationToken>()), Times.Once);
+        cache.Verify(c => c.RemoveByPatternAsync(CacheKeys.SearchAll, It.IsAny<CancellationToken>()), Times.Once);
+        cache.Verify(c => c.RemoveByPatternAsync(CacheKeys.MapAll, It.IsAny<CancellationToken>()), Times.Once);
+        cache.Verify(c => c.RemoveByPatternAsync(CacheKeys.ParkingForecastAll, It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
-    public async Task BookingCancelledParkingCacheHandler_InvalidatesParkingCaches()
+    public async Task BookingCancelledParkingCacheHandler_InvalidatesParkingCachesComprehensively()
     {
         var cache = new Mock<ICacheService>();
-        var handler = new BookingCancelledParkingCacheHandler(cache.Object);
+        var uow = new Mock<IMarketplaceUnitOfWork>();
+        var parkingRepo = new Mock<IParkingSpaceRepository>();
         var parkingId = Guid.NewGuid();
+        var memberId = Guid.NewGuid();
+        var vendorId = Guid.NewGuid();
 
-        await handler.HandleAsync(new BookingCancelledEvent(Guid.NewGuid(), Guid.NewGuid(), parkingId, "REF1", "reason"));
+        parkingRepo.Setup(r => r.GetByIdAsync(parkingId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ParkingSpace { Id = parkingId, OwnerId = vendorId });
+        uow.Setup(u => u.ParkingSpaces).Returns(parkingRepo.Object);
 
-        cache.Verify(c => c.RemoveAsync($"parking:{parkingId}", It.IsAny<CancellationToken>()), Times.Once);
-        cache.Verify(c => c.RemoveByPatternAsync("search:*", It.IsAny<CancellationToken>()), Times.Once);
+        var handler = new BookingCancelledParkingCacheHandler(cache.Object, uow.Object);
+
+        await handler.HandleAsync(new BookingCancelledEvent(Guid.NewGuid(), memberId, parkingId, "REF1", "reason"));
+
+        cache.Verify(c => c.RemoveAsync(CacheKeys.Parking(parkingId), It.IsAny<CancellationToken>()), Times.Once);
+        // Discovery lists are intentionally not busted on booking lifecycle (stable listing metadata).
+        cache.Verify(c => c.RemoveByPatternAsync(CacheKeys.SearchAll, It.IsAny<CancellationToken>()), Times.Never);
+        cache.Verify(c => c.RemoveByPatternAsync(CacheKeys.MapAll, It.IsAny<CancellationToken>()), Times.Never);
+        cache.Verify(c => c.RemoveByPatternAsync(CacheKeys.ParkingForecastAll, It.IsAny<CancellationToken>()), Times.Once);
+        cache.Verify(c => c.RemoveAsync(CacheKeys.MemberDashboard(memberId), It.IsAny<CancellationToken>()), Times.Once);
+        cache.Verify(c => c.RemoveAsync(CacheKeys.VendorDashboard(vendorId), It.IsAny<CancellationToken>()), Times.Once);
+        cache.Verify(c => c.RemoveByPatternAsync(CacheKeys.OwnerForecastAll, It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]

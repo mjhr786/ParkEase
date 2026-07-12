@@ -81,7 +81,7 @@ public class CompanyQueryHandlerTests
         _companies.Setup(c => c.GetMembershipAsync(companyId, userId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(membership);
 
-        var handler = new GetCompanyDashboardHandler(_uow.Object, _readStore.Object);
+        var handler = new GetCompanyDashboardHandler(_uow.Object, _readStore.Object, new Mock<ParkingApp.Application.Interfaces.ICacheService>().Object);
         var result = await handler.HandleAsync(new GetCompanyDashboardQuery(companyId, userId));
 
         result.Success.Should().BeFalse();
@@ -107,7 +107,7 @@ public class CompanyQueryHandlerTests
         _readStore.Setup(r => r.GetCompanyDashboardAsync(companyId, It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(dashboard);
 
-        var handler = new GetCompanyDashboardHandler(_uow.Object, _readStore.Object);
+        var handler = new GetCompanyDashboardHandler(_uow.Object, _readStore.Object, new Mock<ParkingApp.Application.Interfaces.ICacheService>().Object);
         var result = await handler.HandleAsync(new GetCompanyDashboardQuery(companyId, userId));
 
         result.Success.Should().BeTrue();

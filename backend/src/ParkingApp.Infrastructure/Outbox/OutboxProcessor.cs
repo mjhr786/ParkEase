@@ -40,14 +40,38 @@ public sealed class OutboxProcessor : IOutboxProcessor
                 m.AttemptCount < 10)
             .OrderBy(m => m.CreatedAtUtc)
             .Take(batchSize)
+            .Select(m => m.Id)
+            .ToListAsync(cancellationToken);
+
+        return await ProcessByIdsAsync(batch, cancellationToken);
+    }
+
+    public async Task<int> ProcessByIdsAsync(IReadOnlyList<Guid> messageIds, CancellationToken cancellationToken = default)
+    {
+        if (messageIds == null || messageIds.Count == 0)
+        {
+            return 0;
+        }
+
+        var now = DateTime.UtcNow;
+        var batch = await _db.OutboxMessages
+            .Where(m => messageIds.Contains(m.Id))
+            .OrderBy(m => m.CreatedAtUtc)
             .ToListAsync(cancellationToken);
 
         var processed = 0;
         foreach (var message in batch)
         {
+            if (message.Status == OutboxStatus.Processed)
+            {
+                continue;
+            }
+
             // Skip if already successfully processed under this idempotency key
             var alreadyDone = await _db.OutboxMessages.AnyAsync(
-                m => m.IdempotencyKey == message.IdempotencyKey && m.Status == OutboxStatus.Processed,
+                m => m.IdempotencyKey == message.IdempotencyKey
+                     && m.Status == OutboxStatus.Processed
+                     && m.Id != message.Id,
                 cancellationToken);
             if (alreadyDone)
             {

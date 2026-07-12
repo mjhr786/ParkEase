@@ -1,11 +1,9 @@
 using ParkingApp.BuildingBlocks.Exceptions;
+using ParkingApp.Application.Caching;
 using ParkingApp.Application.CQRS.Commands.Corporate.Shared;
 using ParkingApp.Application.DTOs;
 using ParkingApp.Application.Interfaces;
-using ParkingApp.Domain.Shared;
 using ParkingApp.Domain.Marketplace;
-using ParkingApp.Domain.Identity;
-using ParkingApp.Domain.Messaging;
 using ParkingApp.Domain.Corporate;
 using ParkingApp.Domain.Interfaces;
 
@@ -57,6 +55,12 @@ public class BookVisitorParkingHandler : ICommandHandler<BookVisitorParkingComma
             return new ApiResponse<CorporateReservationResultDto>(false, "Allocation not found.", null);
         }
 
+        var membership = company.Memberships.FirstOrDefault(m => m.UserId == command.UserId && !m.IsDeleted);
+        if (membership == null)
+        {
+            return new ApiResponse<CorporateReservationResultDto>(false, "You are not an active member of this company.", null);
+        }
+
         var lockKey = CorporateCommandHelpers.BuildLockKey(command.CompanyId, allocation.Id, command.Dto.StartDateTime);
         if (!await _cache.AcquireLockAsync(lockKey, TimeSpan.FromSeconds(10), ct))
         {
@@ -71,41 +75,19 @@ public class BookVisitorParkingHandler : ICommandHandler<BookVisitorParkingComma
 
         try
         {
-            var membership = company.Memberships.FirstOrDefault(m => m.UserId == command.UserId && !m.IsDeleted);
-            if (membership == null)
-            {
-                return new ApiResponse<CorporateReservationResultDto>(false, "You are not an active member of this company.", null);
-            }
-
-            var activeSharedCount = await _corporate.CorporateBookings.GetActiveSharedBookingsCountAsync(
-                command.CompanyId,
-                allocation.Id,
-                command.Dto.StartDateTime,
-                command.Dto.EndDateTime,
-                ct);
-            var occupiedSharedSlotNumbers = await _corporate.CorporateBookings.GetOccupiedSharedSlotNumbersAsync(
-                command.CompanyId,
-                allocation.Id,
-                command.Dto.StartDateTime,
-                command.Dto.EndDateTime,
-                ct);
-            var sharedSlotUsageBySlot = await _corporate.CorporateBookings.GetSharedSlotUsageCountsAsync(
-                command.CompanyId,
-                allocation.Id,
-                DateTime.UtcNow.AddDays(-30),
-                ct);
-            var anonymousOccupiedSharedBookings = Math.Max(0, activeSharedCount - occupiedSharedSlotNumbers.Count);
-            var hasOverlappingVehicleBooking = await _corporate.CorporateBookings.HasOverlappingVehicleBookingAsync(
-                command.CompanyId,
-                allocation.Id,
-                command.Dto.VisitorLicensePlate,
-                command.Dto.StartDateTime,
-                command.Dto.EndDateTime,
-                ct);
-            var recentBookingCreations = await _corporate.CorporateBookings.GetRecentBookingCreateCountAsync(
+            var usageDate = DateOnly.FromDateTime(command.Dto.StartDateTime);
+            var weekStart = CorporateCommandHelpers.GetWeekStart(usageDate);
+            var preCheck = await _corporate.CorporateBookings.GetReservationPreCheckAsync(
                 command.CompanyId,
                 membership.Id,
+                allocation.Id,
+                command.Dto.StartDateTime,
+                command.Dto.EndDateTime,
+                usageDate,
+                weekStart,
                 DateTime.UtcNow.AddHours(-24),
+                DateTime.UtcNow.AddDays(-30),
+                command.Dto.VisitorLicensePlate,
                 ct);
 
             var duration = command.Dto.EndDateTime - command.Dto.StartDateTime;
@@ -116,8 +98,8 @@ public class BookVisitorParkingHandler : ICommandHandler<BookVisitorParkingComma
                 command.Dto.StartDateTime,
                 command.Dto.EndDateTime,
                 hasOverlappingMemberBooking: false,
-                hasOverlappingVehicleBooking,
-                recentBookingCreations);
+                preCheck.HasOverlappingVehicleBooking,
+                preCheck.RecentBookingCreateCount);
 
             reservation = company.ReserveVisitorParking(
                 command.UserId,
@@ -126,9 +108,9 @@ public class BookVisitorParkingHandler : ICommandHandler<BookVisitorParkingComma
                 command.Dto.VisitorName,
                 command.Dto.VisitorLicensePlate,
                 command.Dto.AccessExpiry,
-                occupiedSharedSlotNumbers,
-                sharedSlotUsageBySlot,
-                anonymousOccupiedSharedBookings,
+                preCheck.OccupiedSharedSlotNumbers,
+                preCheck.SharedSlotUsageBySlot,
+                preCheck.AnonymousOccupiedSharedBookings,
                 fraudAssessment);
 
             if (!reservation.IsWaitlisted)
@@ -146,6 +128,17 @@ public class BookVisitorParkingHandler : ICommandHandler<BookVisitorParkingComma
         finally
         {
             await _cache.ReleaseLockAsync(lockKey, ct);
+        }
+
+        if (reservation is { IsWaitlisted: false } && booking != null)
+        {
+            await CacheInvalidation.ForBookingChangeAsync(
+                _cache,
+                booking.ParkingSpaceId,
+                memberId: booking.UserId,
+                vendorId: null,
+                ct);
+            await _quotaCache.InvalidateCompanyAsync(command.CompanyId, ct);
         }
 
         var message = reservation!.IsWaitlisted

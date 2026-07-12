@@ -2,6 +2,7 @@ using FluentAssertions;
 using Moq;
 using ParkingApp.Application.CQRS.Commands.Corporate;
 using ParkingApp.Application.CQRS.Commands.Corporate.Bookings;
+using ParkingApp.Application.Interfaces;
 using ParkingApp.Domain.Corporate;
 using ParkingApp.Domain.Enums;
 using ParkingApp.Domain.Interfaces;
@@ -14,6 +15,8 @@ public class CancelCorporateBookingHandlerTests
 {
     private readonly Mock<ICorporateUnitOfWork> _corporate = new();
     private readonly Mock<IMarketplaceUnitOfWork> _marketplace = new();
+    private readonly Mock<ICacheService> _cache = new();
+    private readonly Mock<ICompanyQuotaCache> _quotaCache = new();
     private readonly Mock<ICompanyRepository> _companies = new();
     private readonly Mock<ICorporateBookingRepository> _corporateBookings = new();
     private readonly Mock<IBookingRepository> _bookings = new();
@@ -25,13 +28,16 @@ public class CancelCorporateBookingHandlerTests
         _marketplace.Setup(m => m.Bookings).Returns(_bookings.Object);
     }
 
+    private CancelCorporateBookingHandler CreateHandler() =>
+        new(_corporate.Object, _marketplace.Object, _cache.Object, _quotaCache.Object);
+
     [Fact]
     public async Task Handle_WhenNotMember_Denies()
     {
         _companies.Setup(c => c.GetMembershipAsync(It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((UserCompanyMembership?)null);
 
-        var handler = new CancelCorporateBookingHandler(_corporate.Object, _marketplace.Object);
+        var handler = CreateHandler();
         var result = await handler.HandleAsync(new CancelCorporateBookingCommand(
             Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), "reason"));
 
@@ -57,7 +63,7 @@ public class CancelCorporateBookingHandlerTests
         _corporateBookings.Setup(r => r.GetByCompanyAndBookingIdAsync(companyId, corpBooking.BookingId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(corpBooking);
 
-        var handler = new CancelCorporateBookingHandler(_corporate.Object, _marketplace.Object);
+        var handler = CreateHandler();
         var result = await handler.HandleAsync(new CancelCorporateBookingCommand(
             companyId, employeeId, corpBooking.BookingId, "nope"));
 
@@ -98,12 +104,14 @@ public class CancelCorporateBookingHandlerTests
         _bookings.Setup(b => b.GetByIdWithDetailsAsync(bookingId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(booking);
 
-        var handler = new CancelCorporateBookingHandler(_corporate.Object, _marketplace.Object);
+        var handler = CreateHandler();
         var result = await handler.HandleAsync(new CancelCorporateBookingCommand(
             companyId, adminId, bookingId, "Admin cancel"));
 
         result.Success.Should().BeTrue();
         booking.Status.Should().Be(BookingStatus.Cancelled);
         _corporate.Verify(c => c.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
+        _cache.Verify(c => c.RemoveAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.AtLeastOnce);
+        _quotaCache.Verify(q => q.InvalidateCompanyAsync(companyId, It.IsAny<CancellationToken>()), Times.Once);
     }
 }

@@ -117,23 +117,25 @@ public class ParkingPassPricingService : IParkingPassPricingService
         }
 
         var candidatePasses = await candidatePassesTask;
-        if (candidatePasses == null)
+        if (candidatePasses == null || candidatePasses.Count == 0)
         {
             return null;
         }
 
+        // One query for all candidate passes (was N GetBookedHoursByDayAsync).
+        var hoursByPass = await parkingPassRepository.GetBookedHoursByDayForPassesAsync(
+            candidatePasses.Select(p => p.Id).ToList(),
+            userId,
+            startDateUtc,
+            endDateUtc,
+            excludeBookingId,
+            cancellationToken) ?? new Dictionary<Guid, IReadOnlyDictionary<DateOnly, decimal>>();
+
         foreach (var candidatePass in candidatePasses)
         {
-            var existingHoursByDayTask = parkingPassRepository.GetBookedHoursByDayAsync(
-                candidatePass.Id,
-                userId,
-                startDateUtc,
-                endDateUtc,
-                excludeBookingId,
-                cancellationToken);
-            var existingHoursByDay = existingHoursByDayTask is null
-                ? EmptyBookedHoursByDay
-                : await existingHoursByDayTask ?? EmptyBookedHoursByDay;
+            var existingHoursByDay = hoursByPass.TryGetValue(candidatePass.Id, out var hours)
+                ? hours
+                : EmptyBookedHoursByDay;
 
             if (candidatePass.IsValidForBooking(parkingSpace, startDateUtc, endDateUtc, existingHoursByDay, DateTime.UtcNow))
             {

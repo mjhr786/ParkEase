@@ -1,3 +1,4 @@
+using ParkingApp.Application.Caching;
 using ParkingApp.Application.Interfaces;
 using ParkingApp.Application.DTOs;
 using Microsoft.Extensions.Logging;
@@ -45,7 +46,7 @@ public class GetVendorDashboardHandler : IQueryHandler<GetVendorDashboardQuery, 
 
     public async Task<ApiResponse<VendorDashboardDto>> HandleAsync(GetVendorDashboardQuery query, CancellationToken cancellationToken = default)
     {
-        var cacheKey = $"dashboard:vendor:{query.VendorId}";
+        var cacheKey = CacheKeys.VendorDashboard(query.VendorId);
         var cachedData = await _cache.GetAsync<VendorDashboardDto>(cacheKey, cancellationToken);
         if (cachedData != null) return new ApiResponse<VendorDashboardDto>(true, null, cachedData);
 
@@ -90,7 +91,7 @@ public class GetMemberDashboardHandler : IQueryHandler<GetMemberDashboardQuery, 
 
     public async Task<ApiResponse<MemberDashboardDto>> HandleAsync(GetMemberDashboardQuery query, CancellationToken cancellationToken = default)
     {
-        var cacheKey = $"dashboard:member:{query.MemberId}";
+        var cacheKey = CacheKeys.MemberDashboard(query.MemberId);
         var cachedData = await _cache.GetAsync<MemberDashboardDto>(cacheKey, cancellationToken);
         if (cachedData != null) return new ApiResponse<MemberDashboardDto>(true, null, cachedData);
 

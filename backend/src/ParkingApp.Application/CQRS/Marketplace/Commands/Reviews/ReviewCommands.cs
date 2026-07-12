@@ -1,3 +1,4 @@
+using ParkingApp.Application.Caching;
 using ParkingApp.Application.CQRS;
 using ParkingApp.Application.DTOs;
 using ParkingApp.Application.Interfaces;
@@ -74,8 +75,11 @@ public sealed class CreateReviewHandler : ICommandHandler<CreateReviewCommand, A
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
-        await _cache.RemoveAsync($"reviews:parking:{command.Dto.ParkingSpaceId}", cancellationToken);
-        await _cache.RemoveAsync($"parking:{command.Dto.ParkingSpaceId}", cancellationToken);
+        await CacheInvalidation.ForReviewChangeAsync(
+            _cache,
+            command.Dto.ParkingSpaceId,
+            ownerId: parking.OwnerId,
+            cancellationToken);
 
         _logger.LogInformation("Review submitted for parking {ParkingSpaceId} by user {UserId}, rating: {Rating}",
             command.Dto.ParkingSpaceId, command.UserId, command.Dto.Rating);
@@ -108,20 +112,21 @@ public sealed class UpdateReviewHandler : ICommandHandler<UpdateReviewCommand, A
 
         _unitOfWork.Reviews.Update(review);
 
-        if (command.Dto.Rating.HasValue && command.Dto.Rating.Value != oldRating)
+        var parking = await _unitOfWork.ParkingSpaces.GetByIdAsync(review.ParkingSpaceId, cancellationToken);
+        if (command.Dto.Rating.HasValue && command.Dto.Rating.Value != oldRating
+            && parking != null && parking.TotalReviews > 0)
         {
-            var parking = await _unitOfWork.ParkingSpaces.GetByIdAsync(review.ParkingSpaceId, cancellationToken);
-            if (parking != null && parking.TotalReviews > 0)
-            {
-                parking.ReplaceReviewRating(oldRating, command.Dto.Rating.Value);
-                _unitOfWork.ParkingSpaces.Update(parking);
-            }
+            parking.ReplaceReviewRating(oldRating, command.Dto.Rating.Value);
+            _unitOfWork.ParkingSpaces.Update(parking);
         }
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);
-        await _cache.RemoveAsync($"reviews:parking:{review.ParkingSpaceId}", cancellationToken);
-        if (command.Dto.Rating.HasValue && command.Dto.Rating.Value != oldRating)
-            await _cache.RemoveAsync($"parking:{review.ParkingSpaceId}", cancellationToken);
+
+        await CacheInvalidation.ForReviewChangeAsync(
+            _cache,
+            review.ParkingSpaceId,
+            ownerId: parking?.OwnerId,
+            cancellationToken);
 
         return new ApiResponse<ReviewDto>(true, "Review updated", review.ToDto());
     }
@@ -157,8 +162,11 @@ public sealed class DeleteReviewHandler : ICommandHandler<DeleteReviewCommand, A
         }
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);
-        await _cache.RemoveAsync($"reviews:parking:{parkingSpaceId}", cancellationToken);
-        await _cache.RemoveAsync($"parking:{parkingSpaceId}", cancellationToken);
+        await CacheInvalidation.ForReviewChangeAsync(
+            _cache,
+            parkingSpaceId,
+            ownerId: parking?.OwnerId,
+            cancellationToken);
 
         return new ApiResponse<bool>(true, "Review deleted", true);
     }
@@ -189,7 +197,11 @@ public sealed class AddOwnerResponseHandler : ICommandHandler<AddOwnerResponseCo
 
         _unitOfWork.Reviews.Update(review);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
-        await _cache.RemoveAsync($"reviews:parking:{review.ParkingSpaceId}", cancellationToken);
+        await CacheInvalidation.ForReviewChangeAsync(
+            _cache,
+            review.ParkingSpaceId,
+            ownerId: parking.OwnerId,
+            cancellationToken);
 
         return new ApiResponse<ReviewDto>(true, "Response added", review.ToDto());
     }

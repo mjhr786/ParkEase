@@ -1,3 +1,4 @@
+using ParkingApp.Application.Caching;
 using ParkingApp.Application.CQRS;
 using ParkingApp.Application.DTOs;
 using ParkingApp.Application.Interfaces;
@@ -32,7 +33,7 @@ public sealed class GetCurrentUserHandler : IQueryHandler<GetCurrentUserQuery, A
 
     public async Task<ApiResponse<UserDto>> HandleAsync(GetCurrentUserQuery query, CancellationToken cancellationToken = default)
     {
-        var cacheKey = $"user:{query.UserId}";
+        var cacheKey = CacheKeys.User(query.UserId);
         var cached = await _cache.GetAsync<UserDto>(cacheKey, cancellationToken);
         if (cached != null)
             return new ApiResponse<UserDto>(true, null, cached);
@@ -70,7 +71,7 @@ public sealed class UpdateUserHandler : ICommandHandler<UpdateUserCommand, ApiRe
 
         _unitOfWork.Users.Update(user);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
-        await _cache.RemoveAsync($"user:{command.UserId}", cancellationToken);
+        await CacheInvalidation.ForUserChangeAsync(_cache, command.UserId, cancellationToken);
 
         _logger.LogInformation("User profile updated: {UserId}", command.UserId);
         return new ApiResponse<UserDto>(true, "Profile updated", user.ToDto());
@@ -140,7 +141,10 @@ public sealed class DeleteUserHandler : ICommandHandler<DeleteUserCommand, ApiRe
 
             await _unitOfWork.SaveChangesAsync(cancellationToken);
             await _unitOfWork.CommitTransactionAsync(cancellationToken);
-            await _cache.RemoveAsync($"user:{command.UserId}", cancellationToken);
+            await Task.WhenAll(
+                CacheInvalidation.ForUserChangeAsync(_cache, command.UserId, cancellationToken),
+                _cache.RemoveAsync(CacheKeys.MemberDashboard(command.UserId), cancellationToken),
+                _cache.RemoveAsync(CacheKeys.VendorDashboard(command.UserId), cancellationToken));
 
             _logger.LogWarning("User account permanently deleted: {UserId}", command.UserId);
             return new ApiResponse<bool>(true, "Account deleted", true);

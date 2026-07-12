@@ -17,7 +17,7 @@ public class GetPendingRequestsCountHandlerTests
         _mockReadStore.Setup(r => r.CountPendingForVendorAsync(vendorId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(0);
 
-        var handler = new GetPendingRequestsCountHandler(_mockReadStore.Object);
+        var handler = new GetPendingRequestsCountHandler(_mockReadStore.Object, new Mock<ParkingApp.Application.Interfaces.ICacheService>().Object);
         var result = await handler.HandleAsync(new GetPendingRequestsCountQuery(vendorId));
 
         result.Success.Should().BeTrue();
@@ -31,7 +31,7 @@ public class GetPendingRequestsCountHandlerTests
         _mockReadStore.Setup(r => r.CountPendingForVendorAsync(vendorId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(3);
 
-        var handler = new GetPendingRequestsCountHandler(_mockReadStore.Object);
+        var handler = new GetPendingRequestsCountHandler(_mockReadStore.Object, new Mock<ParkingApp.Application.Interfaces.ICacheService>().Object);
         var result = await handler.HandleAsync(new GetPendingRequestsCountQuery(vendorId));
 
         result.Success.Should().BeTrue();

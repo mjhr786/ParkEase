@@ -1,3 +1,4 @@
+using ParkingApp.Application.Caching;
 using ParkingApp.Application.Interfaces;
 using ParkingApp.Domain.Shared;
 using ParkingApp.Domain.Marketplace;
@@ -41,15 +42,19 @@ internal static class ParkingFileUploadHelper
 
         unitOfWork.ParkingSpaces.Update(parking);
         await unitOfWork.SaveChangesAsync(cancellationToken);
-        await InvalidateParkingCachesAsync(cache, parking.Id, cancellationToken);
+        await InvalidateParkingCachesAsync(cache, parking.Id, parking.OwnerId, cancellationToken);
     }
 
-    public static async Task InvalidateParkingCachesAsync(
+    public static Task InvalidateParkingCachesAsync(
         ICacheService cache,
         Guid parkingSpaceId,
-        CancellationToken cancellationToken)
-    {
-        await cache.RemoveAsync($"parking:{parkingSpaceId}", cancellationToken);
-        await cache.RemoveByPatternAsync("search:*", cancellationToken);
-    }
+        CancellationToken cancellationToken) =>
+        InvalidateParkingCachesAsync(cache, parkingSpaceId, ownerId: null, cancellationToken);
+
+    public static Task InvalidateParkingCachesAsync(
+        ICacheService cache,
+        Guid parkingSpaceId,
+        Guid? ownerId,
+        CancellationToken cancellationToken) =>
+        CacheInvalidation.ForParkingMutationAsync(cache, parkingSpaceId, ownerId, includeReviews: false, cancellationToken);
 }

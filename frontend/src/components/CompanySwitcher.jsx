@@ -319,8 +319,8 @@ const CompanySwitcher = () => {
                                     value={formData.billingType}
                                     onChange={e => setFormData({...formData, billingType: parseInt(e.target.value)})}
                                 >
-                                    <option value={0}>Invoice</option>
-                                    <option value={1}>Credit Card</option>
+                                    <option value={0}>Reserved Slots</option>
+                                    <option value={1}>Usage Based</option>
                                 </select>
                             </div>
 

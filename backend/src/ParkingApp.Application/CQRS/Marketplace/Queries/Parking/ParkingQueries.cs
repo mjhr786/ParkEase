@@ -1,3 +1,4 @@
+using ParkingApp.Application.Caching;
 using ParkingApp.Application.CQRS;
 using ParkingApp.Application.DTOs;
 using ParkingApp.Application.Interfaces;
@@ -41,7 +42,7 @@ public sealed class GetParkingByIdHandler : IQueryHandler<GetParkingByIdQuery, A
 
     public async Task<ApiResponse<ParkingSpaceDto>> HandleAsync(GetParkingByIdQuery query, CancellationToken cancellationToken = default)
     {
-        var cacheKey = $"parking:{query.ParkingId}";
+        var cacheKey = CacheKeys.Parking(query.ParkingId);
         var cached = await _cache.GetAsync<ParkingSpaceDto>(cacheKey, cancellationToken);
         if (cached != null)
         {
@@ -65,14 +66,21 @@ public sealed class GetParkingByIdHandler : IQueryHandler<GetParkingByIdQuery, A
 public sealed class GetOwnerParkingsHandler : IQueryHandler<GetOwnerParkingsQuery, ApiResponse<List<ParkingSpaceDto>>>
 {
     private readonly IMarketplaceUnitOfWork _unitOfWork;
+    private readonly ICacheService _cache;
 
-    public GetOwnerParkingsHandler(IMarketplaceUnitOfWork unitOfWork)
+    public GetOwnerParkingsHandler(IMarketplaceUnitOfWork unitOfWork, ICacheService cache)
     {
         _unitOfWork = unitOfWork;
+        _cache = cache;
     }
 
     public async Task<ApiResponse<List<ParkingSpaceDto>>> HandleAsync(GetOwnerParkingsQuery query, CancellationToken cancellationToken = default)
     {
+        var cacheKey = CacheKeys.OwnerParkings(query.OwnerId);
+        var cached = await _cache.GetAsync<List<ParkingSpaceDto>>(cacheKey, cancellationToken);
+        if (cached != null)
+            return new ApiResponse<List<ParkingSpaceDto>>(true, null, cached);
+
         var parkingSpaces = await _unitOfWork.ParkingSpaces.GetByOwnerIdAsync(query.OwnerId, cancellationToken);
         var parkingList = parkingSpaces.ToList();
 
@@ -81,12 +89,14 @@ public sealed class GetOwnerParkingsHandler : IQueryHandler<GetOwnerParkingsQuer
         var allBookings = await _unitOfWork.Bookings.GetActiveBookingsForSpacesAsync(parkingIds, cancellationToken);
         var bookingsByParkingId = allBookings.GroupBy(b => b.ParkingSpaceId).ToDictionary(g => g.Key, g => g.ToList());
 
-        var dtos = parkingList.Select(p => 
+        var dtos = parkingList.Select(p =>
         {
             var bookings = bookingsByParkingId.GetValueOrDefault(p.Id) ?? new List<Domain.Marketplace.Booking>();
             return p.ToDtoWithReservations(bookings);
         }).ToList();
 
+        // Short TTL — embeds live reservations; invalidation also runs on parking/booking mutations
+        await _cache.SetAsync(cacheKey, dtos, TimeSpan.FromMinutes(1), cancellationToken);
         return new ApiResponse<List<ParkingSpaceDto>>(true, null, dtos);
     }
 }
@@ -117,7 +127,9 @@ public sealed class SearchParkingHandler : IQueryHandler<SearchParkingQuery, Api
     {
         var dto = query.Dto;
         var amenitiesKey = dto.Amenities != null ? string.Join(",", dto.Amenities.OrderBy(a => a)) : "";
-        var cacheKey = $"search:{dto.State}:{dto.City}:{dto.Address}:{dto.ParkingType}:{dto.VehicleType}:{dto.MinPrice}:{dto.MaxPrice}:{amenitiesKey}:{dto.Page}:{dto.PageSize}";
+        var cacheKey = CacheKeys.Search(
+            dto.State, dto.City, dto.Address, dto.ParkingType, dto.VehicleType,
+            dto.MinPrice, dto.MaxPrice, amenitiesKey, dto.Page, dto.PageSize);
         var cached = await _cache.GetAsync<ParkingSearchResultDto>(cacheKey, cancellationToken);
         if (cached != null)
         {
@@ -128,7 +140,7 @@ public sealed class SearchParkingHandler : IQueryHandler<SearchParkingQuery, Api
         _logger.LogInformation("Searching parking spaces: City={City}, Type={ParkingType}", dto.City, dto.ParkingType);
 
         var parkingList = (await _readStore.SearchAsync(dto, cancellationToken)).ToList();
-        var totalCount = await _readStore.CountActiveAsync(cancellationToken);
+        var totalCount = await _readStore.CountSearchAsync(dto, cancellationToken);
 
         // Batch fetch active bookings (N+1 fix) — write-model UoW still used for live reservations
         var parkingIds = parkingList.Select(p => p.Id).ToList();
@@ -194,7 +206,9 @@ public sealed class GetMapCoordinatesHandler : IQueryHandler<GetMapCoordinatesQu
     {
         var dto = query.Dto;
         var amenitiesKey = dto.Amenities != null ? string.Join(",", dto.Amenities.OrderBy(a => a)) : "";
-        var cacheKey = $"map:{dto.State}:{dto.City}:{dto.Address}:{dto.ParkingType}:{dto.VehicleType}:{dto.MinPrice}:{dto.MaxPrice}:{dto.RadiusKm}:{dto.Latitude}:{dto.Longitude}:{amenitiesKey}";
+        var cacheKey = CacheKeys.Map(
+            dto.State, dto.City, dto.Address, dto.ParkingType, dto.VehicleType,
+            dto.MinPrice, dto.MaxPrice, dto.RadiusKm, dto.Latitude, dto.Longitude, amenitiesKey);
         var cached = await _cache.GetAsync<List<ParkingMapDto>>(cacheKey, cancellationToken);
         if (cached != null)
             return new ApiResponse<List<ParkingMapDto>>(true, null, cached);

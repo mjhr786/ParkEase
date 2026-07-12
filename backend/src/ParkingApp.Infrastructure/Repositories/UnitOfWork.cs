@@ -35,6 +35,7 @@ public class UnitOfWork : IUnitOfWork
     private ICompanyRepository? _companies;
     private ICorporateBookingRepository? _corporateBookings;
     private IEmployeeInvitationRepository? _employeeInvitations;
+    private ICorporateInvoiceRepository? _invoices;
 
     public UnitOfWork(
         ApplicationDbContext context,
@@ -63,6 +64,7 @@ public class UnitOfWork : IUnitOfWork
     public ICompanyRepository Companies => _companies ??= new CompanyRepository(_context);
     public ICorporateBookingRepository CorporateBookings => _corporateBookings ??= new CorporateBookingRepository(_context);
     public IEmployeeInvitationRepository EmployeeInvitations => _employeeInvitations ??= new EmployeeInvitationRepository(_context);
+    public ICorporateInvoiceRepository Invoices => _invoices ??= new CorporateInvoiceRepository(_context);
 
     public async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
     {
@@ -86,17 +88,21 @@ public class UnitOfWork : IUnitOfWork
         // 2) Persist aggregates + outbox together
         var result = await _context.SaveChangesAsync(cancellationToken);
 
-        // 3) After commit (or within ambient TX until CommitTransactionAsync): process outbox
-        //    Failures leave rows Pending for background retry — they are not lost.
+        // 3) Fast-path: process ONLY messages staged by this SaveChanges (not a global batch of 50).
+        //    Background OutboxBackgroundService still drains Pending/Failed with backoff.
         if (domainEvents.Count > 0)
         {
-            try
+            var enqueuedIds = _outboxWriter.TakeEnqueuedMessageIds();
+            if (enqueuedIds.Count > 0)
             {
-                await _outboxProcessor.ProcessPendingAsync(batchSize: 50, cancellationToken);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Immediate outbox processing failed; background service will retry");
+                try
+                {
+                    await _outboxProcessor.ProcessByIdsAsync(enqueuedIds, cancellationToken);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Immediate outbox processing failed; background service will retry");
+                }
             }
         }
 

@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using ParkingApp.Application.Caching;
 using ParkingApp.Application.Interfaces;
 using ParkingApp.Domain.Events;
 using ParkingApp.Domain.Events.Parking;
@@ -6,7 +7,8 @@ using ParkingApp.Domain.Events.Parking;
 namespace ParkingApp.Application.EventHandlers;
 
 /// <summary>
-/// Invalidates parking list/map/detail caches when a parking space changes.
+/// Invalidates parking detail, discovery (search/map), forecasts, and owner dashboards
+/// when a parking space is created, updated, deleted, or toggled.
 /// </summary>
 public sealed class ParkingSpaceCreatedCacheHandler : IDomainEventHandler<ParkingSpaceCreatedEvent>
 {
@@ -21,14 +23,15 @@ public sealed class ParkingSpaceCreatedCacheHandler : IDomainEventHandler<Parkin
 
     public async Task HandleAsync(ParkingSpaceCreatedEvent domainEvent, CancellationToken cancellationToken = default)
     {
-        await InvalidateListCachesAsync(cancellationToken);
+        await CacheInvalidation.ForParkingMutationAsync(
+            _cache,
+            domainEvent.ParkingSpaceId,
+            ownerId: domainEvent.OwnerId,
+            includeReviews: false,
+            cancellationToken);
+
         _logger.LogDebug("Cache invalidated after parking space {ParkingSpaceId} created", domainEvent.ParkingSpaceId);
     }
-
-    private Task InvalidateListCachesAsync(CancellationToken cancellationToken) =>
-        Task.WhenAll(
-            _cache.RemoveByPatternAsync("search:*", cancellationToken),
-            _cache.RemoveByPatternAsync("map:*", cancellationToken));
 }
 
 public sealed class ParkingSpaceUpdatedCacheHandler : IDomainEventHandler<ParkingSpaceUpdatedEvent>
@@ -44,10 +47,13 @@ public sealed class ParkingSpaceUpdatedCacheHandler : IDomainEventHandler<Parkin
 
     public async Task HandleAsync(ParkingSpaceUpdatedEvent domainEvent, CancellationToken cancellationToken = default)
     {
-        await Task.WhenAll(
-            _cache.RemoveAsync($"parking:{domainEvent.ParkingSpaceId}", cancellationToken),
-            _cache.RemoveByPatternAsync("search:*", cancellationToken),
-            _cache.RemoveByPatternAsync("map:*", cancellationToken));
+        await CacheInvalidation.ForParkingMutationAsync(
+            _cache,
+            domainEvent.ParkingSpaceId,
+            ownerId: null,
+            includeReviews: false,
+            cancellationToken);
+
         _logger.LogDebug("Cache invalidated after parking space {ParkingSpaceId} updated", domainEvent.ParkingSpaceId);
     }
 }
@@ -65,10 +71,13 @@ public sealed class ParkingSpaceDeletedCacheHandler : IDomainEventHandler<Parkin
 
     public async Task HandleAsync(ParkingSpaceDeletedEvent domainEvent, CancellationToken cancellationToken = default)
     {
-        await Task.WhenAll(
-            _cache.RemoveAsync($"parking:{domainEvent.ParkingSpaceId}", cancellationToken),
-            _cache.RemoveByPatternAsync("search:*", cancellationToken),
-            _cache.RemoveByPatternAsync("map:*", cancellationToken));
+        await CacheInvalidation.ForParkingMutationAsync(
+            _cache,
+            domainEvent.ParkingSpaceId,
+            ownerId: domainEvent.OwnerId,
+            includeReviews: true,
+            cancellationToken);
+
         _logger.LogDebug("Cache invalidated after parking space {ParkingSpaceId} deleted", domainEvent.ParkingSpaceId);
     }
 }
@@ -86,10 +95,16 @@ public sealed class ParkingSpaceToggledCacheHandler : IDomainEventHandler<Parkin
 
     public async Task HandleAsync(ParkingSpaceToggledEvent domainEvent, CancellationToken cancellationToken = default)
     {
-        await Task.WhenAll(
-            _cache.RemoveAsync($"parking:{domainEvent.ParkingSpaceId}", cancellationToken),
-            _cache.RemoveByPatternAsync("search:*", cancellationToken),
-            _cache.RemoveByPatternAsync("map:*", cancellationToken));
-        _logger.LogDebug("Cache invalidated after parking space {ParkingSpaceId} toggled to {IsActive}", domainEvent.ParkingSpaceId, domainEvent.IsActive);
+        await CacheInvalidation.ForParkingMutationAsync(
+            _cache,
+            domainEvent.ParkingSpaceId,
+            ownerId: null,
+            includeReviews: false,
+            cancellationToken);
+
+        _logger.LogDebug(
+            "Cache invalidated after parking space {ParkingSpaceId} toggled to {IsActive}",
+            domainEvent.ParkingSpaceId,
+            domainEvent.IsActive);
     }
 }

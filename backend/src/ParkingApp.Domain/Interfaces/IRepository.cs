@@ -89,6 +89,28 @@ public interface IBookingRepository : IRepository<Booking>
     Task<int> GetActiveBookingsCountAsync(Guid parkingSpaceId, DateTime startDateTime, DateTime endDateTime, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Active booking for the same vehicle in an overlapping window (user-scoped). No full graph load.
+    /// </summary>
+    Task<bool> HasActiveVehicleOverlapAsync(
+        Guid userId,
+        string vehicleNumber,
+        DateTime startDateTime,
+        DateTime endDateTime,
+        Guid? excludeBookingId = null,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Whether a specific slot is held by an active overlapping booking on the space.
+    /// </summary>
+    Task<bool> IsSlotOccupiedInWindowAsync(
+        Guid parkingSpaceId,
+        int slotNumber,
+        DateTime startDateTime,
+        DateTime endDateTime,
+        Guid? excludeBookingId = null,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// True if the space has pending/awaiting/confirmed/in-progress bookings that have not ended yet
     /// (blocks delete/retire of the parking space).
     /// </summary>
@@ -118,6 +140,17 @@ public interface IParkingPassRepository : IRepository<ParkingPass>
         CancellationToken cancellationToken = default);
     Task<IReadOnlyDictionary<DateOnly, decimal>> GetBookedHoursByDayAsync(
         Guid parkingPassId,
+        Guid userId,
+        DateTime bookingStartUtc,
+        DateTime bookingEndUtc,
+        Guid? excludeBookingId = null,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Booked hours by day for many passes in one query (avoids N+1 in pass resolution).
+    /// </summary>
+    Task<IReadOnlyDictionary<Guid, IReadOnlyDictionary<DateOnly, decimal>>> GetBookedHoursByDayForPassesAsync(
+        IReadOnlyCollection<Guid> parkingPassIds,
         Guid userId,
         DateTime bookingStartUtc,
         DateTime bookingEndUtc,
@@ -194,6 +227,18 @@ public interface ICompanyRepository : IRepository<Company>
     Task<Company?> GetAggregateForBookingAsync(Guid companyId, Guid userId, Guid allocationId, DateTime bookingStart, DateTime bookingEnd, CancellationToken cancellationToken = default);
     Task<Company?> GetAggregateForInvitationAcceptanceAsync(string invitationToken, Guid userId, CancellationToken cancellationToken = default);
     Task<Company?> GetAggregateByAllocationAsync(Guid allocationId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Slim aggregate for waitlist promotion: target membership, allocation (+ fixed slots),
+    /// pending waitlist for that allocation/window, and optional admin membership for auth.
+    /// Avoids loading the full company graph.
+    /// </summary>
+    Task<Company?> GetAggregateForWaitlistPromotionAsync(
+        Guid companyId,
+        Guid waitlistEntryId,
+        Guid? adminUserId,
+        CancellationToken cancellationToken = default);
+
     Task<bool> IsUserMemberAsync(Guid companyId, Guid userId, CancellationToken cancellationToken = default);
     Task<UserCompanyMembership?> GetMembershipAsync(Guid companyId, Guid userId, CancellationToken cancellationToken = default);
     Task<bool> ExistsByRegistrationNumberAsync(string registrationNumber, CancellationToken cancellationToken = default);
@@ -213,10 +258,44 @@ public interface ICorporateBookingRepository : IRepository<CorporateBooking>
     Task<bool> HasOverlappingVehicleBookingAsync(Guid companyId, Guid allocationId, string vehicleNumber, DateTime start, DateTime end, CancellationToken cancellationToken = default);
     Task<int> GetRecentBookingCreateCountAsync(Guid companyId, Guid membershipId, DateTime sinceUtc, CancellationToken cancellationToken = default);
     Task<int> GetCompanyBookingCountAsync(Guid companyId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Single round-trip batch of day/week counts, shared slot occupancy/usage, overlaps, and fraud counters
+    /// required by corporate reserve / waitlist promote.
+    /// </summary>
+    Task<CorporateReservationPreCheck> GetReservationPreCheckAsync(
+        Guid companyId,
+        Guid membershipId,
+        Guid allocationId,
+        DateTime windowStartUtc,
+        DateTime windowEndUtc,
+        DateOnly usageDate,
+        DateOnly weekStart,
+        DateTime recentCreatesSinceUtc,
+        DateTime sharedUsageSinceUtc,
+        string? vehicleNumber,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Corporate bookings whose marketplace booking start falls in [periodStartUtc, periodEndExclusiveUtc),
+    /// with Booking (+ ParkingSpace) and Membership (+ User) loaded for invoice generation.
+    /// </summary>
+    Task<IReadOnlyList<CorporateBooking>> GetBillableBookingsForPeriodAsync(
+        Guid companyId,
+        DateTime periodStartUtc,
+        DateTime periodEndExclusiveUtc,
+        int maxRows,
+        CancellationToken cancellationToken = default);
 }
 
 public interface IEmployeeInvitationRepository : IRepository<EmployeeInvitation>
 {
     Task<bool> HasPendingInvitationAsync(Guid companyId, string email, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<EmployeeInvitation>> GetByCompanyIdAsync(Guid companyId, CancellationToken cancellationToken = default);
+}
+
+public interface ICorporateInvoiceRepository : IRepository<CorporateInvoice>
+{
+    Task<CorporateInvoice?> GetByIdWithLinesAsync(Guid companyId, Guid invoiceId, CancellationToken cancellationToken = default);
+    Task<bool> ExistsNonVoidForPeriodAsync(Guid companyId, DateOnly periodStart, DateOnly periodEnd, CancellationToken cancellationToken = default);
 }

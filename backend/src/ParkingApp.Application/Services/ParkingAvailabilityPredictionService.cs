@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using ParkingApp.Application.Caching;
 using ParkingApp.Application.DTOs;
 using ParkingApp.Application.Interfaces;
 using ParkingApp.Domain.Shared;
@@ -46,7 +47,7 @@ public class ParkingAvailabilityPredictionService : IParkingAvailabilityPredicti
     {
         var normalizedHorizon = NormalizeHorizonHours(horizonHours);
         var normalizedInterval = NormalizeIntervalMinutes(intervalMinutes);
-        var cacheKey = $"parking-forecast:{parkingSpaceId}:{normalizedHorizon}:{normalizedInterval}";
+        var cacheKey = CacheKeys.ParkingForecast(parkingSpaceId, normalizedHorizon, normalizedInterval);
 
         var cached = await _cache.GetAsync<ParkingAvailabilityForecastDto>(cacheKey, cancellationToken);
         if (cached != null)
@@ -79,7 +80,7 @@ public class ParkingAvailabilityPredictionService : IParkingAvailabilityPredicti
     {
         var normalizedHorizon = NormalizeHorizonHours(horizonHours);
         var normalizedInterval = NormalizeIntervalMinutes(intervalMinutes);
-        var cacheKey = $"owner-parking-forecast:{ownerId}:{normalizedHorizon}:{normalizedInterval}";
+        var cacheKey = CacheKeys.OwnerForecast(ownerId, normalizedHorizon, normalizedInterval);
 
         var cached = await _cache.GetAsync<List<ParkingAvailabilityForecastDto>>(cacheKey, cancellationToken);
         if (cached != null)

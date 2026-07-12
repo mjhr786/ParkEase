@@ -1,3 +1,4 @@
+using ParkingApp.Application.Caching;
 using ParkingApp.Application.CQRS;
 using ParkingApp.Application.DTOs;
 using ParkingApp.Application.Interfaces;
@@ -33,16 +34,18 @@ public sealed class ProcessPaymentHandler : ICommandHandler<ProcessPaymentComman
     private readonly IPaymentService _paymentService;
     private readonly INotificationCoordinator _notificationCoordinator;
     private readonly IEmailService _emailService;
+    private readonly ICacheService _cache;
     private readonly ILogger<ProcessPaymentHandler> _logger;
 
     public ProcessPaymentHandler(IMarketplaceUnitOfWork unitOfWork, IIdentityUnitOfWork identity, IPaymentService paymentService,
-        INotificationCoordinator notificationCoordinator, IEmailService emailService, ILogger<ProcessPaymentHandler> logger)
+        INotificationCoordinator notificationCoordinator, IEmailService emailService, ICacheService cache, ILogger<ProcessPaymentHandler> logger)
     {
         _unitOfWork = unitOfWork;
         _identity = identity;
         _paymentService = paymentService;
         _notificationCoordinator = notificationCoordinator;
         _emailService = emailService;
+        _cache = cache;
         _logger = logger;
     }
 
@@ -118,6 +121,14 @@ public sealed class ProcessPaymentHandler : ICommandHandler<ProcessPaymentComman
 
         if (result.Success)
         {
+            // Confirm/ConfirmExtension may not always be picked up by event handlers in time for the next read.
+            var parking = booking.ParkingSpace ?? await _unitOfWork.ParkingSpaces.GetByIdAsync(booking.ParkingSpaceId, cancellationToken);
+            await CacheInvalidation.ForBookingChangeAsync(
+                _cache,
+                booking.ParkingSpaceId,
+                memberId: booking.UserId,
+                vendorId: parking?.OwnerId,
+                cancellationToken);
             await NotifyPaymentAsync(booking, command.UserId, cancellationToken);
         }
 
@@ -216,16 +227,18 @@ public sealed class VerifyPaymentHandler : ICommandHandler<VerifyPaymentCommand,
     private readonly IPaymentService _paymentService;
     private readonly INotificationCoordinator _notificationCoordinator;
     private readonly IEmailService _emailService;
+    private readonly ICacheService _cache;
     private readonly ILogger<VerifyPaymentHandler> _logger;
 
     public VerifyPaymentHandler(IMarketplaceUnitOfWork unitOfWork, IIdentityUnitOfWork identity, IPaymentService paymentService,
-        INotificationCoordinator notificationCoordinator, IEmailService emailService, ILogger<VerifyPaymentHandler> logger)
+        INotificationCoordinator notificationCoordinator, IEmailService emailService, ICacheService cache, ILogger<VerifyPaymentHandler> logger)
     {
         _unitOfWork = unitOfWork;
         _identity = identity;
         _paymentService = paymentService;
         _notificationCoordinator = notificationCoordinator;
         _emailService = emailService;
+        _cache = cache;
         _logger = logger;
     }
 
@@ -248,6 +261,9 @@ public sealed class VerifyPaymentHandler : ICommandHandler<VerifyPaymentCommand,
                 booking.ConfirmExtension();
                 _unitOfWork.Bookings.Update(booking);
                 await _unitOfWork.SaveChangesAsync(cancellationToken);
+                var parkingForExtension = await _unitOfWork.ParkingSpaces.GetByIdAsync(booking.ParkingSpaceId, cancellationToken);
+                await CacheInvalidation.ForBookingChangeAsync(
+                    _cache, booking.ParkingSpaceId, booking.UserId, parkingForExtension?.OwnerId, cancellationToken);
                 await NotifyOwnerPaymentAsync(booking, command.UserId, true, extensionAmount, cancellationToken);
                 return new ApiResponse<PaymentResultDto>(true, "Extension payment already completed", new PaymentResultDto(
                     true, existingPayment.TransactionId, PaymentStatus.Completed, "Extension confirmed", existingPayment.ReceiptUrl));
@@ -309,6 +325,10 @@ public sealed class VerifyPaymentHandler : ICommandHandler<VerifyPaymentCommand,
             _unitOfWork.Payments.Update(payment);
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        var parkingSpace = await _unitOfWork.ParkingSpaces.GetByIdAsync(booking.ParkingSpaceId, cancellationToken);
+        await CacheInvalidation.ForBookingChangeAsync(
+            _cache, booking.ParkingSpaceId, booking.UserId, parkingSpace?.OwnerId, cancellationToken);
 
                 // Notifications
         try

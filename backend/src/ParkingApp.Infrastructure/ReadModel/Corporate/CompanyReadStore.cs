@@ -885,6 +885,177 @@ public sealed class CompanyReadStore : ICompanyReadStore
             expiringAllocations);
     }
 
+    public async Task<(IReadOnlyList<CorporateInvoiceSummaryDto> Items, int TotalCount)> GetCompanyInvoicesAsync(
+        Guid companyId,
+        CorporateInvoiceStatus? status,
+        int offset,
+        int pageSize,
+        CancellationToken ct = default)
+    {
+        const string sql = """
+            SELECT
+                i."Id" AS Id,
+                i."InvoiceNumber" AS InvoiceNumber,
+                i."BillingTypeSnapshot" AS BillingTypeSnapshot,
+                i."PeriodStart" AS PeriodStart,
+                i."PeriodEnd" AS PeriodEnd,
+                i."Status" AS Status,
+                i."Currency" AS Currency,
+                i."Subtotal" AS Subtotal,
+                i."TaxAmount" AS TaxAmount,
+                i."TotalAmount" AS TotalAmount,
+                (SELECT COUNT(*) FROM "CorporateInvoiceLineItems" l
+                 WHERE l."InvoiceId" = i."Id" AND l."IsDeleted" = FALSE) AS LineCount,
+                i."CreatedAt" AS CreatedAt,
+                i."IssuedAt" AS IssuedAt,
+                i."PaidAt" AS PaidAt,
+                i."PaymentReference" AS PaymentReference
+            FROM "CorporateInvoices" i
+            WHERE i."CompanyId" = @CompanyId
+                AND i."IsDeleted" = FALSE
+                AND (@Status IS NULL OR i."Status" = @Status)
+            ORDER BY i."CreatedAt" DESC
+            OFFSET @Offset
+            LIMIT @PageSize;
+
+            SELECT COUNT(*)
+            FROM "CorporateInvoices" i
+            WHERE i."CompanyId" = @CompanyId
+                AND i."IsDeleted" = FALSE
+                AND (@Status IS NULL OR i."Status" = @Status);
+            """;
+
+        using var connection = _sql.CreateConnection();
+        using var multi = await connection.QueryMultipleAsync(new CommandDefinition(
+            sql,
+            new
+            {
+                CompanyId = companyId,
+                Status = status.HasValue ? (int?)status.Value : null,
+                Offset = offset,
+                PageSize = pageSize
+            },
+            cancellationToken: ct));
+
+        var rows = (await multi.ReadAsync<InvoiceSummaryRow>()).ToList();
+        var total = await multi.ReadSingleAsync<int>();
+
+        var items = rows.Select(r => new CorporateInvoiceSummaryDto(
+            r.Id,
+            r.InvoiceNumber,
+            (BillingType)r.BillingTypeSnapshot,
+            r.PeriodStart,
+            r.PeriodEnd,
+            (CorporateInvoiceStatus)r.Status,
+            r.Currency,
+            r.Subtotal,
+            r.TaxAmount,
+            r.TotalAmount,
+            r.LineCount,
+            r.CreatedAt,
+            r.IssuedAt,
+            r.PaidAt,
+            r.PaymentReference)).ToList();
+
+        return (items, total);
+    }
+
+    public async Task<CorporateInvoiceDetailDto?> GetCorporateInvoiceDetailAsync(
+        Guid companyId,
+        Guid invoiceId,
+        CancellationToken ct = default)
+    {
+        const string sql = """
+            SELECT
+                i."Id" AS Id,
+                i."InvoiceNumber" AS InvoiceNumber,
+                i."BillingTypeSnapshot" AS BillingTypeSnapshot,
+                i."PeriodStart" AS PeriodStart,
+                i."PeriodEnd" AS PeriodEnd,
+                i."Status" AS Status,
+                i."Currency" AS Currency,
+                i."Subtotal" AS Subtotal,
+                i."TaxAmount" AS TaxAmount,
+                i."TotalAmount" AS TotalAmount,
+                i."GeneratedByUserId" AS GeneratedByUserId,
+                i."CreatedAt" AS CreatedAt,
+                i."IssuedAt" AS IssuedAt,
+                i."IssuedByUserId" AS IssuedByUserId,
+                i."PaidAt" AS PaidAt,
+                i."PaidByUserId" AS PaidByUserId,
+                i."PaymentReference" AS PaymentReference,
+                i."PaymentNotes" AS PaymentNotes,
+                i."VoidedAt" AS VoidedAt,
+                i."VoidedByUserId" AS VoidedByUserId,
+                i."VoidReason" AS VoidReason
+            FROM "CorporateInvoices" i
+            WHERE i."Id" = @InvoiceId
+                AND i."CompanyId" = @CompanyId
+                AND i."IsDeleted" = FALSE;
+
+            SELECT
+                l."Id" AS Id,
+                l."LineType" AS LineType,
+                l."AllocationId" AS AllocationId,
+                l."BookingId" AS BookingId,
+                l."Description" AS Description,
+                l."Quantity" AS Quantity,
+                l."UnitAmount" AS UnitAmount,
+                l."Amount" AS Amount
+            FROM "CorporateInvoiceLineItems" l
+            WHERE l."InvoiceId" = @InvoiceId
+                AND l."IsDeleted" = FALSE
+            ORDER BY l."Description";
+            """;
+
+        using var connection = _sql.CreateConnection();
+        using var multi = await connection.QueryMultipleAsync(new CommandDefinition(
+            sql,
+            new { CompanyId = companyId, InvoiceId = invoiceId },
+            cancellationToken: ct));
+
+        var header = await multi.ReadSingleOrDefaultAsync<InvoiceDetailRow>();
+        if (header == null)
+        {
+            return null;
+        }
+
+        var lineRows = (await multi.ReadAsync<InvoiceLineRow>()).ToList();
+        var lines = lineRows.Select(l => new CorporateInvoiceLineDto(
+            l.Id,
+            (CorporateInvoiceLineType)l.LineType,
+            l.AllocationId,
+            l.BookingId,
+            l.Description,
+            l.Quantity,
+            l.UnitAmount,
+            l.Amount)).ToList();
+
+        return new CorporateInvoiceDetailDto(
+            header.Id,
+            header.InvoiceNumber,
+            (BillingType)header.BillingTypeSnapshot,
+            header.PeriodStart,
+            header.PeriodEnd,
+            (CorporateInvoiceStatus)header.Status,
+            header.Currency,
+            header.Subtotal,
+            header.TaxAmount,
+            header.TotalAmount,
+            header.GeneratedByUserId,
+            header.CreatedAt,
+            header.IssuedAt,
+            header.IssuedByUserId,
+            header.PaidAt,
+            header.PaidByUserId,
+            header.PaymentReference,
+            header.PaymentNotes,
+            header.VoidedAt,
+            header.VoidedByUserId,
+            header.VoidReason,
+            lines);
+    }
+
     private static List<string> SplitCsv(string? value)
     {
         if (string.IsNullOrWhiteSpace(value))
@@ -904,6 +1075,62 @@ public sealed class CompanyReadStore : ICompanyReadStore
     }
 
     // ── Dapper row types ──────────────────────────────────────────
+
+    private sealed class InvoiceSummaryRow
+    {
+        public Guid Id { get; set; }
+        public string InvoiceNumber { get; set; } = string.Empty;
+        public int BillingTypeSnapshot { get; set; }
+        public DateOnly PeriodStart { get; set; }
+        public DateOnly PeriodEnd { get; set; }
+        public int Status { get; set; }
+        public string Currency { get; set; } = "INR";
+        public decimal Subtotal { get; set; }
+        public decimal TaxAmount { get; set; }
+        public decimal TotalAmount { get; set; }
+        public int LineCount { get; set; }
+        public DateTime CreatedAt { get; set; }
+        public DateTime? IssuedAt { get; set; }
+        public DateTime? PaidAt { get; set; }
+        public string? PaymentReference { get; set; }
+    }
+
+    private sealed class InvoiceDetailRow
+    {
+        public Guid Id { get; set; }
+        public string InvoiceNumber { get; set; } = string.Empty;
+        public int BillingTypeSnapshot { get; set; }
+        public DateOnly PeriodStart { get; set; }
+        public DateOnly PeriodEnd { get; set; }
+        public int Status { get; set; }
+        public string Currency { get; set; } = "INR";
+        public decimal Subtotal { get; set; }
+        public decimal TaxAmount { get; set; }
+        public decimal TotalAmount { get; set; }
+        public Guid GeneratedByUserId { get; set; }
+        public DateTime CreatedAt { get; set; }
+        public DateTime? IssuedAt { get; set; }
+        public Guid? IssuedByUserId { get; set; }
+        public DateTime? PaidAt { get; set; }
+        public Guid? PaidByUserId { get; set; }
+        public string? PaymentReference { get; set; }
+        public string? PaymentNotes { get; set; }
+        public DateTime? VoidedAt { get; set; }
+        public Guid? VoidedByUserId { get; set; }
+        public string? VoidReason { get; set; }
+    }
+
+    private sealed class InvoiceLineRow
+    {
+        public Guid Id { get; set; }
+        public int LineType { get; set; }
+        public Guid? AllocationId { get; set; }
+        public Guid? BookingId { get; set; }
+        public string Description { get; set; } = string.Empty;
+        public decimal Quantity { get; set; }
+        public decimal UnitAmount { get; set; }
+        public decimal Amount { get; set; }
+    }
 
     private sealed class CompanyDetailsRow
     {

@@ -54,6 +54,7 @@ public interface ICorporateUnitOfWork : IUnitOfWorkTransaction
     ICompanyRepository Companies { get; }
     ICorporateBookingRepository CorporateBookings { get; }
     IEmployeeInvitationRepository EmployeeInvitations { get; }
+    ICorporateInvoiceRepository Invoices { get; }
 }
 
 /// <summary>

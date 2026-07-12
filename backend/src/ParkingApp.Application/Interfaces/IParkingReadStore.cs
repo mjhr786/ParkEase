@@ -19,9 +19,14 @@ public interface IParkingReadStore
     Task<IReadOnlyList<ParkingSpace>> SearchAsync(ParkingSearchDto criteria, CancellationToken ct = default);
 
     /// <summary>
-    /// Total active parking spaces (legacy search total; not filter-scoped).
+    /// Total active parking spaces (legacy; not filter-scoped). Prefer <see cref="CountSearchAsync"/>.
     /// </summary>
     Task<int> CountActiveAsync(CancellationToken ct = default);
+
+    /// <summary>
+    /// Count of spaces matching the same filters as <see cref="SearchAsync"/> (excluding pagination).
+    /// </summary>
+    Task<int> CountSearchAsync(ParkingSearchDto criteria, CancellationToken ct = default);
 
     /// <summary>
     /// Lightweight map-pin projection (Dapper; max 2000 rows).

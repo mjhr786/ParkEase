@@ -1,6 +1,8 @@
 using ParkingApp.BuildingBlocks.Exceptions;
+using ParkingApp.Application.Caching;
 using ParkingApp.Application.CQRS.Commands.Corporate.Shared;
 using ParkingApp.Application.DTOs;
+using ParkingApp.Application.Interfaces;
 using ParkingApp.Domain.Interfaces;
 
 namespace ParkingApp.Application.CQRS.Commands.Corporate.Allocations;
@@ -9,11 +11,19 @@ public class AssignFixedSlotHandler : ICommandHandler<AssignFixedSlotCommand, Ap
 {
     private readonly ICorporateUnitOfWork _corporate;
     private readonly IMarketplaceUnitOfWork _marketplace;
+    private readonly ICompanyQuotaCache _quotaCache;
+    private readonly ICacheService _cache;
 
-    public AssignFixedSlotHandler(ICorporateUnitOfWork corporate, IMarketplaceUnitOfWork marketplace)
+    public AssignFixedSlotHandler(
+        ICorporateUnitOfWork corporate,
+        IMarketplaceUnitOfWork marketplace,
+        ICompanyQuotaCache quotaCache,
+        ICacheService cache)
     {
         _corporate = corporate;
         _marketplace = marketplace;
+        _quotaCache = quotaCache;
+        _cache = cache;
     }
 
     public async Task<ApiResponse<ParkingAllocationDto>> HandleAsync(AssignFixedSlotCommand command, CancellationToken ct = default)
@@ -34,6 +44,8 @@ public class AssignFixedSlotHandler : ICommandHandler<AssignFixedSlotCommand, Ap
         {
             company.AssignFixedSlot(command.AdminUserId, command.AllocationId, command.Dto.MembershipId, command.Dto.SlotNumber);
             await _corporate.SaveChangesAsync(ct);
+            await _quotaCache.InvalidateCompanyAsync(command.CompanyId, ct);
+            await CacheInvalidation.ForCompanyDashboardAsync(_cache, command.CompanyId, ct);
 
             var parkingSpace = await _marketplace.ParkingSpaces.GetByIdAsync(allocation.ParkingSpaceId, ct);
 

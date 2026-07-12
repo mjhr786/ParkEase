@@ -1,3 +1,4 @@
+using ParkingApp.Application.Caching;
 using ParkingApp.Application.CQRS.Commands.Bookings;
 using ParkingApp.Application.DTOs;
 using ParkingApp.Application.Interfaces;
@@ -14,19 +15,27 @@ public class UpdateBookingHandler : ICommandHandler<UpdateBookingCommand, ApiRes
     private readonly IMarketplaceUnitOfWork _unitOfWork;
     private readonly IParkingPassPricingService _pricingService;
     private readonly IBookingAvailabilityService _availability;
+    private readonly ICacheService _cache;
 
     public UpdateBookingHandler(
         IMarketplaceUnitOfWork unitOfWork,
         IParkingPassPricingService pricingService,
-        IBookingAvailabilityService availability)
+        IBookingAvailabilityService availability,
+        ICacheService cache)
     {
         _unitOfWork = unitOfWork;
         _pricingService = pricingService;
         _availability = availability;
+        _cache = cache;
     }
 
     public UpdateBookingHandler(IMarketplaceUnitOfWork unitOfWork)
-        : this(unitOfWork, new ParkingPassPricingService(unitOfWork), new BookingAvailabilityService(unitOfWork))
+        : this(
+            unitOfWork,
+            new ParkingPassPricingService(unitOfWork),
+            new BookingAvailabilityService(unitOfWork),
+            // Tests / legacy ctor: no-op invalidation if cache not provided
+            new NullCacheService())
     {
     }
 
@@ -49,18 +58,21 @@ public class UpdateBookingHandler : ICommandHandler<UpdateBookingCommand, ApiRes
         }
 
         var dto = command.Dto;
+        var datesChanged = dto.StartDateTime.HasValue || dto.EndDateTime.HasValue;
+        Guid? vendorId = null;
 
         try
         {
             booking.UpdateVehicleDetails(dto.VehicleType, dto.VehicleNumber, dto.VehicleModel);
 
             // If dates changed, validate availability then recalculate pricing
-            if (dto.StartDateTime.HasValue || dto.EndDateTime.HasValue)
+            if (datesChanged)
             {
                 var startDateTime = (dto.StartDateTime ?? booking.StartDateTime).ToUtc();
                 var endDateTime = (dto.EndDateTime ?? booking.EndDateTime).ToUtc();
 
                 var parking = await _unitOfWork.ParkingSpaces.GetByIdAsync(booking.ParkingSpaceId, cancellationToken);
+                vendorId = parking?.OwnerId;
                 if (parking != null)
                 {
                     var availability = await _availability.CanRescheduleAsync(
@@ -107,11 +119,42 @@ public class UpdateBookingHandler : ICommandHandler<UpdateBookingCommand, ApiRes
             _unitOfWork.Bookings.Update(booking);
             await _unitOfWork.SaveChangesAsync(cancellationToken);
 
+            // Reschedule does not raise domain events — must invalidate availability caches explicitly.
+            if (datesChanged)
+            {
+                if (vendorId is null)
+                {
+                    var parking = await _unitOfWork.ParkingSpaces.GetByIdAsync(booking.ParkingSpaceId, cancellationToken);
+                    vendorId = parking?.OwnerId;
+                }
+
+                await CacheInvalidation.ForBookingChangeAsync(
+                    _cache,
+                    booking.ParkingSpaceId,
+                    memberId: booking.UserId,
+                    vendorId: vendorId,
+                    cancellationToken);
+            }
+
             return new ApiResponse<BookingDto>(true, "Booking updated", booking.ToDto());
         }
         catch (ParkingApp.BuildingBlocks.Exceptions.DomainException ex)
         {
             return ParkingApp.Application.Common.DomainExceptionMapping.ToFailureResponse<BookingDto>(ex);
         }
+    }
+
+    /// <summary>Minimal no-op cache for legacy test constructors.</summary>
+    private sealed class NullCacheService : ICacheService
+    {
+        public Task<T?> GetAsync<T>(string key, CancellationToken cancellationToken = default) => Task.FromResult(default(T?));
+        public Task SetAsync<T>(string key, T value, TimeSpan? expiry = null, CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task<bool> ExistsAsync(string key, CancellationToken cancellationToken = default) => Task.FromResult(false);
+        public Task RemoveAsync(string key, CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task RemoveByPatternAsync(string pattern, CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task<long> IncrementAsync(string key, TimeSpan? expiry = null, CancellationToken cancellationToken = default) => Task.FromResult(0L);
+        public async Task<T> GetOrSetAsync<T>(string key, Func<Task<T>> factory, TimeSpan? expiry = null, CancellationToken cancellationToken = default) => await factory();
+        public Task<bool> AcquireLockAsync(string key, TimeSpan expiry, CancellationToken cancellationToken = default) => Task.FromResult(true);
+        public Task ReleaseLockAsync(string key, CancellationToken cancellationToken = default) => Task.CompletedTask;
     }
 }

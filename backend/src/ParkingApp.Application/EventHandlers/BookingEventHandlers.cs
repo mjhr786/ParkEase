@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using ParkingApp.Application.Caching;
 using ParkingApp.Application.Interfaces;
 using ParkingApp.Domain.Enums;
 using ParkingApp.Domain.Events;
@@ -7,56 +8,104 @@ using ParkingApp.Domain.Interfaces;
 
 namespace ParkingApp.Application.EventHandlers;
 
+/// <summary>
+/// Shared accurate invalidation for booking lifecycle events.
+/// Resolves parking owner so vendor dashboards and owner forecasts stay correct.
+/// </summary>
 internal static class BookingCacheInvalidation
 {
-    public static async Task InvalidateAsync(ICacheService cache, Guid parkingSpaceId, CancellationToken cancellationToken)
+    public static async Task InvalidateAsync(
+        ICacheService cache,
+        IMarketplaceUnitOfWork unitOfWork,
+        Guid parkingSpaceId,
+        Guid memberId,
+        CancellationToken cancellationToken)
     {
         if (parkingSpaceId == Guid.Empty)
             return;
 
-        await cache.RemoveAsync($"parking:{parkingSpaceId}", cancellationToken);
-        await cache.RemoveByPatternAsync("search:*", cancellationToken);
+        Guid? vendorId = null;
+        try
+        {
+            var parking = await unitOfWork.ParkingSpaces.GetByIdAsync(parkingSpaceId, cancellationToken);
+            vendorId = parking?.OwnerId;
+        }
+        catch
+        {
+            // Still invalidate parking/discovery/forecasts even if owner lookup fails.
+        }
+
+        await CacheInvalidation.ForBookingChangeAsync(
+            cache,
+            parkingSpaceId,
+            memberId: memberId,
+            vendorId: vendorId,
+            cancellationToken);
     }
 }
 
 public sealed class BookingConfirmedParkingCacheHandler : IDomainEventHandler<BookingConfirmedEvent>
 {
     private readonly ICacheService _cache;
+    private readonly IMarketplaceUnitOfWork _unitOfWork;
 
-    public BookingConfirmedParkingCacheHandler(ICacheService cache) => _cache = cache;
+    public BookingConfirmedParkingCacheHandler(ICacheService cache, IMarketplaceUnitOfWork unitOfWork)
+    {
+        _cache = cache;
+        _unitOfWork = unitOfWork;
+    }
 
     public Task HandleAsync(BookingConfirmedEvent domainEvent, CancellationToken cancellationToken = default) =>
-        BookingCacheInvalidation.InvalidateAsync(_cache, domainEvent.ParkingSpaceId, cancellationToken);
+        BookingCacheInvalidation.InvalidateAsync(
+            _cache, _unitOfWork, domainEvent.ParkingSpaceId, domainEvent.UserId, cancellationToken);
 }
 
 public sealed class BookingCancelledParkingCacheHandler : IDomainEventHandler<BookingCancelledEvent>
 {
     private readonly ICacheService _cache;
+    private readonly IMarketplaceUnitOfWork _unitOfWork;
 
-    public BookingCancelledParkingCacheHandler(ICacheService cache) => _cache = cache;
+    public BookingCancelledParkingCacheHandler(ICacheService cache, IMarketplaceUnitOfWork unitOfWork)
+    {
+        _cache = cache;
+        _unitOfWork = unitOfWork;
+    }
 
     public Task HandleAsync(BookingCancelledEvent domainEvent, CancellationToken cancellationToken = default) =>
-        BookingCacheInvalidation.InvalidateAsync(_cache, domainEvent.ParkingSpaceId, cancellationToken);
+        BookingCacheInvalidation.InvalidateAsync(
+            _cache, _unitOfWork, domainEvent.ParkingSpaceId, domainEvent.UserId, cancellationToken);
 }
 
 public sealed class BookingCheckedInParkingCacheHandler : IDomainEventHandler<BookingCheckedInEvent>
 {
     private readonly ICacheService _cache;
+    private readonly IMarketplaceUnitOfWork _unitOfWork;
 
-    public BookingCheckedInParkingCacheHandler(ICacheService cache) => _cache = cache;
+    public BookingCheckedInParkingCacheHandler(ICacheService cache, IMarketplaceUnitOfWork unitOfWork)
+    {
+        _cache = cache;
+        _unitOfWork = unitOfWork;
+    }
 
     public Task HandleAsync(BookingCheckedInEvent domainEvent, CancellationToken cancellationToken = default) =>
-        BookingCacheInvalidation.InvalidateAsync(_cache, domainEvent.ParkingSpaceId, cancellationToken);
+        BookingCacheInvalidation.InvalidateAsync(
+            _cache, _unitOfWork, domainEvent.ParkingSpaceId, domainEvent.UserId, cancellationToken);
 }
 
 public sealed class BookingCheckedOutParkingCacheHandler : IDomainEventHandler<BookingCheckedOutEvent>
 {
     private readonly ICacheService _cache;
+    private readonly IMarketplaceUnitOfWork _unitOfWork;
 
-    public BookingCheckedOutParkingCacheHandler(ICacheService cache) => _cache = cache;
+    public BookingCheckedOutParkingCacheHandler(ICacheService cache, IMarketplaceUnitOfWork unitOfWork)
+    {
+        _cache = cache;
+        _unitOfWork = unitOfWork;
+    }
 
     public Task HandleAsync(BookingCheckedOutEvent domainEvent, CancellationToken cancellationToken = default) =>
-        BookingCacheInvalidation.InvalidateAsync(_cache, domainEvent.ParkingSpaceId, cancellationToken);
+        BookingCacheInvalidation.InvalidateAsync(
+            _cache, _unitOfWork, domainEvent.ParkingSpaceId, domainEvent.UserId, cancellationToken);
 }
 
 /// <summary>

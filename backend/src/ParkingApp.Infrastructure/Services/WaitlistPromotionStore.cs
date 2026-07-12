@@ -1,4 +1,5 @@
 using Dapper;
+using Npgsql;
 using ParkingApp.Application.Interfaces;
 using ParkingApp.Domain.Enums;
 
@@ -7,6 +8,9 @@ namespace ParkingApp.Infrastructure.Services;
 public sealed class WaitlistPromotionStore : IWaitlistPromotionStore
 {
     private readonly ISqlConnectionFactory _sql;
+
+    /// <summary>Background polls should fail fast rather than hang the host for the full default timeout.</summary>
+    private const int BackgroundCommandTimeoutSeconds = 20;
 
     public WaitlistPromotionStore(ISqlConnectionFactory sql)
     {
@@ -26,7 +30,7 @@ public sealed class WaitlistPromotionStore : IWaitlistPromotionStore
                 AND "RequestedEndDateTime" <= @UtcNow;
             """;
 
-        using var connection = _sql.CreateConnection();
+        await using var connection = await OpenAsync(cancellationToken);
         return await connection.ExecuteAsync(
             new CommandDefinition(
                 sql,
@@ -36,6 +40,7 @@ public sealed class WaitlistPromotionStore : IWaitlistPromotionStore
                     PendingStatus = (int)WaitlistStatus.Pending,
                     CancelledStatus = (int)WaitlistStatus.Cancelled
                 },
+                commandTimeout: BackgroundCommandTimeoutSeconds,
                 cancellationToken: cancellationToken));
     }
 
@@ -70,7 +75,7 @@ public sealed class WaitlistPromotionStore : IWaitlistPromotionStore
             LIMIT @Take;
             """;
 
-        using var connection = _sql.CreateConnection();
+        await using var connection = await OpenAsync(cancellationToken);
         var rows = await connection.QueryAsync<WaitlistPromotionCandidate>(
             new CommandDefinition(
                 sql,
@@ -81,8 +86,16 @@ public sealed class WaitlistPromotionStore : IWaitlistPromotionStore
                     PendingStatus = (int)WaitlistStatus.Pending,
                     ActiveAllocationStatus = (int)AllocationStatus.Active
                 },
+                commandTimeout: BackgroundCommandTimeoutSeconds,
                 cancellationToken: cancellationToken));
 
         return rows.ToList();
+    }
+
+    private async Task<NpgsqlConnection> OpenAsync(CancellationToken cancellationToken)
+    {
+        var connection = (NpgsqlConnection)_sql.CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+        return connection;
     }
 }

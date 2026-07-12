@@ -62,7 +62,7 @@ public class PaymentCommandsTests
     [Fact]
     public async Task ProcessPaymentHandler_ShouldFail_WhenBookingNotFound()
     {
-        var handler = new ProcessPaymentHandler(_mockUow.Object, _mockUow.Object, _mockPaymentService.Object, _mockNotification.Object, _mockEmail.Object, _mockProcessLogger.Object);
+        var handler = new ProcessPaymentHandler(_mockUow.Object, _mockUow.Object, _mockPaymentService.Object, _mockNotification.Object, _mockEmail.Object, new Mock<ParkingApp.Application.Interfaces.ICacheService>().Object, _mockProcessLogger.Object);
         _mockBookingRepo.Setup(r => r.GetByIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>())).ReturnsAsync((Booking)null);
         
         var res = await handler.HandleAsync(new ProcessPaymentCommand(Guid.NewGuid(), new CreatePaymentDto(Guid.NewGuid(), PaymentMethod.CreditCard)));
@@ -73,7 +73,7 @@ public class PaymentCommandsTests
     [Fact]
     public async Task ProcessPaymentHandler_ShouldSucceed()
     {
-        var handler = new ProcessPaymentHandler(_mockUow.Object, _mockUow.Object, _mockPaymentService.Object, _mockNotification.Object, _mockEmail.Object, _mockProcessLogger.Object);
+        var handler = new ProcessPaymentHandler(_mockUow.Object, _mockUow.Object, _mockPaymentService.Object, _mockNotification.Object, _mockEmail.Object, new Mock<ParkingApp.Application.Interfaces.ICacheService>().Object, _mockProcessLogger.Object);
         var booking = new Booking { UserId = Guid.NewGuid(), Status = BookingStatus.AwaitingPayment, TotalAmount = 50, ParkingSpaceId = Guid.NewGuid() };
         _mockBookingRepo.Setup(r => r.GetByIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>())).ReturnsAsync(booking);
         
@@ -119,7 +119,7 @@ public class PaymentCommandsTests
     [Fact]
     public async Task VerifyPaymentHandler_ShouldFail_WhenInvalidSignature()
     {
-        var handler = new VerifyPaymentHandler(_mockUow.Object, _mockUow.Object, _mockPaymentService.Object, _mockNotification.Object, _mockEmail.Object, _mockVerifyLogger.Object);
+        var handler = new VerifyPaymentHandler(_mockUow.Object, _mockUow.Object, _mockPaymentService.Object, _mockNotification.Object, _mockEmail.Object, new Mock<ParkingApp.Application.Interfaces.ICacheService>().Object, _mockVerifyLogger.Object);
         var booking = new Booking { UserId = Guid.NewGuid(), TotalAmount = 50 };
         _mockBookingRepo.Setup(r => r.GetByIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>())).ReturnsAsync(booking);
         _mockPaymentService.Setup(p => p.VerifyPaymentSignatureAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(false);
@@ -132,7 +132,7 @@ public class PaymentCommandsTests
     [Fact]
     public async Task VerifyPaymentHandler_ShouldSucceed()
     {
-        var handler = new VerifyPaymentHandler(_mockUow.Object, _mockUow.Object, _mockPaymentService.Object, _mockNotification.Object, _mockEmail.Object, _mockVerifyLogger.Object);
+        var handler = new VerifyPaymentHandler(_mockUow.Object, _mockUow.Object, _mockPaymentService.Object, _mockNotification.Object, _mockEmail.Object, new Mock<ParkingApp.Application.Interfaces.ICacheService>().Object, _mockVerifyLogger.Object);
         var booking = new Booking { UserId = Guid.NewGuid(), TotalAmount = 50, ParkingSpaceId = Guid.NewGuid() };
         _mockBookingRepo.Setup(r => r.GetByIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>())).ReturnsAsync(booking);
         _mockPaymentService.Setup(p => p.VerifyPaymentSignatureAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(true);

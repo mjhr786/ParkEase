@@ -399,10 +399,63 @@ public class BookingRepository : Repository<Booking>, IBookingRepository
     {
         return await _dbSet.CountAsync(b =>
             b.ParkingSpaceId == parkingSpaceId &&
-            (b.Status == BookingStatus.Confirmed || b.Status == BookingStatus.InProgress || b.Status == BookingStatus.Pending) &&
+            (b.Status == BookingStatus.Confirmed || b.Status == BookingStatus.InProgress || b.Status == BookingStatus.Pending || b.Status == BookingStatus.AwaitingPayment) &&
             b.StartDateTime < endDateTime &&
             b.EndDateTime > startDateTime,
             cancellationToken);
+    }
+
+    public async Task<bool> HasActiveVehicleOverlapAsync(
+        Guid userId,
+        string vehicleNumber,
+        DateTime startDateTime,
+        DateTime endDateTime,
+        Guid? excludeBookingId = null,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(vehicleNumber))
+            return false;
+
+        var normalized = vehicleNumber.Trim().ToUpperInvariant();
+        var query = _dbSet.Where(b =>
+            b.UserId == userId &&
+            b.VehicleNumber != null &&
+            b.VehicleNumber.ToUpper() == normalized &&
+            (b.Status == BookingStatus.Pending
+             || b.Status == BookingStatus.AwaitingPayment
+             || b.Status == BookingStatus.Confirmed
+             || b.Status == BookingStatus.InProgress) &&
+            b.StartDateTime < endDateTime &&
+            b.EndDateTime > startDateTime);
+
+        if (excludeBookingId.HasValue)
+            query = query.Where(b => b.Id != excludeBookingId.Value);
+
+        return await query.AnyAsync(cancellationToken);
+    }
+
+    public async Task<bool> IsSlotOccupiedInWindowAsync(
+        Guid parkingSpaceId,
+        int slotNumber,
+        DateTime startDateTime,
+        DateTime endDateTime,
+        Guid? excludeBookingId = null,
+        CancellationToken cancellationToken = default)
+    {
+        var query = _dbSet.Where(b =>
+            b.ParkingSpaceId == parkingSpaceId &&
+            b.SlotNumber == slotNumber &&
+            (b.Status == BookingStatus.Pending
+             || b.Status == BookingStatus.AwaitingPayment
+             || b.Status == BookingStatus.Confirmed
+             || b.Status == BookingStatus.InProgress) &&
+            b.StartDateTime < endDateTime &&
+            b.EndDateTime > startDateTime);
+
+        if (excludeBookingId.HasValue)
+            query = query.Where(b => b.Id != excludeBookingId.Value);
+
+        return await query.AnyAsync(cancellationToken);
     }
 
     public async Task<bool> HasBlockingBookingsForSpaceAsync(

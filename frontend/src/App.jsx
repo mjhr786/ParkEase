@@ -30,6 +30,7 @@ const CorporateParkingSpaces = React.lazy(() => import('./pages/Corporate/Corpor
 const CompanyMembers = React.lazy(() => import('./pages/Corporate/CompanyMembers'));
 const CompanyAllocations = React.lazy(() => import('./pages/Corporate/CompanyAllocations'));
 const CompanyBookings = React.lazy(() => import('./pages/Corporate/CompanyBookings'));
+const CompanyInvoices = React.lazy(() => import('./pages/Corporate/CompanyInvoices'));
 const CompanySettings = React.lazy(() => import('./pages/Corporate/CompanySettings'));
 const AcceptInvitation = React.lazy(() => import('./pages/Corporate/AcceptInvitation'));
 const OutboxAdmin = React.lazy(() => import('./pages/Admin/OutboxAdmin'));
@@ -229,6 +230,7 @@ function Header() {
                       { to: '/corporate/members', icon: '👥', label: 'Members' },
                       { to: '/corporate/allocations', icon: '🅿️', label: 'Allocations' },
                       { to: '/corporate/bookings', icon: '📅', label: 'Corp Bookings' },
+                      { to: '/corporate/invoices', icon: '🧾', label: 'Invoices' },
                       { to: '/corporate/settings', icon: '⚙️', label: 'Company Settings' },
                       { to: '/profile', icon: '👤', label: 'My Profile' },
                       ...(isAdmin ? [{ to: '/admin/outbox', icon: '📬', label: 'Outbox Admin' }] : []),
@@ -469,6 +471,14 @@ function AppRoutes() {
           element={
             <ProtectedRoute>
               <CompanyBookings />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/corporate/invoices"
+          element={
+            <ProtectedRoute>
+              <CompanyInvoices />
             </ProtectedRoute>
           }
         />

@@ -224,7 +224,8 @@ const CompanySettings = () => {
               ))}
             </select>
             <small style={{ color: '#64748b', display: 'block', marginTop: '4px' }}>
-              Reserved Slots bills prepaid capacity; Usage Based keeps amounts for reporting.
+              Reserved Slots bills prepaid vendor lease capacity; Usage Based bills booking amounts.
+              Generate and settle period invoices under Corporate → Invoices.
             </small>
           </div>
 

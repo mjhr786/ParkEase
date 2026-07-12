@@ -30,7 +30,7 @@ public class BookingFactoryTests
         booking.ParkingSpaceId.Should().Be(ParkingId);
         booking.TotalAmount.Should().Be(115);
         booking.BookingReference.Should().NotBeNullOrWhiteSpace();
-        booking.DomainEvents.Should().BeEmpty();
+        booking.DomainEvents.Should().ContainSingle(e => e is BookingRequestedEvent);
     }
 
     [Fact]

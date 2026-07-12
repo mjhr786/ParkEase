@@ -93,7 +93,7 @@ public class Booking : BaseEntity
         ValidatePartyAndWindow(userId, parkingSpaceId, startDateTimeUtc, endDateTimeUtc);
         ValidateAmounts(baseAmount, taxAmount, serviceFee, discountAmount, totalAmount);
 
-        return new Booking
+        var booking = new Booking
         {
             UserId = userId,
             ParkingSpaceId = parkingSpaceId,
@@ -117,6 +117,10 @@ public class Booking : BaseEntity
                 ? GenerateReference("BK")
                 : bookingReference.Trim()
         };
+
+        booking.AddDomainEvent(new BookingRequestedEvent(
+            booking.Id, booking.UserId, booking.ParkingSpaceId, booking.BookingReference));
+        return booking;
     }
 
     /// <summary>
@@ -221,6 +225,7 @@ public class Booking : BaseEntity
         if (Status != BookingStatus.Pending)
             throw new BusinessRuleException("Booking.AwaitPayment", $"Cannot set awaiting payment from {Status} status");
         Status = BookingStatus.AwaitingPayment;
+        AddDomainEvent(new BookingApprovedEvent(Id, UserId, ParkingSpaceId, BookingReference, RequiresPayment: true));
     }
 
     public void Cancel(string reason)

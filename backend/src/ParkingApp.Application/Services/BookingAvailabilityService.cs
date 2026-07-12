@@ -1,10 +1,5 @@
 using ParkingApp.Application.Interfaces;
-using ParkingApp.Domain.Shared;
 using ParkingApp.Domain.Marketplace;
-using ParkingApp.Domain.Identity;
-using ParkingApp.Domain.Messaging;
-using ParkingApp.Domain.Corporate;
-using ParkingApp.Domain.Enums;
 using ParkingApp.Domain.Interfaces;
 using ParkingApp.Domain.Services;
 
@@ -28,12 +23,15 @@ public sealed class BookingAvailabilityService : IBookingAvailabilityService
         string? vehicleNumber,
         CancellationToken cancellationToken = default)
     {
-        IReadOnlyCollection<Booking> userBookings = Array.Empty<Booking>();
-        if (!string.IsNullOrWhiteSpace(vehicleNumber))
-        {
-            var loaded = await _unitOfWork.Bookings.GetByUserIdAsync(userId, cancellationToken);
-            userBookings = loaded?.ToList() ?? new List<Booking>();
-        }
+        // Windowed existence checks only — no full user/space booking graphs.
+        var hasVehicleOverlap = !string.IsNullOrWhiteSpace(vehicleNumber)
+            && await _unitOfWork.Bookings.HasActiveVehicleOverlapAsync(
+                userId,
+                vehicleNumber!,
+                startUtc,
+                endUtc,
+                excludeBookingId: null,
+                cancellationToken);
 
         var hasOverlap = await _unitOfWork.Bookings.HasOverlappingBookingAsync(
             parking.Id, startUtc, endUtc, null, cancellationToken);
@@ -45,16 +43,14 @@ public sealed class BookingAvailabilityService : IBookingAvailabilityService
                 parking.Id, startUtc, endUtc, cancellationToken);
         }
 
-        IReadOnlyCollection<Booking> slotCandidates = Array.Empty<Booking>();
-        if (slotNumber.HasValue)
-        {
-            var spaceBookings = await _unitOfWork.Bookings.GetByParkingSpaceIdAsync(parking.Id, cancellationToken);
-            slotCandidates = (spaceBookings ?? Enumerable.Empty<Booking>())
-                .Where(b =>
-                    BookingAvailabilityRules.IsActiveBookingStatus(b.Status) &&
-                    BookingAvailabilityRules.TimeRangesOverlap(b.StartDateTime, b.EndDateTime, startUtc, endUtc))
-                .ToList();
-        }
+        var hasSlotConflict = slotNumber.HasValue
+            && await _unitOfWork.Bookings.IsSlotOccupiedInWindowAsync(
+                parking.Id,
+                slotNumber.Value,
+                startUtc,
+                endUtc,
+                excludeBookingId: null,
+                cancellationToken);
 
         return BookingAvailabilityRules.ValidateCreateFacts(
             parking,
@@ -63,10 +59,10 @@ public sealed class BookingAvailabilityService : IBookingAvailabilityService
             DateTime.UtcNow,
             slotNumber,
             vehicleNumber,
-            userBookings,
             hasOverlap,
             activeCount,
-            slotCandidates);
+            hasVehicleOverlap,
+            hasSlotConflict);
     }
 
     public async Task<BookingAvailabilityResult> CanRescheduleAsync(

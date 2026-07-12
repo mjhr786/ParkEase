@@ -1,5 +1,7 @@
+using System.IO.Compression;
 using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.ResponseCompression;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.IdentityModel.Tokens;
@@ -50,10 +52,30 @@ builder.Services.AddApplication();
 // Add Controllers
 builder.Services.AddControllers();
 
-// Add Response Compression
+// Response compression (Brotli + Gzip) for JSON/API and text-like payloads over HTTPS
 builder.Services.AddResponseCompression(options =>
 {
     options.EnableForHttps = true;
+    options.Providers.Add<BrotliCompressionProvider>();
+    options.Providers.Add<GzipCompressionProvider>();
+    // Defaults already include application/json; add common API/text types explicitly
+    options.MimeTypes = ResponseCompressionDefaults.MimeTypes.Concat(new[]
+    {
+        "application/json",
+        "application/problem+json",
+        "application/javascript",
+        "text/css",
+        "text/csv",
+        "image/svg+xml"
+    });
+});
+builder.Services.Configure<BrotliCompressionProviderOptions>(options =>
+{
+    options.Level = CompressionLevel.Fastest; // balance CPU vs size on API responses
+});
+builder.Services.Configure<GzipCompressionProviderOptions>(options =>
+{
+    options.Level = CompressionLevel.Fastest;
 });
 
 // Add CORS (origins overridable via Cors:AllowedOrigins in appsettings / env)
@@ -206,13 +228,13 @@ app.UseSerilogRequestLogging(options =>
     };
 });
 
+// Compress early so API JSON and (when applicable) downstream middleware benefit
+app.UseResponseCompression();
+
 app.UseMiddleware<RateLimitingMiddleware>();
 
 // Add Image Resizing Middleware (Before Static Files)
 app.UseMiddleware<ImageResizingMiddleware>();
-
-// Enable Response Compression
-app.UseResponseCompression();
 
 // Static files for uploads with caching
 var webRootPath = builder.Environment.WebRootPath ?? Path.Combine(builder.Environment.ContentRootPath, "wwwroot");

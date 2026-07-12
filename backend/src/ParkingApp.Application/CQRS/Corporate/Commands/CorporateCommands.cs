@@ -225,3 +225,41 @@ public record CancelCorporateBookingCommand(
     Guid BookingId,
     string Reason
 ) : ICommand<ApiResponse<CorporateBookingDto>>;
+
+/// <summary>
+/// Generate a draft corporate invoice for a billing period (admin only).
+/// </summary>
+public record GenerateCorporateInvoiceCommand(
+    Guid CompanyId,
+    Guid AdminUserId,
+    GenerateCorporateInvoiceDto Dto
+) : ICommand<ApiResponse<CorporateInvoiceDetailDto>>;
+
+/// <summary>
+/// Issue a draft invoice (admin only).
+/// </summary>
+public record IssueCorporateInvoiceCommand(
+    Guid CompanyId,
+    Guid AdminUserId,
+    Guid InvoiceId
+) : ICommand<ApiResponse<CorporateInvoiceDetailDto>>;
+
+/// <summary>
+/// Mark an issued invoice as paid offline (admin only).
+/// </summary>
+public record MarkCorporateInvoicePaidCommand(
+    Guid CompanyId,
+    Guid AdminUserId,
+    Guid InvoiceId,
+    MarkInvoicePaidDto Dto
+) : ICommand<ApiResponse<CorporateInvoiceDetailDto>>;
+
+/// <summary>
+/// Void a draft or issued invoice (admin only).
+/// </summary>
+public record VoidCorporateInvoiceCommand(
+    Guid CompanyId,
+    Guid AdminUserId,
+    Guid InvoiceId,
+    VoidInvoiceDto Dto
+) : ICommand<ApiResponse<CorporateInvoiceDetailDto>>;

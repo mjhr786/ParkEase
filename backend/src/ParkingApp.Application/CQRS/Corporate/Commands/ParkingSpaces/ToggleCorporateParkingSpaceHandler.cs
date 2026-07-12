@@ -1,5 +1,7 @@
+using ParkingApp.Application.Caching;
 using ParkingApp.Application.CQRS.Commands.Corporate.Shared;
 using ParkingApp.Application.DTOs;
+using ParkingApp.Application.Interfaces;
 using ParkingApp.Domain.Enums;
 using ParkingApp.Domain.Interfaces;
 
@@ -9,11 +11,19 @@ public class ToggleCorporateParkingSpaceHandler : ICommandHandler<ToggleCorporat
 {
     private readonly ICorporateUnitOfWork _corporate;
     private readonly IMarketplaceUnitOfWork _marketplace;
+    private readonly ICacheService _cache;
+    private readonly ICompanyQuotaCache _quotaCache;
 
-    public ToggleCorporateParkingSpaceHandler(ICorporateUnitOfWork corporate, IMarketplaceUnitOfWork marketplace)
+    public ToggleCorporateParkingSpaceHandler(
+        ICorporateUnitOfWork corporate,
+        IMarketplaceUnitOfWork marketplace,
+        ICacheService cache,
+        ICompanyQuotaCache quotaCache)
     {
         _corporate = corporate;
         _marketplace = marketplace;
+        _cache = cache;
+        _quotaCache = quotaCache;
     }
 
     public async Task<ApiResponse<CorporateParkingSpaceDto>> HandleAsync(ToggleCorporateParkingSpaceCommand command, CancellationToken ct = default)
@@ -33,6 +43,8 @@ public class ToggleCorporateParkingSpaceHandler : ICommandHandler<ToggleCorporat
         parking.ToggleActive();
         _marketplace.ParkingSpaces.Update(parking);
         await _corporate.SaveChangesAsync(ct);
+        await CacheInvalidation.ForParkingMutationAsync(_cache, parking.Id, parking.OwnerId, includeReviews: false, ct);
+        await _quotaCache.InvalidateCompanyAsync(command.CompanyId, ct);
 
         return new ApiResponse<CorporateParkingSpaceDto>(
             true,

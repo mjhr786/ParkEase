@@ -97,16 +97,43 @@ public sealed class ParkingReadStore : IParkingReadStore
         return await _db.ParkingSpaces.CountAsync(p => p.IsActive, ct);
     }
 
+    public async Task<int> CountSearchAsync(ParkingSearchDto criteria, CancellationToken ct = default)
+    {
+        var amenities = criteria.Amenities != null ? string.Join(",", criteria.Amenities) : null;
+
+        var query = _db.ParkingSpaces
+            .AsNoTracking()
+            .Where(p => p.IsActive && !p.IsCorporateOnly);
+
+        query = ApplySearchFilters(
+            query,
+            criteria.State,
+            criteria.City,
+            criteria.Address,
+            criteria.Latitude,
+            criteria.Longitude,
+            criteria.RadiusKm,
+            criteria.MinPrice,
+            criteria.MaxPrice,
+            parkingType: null,
+            vehicleType: null,
+            amenities,
+            criteria.MinRating);
+
+        return await query.CountAsync(ct);
+    }
+
     public async Task<IReadOnlyList<ParkingMapDto>> GetMapPinsAsync(ParkingSearchDto criteria, CancellationToken ct = default)
     {
         var sql = new StringBuilder();
         var parameters = new DynamicParameters();
 
+        // Parity with marketplace search: exclude company-only inventory from public map.
         sql.Append("""
             SELECT "Id", "Title", "Address", "City", "Latitude", "Longitude",
                    "HourlyRate", "ImageUrls" AS "ThumbnailUrl", "AverageRating", "ParkingType"
             FROM "ParkingSpaces"
-            WHERE "IsActive" = TRUE AND "IsDeleted" = FALSE
+            WHERE "IsActive" = TRUE AND "IsDeleted" = FALSE AND "IsCorporateOnly" = FALSE
             """);
 
         if (!string.IsNullOrEmpty(criteria.State))

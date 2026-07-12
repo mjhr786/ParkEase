@@ -283,6 +283,53 @@ class CorporateService {
       body: JSON.stringify(data)
     });
   }
+
+  // ══════════════════════════════════════════════════════
+  // INVOICES
+  // ══════════════════════════════════════════════════════
+
+  async getInvoices(page = 1, pageSize = 20, status = null) {
+    const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
+    if (status !== undefined && status !== null && status !== '' && status !== 'all') {
+      params.set('status', String(status));
+    }
+    return api.request(`/v1/corporate/companies/${this.getCompanyId()}/invoices?${params.toString()}`);
+  }
+
+  async getInvoice(invoiceId) {
+    return api.request(`/v1/corporate/companies/${this.getCompanyId()}/invoices/${invoiceId}`);
+  }
+
+  async generateInvoice({ periodStart, periodEnd }) {
+    return api.request(`/v1/corporate/companies/${this.getCompanyId()}/invoices`, {
+      method: 'POST',
+      body: JSON.stringify({ periodStart, periodEnd })
+    });
+  }
+
+  async issueInvoice(invoiceId) {
+    return api.request(`/v1/corporate/companies/${this.getCompanyId()}/invoices/${invoiceId}/issue`, {
+      method: 'POST'
+    });
+  }
+
+  async markInvoicePaid(invoiceId, { paymentReference, paymentNotes } = {}) {
+    return api.request(`/v1/corporate/companies/${this.getCompanyId()}/invoices/${invoiceId}/mark-paid`, {
+      method: 'POST',
+      body: JSON.stringify({ paymentReference, paymentNotes })
+    });
+  }
+
+  async voidInvoice(invoiceId, { reason }) {
+    return api.request(`/v1/corporate/companies/${this.getCompanyId()}/invoices/${invoiceId}/void`, {
+      method: 'POST',
+      body: JSON.stringify({ reason })
+    });
+  }
+
+  async exportInvoice(invoiceId) {
+    return api.requestBlob(`/v1/corporate/companies/${this.getCompanyId()}/invoices/${invoiceId}/export`);
+  }
 }
 
 export default new CorporateService();

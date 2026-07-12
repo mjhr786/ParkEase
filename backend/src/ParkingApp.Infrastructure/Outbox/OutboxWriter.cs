@@ -16,6 +16,7 @@ public sealed class OutboxWriter : IOutboxWriter
     };
 
     private readonly ApplicationDbContext _db;
+    private readonly List<Guid> _enqueuedIds = new();
 
     public OutboxWriter(ApplicationDbContext db)
     {
@@ -30,10 +31,11 @@ public sealed class OutboxWriter : IOutboxWriter
         var typeName = type.AssemblyQualifiedName ?? type.FullName ?? type.Name;
         var payload = JsonSerializer.Serialize(domainEvent, type, JsonOptions);
         var idempotencyKey = BuildIdempotencyKey(type.Name, payload, domainEvent);
+        var id = Guid.NewGuid();
 
         _db.OutboxMessages.Add(new OutboxMessage
         {
-            Id = Guid.NewGuid(),
+            Id = id,
             TypeName = typeName,
             Payload = payload,
             IdempotencyKey = idempotencyKey,
@@ -42,6 +44,19 @@ public sealed class OutboxWriter : IOutboxWriter
             CreatedAtUtc = DateTime.UtcNow,
             AvailableAfterUtc = DateTime.UtcNow
         });
+        _enqueuedIds.Add(id);
+    }
+
+    public IReadOnlyList<Guid> TakeEnqueuedMessageIds()
+    {
+        if (_enqueuedIds.Count == 0)
+        {
+            return Array.Empty<Guid>();
+        }
+
+        var ids = _enqueuedIds.ToList();
+        _enqueuedIds.Clear();
+        return ids;
     }
 
     private static string BuildIdempotencyKey(string typeName, string payload, IDomainEvent domainEvent)

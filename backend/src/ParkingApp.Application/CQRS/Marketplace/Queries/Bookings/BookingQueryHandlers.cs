@@ -1,3 +1,4 @@
+using ParkingApp.Application.Caching;
 using ParkingApp.Application.DTOs;
 using ParkingApp.Application.Interfaces;
 using ParkingApp.Application.Mappings;
@@ -143,15 +144,23 @@ public class CalculatePriceHandler : IQueryHandler<CalculatePriceQuery, ApiRespo
 public class GetPendingRequestsCountHandler : IQueryHandler<GetPendingRequestsCountQuery, ApiResponse<int>>
 {
     private readonly IBookingReadStore _readStore;
+    private readonly ICacheService _cache;
 
-    public GetPendingRequestsCountHandler(IBookingReadStore readStore)
+    public GetPendingRequestsCountHandler(IBookingReadStore readStore, ICacheService cache)
     {
         _readStore = readStore;
+        _cache = cache;
     }
 
     public async Task<ApiResponse<int>> HandleAsync(GetPendingRequestsCountQuery query, CancellationToken cancellationToken = default)
     {
+        var cacheKey = CacheKeys.PendingRequestsCount(query.VendorId);
+        var cached = await _cache.GetAsync<int?>(cacheKey, cancellationToken);
+        if (cached.HasValue)
+            return new ApiResponse<int>(true, null, cached.Value);
+
         var pendingCount = await _readStore.CountPendingForVendorAsync(query.VendorId, cancellationToken);
+        await _cache.SetAsync(cacheKey, (int?)pendingCount, TimeSpan.FromMinutes(1), cancellationToken);
         return new ApiResponse<int>(true, null, pendingCount);
     }
 }

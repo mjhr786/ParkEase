@@ -26,6 +26,7 @@ public static class DependencyInjection
         services.AddScoped<IParkingPassPricingService, ParkingPassPricingService>();
         services.AddScoped<IBookingAvailabilityService, BookingAvailabilityService>();
         services.AddScoped<IWaitlistPromotionService, WaitlistPromotionService>();
+        services.AddScoped<ICorporateInvoiceCalculator, CorporateInvoiceCalculator>();
 
         // Scans command/query/domain-event handlers + pipeline behaviors (PR-16)
         services.AddCQRS(throwIfMissingHandlers: false);

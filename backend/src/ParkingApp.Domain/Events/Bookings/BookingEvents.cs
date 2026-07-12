@@ -1,5 +1,20 @@
 namespace ParkingApp.Domain.Events.Bookings;
 
+/// <summary>Marketplace booking request created (Pending).</summary>
+public sealed record BookingRequestedEvent(
+    Guid BookingId,
+    Guid UserId,
+    Guid ParkingSpaceId,
+    string? BookingReference) : DomainEvent;
+
+/// <summary>Vendor approved a pending booking; member may still need to pay.</summary>
+public sealed record BookingApprovedEvent(
+    Guid BookingId,
+    Guid UserId,
+    Guid ParkingSpaceId,
+    string? BookingReference,
+    bool RequiresPayment) : DomainEvent;
+
 public sealed record BookingConfirmedEvent(
     Guid BookingId,
     Guid UserId,

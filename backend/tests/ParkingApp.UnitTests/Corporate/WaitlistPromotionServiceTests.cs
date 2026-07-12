@@ -36,7 +36,8 @@ public class WaitlistPromotionServiceTests
     [Fact]
     public async Task PromoteAsync_WhenCompanyMissing_ReturnsFailure()
     {
-        _companies.Setup(c => c.GetFullAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+        _companies.Setup(c => c.GetAggregateForWaitlistPromotionAsync(
+                It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<Guid?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((Company?)null);
 
         var sut = CreateSut();
@@ -56,7 +57,8 @@ public class WaitlistPromotionServiceTests
         // employeeId is not an admin of this company
         company.AddMember(adminId, employeeId, CompanyRole.Employee);
 
-        _companies.Setup(c => c.GetFullAsync(companyId, It.IsAny<CancellationToken>()))
+        _companies.Setup(c => c.GetAggregateForWaitlistPromotionAsync(
+                companyId, It.IsAny<Guid>(), employeeId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(company);
 
         var sut = CreateSut();
@@ -84,7 +86,8 @@ public class WaitlistPromotionServiceTests
             .ReturnsAsync(new List<WaitlistPromotionCandidate> { candidate });
 
         // Promote will fail early (company not found) — counts as skipped/attempted
-        _companies.Setup(c => c.GetFullAsync(candidate.CompanyId, It.IsAny<CancellationToken>()))
+        _companies.Setup(c => c.GetAggregateForWaitlistPromotionAsync(
+                candidate.CompanyId, candidate.WaitlistEntryId, null, It.IsAny<CancellationToken>()))
             .ReturnsAsync((Company?)null);
 
         var sut = CreateSut();

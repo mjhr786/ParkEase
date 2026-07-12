@@ -440,6 +440,139 @@ public class CorporateController : ControllerBase
         return result.Success ? Ok(result) : BadRequest(result);
     }
 
+    // ══════════════════════════════════════════════════════
+    // INVOICES
+    // ══════════════════════════════════════════════════════
+
+    [HttpPost("companies/{companyId}/invoices")]
+    [ProducesResponseType(typeof(ApiResponse<CorporateInvoiceDetailDto>), StatusCodes.Status201Created)]
+    [ProducesResponseType(typeof(ApiResponse<CorporateInvoiceDetailDto>), StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> GenerateInvoice(
+        [FromRoute] Guid companyId,
+        [FromBody] GenerateCorporateInvoiceDto dto)
+    {
+        var result = await _dispatcher.SendAsync(new GenerateCorporateInvoiceCommand(companyId, GetUserId(), dto));
+        return result.Success
+            ? Created($"/api/v1/corporate/companies/{companyId}/invoices/{result.Data?.Id}", result)
+            : BadRequest(result);
+    }
+
+    [HttpGet("companies/{companyId}/invoices")]
+    [ProducesResponseType(typeof(ApiResponse<CorporateInvoiceListDto>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetInvoices(
+        [FromRoute] Guid companyId,
+        [FromQuery] CorporateInvoiceStatus? status = null,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20)
+    {
+        var result = await _dispatcher.QueryAsync(new GetCompanyInvoicesQuery(companyId, GetUserId(), status, page, pageSize));
+        return result.Success ? Ok(result) : BadRequest(result);
+    }
+
+    [HttpGet("companies/{companyId}/invoices/{invoiceId:guid}")]
+    [ProducesResponseType(typeof(ApiResponse<CorporateInvoiceDetailDto>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetInvoice([FromRoute] Guid companyId, [FromRoute] Guid invoiceId)
+    {
+        var result = await _dispatcher.QueryAsync(new GetCorporateInvoiceDetailsQuery(companyId, GetUserId(), invoiceId));
+        return result.Success ? Ok(result) : BadRequest(result);
+    }
+
+    [HttpPost("companies/{companyId}/invoices/{invoiceId:guid}/issue")]
+    [ProducesResponseType(typeof(ApiResponse<CorporateInvoiceDetailDto>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> IssueInvoice([FromRoute] Guid companyId, [FromRoute] Guid invoiceId)
+    {
+        var result = await _dispatcher.SendAsync(new IssueCorporateInvoiceCommand(companyId, GetUserId(), invoiceId));
+        return result.Success ? Ok(result) : BadRequest(result);
+    }
+
+    [HttpPost("companies/{companyId}/invoices/{invoiceId:guid}/mark-paid")]
+    [ProducesResponseType(typeof(ApiResponse<CorporateInvoiceDetailDto>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> MarkInvoicePaid(
+        [FromRoute] Guid companyId,
+        [FromRoute] Guid invoiceId,
+        [FromBody] MarkInvoicePaidDto? dto)
+    {
+        var result = await _dispatcher.SendAsync(new MarkCorporateInvoicePaidCommand(
+            companyId,
+            GetUserId(),
+            invoiceId,
+            dto ?? new MarkInvoicePaidDto()));
+        return result.Success ? Ok(result) : BadRequest(result);
+    }
+
+    [HttpPost("companies/{companyId}/invoices/{invoiceId:guid}/void")]
+    [ProducesResponseType(typeof(ApiResponse<CorporateInvoiceDetailDto>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> VoidInvoice(
+        [FromRoute] Guid companyId,
+        [FromRoute] Guid invoiceId,
+        [FromBody] VoidInvoiceDto dto)
+    {
+        var result = await _dispatcher.SendAsync(new VoidCorporateInvoiceCommand(companyId, GetUserId(), invoiceId, dto));
+        return result.Success ? Ok(result) : BadRequest(result);
+    }
+
+    [HttpGet("companies/{companyId}/invoices/{invoiceId:guid}/export")]
+    [Produces("text/csv")]
+    [ProducesResponseType(typeof(FileContentResult), StatusCodes.Status200OK)]
+    public async Task<IActionResult> ExportInvoice([FromRoute] Guid companyId, [FromRoute] Guid invoiceId)
+    {
+        var result = await _dispatcher.QueryAsync(new GetCorporateInvoiceDetailsQuery(companyId, GetUserId(), invoiceId));
+        if (!result.Success || result.Data == null)
+        {
+            return BadRequest(result);
+        }
+
+        var csv = BuildCorporateInvoiceCsv(result.Data);
+        var bytes = Encoding.UTF8.GetPreamble().Concat(Encoding.UTF8.GetBytes(csv)).ToArray();
+        var fileName = $"corporate-invoice-{result.Data.InvoiceNumber}-{DateTime.UtcNow:yyyyMMddHHmmss}.csv";
+        return File(bytes, "text/csv", fileName);
+    }
+
+    private static string BuildCorporateInvoiceCsv(CorporateInvoiceDetailDto invoice)
+    {
+        var sb = new StringBuilder();
+        sb.AppendLine("Section,Field,Value");
+        void Meta(string field, string value) =>
+            sb.AppendLine($"{Csv("Header")},{Csv(field)},{Csv(value)}");
+
+        Meta("InvoiceNumber", invoice.InvoiceNumber);
+        Meta("BillingType", invoice.BillingTypeSnapshot.ToString());
+        Meta("PeriodStart", invoice.PeriodStart.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture));
+        Meta("PeriodEnd", invoice.PeriodEnd.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture));
+        Meta("Status", invoice.Status.ToString());
+        Meta("Currency", invoice.Currency);
+        Meta("Subtotal", invoice.Subtotal.ToString(CultureInfo.InvariantCulture));
+        Meta("TaxAmount", invoice.TaxAmount.ToString(CultureInfo.InvariantCulture));
+        Meta("TotalAmount", invoice.TotalAmount.ToString(CultureInfo.InvariantCulture));
+        Meta("PaymentReference", invoice.PaymentReference ?? "");
+        Meta("PaymentNotes", invoice.PaymentNotes ?? "");
+        Meta("VoidReason", invoice.VoidReason ?? "");
+
+        sb.AppendLine();
+        sb.AppendLine(string.Join(',',
+            "LineType",
+            "Description",
+            "Quantity",
+            "UnitAmount",
+            "Amount",
+            "AllocationId",
+            "BookingId"));
+
+        foreach (var line in invoice.Lines ?? [])
+        {
+            sb.AppendLine(string.Join(',',
+                Csv(line.LineType.ToString()),
+                Csv(line.Description),
+                line.Quantity.ToString(CultureInfo.InvariantCulture),
+                line.UnitAmount.ToString(CultureInfo.InvariantCulture),
+                line.Amount.ToString(CultureInfo.InvariantCulture),
+                line.AllocationId?.ToString() ?? "",
+                line.BookingId?.ToString() ?? ""));
+        }
+
+        return sb.ToString();
+    }
+
     private static string BuildCorporateBookingsCsv(IReadOnlyList<CorporateBookingDto> bookings)
     {
         var sb = new StringBuilder();

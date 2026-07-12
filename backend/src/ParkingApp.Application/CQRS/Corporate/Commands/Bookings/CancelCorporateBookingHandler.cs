@@ -1,5 +1,7 @@
+using ParkingApp.Application.Caching;
 using ParkingApp.Application.CQRS.Commands.Corporate.Shared;
 using ParkingApp.Application.DTOs;
+using ParkingApp.Application.Interfaces;
 using ParkingApp.BuildingBlocks.Exceptions;
 using ParkingApp.Domain.Enums;
 using ParkingApp.Domain.Interfaces;
@@ -10,11 +12,19 @@ public class CancelCorporateBookingHandler : ICommandHandler<CancelCorporateBook
 {
     private readonly ICorporateUnitOfWork _corporate;
     private readonly IMarketplaceUnitOfWork _marketplace;
+    private readonly ICacheService _cache;
+    private readonly ICompanyQuotaCache _quotaCache;
 
-    public CancelCorporateBookingHandler(ICorporateUnitOfWork corporate, IMarketplaceUnitOfWork marketplace)
+    public CancelCorporateBookingHandler(
+        ICorporateUnitOfWork corporate,
+        IMarketplaceUnitOfWork marketplace,
+        ICacheService cache,
+        ICompanyQuotaCache quotaCache)
     {
         _corporate = corporate;
         _marketplace = marketplace;
+        _cache = cache;
+        _quotaCache = quotaCache;
     }
 
     public async Task<ApiResponse<CorporateBookingDto>> HandleAsync(
@@ -66,6 +76,14 @@ public class CancelCorporateBookingHandler : ICommandHandler<CancelCorporateBook
             booking.Cancel(reason);
             _marketplace.Bookings.Update(booking);
             await _corporate.SaveChangesAsync(ct);
+
+            await CacheInvalidation.ForBookingChangeAsync(
+                _cache,
+                booking.ParkingSpaceId,
+                memberId: booking.UserId,
+                vendorId: null,
+                ct);
+            await _quotaCache.InvalidateCompanyAsync(command.CompanyId, ct);
 
             return new ApiResponse<CorporateBookingDto>(
                 true,

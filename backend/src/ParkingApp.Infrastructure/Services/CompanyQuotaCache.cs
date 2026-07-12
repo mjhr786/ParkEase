@@ -1,4 +1,5 @@
 using Dapper;
+using ParkingApp.Application.Caching;
 using ParkingApp.Application.Interfaces;
 using ParkingApp.Domain.Enums;
 
@@ -83,10 +84,13 @@ public sealed class CompanyQuotaCache : ICompanyQuotaCache
 
     public async Task InvalidateCompanyAsync(Guid companyId, CancellationToken cancellationToken = default)
     {
-        await _cache.RemoveAsync(BuildCompanyKey(companyId), cancellationToken);
+        // Quota snapshot + company dashboard aggregates are co-invalidated for any allocation/booking policy change.
+        await Task.WhenAll(
+            _cache.RemoveAsync(BuildCompanyKey(companyId), cancellationToken),
+            _cache.RemoveAsync(CacheKeys.CompanyDashboard(companyId), cancellationToken));
     }
 
-    private static string BuildCompanyKey(Guid companyId) => $"company-quota:{companyId}";
+    private static string BuildCompanyKey(Guid companyId) => CacheKeys.CompanyQuota(companyId);
 
     private sealed class CompanyQuotaCacheRow
     {

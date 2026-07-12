@@ -1,3 +1,4 @@
+using ParkingApp.Application.Caching;
 using ParkingApp.Application.CQRS;
 using ParkingApp.Application.DTOs;
 using ParkingApp.Application.Interfaces;
@@ -51,7 +52,7 @@ public sealed class GetReviewsByParkingSpaceHandler : IQueryHandler<GetReviewsBy
 
     public async Task<ApiResponse<List<ReviewDto>>> HandleAsync(GetReviewsByParkingSpaceQuery query, CancellationToken cancellationToken = default)
     {
-        var cacheKey = $"reviews:parking:{query.ParkingSpaceId}";
+        var cacheKey = CacheKeys.Reviews(query.ParkingSpaceId);
         var cached = await _cache.GetAsync<List<ReviewDto>>(cacheKey, cancellationToken);
         if (cached != null)
             return new ApiResponse<List<ReviewDto>>(true, null, cached);

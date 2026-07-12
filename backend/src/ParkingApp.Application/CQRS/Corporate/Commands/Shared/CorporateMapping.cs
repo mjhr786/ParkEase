@@ -129,6 +129,61 @@ internal static class CorporateMapping
         fraudAssessment.IsBlocked,
         fraudAssessment.Reason);
 
+    public static CorporateInvoiceLineDto ToInvoiceLineDto(CorporateInvoiceLineItem line) => new(
+        line.Id,
+        line.LineType,
+        line.AllocationId,
+        line.BookingId,
+        line.Description,
+        line.Quantity,
+        line.UnitAmount,
+        line.Amount);
+
+    public static CorporateInvoiceDetailDto ToInvoiceDetailDto(CorporateInvoice invoice) => new(
+        invoice.Id,
+        invoice.InvoiceNumber,
+        invoice.BillingTypeSnapshot,
+        invoice.PeriodStart,
+        invoice.PeriodEnd,
+        invoice.Status,
+        invoice.Currency,
+        invoice.Subtotal,
+        invoice.TaxAmount,
+        invoice.TotalAmount,
+        invoice.GeneratedByUserId,
+        invoice.CreatedAt,
+        invoice.IssuedAt,
+        invoice.IssuedByUserId,
+        invoice.PaidAt,
+        invoice.PaidByUserId,
+        invoice.PaymentReference,
+        invoice.PaymentNotes,
+        invoice.VoidedAt,
+        invoice.VoidedByUserId,
+        invoice.VoidReason,
+        invoice.LineItems
+            .Where(l => !l.IsDeleted)
+            .OrderBy(l => l.Description)
+            .Select(ToInvoiceLineDto)
+            .ToList());
+
+    public static CorporateInvoiceSummaryDto ToInvoiceSummaryDto(CorporateInvoice invoice) => new(
+        invoice.Id,
+        invoice.InvoiceNumber,
+        invoice.BillingTypeSnapshot,
+        invoice.PeriodStart,
+        invoice.PeriodEnd,
+        invoice.Status,
+        invoice.Currency,
+        invoice.Subtotal,
+        invoice.TaxAmount,
+        invoice.TotalAmount,
+        invoice.LineItems.Count(l => !l.IsDeleted),
+        invoice.CreatedAt,
+        invoice.IssuedAt,
+        invoice.PaidAt,
+        invoice.PaymentReference);
+
     public static CorporateReservationResultDto ToReservationResultDto(CorporateReservationOutcome reservation, Booking? booking, Company company)
     {
         var bookingDto = reservation.Booking != null && booking != null

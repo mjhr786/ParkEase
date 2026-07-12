@@ -47,6 +47,8 @@ public class ApplicationDbContext : DbContext
     public DbSet<EmployeeInvitation> EmployeeInvitations => Set<EmployeeInvitation>();
     public DbSet<CompanyUsage> CompanyUsages => Set<CompanyUsage>();
     public DbSet<CorporateWaitlistEntry> CorporateWaitlistEntries => Set<CorporateWaitlistEntry>();
+    public DbSet<CorporateInvoice> CorporateInvoices => Set<CorporateInvoice>();
+    public DbSet<CorporateInvoiceLineItem> CorporateInvoiceLineItems => Set<CorporateInvoiceLineItem>();
     public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -113,10 +115,14 @@ public class ApplicationDbContext : DbContext
             entity.HasKey(e => e.Id);
             entity.Property(e => e.Title).HasMaxLength(200).IsRequired();
             entity.Property(e => e.Message).HasMaxLength(1000).IsRequired();
+            // Must map to User.Notifications — bare WithMany() previously created a shadow UserId1 FK/index.
             entity.HasOne(e => e.User)
-                  .WithMany()
+                  .WithMany(u => u.Notifications)
                   .HasForeignKey(e => e.UserId)
                   .OnDelete(DeleteBehavior.Cascade);
+            entity.HasIndex(e => new { e.UserId, e.CreatedAt })
+                .HasDatabaseName("IX_Notifications_UserId_CreatedAt")
+                .HasFilter("\"IsDeleted\" = false");
             entity.HasQueryFilter(e => !e.IsDeleted);
         });
 
@@ -166,6 +172,10 @@ public class ApplicationDbContext : DbContext
             entity.HasIndex(e => e.CompanyOwnerId);
             entity.HasIndex(e => e.OwnershipType);
             entity.HasIndex(e => new { e.Latitude, e.Longitude });
+            // Marketplace browse/list: public active inventory (excludes corporate-only)
+            entity.HasIndex(e => new { e.City, e.CreatedAt })
+                .HasDatabaseName("IX_ParkingSpaces_PublicActive")
+                .HasFilter("\"IsActive\" = true AND \"IsDeleted\" = false AND \"IsCorporateOnly\" = false");
             
             // PostGIS spatial column configuration
             entity.Property(e => e.Location)
@@ -221,6 +231,16 @@ public class ApplicationDbContext : DbContext
             entity.HasIndex(e => e.ParkingSpaceId);
             entity.HasIndex(e => e.ParkingPassId);
             entity.HasIndex(e => new { e.StartDateTime, e.EndDateTime });
+            // Overlap / capacity: active bookings by space and time window
+            // Status: Cancelled=4, Expired=5, Rejected=7
+            entity.HasIndex(e => new { e.ParkingSpaceId, e.StartDateTime, e.EndDateTime })
+                .HasDatabaseName("IX_Bookings_Space_ActiveWindow")
+                .HasFilter("\"IsDeleted\" = false AND \"Status\" NOT IN (4, 5, 7)");
+            // Vendor inbox: pending initial + extension requests
+            // Status: Pending=0, PendingExtension=8
+            entity.HasIndex(e => new { e.ParkingSpaceId, e.CreatedAt })
+                .HasDatabaseName("IX_Bookings_Pending_Space")
+                .HasFilter("\"IsDeleted\" = false AND \"Status\" IN (0, 8)");
             entity.HasQueryFilter(e => !e.IsDeleted);
             
             entity.HasOne(e => e.User)
@@ -717,6 +737,52 @@ public class ApplicationDbContext : DbContext
                 .OnDelete(DeleteBehavior.Restrict);
 
             entity.HasQueryFilter(e => !e.IsDeleted && (!CurrentTenantId.HasValue || e.CompanyId == CurrentTenantId.Value));
+        });
+
+        // CorporateInvoice
+        modelBuilder.Entity<CorporateInvoice>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.InvoiceNumber).HasMaxLength(40).IsRequired();
+            entity.Property(e => e.Currency).HasMaxLength(3).IsRequired();
+            entity.Property(e => e.Subtotal).HasPrecision(18, 2);
+            entity.Property(e => e.TaxAmount).HasPrecision(18, 2);
+            entity.Property(e => e.TotalAmount).HasPrecision(18, 2);
+            entity.Property(e => e.PaymentReference).HasMaxLength(200);
+            entity.Property(e => e.PaymentNotes).HasMaxLength(1000);
+            entity.Property(e => e.VoidReason).HasMaxLength(500);
+
+            entity.HasIndex(e => new { e.CompanyId, e.InvoiceNumber }).IsUnique();
+            entity.HasIndex(e => new { e.CompanyId, e.Status, e.IssuedAt });
+            entity.HasIndex(e => new { e.CompanyId, e.PeriodStart, e.PeriodEnd });
+
+            entity.HasOne(e => e.Company)
+                .WithMany()
+                .HasForeignKey(e => e.CompanyId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasMany(e => e.LineItems)
+                .WithOne(l => l.Invoice)
+                .HasForeignKey(l => l.InvoiceId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasQueryFilter(e => !e.IsDeleted && (!CurrentTenantId.HasValue || e.CompanyId == CurrentTenantId.Value));
+        });
+
+        // CorporateInvoiceLineItem
+        modelBuilder.Entity<CorporateInvoiceLineItem>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Description).HasMaxLength(500).IsRequired();
+            entity.Property(e => e.Quantity).HasPrecision(18, 4);
+            entity.Property(e => e.UnitAmount).HasPrecision(18, 2);
+            entity.Property(e => e.Amount).HasPrecision(18, 2);
+
+            entity.HasIndex(e => e.InvoiceId);
+            entity.HasIndex(e => e.AllocationId);
+            entity.HasIndex(e => e.BookingId);
+
+            entity.HasQueryFilter(e => !e.IsDeleted);
         });
     }
 

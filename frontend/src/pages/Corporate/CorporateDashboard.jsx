@@ -104,7 +104,7 @@ const CorporateDashboard = () => {
                 <StatCard title="Expiring (30d)" value={stats.expiringAllocationsWithin30Days || 0} secondary="Active contracts ending soon" icon="📆" color="#f97316" />
                 <StatCard title="Bookings This Month" value={stats.totalBookingsThisMonth} secondary={`including ${stats.visitorBookingsThisMonth} visitors`} icon="📅" />
                 <StatCard title="Hours Used (Month)" value={Number(stats.totalHoursUsedThisMonth || 0).toFixed(1)} secondary="Employee + visitor hours" icon="⏱️" color="#22d3ee" />
-                <StatCard title="Monthly Spend" value={formatMoney(stats.monthlySpend)} secondary="Active allocation rates" icon="💰" color="#34d399" />
+                <StatCard title="Monthly Spend" value={formatMoney(stats.monthlySpend)} secondary="Active allocation rates · see Invoices for settlement" icon="💰" color="#34d399" />
                 <StatCard title="Utilization Rate" value={`${stats.utilizationPercentage}%`} secondary={`Today's slot usage`} icon="📊" />
                 <StatCard title="Suspicious Activity" value={stats.suspiciousActivityCount} secondary={`Overlapping bookings detected`} icon="⚠️" color="#ef4444" />
             </div>

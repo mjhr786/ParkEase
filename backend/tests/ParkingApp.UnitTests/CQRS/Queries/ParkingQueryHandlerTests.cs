@@ -80,7 +80,7 @@ public class ParkingQueryHandlerTests
     [Fact]
     public async Task GetOwnerParkingsHandler_ShouldSucceed()
     {
-        var handler = new GetOwnerParkingsHandler(_mockUow.Object);
+        var handler = new GetOwnerParkingsHandler(_mockUow.Object, new Mock<ParkingApp.Application.Interfaces.ICacheService>().Object);
         var ownerId = Guid.NewGuid();
         var spaces = new List<ParkingSpace> { new ParkingSpace { Id = Guid.NewGuid(), OwnerId = ownerId } };
         _mockParkingRepo.Setup(r => r.GetByOwnerIdAsync(ownerId, It.IsAny<CancellationToken>())).ReturnsAsync(spaces);
@@ -119,7 +119,7 @@ public class ParkingQueryHandlerTests
         var spaces = new List<ParkingSpace> { new ParkingSpace { Id = parkingId, Title = "A", TotalSpots = 1 } };
         
         _mockReadStore.Setup(r => r.SearchAsync(It.IsAny<ParkingSearchDto>(), It.IsAny<CancellationToken>())).ReturnsAsync(spaces);
-        _mockReadStore.Setup(r => r.CountActiveAsync(It.IsAny<CancellationToken>())).ReturnsAsync(1);
+        _mockReadStore.Setup(r => r.CountSearchAsync(It.IsAny<ParkingSearchDto>(), It.IsAny<CancellationToken>())).ReturnsAsync(1);
         _mockBookingRepo.Setup(r => r.GetActiveBookingsForSpacesAsync(It.IsAny<List<Guid>>(), It.IsAny<CancellationToken>())).ReturnsAsync(new List<Booking>());
 
         var res = await handler.HandleAsync(new SearchParkingQuery(searchDto));

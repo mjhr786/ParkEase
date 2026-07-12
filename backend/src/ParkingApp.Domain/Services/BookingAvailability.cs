@@ -160,6 +160,46 @@ public static class BookingAvailabilityRules
         int activeSpaceBookingCount,
         IReadOnlyCollection<Booking> spaceBookingsForSlotCheck)
     {
+        var vehicleConflict = !string.IsNullOrWhiteSpace(vehicleNumber) &&
+            userBookings.Any(b =>
+                !string.IsNullOrWhiteSpace(b.VehicleNumber) &&
+                b.VehicleNumber.Trim().Equals(vehicleNumber.Trim(), StringComparison.OrdinalIgnoreCase) &&
+                IsActiveBookingStatus(b.Status) &&
+                TimeRangesOverlap(b.StartDateTime, b.EndDateTime, startUtc, endUtc));
+
+        var slotConflict = slotNumber.HasValue &&
+            spaceBookingsForSlotCheck.Any(b =>
+                b.SlotNumber == slotNumber.Value &&
+                IsActiveBookingStatus(b.Status));
+
+        return ValidateCreateFacts(
+            parking,
+            startUtc,
+            endUtc,
+            utcNow,
+            slotNumber,
+            vehicleNumber,
+            hasSpaceOverlap,
+            activeSpaceBookingCount,
+            vehicleConflict,
+            slotConflict);
+    }
+
+    /// <summary>
+    /// Create-path validation using precomputed SQL existence flags (preferred hot path).
+    /// </summary>
+    public static BookingAvailabilityResult ValidateCreateFacts(
+        ParkingSpace parking,
+        DateTime startUtc,
+        DateTime endUtc,
+        DateTime utcNow,
+        int? slotNumber,
+        string? vehicleNumber,
+        bool hasSpaceOverlap,
+        int activeSpaceBookingCount,
+        bool hasVehicleOverlap,
+        bool hasSlotConflict)
+    {
         if (!parking.IsActive)
             return BookingAvailabilityResult.Fail("Parking space is not available");
 
@@ -169,13 +209,22 @@ public static class BookingAvailabilityRules
         var slotRange = ValidateSlotNumber(slotNumber, parking.TotalSpots);
         if (!slotRange.IsAllowed) return slotRange;
 
-        var vehicle = ValidateVehicleOverlap(vehicleNumber, userBookings, startUtc, endUtc);
-        if (!vehicle.IsAllowed) return vehicle;
+        if (hasVehicleOverlap && !string.IsNullOrWhiteSpace(vehicleNumber))
+        {
+            return BookingAvailabilityResult.Fail(
+                $"Vehicle {vehicleNumber} is already booked during this time");
+        }
 
         var capacity = ValidateCapacity(hasSpaceOverlap, activeSpaceBookingCount, parking.TotalSpots);
         if (!capacity.IsAllowed) return capacity;
 
-        return ValidateSlotConflict(slotNumber, spaceBookingsForSlotCheck);
+        if (hasSlotConflict && slotNumber.HasValue)
+        {
+            return BookingAvailabilityResult.Fail(
+                $"Slot {slotNumber.Value} is already booked for the selected time");
+        }
+
+        return BookingAvailabilityResult.Ok();
     }
 
     public static BookingAvailabilityResult ValidateRescheduleFacts(

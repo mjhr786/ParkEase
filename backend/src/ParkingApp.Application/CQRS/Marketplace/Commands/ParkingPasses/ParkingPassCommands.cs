@@ -1,4 +1,6 @@
+using ParkingApp.Application.Caching;
 using ParkingApp.Application.DTOs;
+using ParkingApp.Application.Interfaces;
 using ParkingApp.Application.Mappings;
 using ParkingApp.Domain.Shared;
 using ParkingApp.Domain.Marketplace;
@@ -21,11 +23,13 @@ public sealed class CreateParkingPassHandler : ICommandHandler<CreateParkingPass
 {
     private readonly IMarketplaceUnitOfWork _marketplace;
     private readonly IIdentityUnitOfWork _identity;
+    private readonly ICacheService _cache;
 
-    public CreateParkingPassHandler(IMarketplaceUnitOfWork marketplace, IIdentityUnitOfWork identity)
+    public CreateParkingPassHandler(IMarketplaceUnitOfWork marketplace, IIdentityUnitOfWork identity, ICacheService cache)
     {
         _marketplace = marketplace;
         _identity = identity;
+        _cache = cache;
     }
 
     public async Task<ApiResponse<ParkingPassDto>> HandleAsync(CreateParkingPassCommand command, CancellationToken cancellationToken = default)
@@ -63,6 +67,7 @@ public sealed class CreateParkingPassHandler : ICommandHandler<CreateParkingPass
 
         await _marketplace.ParkingPasses.AddAsync(pass, cancellationToken);
         await _marketplace.SaveChangesAsync(cancellationToken);
+        await CacheInvalidation.ForUserPassesAsync(_cache, command.RequestedByUserId, cancellationToken);
 
         var createdPass = await _marketplace.ParkingPasses.GetByIdAsync(pass.Id, cancellationToken) ?? pass;
         return new ApiResponse<ParkingPassDto>(true, "Parking pass created successfully.", createdPass.ToDto());
@@ -117,11 +122,13 @@ public sealed class AssignCorporatePassHandler : ICommandHandler<AssignCorporate
 {
     private readonly IMarketplaceUnitOfWork _marketplace;
     private readonly IIdentityUnitOfWork _identity;
+    private readonly ICacheService _cache;
 
-    public AssignCorporatePassHandler(IMarketplaceUnitOfWork marketplace, IIdentityUnitOfWork identity)
+    public AssignCorporatePassHandler(IMarketplaceUnitOfWork marketplace, IIdentityUnitOfWork identity, ICacheService cache)
     {
         _marketplace = marketplace;
         _identity = identity;
+        _cache = cache;
     }
 
     public async Task<ApiResponse<CorporatePassAssignmentResultDto>> HandleAsync(AssignCorporatePassCommand command, CancellationToken cancellationToken = default)
@@ -179,6 +186,7 @@ public sealed class AssignCorporatePassHandler : ICommandHandler<AssignCorporate
 
         await _marketplace.ParkingPasses.AddRangeAsync(corporatePasses, cancellationToken);
         await _marketplace.SaveChangesAsync(cancellationToken);
+        await CacheInvalidation.ForUserPassesAsync(_cache, employeeIds, cancellationToken);
 
         var employeeLookup = employees.ToDictionary(employee => employee.Id);
         var now = DateTime.UtcNow;

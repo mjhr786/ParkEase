@@ -1,4 +1,5 @@
 using ParkingApp.Application.DTOs;
+using ParkingApp.Domain.Enums;
 
 namespace ParkingApp.Application.Interfaces;
 
@@ -49,5 +50,17 @@ public interface ICompanyReadStore
     Task<CompanyDashboardDto> GetCompanyDashboardAsync(
         Guid companyId,
         DateTime utcNow,
+        CancellationToken ct = default);
+
+    Task<(IReadOnlyList<CorporateInvoiceSummaryDto> Items, int TotalCount)> GetCompanyInvoicesAsync(
+        Guid companyId,
+        CorporateInvoiceStatus? status,
+        int offset,
+        int pageSize,
+        CancellationToken ct = default);
+
+    Task<CorporateInvoiceDetailDto?> GetCorporateInvoiceDetailAsync(
+        Guid companyId,
+        Guid invoiceId,
         CancellationToken ct = default);
 }

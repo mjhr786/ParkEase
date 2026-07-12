@@ -1,3 +1,4 @@
+using ParkingApp.Application.Caching;
 using ParkingApp.Application.DTOs;
 using ParkingApp.Application.Interfaces;
 using ParkingApp.Domain.Enums;
@@ -60,6 +61,20 @@ public record GetCompanyDetailsQuery(
     Guid CompanyId,
     Guid UserId
 ) : IQuery<ApiResponse<CompanyDto>>;
+
+public record GetCompanyInvoicesQuery(
+    Guid CompanyId,
+    Guid UserId,
+    CorporateInvoiceStatus? Status = null,
+    int Page = 1,
+    int PageSize = 20
+) : IQuery<ApiResponse<CorporateInvoiceListDto>>;
+
+public record GetCorporateInvoiceDetailsQuery(
+    Guid CompanyId,
+    Guid UserId,
+    Guid InvoiceId
+) : IQuery<ApiResponse<CorporateInvoiceDetailDto>>;
 
 public class GetCompanyDetailsHandler : IQueryHandler<GetCompanyDetailsQuery, ApiResponse<CompanyDto>>
 {
@@ -330,11 +345,13 @@ public class GetCompanyDashboardHandler : IQueryHandler<GetCompanyDashboardQuery
 {
     private readonly ICorporateUnitOfWork _uow;
     private readonly ICompanyReadStore _readStore;
+    private readonly ICacheService _cache;
 
-    public GetCompanyDashboardHandler(ICorporateUnitOfWork uow, ICompanyReadStore readStore)
+    public GetCompanyDashboardHandler(ICorporateUnitOfWork uow, ICompanyReadStore readStore, ICacheService cache)
     {
         _uow = uow;
         _readStore = readStore;
+        _cache = cache;
     }
 
     public async Task<ApiResponse<CompanyDashboardDto>> HandleAsync(GetCompanyDashboardQuery query, CancellationToken ct = default)
@@ -345,7 +362,13 @@ public class GetCompanyDashboardHandler : IQueryHandler<GetCompanyDashboardQuery
             return new ApiResponse<CompanyDashboardDto>(false, "Only company admins can view the dashboard.", null);
         }
 
+        var cacheKey = CacheKeys.CompanyDashboard(query.CompanyId);
+        var cached = await _cache.GetAsync<CompanyDashboardDto>(cacheKey, ct);
+        if (cached != null)
+            return new ApiResponse<CompanyDashboardDto>(true, null, cached);
+
         var dashboard = await _readStore.GetCompanyDashboardAsync(query.CompanyId, DateTime.UtcNow, ct);
+        await _cache.SetAsync(cacheKey, dashboard, TimeSpan.FromMinutes(2), ct);
         return new ApiResponse<CompanyDashboardDto>(true, null, dashboard);
     }
 }
@@ -363,5 +386,74 @@ public class GetMyCompaniesHandler : IQueryHandler<GetMyCompaniesQuery, ApiRespo
     {
         var companies = await _readStore.GetMyCompaniesAsync(query.UserId, ct);
         return new ApiResponse<List<CompanyDto>>(true, null, companies.ToList());
+    }
+}
+
+public class GetCompanyInvoicesHandler : IQueryHandler<GetCompanyInvoicesQuery, ApiResponse<CorporateInvoiceListDto>>
+{
+    private readonly ICorporateUnitOfWork _uow;
+    private readonly ICompanyReadStore _readStore;
+
+    public GetCompanyInvoicesHandler(ICorporateUnitOfWork uow, ICompanyReadStore readStore)
+    {
+        _uow = uow;
+        _readStore = readStore;
+    }
+
+    public async Task<ApiResponse<CorporateInvoiceListDto>> HandleAsync(GetCompanyInvoicesQuery query, CancellationToken ct = default)
+    {
+        var membership = await _uow.Companies.GetMembershipAsync(query.CompanyId, query.UserId, ct);
+        if (membership == null || !membership.IsAdmin)
+        {
+            return new ApiResponse<CorporateInvoiceListDto>(false, "Only company admins can view invoices.", null);
+        }
+
+        var page = query.Page < 1 ? 1 : query.Page;
+        var pageSize = query.PageSize is < 1 or > 100 ? 20 : query.PageSize;
+        var offset = (page - 1) * pageSize;
+
+        var (items, total) = await _readStore.GetCompanyInvoicesAsync(
+            query.CompanyId,
+            query.Status,
+            offset,
+            pageSize,
+            ct);
+
+        return new ApiResponse<CorporateInvoiceListDto>(
+            true,
+            null,
+            new CorporateInvoiceListDto(items.ToList(), total, page, pageSize));
+    }
+}
+
+public class GetCorporateInvoiceDetailsHandler
+    : IQueryHandler<GetCorporateInvoiceDetailsQuery, ApiResponse<CorporateInvoiceDetailDto>>
+{
+    private readonly ICorporateUnitOfWork _uow;
+    private readonly ICompanyReadStore _readStore;
+
+    public GetCorporateInvoiceDetailsHandler(ICorporateUnitOfWork uow, ICompanyReadStore readStore)
+    {
+        _uow = uow;
+        _readStore = readStore;
+    }
+
+    public async Task<ApiResponse<CorporateInvoiceDetailDto>> HandleAsync(
+        GetCorporateInvoiceDetailsQuery query,
+        CancellationToken ct = default)
+    {
+        var membership = await _uow.Companies.GetMembershipAsync(query.CompanyId, query.UserId, ct);
+        if (membership == null || !membership.IsAdmin)
+        {
+            return new ApiResponse<CorporateInvoiceDetailDto>(false, "Only company admins can view invoices.", null);
+        }
+
+        var detail = await _readStore.GetCorporateInvoiceDetailAsync(query.CompanyId, query.InvoiceId, ct);
+        if (detail == null)
+        {
+            return new ApiResponse<CorporateInvoiceDetailDto>(false, "Invoice not found.", null);
+        }
+
+        return new ApiResponse<CorporateInvoiceDetailDto>(true, null, detail);
     }
 }

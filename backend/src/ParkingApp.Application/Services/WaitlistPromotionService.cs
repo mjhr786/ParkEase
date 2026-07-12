@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using ParkingApp.Application.Caching;
 using ParkingApp.Application.CQRS.Commands.Corporate.Shared;
 using ParkingApp.Application.DTOs;
 using ParkingApp.Application.Interfaces;
@@ -41,22 +42,27 @@ public sealed class WaitlistPromotionService : IWaitlistPromotionService
         Guid? adminUserId,
         CancellationToken cancellationToken = default)
     {
-        var snapshot = await _corporate.Companies.GetFullAsync(companyId, cancellationToken);
-        if (snapshot == null)
+        // Slim aggregate: no full company graph (was GetFullAsync).
+        var company = await _corporate.Companies.GetAggregateForWaitlistPromotionAsync(
+            companyId,
+            waitlistEntryId,
+            adminUserId,
+            cancellationToken);
+        if (company == null)
         {
             return new ApiResponse<CorporateReservationResultDto>(false, "Company not found.", null);
         }
 
         if (adminUserId.HasValue)
         {
-            var adminMembership = snapshot.Memberships.FirstOrDefault(m => m.UserId == adminUserId.Value && !m.IsDeleted);
+            var adminMembership = company.Memberships.FirstOrDefault(m => m.UserId == adminUserId.Value && !m.IsDeleted);
             if (adminMembership == null || !adminMembership.IsActive || !adminMembership.IsAdmin)
             {
                 return new ApiResponse<CorporateReservationResultDto>(false, "Only company admins can promote waitlist entries.", null);
             }
         }
 
-        var waitlistEntry = snapshot.WaitlistEntries.FirstOrDefault(w => w.Id == waitlistEntryId && !w.IsDeleted);
+        var waitlistEntry = company.WaitlistEntries.FirstOrDefault(w => w.Id == waitlistEntryId && !w.IsDeleted);
         if (waitlistEntry == null)
         {
             return new ApiResponse<CorporateReservationResultDto>(false, "Waitlist entry not found.", null);
@@ -72,7 +78,7 @@ public sealed class WaitlistPromotionService : IWaitlistPromotionService
             return new ApiResponse<CorporateReservationResultDto>(false, "Waitlist window has already ended.", null);
         }
 
-        var targetMembership = snapshot.Memberships.FirstOrDefault(m => m.Id == waitlistEntry.MembershipId && !m.IsDeleted);
+        var targetMembership = company.Memberships.FirstOrDefault(m => m.Id == waitlistEntry.MembershipId && !m.IsDeleted);
         if (targetMembership == null || !targetMembership.IsActive)
         {
             return new ApiResponse<CorporateReservationResultDto>(false, "Waitlist member is no longer active.", null);
@@ -100,79 +106,45 @@ public sealed class WaitlistPromotionService : IWaitlistPromotionService
 
         Booking? booking = null;
         CorporateReservationOutcome? reservation = null;
-        Company? company = null;
 
         try
         {
-            company = await _corporate.Companies.GetAggregateForBookingAsync(
-                companyId,
-                targetMembership.UserId,
-                waitlistEntry.AllocationId,
-                waitlistEntry.RequestedStartDateTime,
-                waitlistEntry.RequestedEndDateTime,
-                cancellationToken);
-            if (company == null)
-            {
-                return new ApiResponse<CorporateReservationResultDto>(false, "Company not found.", null);
-            }
-
             var allocation = company.Allocations.FirstOrDefault(a => a.Id == waitlistEntry.AllocationId && !a.IsDeleted);
             if (allocation == null)
             {
                 return new ApiResponse<CorporateReservationResultDto>(false, "Allocation not found.", null);
             }
 
-            var activeSharedCount = await _corporate.CorporateBookings.GetActiveSharedBookingsCountAsync(
-                companyId,
-                allocation.Id,
-                waitlistEntry.RequestedStartDateTime,
-                waitlistEntry.RequestedEndDateTime,
-                cancellationToken);
-            var occupiedSharedSlotNumbers = await _corporate.CorporateBookings.GetOccupiedSharedSlotNumbersAsync(
-                companyId,
-                allocation.Id,
-                waitlistEntry.RequestedStartDateTime,
-                waitlistEntry.RequestedEndDateTime,
-                cancellationToken);
-            var sharedSlotUsageBySlot = await _corporate.CorporateBookings.GetSharedSlotUsageCountsAsync(
-                companyId,
-                allocation.Id,
-                DateTime.UtcNow.AddDays(-30),
-                cancellationToken);
-            var anonymousOccupiedSharedBookings = Math.Max(0, activeSharedCount - occupiedSharedSlotNumbers.Count);
-            var recentBookingCreations = await _corporate.CorporateBookings.GetRecentBookingCreateCountAsync(
+            var usageDate = DateOnly.FromDateTime(waitlistEntry.RequestedStartDateTime);
+            var weekStart = CorporateCommandHelpers.GetWeekStart(usageDate);
+            var vehicleNumber = waitlistEntry.IsVisitorBooking
+                ? waitlistEntry.VisitorLicensePlate
+                : waitlistEntry.VehicleNumber;
+
+            var preCheck = await _corporate.CorporateBookings.GetReservationPreCheckAsync(
                 companyId,
                 targetMembership.Id,
+                allocation.Id,
+                waitlistEntry.RequestedStartDateTime,
+                waitlistEntry.RequestedEndDateTime,
+                usageDate,
+                weekStart,
                 DateTime.UtcNow.AddHours(-24),
+                DateTime.UtcNow.AddDays(-30),
+                vehicleNumber,
                 cancellationToken);
 
             var duration = waitlistEntry.RequestedEndDateTime - waitlistEntry.RequestedStartDateTime;
             var amount = company.CalculateBookingAmount(quota.HourlyRate, duration);
             booking = CorporateCommandHelpers.CreateBookingFromWaitlist(waitlistEntry, targetMembership.UserId, quota.ParkingSpaceId, amount);
 
-            var hasOverlappingBooking = await _corporate.CorporateBookings.HasOverlappingBookingAsync(
-                companyId,
-                targetMembership.Id,
-                waitlistEntry.RequestedStartDateTime,
-                waitlistEntry.RequestedEndDateTime,
-                cancellationToken);
-            var vehicleNumber = waitlistEntry.IsVisitorBooking ? waitlistEntry.VisitorLicensePlate : waitlistEntry.VehicleNumber;
-            var hasOverlappingVehicleBooking = !string.IsNullOrWhiteSpace(vehicleNumber)
-                && await _corporate.CorporateBookings.HasOverlappingVehicleBookingAsync(
-                    companyId,
-                    allocation.Id,
-                    vehicleNumber!,
-                    waitlistEntry.RequestedStartDateTime,
-                    waitlistEntry.RequestedEndDateTime,
-                    cancellationToken);
-
             var fraudAssessment = company.AssessFraudRisk(
                 targetMembership.UserId,
                 waitlistEntry.RequestedStartDateTime,
                 waitlistEntry.RequestedEndDateTime,
-                hasOverlappingBooking,
-                hasOverlappingVehicleBooking,
-                recentBookingCreations);
+                preCheck.HasOverlappingMemberBooking,
+                preCheck.HasOverlappingVehicleBooking,
+                preCheck.RecentBookingCreateCount);
 
             if (waitlistEntry.IsVisitorBooking)
             {
@@ -183,27 +155,22 @@ public sealed class WaitlistPromotionService : IWaitlistPromotionService
                     waitlistEntry.VisitorName ?? string.Empty,
                     waitlistEntry.VisitorLicensePlate ?? string.Empty,
                     waitlistEntry.AccessExpiryUtc ?? waitlistEntry.RequestedEndDateTime,
-                    occupiedSharedSlotNumbers,
-                    sharedSlotUsageBySlot,
-                    anonymousOccupiedSharedBookings,
+                    preCheck.OccupiedSharedSlotNumbers,
+                    preCheck.SharedSlotUsageBySlot,
+                    preCheck.AnonymousOccupiedSharedBookings,
                     fraudAssessment);
             }
             else
             {
-                var usageDate = DateOnly.FromDateTime(waitlistEntry.RequestedStartDateTime);
-                var weekStart = CorporateCommandHelpers.GetWeekStart(usageDate);
-                var dayCount = await _corporate.CorporateBookings.GetMembershipBookingCountForDateAsync(companyId, targetMembership.Id, usageDate, cancellationToken);
-                var weekCount = await _corporate.CorporateBookings.GetMembershipBookingCountForWeekAsync(companyId, targetMembership.Id, weekStart, cancellationToken);
-
                 reservation = company.ReserveEmployeeParking(
                     targetMembership.UserId,
                     allocation.Id,
                     booking,
-                    dayCount,
-                    weekCount,
-                    occupiedSharedSlotNumbers,
-                    sharedSlotUsageBySlot,
-                    anonymousOccupiedSharedBookings,
+                    preCheck.DayBookingCount,
+                    preCheck.WeekBookingCount,
+                    preCheck.OccupiedSharedSlotNumbers,
+                    preCheck.SharedSlotUsageBySlot,
+                    preCheck.AnonymousOccupiedSharedBookings,
                     fraudAssessment);
             }
 
@@ -222,6 +189,14 @@ public sealed class WaitlistPromotionService : IWaitlistPromotionService
             }
 
             await _corporate.SaveChangesAsync(cancellationToken);
+
+            await CacheInvalidation.ForBookingChangeAsync(
+                _cache,
+                booking.ParkingSpaceId,
+                memberId: booking.UserId,
+                vendorId: null,
+                cancellationToken);
+            await _quotaCache.InvalidateCompanyAsync(companyId, cancellationToken);
 
             _logger.LogInformation(
                 "Waitlist entry {WaitlistEntryId} promoted for company {CompanyId} ({Mode})",

@@ -1,3 +1,4 @@
+using ParkingApp.Application.Caching;
 using ParkingApp.Application.Common;
 using ParkingApp.Application.DTOs;
 using ParkingApp.Application.Interfaces;
@@ -112,45 +113,33 @@ public class CreateBookingHandler : ICommandHandler<CreateBookingCommand, ApiRes
         await _unitOfWork.Bookings.AddAsync(booking, cancellationToken);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
-        // Reload with navigation properties
-        booking = await _unitOfWork.Bookings.GetByIdAsync(booking.Id, cancellationToken);
-
-        // Notify parking owner of new booking request
-        var memberName = booking?.User != null ? $"{booking.User.FirstName} {booking.User.LastName}" : "A member";
+        // In-app only on the request path (no email/push/SMS) — keeps create latency low.
+        // Owner inbox badge uses pending-count cache invalidation below.
         await _notificationCoordinator.SendAsync(
             parking.OwnerId,
             new NotificationRequest(
                 NotificationType.BookingRequest.ToString(),
                 "New Booking Request",
-                $"New booking request from {memberName} for {parking.Title}",
-                NotificationChannels.All,
-                new Dictionary<string, string> { { "BookingId", booking!.Id.ToString() }, { "BookingReference", booking.BookingReference ?? string.Empty } }
+                $"New booking request for {parking.Title} (ref {booking.BookingReference})",
+                NotificationChannels.InApp,
+                new Dictionary<string, string>
+                {
+                    { "BookingId", booking.Id.ToString() },
+                    { "BookingReference", booking.BookingReference ?? string.Empty }
+                }
             ),
             cancellationToken);
 
-        // Send Email to Owner
-        if (parking.Owner?.Email != null)
-        {
-            await _emailService.SendEmailAsync(
-                parking.Owner.Email,
-                $"New Booking Request: {booking.BookingReference}",
-                $"<p>Hello {parking.Owner.FirstName},</p><p>You have a new booking request from {memberName} for <strong>{parking.Title}</strong>.</p><p>Please log in to your dashboard to approve or reject it.</p>"
-            );
-        }
+        // Email is intentionally not sent here; add outbox email handlers later if product requires it.
 
-        if (booking.User?.Email != null)
-        {
-             await _emailService.SendEmailAsync(
-                booking.User.Email,
-                $"Booking Requested: {booking.BookingReference}",
-                $"<p>Hello {booking.User.FirstName},</p><p>Your booking request for <strong>{parking.Title}</strong> has been sent.</p><p>You will be notified once the owner approves it.</p>"
-            );
-        }
+        await CacheInvalidation.ForBookingChangeAsync(
+            _cache,
+            command.ParkingSpaceId,
+            memberId: booking.UserId,
+            vendorId: parking.OwnerId,
+            cancellationToken);
 
-        // Invalidate caches
-        await _cache.RemoveAsync($"parking:{command.ParkingSpaceId}", cancellationToken);
-        await _cache.RemoveByPatternAsync("search:*", cancellationToken);
-
+        // DTO without reload: navigations may be null — ToDto tolerates Unknown for names/address.
         return new ApiResponse<BookingDto>(true, "Booking created successfully", booking.ToDto());
     }
 }
@@ -260,7 +249,7 @@ public class ApproveBookingHandler : ICommandHandler<ApproveBookingCommand, ApiR
             _unitOfWork.Bookings.Update(booking);
             await _unitOfWork.SaveChangesAsync(cancellationToken);
 
-            // Notify member that their booking was approved
+            // In-app only — no email/push on approve hot path (email can be outbox-driven later).
             await _notificationCoordinator.SendAsync(
                 booking.UserId,
                 new NotificationRequest(
@@ -271,40 +260,17 @@ public class ApproveBookingHandler : ICommandHandler<ApproveBookingCommand, ApiR
                         : booking.TotalAmount > 0
                             ? $"Your booking for {booking.ParkingSpace?.Title} has been approved. Please complete payment."
                             : $"Your booking for {booking.ParkingSpace?.Title} has been approved and is awaiting final settlement.",
-                    NotificationChannels.All,
+                    NotificationChannels.InApp,
                     new Dictionary<string, string> { { "BookingId", command.BookingId.ToString() }, { "BookingReference", booking.BookingReference ?? string.Empty } }
                 ),
                 cancellationToken);
 
-            // Notify vendor (owner) so UI count refreshes
-            await _notificationCoordinator.SendAsync(
-                ownerId.Value,
-                new NotificationRequest(
-                    NotificationType.BookingConfirmed.ToString(),
-                    "Booking Approved",
-                    $"You have approved booking {booking.BookingReference}",
-                    NotificationChannels.All,
-                    new Dictionary<string, string> { { "BookingId", command.BookingId.ToString() }, { "BookingReference", booking.BookingReference ?? string.Empty }, { "Silent", "true" } }
-                ),
+            await CacheInvalidation.ForBookingChangeAsync(
+                _cache,
+                booking.ParkingSpaceId,
+                memberId: booking.UserId,
+                vendorId: booking.ParkingSpace?.OwnerId,
                 cancellationToken);
-
-            // Send Email to Member
-            if (booking.User?.Email != null)
-            {
-                await _emailService.SendEmailAsync(
-                    booking.User.Email,
-                    isPassCoveredBooking ? $"Booking Confirmed: {booking.BookingReference}" : $"Booking Approved: {booking.BookingReference}",
-                    isPassCoveredBooking
-                        ? $"<p>Hello {booking.User.FirstName},</p><p>Great news! Your booking for <strong>{booking.ParkingSpace?.Title}</strong> has been approved and confirmed.</p><p>Your active parking pass covered this booking, so no payment is required.</p>"
-                        : booking.TotalAmount > 0
-                            ? $"<p>Hello {booking.User.FirstName},</p><p>Great news! Your booking for <strong>{booking.ParkingSpace?.Title}</strong> has been approved.</p><p>Please log in and complete your payment to confirm the reservation.</p>"
-                            : $"<p>Hello {booking.User.FirstName},</p><p>Great news! Your booking for <strong>{booking.ParkingSpace?.Title}</strong> has been approved.</p><p>No payment is due, but the booking will remain pending final settlement until it is fully confirmed.</p>"
-                );
-            }
-
-            // Invalidate caches
-            await _cache.RemoveAsync($"parking:{booking.ParkingSpaceId}", cancellationToken);
-            await _cache.RemoveByPatternAsync("search:*", cancellationToken);
 
             return new ApiResponse<BookingDto>(
                 true,
@@ -387,9 +353,12 @@ public class RejectBookingHandler : ICommandHandler<RejectBookingCommand, ApiRes
                 );
             }
 
-            // Invalidate caches
-            await _cache.RemoveAsync($"parking:{booking.ParkingSpaceId}", cancellationToken);
-            await _cache.RemoveByPatternAsync("search:*", cancellationToken);
+            await CacheInvalidation.ForBookingChangeAsync(
+                _cache,
+                booking.ParkingSpaceId,
+                memberId: booking.UserId,
+                vendorId: booking.ParkingSpace?.OwnerId,
+                cancellationToken);
 
             return new ApiResponse<BookingDto>(true, "Booking rejected", booking.ToDto());
         }
@@ -619,8 +588,12 @@ public class RequestExtensionHandler : ICommandHandler<RequestExtensionCommand, 
                 "<p>You will be notified once the owner responds.</p>");
         }
 
-        await _cache.RemoveAsync($"parking:{booking.ParkingSpaceId}", cancellationToken);
-        await _cache.RemoveByPatternAsync("search:*", cancellationToken);
+        await CacheInvalidation.ForBookingChangeAsync(
+            _cache,
+            booking.ParkingSpaceId,
+            memberId: booking.UserId,
+            vendorId: parking.OwnerId,
+            cancellationToken);
 
         return new ApiResponse<BookingDto>(true,
             "Extension request submitted. Awaiting owner approval.", booking.ToDto());
@@ -734,8 +707,12 @@ public class ApproveExtensionHandler : ICommandHandler<ApproveExtensionCommand, 
                 "<p>Please log in and complete payment to confirm the extension.</p>");
         }
 
-        await _cache.RemoveAsync($"parking:{booking.ParkingSpaceId}", cancellationToken);
-        await _cache.RemoveByPatternAsync("search:*", cancellationToken);
+        await CacheInvalidation.ForBookingChangeAsync(
+            _cache,
+            booking.ParkingSpaceId,
+            memberId: booking.UserId,
+            vendorId: booking.ParkingSpace?.OwnerId,
+            cancellationToken);
 
         return new ApiResponse<BookingDto>(
             true,
@@ -829,8 +806,12 @@ public class RejectExtensionHandler : ICommandHandler<RejectExtensionCommand, Ap
                 "<p>Your original booking remains unchanged.</p>");
         }
 
-        await _cache.RemoveAsync($"parking:{booking.ParkingSpaceId}", cancellationToken);
-        await _cache.RemoveByPatternAsync("search:*", cancellationToken);
+        await CacheInvalidation.ForBookingChangeAsync(
+            _cache,
+            booking.ParkingSpaceId,
+            memberId: booking.UserId,
+            vendorId: booking.ParkingSpace?.OwnerId,
+            cancellationToken);
 
         return new ApiResponse<BookingDto>(true, "Extension request rejected.", booking.ToDto());
     }
@@ -920,8 +901,12 @@ public class ConfirmExtensionPaymentHandler : ICommandHandler<ConfirmExtensionPa
                 $"<p>New end time: <strong>{newEndDateTime:f}</strong>. Additional charge: <strong>₹{extensionAmount:F2}</strong>.</p>");
         }
 
-        await _cache.RemoveAsync($"parking:{booking.ParkingSpaceId}", cancellationToken);
-        await _cache.RemoveByPatternAsync("search:*", cancellationToken);
+        await CacheInvalidation.ForBookingChangeAsync(
+            _cache,
+            booking.ParkingSpaceId,
+            memberId: booking.UserId,
+            vendorId: booking.ParkingSpace?.OwnerId,
+            cancellationToken);
 
         return new ApiResponse<BookingDto>(true,
             $"Extension confirmed. Booking extended to {booking.EndDateTime:f}.", booking.ToDto());

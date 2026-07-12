@@ -99,18 +99,19 @@ const CompanyAllocations = () => {
     const loadAllocations = async () => {
         setLoading(true);
         try {
-            const response = await corporateService.getAllocations();
+            const [response, memRes, waitlistRes] = await Promise.all([
+                corporateService.getAllocations(),
+                corporateService.getMembers(1, 100),
+                corporateService.getWaitlist(),
+            ]);
             if (response.success && response.data) {
                 setAllocations(response.data);
             } else {
                 toast.error(response.message || "Failed to load allocations");
             }
-            // Fetch members silently
-            const memRes = await corporateService.getMembers(1, 100);
             if (memRes.success && memRes.data) {
                 setMembers(memRes.data.members?.filter(m => m.isActive) || []);
             }
-            const waitlistRes = await corporateService.getWaitlist();
             if (waitlistRes.success && waitlistRes.data) {
                 setWaitlist(waitlistRes.data);
             } else {

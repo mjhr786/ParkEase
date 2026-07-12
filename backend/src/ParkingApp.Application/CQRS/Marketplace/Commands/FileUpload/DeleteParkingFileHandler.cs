@@ -44,7 +44,8 @@ public class DeleteParkingFileHandler : ICommandHandler<DeleteParkingFileCommand
 
                 _unitOfWork.ParkingSpaces.Update(parking);
                 await _unitOfWork.SaveChangesAsync(cancellationToken);
-                await ParkingFileUploadHelper.InvalidateParkingCachesAsync(_cache, command.ParkingSpaceId, cancellationToken);
+                await ParkingFileUploadHelper.InvalidateParkingCachesAsync(
+                    _cache, command.ParkingSpaceId, parking.OwnerId, cancellationToken);
 
                 return new ApiResponse<bool>(true, "File deleted successfully", true);
             }

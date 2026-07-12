@@ -343,6 +343,78 @@ public record ExpiringAllocationDto(
     ParkingAllocationSource SourceType,
     decimal MonthlyRate);
 
+// ══════════════════════════════════════════════════════
+// INVOICE DTOs
+// ══════════════════════════════════════════════════════
+
+public record GenerateCorporateInvoiceDto(
+    [Required] DateOnly PeriodStart,
+    [Required] DateOnly PeriodEnd);
+
+public record MarkInvoicePaidDto(
+    [StringLength(200)] string? PaymentReference = null,
+    [StringLength(1000)] string? PaymentNotes = null);
+
+public record VoidInvoiceDto(
+    [Required][StringLength(500, MinimumLength = 3)] string Reason = "");
+
+public record CorporateInvoiceLineDto(
+    Guid Id,
+    CorporateInvoiceLineType LineType,
+    Guid? AllocationId,
+    Guid? BookingId,
+    string Description,
+    decimal Quantity,
+    decimal UnitAmount,
+    decimal Amount);
+
+public record CorporateInvoiceSummaryDto(
+    Guid Id,
+    string InvoiceNumber,
+    BillingType BillingTypeSnapshot,
+    DateOnly PeriodStart,
+    DateOnly PeriodEnd,
+    CorporateInvoiceStatus Status,
+    string Currency,
+    decimal Subtotal,
+    decimal TaxAmount,
+    decimal TotalAmount,
+    int LineCount,
+    DateTime CreatedAt,
+    DateTime? IssuedAt,
+    DateTime? PaidAt,
+    string? PaymentReference);
+
+public record CorporateInvoiceDetailDto(
+    Guid Id,
+    string InvoiceNumber,
+    BillingType BillingTypeSnapshot,
+    DateOnly PeriodStart,
+    DateOnly PeriodEnd,
+    CorporateInvoiceStatus Status,
+    string Currency,
+    decimal Subtotal,
+    decimal TaxAmount,
+    decimal TotalAmount,
+    Guid GeneratedByUserId,
+    DateTime CreatedAt,
+    DateTime? IssuedAt,
+    Guid? IssuedByUserId,
+    DateTime? PaidAt,
+    Guid? PaidByUserId,
+    string? PaymentReference,
+    string? PaymentNotes,
+    DateTime? VoidedAt,
+    Guid? VoidedByUserId,
+    string? VoidReason,
+    List<CorporateInvoiceLineDto> Lines);
+
+public record CorporateInvoiceListDto(
+    List<CorporateInvoiceSummaryDto> Items,
+    int TotalCount,
+    int Page,
+    int PageSize);
+
 public record AllocationUtilizationDto(
     Guid AllocationId,
     string ParkingSpaceTitle,

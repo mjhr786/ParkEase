@@ -202,3 +202,25 @@ public enum CorporateFraudRiskLevel
     Medium = 2,
     High = 3
 }
+
+/// <summary>
+/// Lifecycle of a company billing invoice (period settlement).
+/// </summary>
+public enum CorporateInvoiceStatus
+{
+    Draft = 0,
+    Issued = 1,
+    Paid = 2,
+    Void = 3
+}
+
+/// <summary>
+/// Type of charge line on a corporate invoice.
+/// </summary>
+public enum CorporateInvoiceLineType
+{
+    /// <summary>Prorated reserved capacity from vendor lease MonthlyRate.</summary>
+    ReservedCapacity = 0,
+    /// <summary>Usage charge from corporate booking TotalAmount.</summary>
+    Usage = 1
+}

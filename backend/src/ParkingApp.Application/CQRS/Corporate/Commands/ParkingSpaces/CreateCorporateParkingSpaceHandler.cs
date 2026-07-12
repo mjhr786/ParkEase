@@ -1,5 +1,7 @@
+using ParkingApp.Application.Caching;
 using ParkingApp.Application.CQRS.Commands.Corporate.Shared;
 using ParkingApp.Application.DTOs;
+using ParkingApp.Application.Interfaces;
 using ParkingApp.Application.Mappings;
 using ParkingApp.Domain.Enums;
 using ParkingApp.Domain.Interfaces;
@@ -11,12 +13,21 @@ public class CreateCorporateParkingSpaceHandler : ICommandHandler<CreateCorporat
     private readonly ICorporateUnitOfWork _corporate;
     private readonly IMarketplaceUnitOfWork _marketplace;
     private readonly IIdentityUnitOfWork _identity;
+    private readonly ICacheService _cache;
+    private readonly ICompanyQuotaCache _quotaCache;
 
-    public CreateCorporateParkingSpaceHandler(ICorporateUnitOfWork corporate, IMarketplaceUnitOfWork marketplace, IIdentityUnitOfWork identity)
+    public CreateCorporateParkingSpaceHandler(
+        ICorporateUnitOfWork corporate,
+        IMarketplaceUnitOfWork marketplace,
+        IIdentityUnitOfWork identity,
+        ICacheService cache,
+        ICompanyQuotaCache quotaCache)
     {
         _corporate = corporate;
         _marketplace = marketplace;
         _identity = identity;
+        _cache = cache;
+        _quotaCache = quotaCache;
     }
 
     public async Task<ApiResponse<CorporateParkingSpaceDto>> HandleAsync(CreateCorporateParkingSpaceCommand command, CancellationToken ct = default)
@@ -44,6 +55,8 @@ public class CreateCorporateParkingSpaceHandler : ICommandHandler<CreateCorporat
 
         await _marketplace.ParkingSpaces.AddAsync(parking, ct);
         await _corporate.SaveChangesAsync(ct);
+        await CacheInvalidation.ForParkingMutationAsync(_cache, parking.Id, parking.OwnerId, includeReviews: false, ct);
+        await _quotaCache.InvalidateCompanyAsync(command.CompanyId, ct);
 
         return new ApiResponse<CorporateParkingSpaceDto>(
             true,

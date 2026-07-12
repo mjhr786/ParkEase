@@ -165,7 +165,7 @@ public class BookingQueryHandlerTests
     [Fact]
     public async Task GetPendingRequestsCountHandler_ShouldSucceed()
     {
-        var handler = new GetPendingRequestsCountHandler(_mockReadStore.Object);
+        var handler = new GetPendingRequestsCountHandler(_mockReadStore.Object, new Mock<ParkingApp.Application.Interfaces.ICacheService>().Object);
         var vendorId = Guid.NewGuid();
         _mockReadStore.Setup(r => r.CountPendingForVendorAsync(vendorId, It.IsAny<CancellationToken>())).ReturnsAsync(1);
 
