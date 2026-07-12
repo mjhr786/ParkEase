@@ -14,6 +14,26 @@ const toTimeSpan = (value) => {
     return value.length === 5 ? `${value}:00` : value;
 };
 
+const toDateInput = (value) => {
+    if (!value) return '';
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return String(value).slice(0, 10);
+    return d.toISOString().slice(0, 10);
+};
+
+const daysUntil = (value) => {
+    const end = new Date(value);
+    if (Number.isNaN(end.getTime())) return null;
+    const ms = end.getTime() - Date.now();
+    return Math.ceil(ms / (1000 * 60 * 60 * 24));
+};
+
+const formatMoney = (value) => {
+    const n = Number(value);
+    if (Number.isNaN(n)) return '—';
+    return n.toLocaleString(undefined, { style: 'currency', currency: 'INR', maximumFractionDigits: 0 });
+};
+
 const badgeStyles = {
     owned: { background: 'rgba(167, 139, 250, 0.14)', color: '#c4b5fd', border: '1px solid rgba(167, 139, 250, 0.35)' },
     leased: { background: 'rgba(56, 189, 248, 0.12)', color: '#7dd3fc', border: '1px solid rgba(56, 189, 248, 0.32)' },
@@ -58,6 +78,10 @@ const CompanyAllocations = () => {
     // Modal state for Policy Update
     const [policyModalObj, setPolicyModalObj] = useState(null);
     const [updatingPolicy, setUpdatingPolicy] = useState(false);
+
+    // Modal state for Lease / Contract terms
+    const [contractModalObj, setContractModalObj] = useState(null);
+    const [updatingContract, setUpdatingContract] = useState(false);
 
     // Modal state for Fixed Slot Assignment
     const [fixedSlotModalObj, setFixedSlotModalObj] = useState(null);
@@ -130,6 +154,48 @@ const CompanyAllocations = () => {
             toast.error('An error occurred during policy update');
         } finally {
             setUpdatingPolicy(false);
+        }
+    };
+
+    const openContractModal = (alloc) => {
+        setContractModalObj({
+            id: alloc.id,
+            parkingSpaceTitle: alloc.parkingSpaceTitle,
+            monthlyRate: alloc.monthlyRate ?? 0,
+            startDate: toDateInput(alloc.startDate),
+            endDate: toDateInput(alloc.endDate),
+            leaseReference: alloc.leaseReference || '',
+            sourceType: alloc.sourceType,
+        });
+    };
+
+    const handleUpdateContract = async (e) => {
+        e.preventDefault();
+        if (!contractModalObj) return;
+        if (contractModalObj.endDate <= contractModalObj.startDate) {
+            toast.error('End date must be after start date.');
+            return;
+        }
+        setUpdatingContract(true);
+        try {
+            const payload = {
+                monthlyRate: parseFloat(contractModalObj.monthlyRate),
+                startDate: new Date(`${contractModalObj.startDate}T00:00:00.000Z`).toISOString(),
+                endDate: new Date(`${contractModalObj.endDate}T23:59:59.000Z`).toISOString(),
+                leaseReference: contractModalObj.leaseReference?.trim() || null,
+            };
+            const response = await corporateService.updateAllocationContract(contractModalObj.id, payload);
+            if (response.success) {
+                toast.success('Contract terms updated.');
+                setContractModalObj(null);
+                loadAllocations();
+            } else {
+                toast.error(response.message || 'Failed to update contract terms');
+            }
+        } catch {
+            toast.error('An error occurred while updating contract terms');
+        } finally {
+            setUpdatingContract(false);
         }
     };
 
@@ -222,7 +288,14 @@ const CompanyAllocations = () => {
 
             {waitlist.length > 0 && (
                 <div style={{ background: '#1e293b', borderRadius: '12px', padding: '1.5rem', marginBottom: '1.5rem', border: '1px solid rgba(255,255,255,0.05)' }}>
-                    <h2 style={{ margin: '0 0 1rem 0', color: 'white', fontSize: '1.15rem' }}>Waitlist</h2>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem', marginBottom: '1rem', flexWrap: 'wrap' }}>
+                        <div>
+                            <h2 style={{ margin: '0 0 0.35rem 0', color: 'white', fontSize: '1.15rem' }}>Waitlist</h2>
+                            <p style={{ margin: 0, color: '#94a3b8', fontSize: '0.82rem' }}>
+                                Auto-promotion runs in the background when a shared slot opens for the queue head. You can still promote manually.
+                            </p>
+                        </div>
+                    </div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                         {waitlist.map(entry => (
                             <div key={entry.id} style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 1fr auto', gap: '1rem', alignItems: 'center', background: 'rgba(255,255,255,0.02)', padding: '0.85rem', borderRadius: '8px' }}>
@@ -264,18 +337,60 @@ const CompanyAllocations = () => {
                                     <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', color: '#94a3b8', fontSize: '0.85rem', alignItems: 'center' }}>
                                         {getStatusBadge(alloc.status)}
                                         <StatusBadge tone={alloc.sourceType === 1 ? 'owned' : 'leased'}>{alloc.sourceType === 1 ? 'Owned' : 'Leased'}</StatusBadge>
-                                        <span>Valid: {new Date(alloc.startDate).toLocaleDateString()} - {new Date(alloc.endDate).toLocaleDateString()}</span>
-                                        {alloc.leaseReference && <span>Lease: {alloc.leaseReference}</span>}
+                                        {(() => {
+                                            const d = daysUntil(alloc.endDate);
+                                            if (alloc.status === 1 && d != null && d <= 30) {
+                                                return (
+                                                    <StatusBadge tone={d <= 7 ? 'rejected' : 'pending'}>
+                                                        {d < 0 ? 'Past end date' : `Expires in ${d}d`}
+                                                    </StatusBadge>
+                                                );
+                                            }
+                                            return null;
+                                        })()}
+                                    </div>
+                                    <div style={{ marginTop: '0.65rem', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '0.65rem', maxWidth: '640px' }}>
+                                        <div>
+                                            <span style={{ color: '#64748b', fontSize: '0.75rem', display: 'block' }}>Contract window</span>
+                                            <strong style={{ color: '#e2e8f0', fontSize: '0.85rem' }}>
+                                                {new Date(alloc.startDate).toLocaleDateString()} – {new Date(alloc.endDate).toLocaleDateString()}
+                                            </strong>
+                                        </div>
+                                        <div>
+                                            <span style={{ color: '#64748b', fontSize: '0.75rem', display: 'block' }}>Monthly rate</span>
+                                            <strong style={{ color: '#e2e8f0', fontSize: '0.85rem' }}>{formatMoney(alloc.monthlyRate)}</strong>
+                                        </div>
+                                        <div>
+                                            <span style={{ color: '#64748b', fontSize: '0.75rem', display: 'block' }}>
+                                                {alloc.sourceType === 1 ? 'Internal ref' : 'Lease ref'}
+                                            </span>
+                                            <strong style={{ color: '#e2e8f0', fontSize: '0.85rem' }}>{alloc.leaseReference || '—'}</strong>
+                                        </div>
+                                        {alloc.sourceType !== 1 && (
+                                            <div>
+                                                <span style={{ color: '#64748b', fontSize: '0.75rem', display: 'block' }}>Vendor</span>
+                                                <strong style={{ color: '#e2e8f0', fontSize: '0.85rem' }}>{alloc.vendorName || 'Parking owner'}</strong>
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
                                 <div style={{ textAlign: 'right' }}>
                                     <div style={{ fontSize: '1.5rem', fontWeight: 'bold', color: 'white' }}>{alloc.totalSlots} Slots</div>
-                                    <div style={{ fontSize: '0.85rem', color: '#94a3b8' }}>
+                                    <div style={{ fontSize: '0.85rem', color: '#94a3b8', marginBottom: '0.65rem' }}>
                                         {alloc.sharedSlots} Shared • {alloc.fixedSlots} Fixed
                                     </div>
+                                    {(alloc.status === 0 || alloc.status === 1) && (
+                                        <button
+                                            type="button"
+                                            onClick={() => openContractModal(alloc)}
+                                            style={{ background: 'transparent', border: 'none', color: '#38bdf8', cursor: 'pointer', fontSize: '0.85rem', fontWeight: '600' }}
+                                        >
+                                            Edit Contract
+                                        </button>
+                                    )}
                                 </div>
                             </div>
-                            
+
                             {/* Policy Section */}
                             <div style={{ marginBottom: '1rem' }}>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
@@ -475,6 +590,71 @@ const CompanyAllocations = () => {
                                 <button type="button" onClick={() => setPolicyModalObj(null)} className="btn btn-secondary">Cancel</button>
                                 <button type="submit" className="btn btn-primary" disabled={updatingPolicy}>
                                     {updatingPolicy ? 'Saving...' : 'Save Policy'}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {/* Contract / Lease terms modal */}
+            {contractModalObj && (
+                <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.7)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <div style={{ background: '#1e293b', width: '100%', maxWidth: '480px', borderRadius: '12px', padding: '2rem', border: '1px solid rgba(255,255,255,0.1)' }}>
+                        <h2 style={{ marginBottom: '0.5rem', color: 'white' }}>Edit Contract</h2>
+                        <p style={{ color: '#94a3b8', fontSize: '0.85rem', marginBottom: '1.5rem' }}>{contractModalObj.parkingSpaceTitle}</p>
+                        <form onSubmit={handleUpdateContract}>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
+                                <div className="form-group">
+                                    <label style={{ display: 'block', marginBottom: '8px', color: '#cbd5e1', fontSize: '0.9rem' }}>Start Date</label>
+                                    <input
+                                        type="date"
+                                        required
+                                        value={contractModalObj.startDate}
+                                        onChange={(e) => setContractModalObj({ ...contractModalObj, startDate: e.target.value })}
+                                        style={{ width: '100%', padding: '10px', background: '#0f172a', border: '1px solid #334155', borderRadius: '6px', color: 'white' }}
+                                    />
+                                </div>
+                                <div className="form-group">
+                                    <label style={{ display: 'block', marginBottom: '8px', color: '#cbd5e1', fontSize: '0.9rem' }}>End Date</label>
+                                    <input
+                                        type="date"
+                                        required
+                                        value={contractModalObj.endDate}
+                                        onChange={(e) => setContractModalObj({ ...contractModalObj, endDate: e.target.value })}
+                                        style={{ width: '100%', padding: '10px', background: '#0f172a', border: '1px solid #334155', borderRadius: '6px', color: 'white' }}
+                                    />
+                                </div>
+                            </div>
+                            <div className="form-group" style={{ marginBottom: '1rem' }}>
+                                <label style={{ display: 'block', marginBottom: '8px', color: '#cbd5e1', fontSize: '0.9rem' }}>Monthly Rate (INR)</label>
+                                <input
+                                    type="number"
+                                    min="0"
+                                    step="0.01"
+                                    required
+                                    value={contractModalObj.monthlyRate}
+                                    onChange={(e) => setContractModalObj({ ...contractModalObj, monthlyRate: e.target.value })}
+                                    style={{ width: '100%', padding: '10px', background: '#0f172a', border: '1px solid #334155', borderRadius: '6px', color: 'white' }}
+                                />
+                            </div>
+                            <div className="form-group" style={{ marginBottom: '1.5rem' }}>
+                                <label style={{ display: 'block', marginBottom: '8px', color: '#cbd5e1', fontSize: '0.9rem' }}>
+                                    {contractModalObj.sourceType === 1 ? 'Internal Reference' : 'Lease Reference'}
+                                </label>
+                                <input
+                                    type="text"
+                                    maxLength={100}
+                                    placeholder="PO / contract number (optional)"
+                                    value={contractModalObj.leaseReference}
+                                    onChange={(e) => setContractModalObj({ ...contractModalObj, leaseReference: e.target.value })}
+                                    style={{ width: '100%', padding: '10px', background: '#0f172a', border: '1px solid #334155', borderRadius: '6px', color: 'white' }}
+                                />
+                            </div>
+                            <div style={{ display: 'flex', gap: '1rem', justifyContent: 'flex-end' }}>
+                                <button type="button" onClick={() => setContractModalObj(null)} className="btn btn-secondary">Cancel</button>
+                                <button type="submit" className="btn btn-primary" disabled={updatingContract}>
+                                    {updatingContract ? 'Saving...' : 'Save Contract'}
                                 </button>
                             </div>
                         </form>

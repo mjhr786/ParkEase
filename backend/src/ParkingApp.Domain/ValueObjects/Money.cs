@@ -3,7 +3,12 @@ namespace ParkingApp.Domain.ValueObjects;
 public record Money
 {
     public decimal Amount { get; init; }
-    public string Currency { get; init; }
+    public string Currency { get; init; } = "INR";
+
+    /// <summary>EF materialization / zero default.</summary>
+    public Money() : this(0m, "INR")
+    {
+    }
 
     public Money(decimal amount, string currency = "INR")
     {
@@ -18,6 +23,8 @@ public record Money
     }
 
     public static Money Zero(string currency = "INR") => new(0, currency);
+
+    public Money WithAmount(decimal amount) => new(amount, Currency);
 
     public static Money operator +(Money left, Money right)
     {

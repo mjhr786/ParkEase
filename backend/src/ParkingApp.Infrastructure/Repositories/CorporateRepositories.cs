@@ -1,5 +1,5 @@
 using Microsoft.EntityFrameworkCore;
-using ParkingApp.Domain.Entities.Corporate;
+using ParkingApp.Domain.Corporate;
 using ParkingApp.Domain.Enums;
 using ParkingApp.Domain.Interfaces;
 using ParkingApp.Infrastructure.Data;
@@ -129,6 +129,20 @@ public class CompanyRepository : Repository<Company>, ICompanyRepository
 public class CorporateBookingRepository : Repository<CorporateBooking>, ICorporateBookingRepository
 {
     public CorporateBookingRepository(ApplicationDbContext context) : base(context) { }
+
+    public async Task<CorporateBooking?> GetByCompanyAndBookingIdAsync(
+        Guid companyId,
+        Guid bookingId,
+        CancellationToken cancellationToken = default)
+    {
+        return await _dbSet
+            .Include(cb => cb.Membership)
+            .FirstOrDefaultAsync(
+                cb => cb.CompanyId == companyId
+                    && cb.BookingId == bookingId
+                    && !cb.IsDeleted,
+                cancellationToken);
+    }
 
     public async Task<IEnumerable<CorporateBooking>> GetByCompanyIdAsync(Guid companyId, int page, int pageSize, CancellationToken cancellationToken = default)
     {
@@ -306,5 +320,16 @@ public class EmployeeInvitationRepository : Repository<EmployeeInvitation>, IEmp
             i.Email == normalizedEmail &&
             i.ExpiresAt > DateTime.UtcNow,
             cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<EmployeeInvitation>> GetByCompanyIdAsync(
+        Guid companyId,
+        CancellationToken cancellationToken = default)
+    {
+        return await _dbSet
+            .AsNoTracking()
+            .Where(i => i.CompanyId == companyId && !i.IsDeleted)
+            .OrderByDescending(i => i.CreatedAt)
+            .ToListAsync(cancellationToken);
     }
 }

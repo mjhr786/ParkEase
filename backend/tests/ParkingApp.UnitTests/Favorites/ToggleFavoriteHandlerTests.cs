@@ -3,7 +3,11 @@ using FluentAssertions;
 using Xunit;
 using ParkingApp.Application.CQRS.Commands.Favorites;
 using ParkingApp.Application.DTOs;
-using ParkingApp.Domain.Entities;
+using ParkingApp.Domain.Shared;
+using ParkingApp.Domain.Marketplace;
+using ParkingApp.Domain.Identity;
+using ParkingApp.Domain.Messaging;
+using ParkingApp.Domain.Corporate;
 using ParkingApp.Domain.Interfaces;
 
 namespace ParkingApp.UnitTests.Favorites;

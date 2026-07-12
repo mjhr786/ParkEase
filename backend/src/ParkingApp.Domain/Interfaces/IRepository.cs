@@ -1,5 +1,9 @@
 using System.Linq.Expressions;
-using ParkingApp.Domain.Entities;
+using ParkingApp.Domain.Shared;
+using ParkingApp.Domain.Marketplace;
+using ParkingApp.Domain.Identity;
+using ParkingApp.Domain.Messaging;
+using ParkingApp.Domain.Corporate;
 
 namespace ParkingApp.Domain.Interfaces;
 
@@ -18,7 +22,6 @@ public interface IRepository<T> where T : BaseEntity
     void RemoveRange(IEnumerable<T> entities);
     void HardDelete(T entity);
     void HardDeleteRange(IEnumerable<T> entities);
-    IQueryable<T> Query();
 }
 
 public interface IUserRepository : IRepository<User>
@@ -51,6 +54,12 @@ public interface IParkingSpaceRepository : IRepository<ParkingSpace>
         CancellationToken cancellationToken = default);
     
     Task<IEnumerable<ParkingSpace>> GetByOwnerIdAsync(Guid ownerId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Whether any non-deleted parking space is tagged with the given zone code.
+    /// </summary>
+    Task<bool> ExistsWithZoneCodeAsync(string zoneCode, CancellationToken cancellationToken = default);
+
     Task<IEnumerable<ParkingApp.Domain.Models.ParkingMapModel>> GetMapCoordinatesAsync(
         string? state = null,
         string? city = null,
@@ -78,6 +87,16 @@ public interface IBookingRepository : IRepository<Booking>
     Task<Booking?> GetByIdWithDetailsAsync(Guid id, CancellationToken cancellationToken = default);
     Task<bool> HasOverlappingBookingAsync(Guid parkingSpaceId, DateTime startDateTime, DateTime endDateTime, Guid? excludeBookingId = null, CancellationToken cancellationToken = default);
     Task<int> GetActiveBookingsCountAsync(Guid parkingSpaceId, DateTime startDateTime, DateTime endDateTime, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// True if the space has pending/awaiting/confirmed/in-progress bookings that have not ended yet
+    /// (blocks delete/retire of the parking space).
+    /// </summary>
+    Task<bool> HasBlockingBookingsForSpaceAsync(
+        Guid parkingSpaceId,
+        DateTime utcNow,
+        CancellationToken cancellationToken = default);
+
     Task<IEnumerable<Booking>> GetActiveBookingsForSpacesAsync(IEnumerable<Guid> parkingSpaceIds, CancellationToken cancellationToken = default);
     Task<IEnumerable<Booking>> GetForecastRelevantBookingsForSpacesAsync(
         IEnumerable<Guid> parkingSpaceIds,
@@ -167,23 +186,24 @@ public interface IDeviceTokenRepository : IRepository<DeviceToken>
 // CORPORATE MODULE REPOSITORIES
 // ══════════════════════════════════════════════════════
 
-public interface ICompanyRepository : IRepository<Entities.Corporate.Company>
+public interface ICompanyRepository : IRepository<Company>
 {
-    Task<Entities.Corporate.Company?> GetWithMembershipsAsync(Guid companyId, CancellationToken cancellationToken = default);
-    Task<Entities.Corporate.Company?> GetWithAllocationsAsync(Guid companyId, CancellationToken cancellationToken = default);
-    Task<Entities.Corporate.Company?> GetFullAsync(Guid companyId, CancellationToken cancellationToken = default);
-    Task<Entities.Corporate.Company?> GetAggregateForBookingAsync(Guid companyId, Guid userId, Guid allocationId, DateTime bookingStart, DateTime bookingEnd, CancellationToken cancellationToken = default);
-    Task<Entities.Corporate.Company?> GetAggregateForInvitationAcceptanceAsync(string invitationToken, Guid userId, CancellationToken cancellationToken = default);
-    Task<Entities.Corporate.Company?> GetAggregateByAllocationAsync(Guid allocationId, CancellationToken cancellationToken = default);
+    Task<Company?> GetWithMembershipsAsync(Guid companyId, CancellationToken cancellationToken = default);
+    Task<Company?> GetWithAllocationsAsync(Guid companyId, CancellationToken cancellationToken = default);
+    Task<Company?> GetFullAsync(Guid companyId, CancellationToken cancellationToken = default);
+    Task<Company?> GetAggregateForBookingAsync(Guid companyId, Guid userId, Guid allocationId, DateTime bookingStart, DateTime bookingEnd, CancellationToken cancellationToken = default);
+    Task<Company?> GetAggregateForInvitationAcceptanceAsync(string invitationToken, Guid userId, CancellationToken cancellationToken = default);
+    Task<Company?> GetAggregateByAllocationAsync(Guid allocationId, CancellationToken cancellationToken = default);
     Task<bool> IsUserMemberAsync(Guid companyId, Guid userId, CancellationToken cancellationToken = default);
-    Task<Entities.Corporate.UserCompanyMembership?> GetMembershipAsync(Guid companyId, Guid userId, CancellationToken cancellationToken = default);
+    Task<UserCompanyMembership?> GetMembershipAsync(Guid companyId, Guid userId, CancellationToken cancellationToken = default);
     Task<bool> ExistsByRegistrationNumberAsync(string registrationNumber, CancellationToken cancellationToken = default);
 }
 
-public interface ICorporateBookingRepository : IRepository<Entities.Corporate.CorporateBooking>
+public interface ICorporateBookingRepository : IRepository<CorporateBooking>
 {
-    Task<IEnumerable<Entities.Corporate.CorporateBooking>> GetByCompanyIdAsync(Guid companyId, int page, int pageSize, CancellationToken cancellationToken = default);
-    Task<IEnumerable<Entities.Corporate.CorporateBooking>> GetByMembershipIdAsync(Guid companyId, Guid membershipId, int page, int pageSize, CancellationToken cancellationToken = default);
+    Task<CorporateBooking?> GetByCompanyAndBookingIdAsync(Guid companyId, Guid bookingId, CancellationToken cancellationToken = default);
+    Task<IEnumerable<CorporateBooking>> GetByCompanyIdAsync(Guid companyId, int page, int pageSize, CancellationToken cancellationToken = default);
+    Task<IEnumerable<CorporateBooking>> GetByMembershipIdAsync(Guid companyId, Guid membershipId, int page, int pageSize, CancellationToken cancellationToken = default);
     Task<int> GetMembershipBookingCountForDateAsync(Guid companyId, Guid membershipId, DateOnly date, CancellationToken cancellationToken = default);
     Task<int> GetMembershipBookingCountForWeekAsync(Guid companyId, Guid membershipId, DateOnly weekStart, CancellationToken cancellationToken = default);
     Task<int> GetActiveSharedBookingsCountAsync(Guid companyId, Guid allocationId, DateTime start, DateTime end, CancellationToken cancellationToken = default);
@@ -195,7 +215,8 @@ public interface ICorporateBookingRepository : IRepository<Entities.Corporate.Co
     Task<int> GetCompanyBookingCountAsync(Guid companyId, CancellationToken cancellationToken = default);
 }
 
-public interface IEmployeeInvitationRepository : IRepository<Entities.Corporate.EmployeeInvitation>
+public interface IEmployeeInvitationRepository : IRepository<EmployeeInvitation>
 {
     Task<bool> HasPendingInvitationAsync(Guid companyId, string email, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<EmployeeInvitation>> GetByCompanyIdAsync(Guid companyId, CancellationToken cancellationToken = default);
 }

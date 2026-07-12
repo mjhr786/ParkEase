@@ -1,6 +1,8 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using ParkingApp.Application.Interfaces;
+using ParkingApp.Application.CQRS;
+using ParkingApp.Application.CQRS.Commands.FileUpload;
+using ParkingApp.Application.DTOs;
 using System.Security.Claims;
 
 namespace ParkingApp.API.Controllers;
@@ -9,20 +11,20 @@ namespace ParkingApp.API.Controllers;
 [Route("api/files")]
 public class FileUploadController : ControllerBase
 {
-    private readonly IFileUploadService _fileUploadService;
+    private readonly IDispatcher _dispatcher;
     private static readonly string[] AllowedImageTypes = { "image/jpeg", "image/png", "image/webp" };
     private static readonly string[] AllowedVideoTypes = { "video/mp4", "video/webm" };
-    private const long MaxImageSize = 5 * 1024 * 1024; // 5MB
-    private const long MaxVideoSize = 50 * 1024 * 1024; // 50MB
+    private const long MaxImageSize = 5 * 1024 * 1024;
+    private const long MaxVideoSize = 50 * 1024 * 1024;
 
-    public FileUploadController(IFileUploadService fileUploadService)
+    public FileUploadController(IDispatcher dispatcher)
     {
-        _fileUploadService = fileUploadService;
+        _dispatcher = dispatcher;
     }
 
     [HttpPost("parking/{parkingSpaceId:guid}/upload")]
     [Authorize(Roles = "User,Admin")]
-    [RequestSizeLimit(100 * 1024 * 1024)] // 100MB total request limit
+    [RequestSizeLimit(100 * 1024 * 1024)]
     public async Task<IActionResult> UploadParkingFiles(Guid parkingSpaceId, [FromForm] List<IFormFile> files, CancellationToken cancellationToken)
     {
         var userId = GetUserId();
@@ -36,8 +38,7 @@ public class FileUploadController : ControllerBase
             return BadRequest(new { success = false, message = "No files provided" });
         }
 
-        // Validate files
-        var validFiles = new List<(Stream Stream, string FileName, string ContentType)>();
+        var validFiles = new List<UploadFilePayload>();
         var errors = new List<string>();
 
         foreach (var file in files)
@@ -65,7 +66,7 @@ public class FileUploadController : ControllerBase
                 continue;
             }
 
-            validFiles.Add((file.OpenReadStream(), file.FileName, file.ContentType));
+            validFiles.Add(new UploadFilePayload(file.OpenReadStream(), file.FileName, file.ContentType));
         }
 
         if (validFiles.Count == 0)
@@ -75,25 +76,30 @@ public class FileUploadController : ControllerBase
 
         try
         {
-            var uploadedUrls = await _fileUploadService.UploadParkingImagesAsync(
-                parkingSpaceId, userId.Value, validFiles, cancellationToken);
+            var result = await _dispatcher.SendAsync(
+                new UploadParkingFilesCommand(parkingSpaceId, userId.Value, validFiles),
+                cancellationToken);
 
-            // Dispose streams
-            foreach (var (stream, _, _) in validFiles)
+            foreach (var file in validFiles)
             {
-                await stream.DisposeAsync();
+                await file.Stream.DisposeAsync();
+            }
+
+            if (!result.Success)
+            {
+                return Unauthorized(new { success = false, message = result.Message });
             }
 
             return Ok(new
             {
                 success = true,
-                message = $"{uploadedUrls.Count} file(s) uploaded successfully",
-                data = new { urls = uploadedUrls, errors }
+                message = result.Message,
+                data = new { urls = result.Data!.Urls, errors }
             });
         }
-        catch (UnauthorizedAccessException)
+        catch (Exception ex)
         {
-            return Unauthorized(new { success = false, message = "Not authorized to upload files for this parking space" });
+            return BadRequest(new { success = false, message = ex.Message });
         }
     }
 
@@ -107,11 +113,13 @@ public class FileUploadController : ControllerBase
             return Unauthorized();
         }
 
-        var result = await _fileUploadService.DeleteParkingFileAsync(parkingSpaceId, userId.Value, fileName, cancellationToken);
+        var result = await _dispatcher.SendAsync(
+            new DeleteParkingFileCommand(parkingSpaceId, userId.Value, fileName),
+            cancellationToken);
 
-        if (!result)
+        if (!result.Success || !result.Data)
         {
-            return NotFound(new { success = false, message = "File not found or unauthorized" });
+            return NotFound(new { success = false, message = result.Message ?? "File not found or unauthorized" });
         }
 
         return Ok(new { success = true, message = "File deleted successfully" });
@@ -120,8 +128,8 @@ public class FileUploadController : ControllerBase
     [HttpGet("parking/{parkingSpaceId:guid}")]
     public async Task<IActionResult> GetParkingFiles(Guid parkingSpaceId, CancellationToken cancellationToken)
     {
-        var files = await _fileUploadService.GetParkingImagesAsync(parkingSpaceId, cancellationToken);
-        return Ok(new { success = true, data = files });
+        var result = await _dispatcher.QueryAsync(new GetParkingFilesQuery(parkingSpaceId), cancellationToken);
+        return Ok(new { success = true, data = result.Data });
     }
 
     [HttpPost("parking/{parkingSpaceId:guid}/sign-upload")]
@@ -131,25 +139,27 @@ public class FileUploadController : ControllerBase
         var userId = GetUserId();
         if (userId == null) return Unauthorized();
 
-        try
-        {
-            var result = await _fileUploadService.GeneratePresignedUrlAsync(
-                parkingSpaceId, userId.Value, request.FileName, request.ContentType, cancellationToken);
+        var result = await _dispatcher.SendAsync(
+            new GeneratePresignedUrlCommand(parkingSpaceId, userId.Value, request.FileName, request.ContentType),
+            cancellationToken);
 
-            return Ok(new
+        if (!result.Success)
+        {
+            return result.Message?.Contains("Unauthorized", StringComparison.OrdinalIgnoreCase) == true
+                ? Unauthorized(new { success = false, message = result.Message })
+                : BadRequest(new { success = false, message = result.Message });
+        }
+
+        return Ok(new
+        {
+            success = true,
+            data = new
             {
-                success = true,
-                data = new { uploadUrl = result.UploadUrl, publicUrl = result.PublicUrl, key = result.Key }
-            });
-        }
-        catch (UnauthorizedAccessException)
-        {
-            return Unauthorized(new { success = false, message = "Not authorized" });
-        }
-        catch (Exception ex)
-        {
-            return BadRequest(new { success = false, message = ex.Message });
-        }
+                uploadUrl = result.Data!.UploadUrl,
+                publicUrl = result.Data.PublicUrl,
+                key = result.Data.Key
+            }
+        });
     }
 
     [HttpPost("parking/{parkingSpaceId:guid}/confirm-upload")]
@@ -159,21 +169,18 @@ public class FileUploadController : ControllerBase
         var userId = GetUserId();
         if (userId == null) return Unauthorized();
 
-        try
-        {
-            await _fileUploadService.ConfirmUploadAsync(
-                parkingSpaceId, userId.Value, request.FileUrls, cancellationToken);
+        var result = await _dispatcher.SendAsync(
+            new ConfirmParkingUploadCommand(parkingSpaceId, userId.Value, request.FileUrls),
+            cancellationToken);
 
-            return Ok(new { success = true, message = "Upload confirmed" });
-        }
-        catch (UnauthorizedAccessException)
+        if (!result.Success)
         {
-            return Unauthorized(new { success = false, message = "Not authorized" });
+            return result.Message?.Contains("Unauthorized", StringComparison.OrdinalIgnoreCase) == true
+                ? Unauthorized(new { success = false, message = result.Message })
+                : BadRequest(new { success = false, message = result.Message });
         }
-        catch (Exception ex)
-        {
-            return BadRequest(new { success = false, message = ex.Message });
-        }
+
+        return Ok(new { success = true, message = "Upload confirmed" });
     }
 
     private Guid? GetUserId()

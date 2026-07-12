@@ -41,6 +41,10 @@ export const ENDPOINTS = {
         CHECK_OUT: (id) => `/bookings/${id}/check-out`,
         APPROVE: (id) => `/bookings/${id}/approve`,
         REJECT: (id) => `/bookings/${id}/reject`,
+        EXTEND: (id) => `/bookings/${id}/extend`,
+        APPROVE_EXTENSION: (id) => `/bookings/${id}/approve-extension`,
+        REJECT_EXTENSION: (id) => `/bookings/${id}/reject-extension`,
+        PENDING_COUNT: '/bookings/pending-count',
     },
 
     // Payments

@@ -38,8 +38,35 @@ class CorporateService {
     return api.request(`/v1/corporate/companies/${this.getCompanyId()}`);
   }
 
+  async updateCompany(data) {
+    return api.request(`/v1/corporate/companies/${this.getCompanyId()}`, {
+      method: 'PUT',
+      body: JSON.stringify(data)
+    });
+  }
+
   async getDashboard() {
     return api.request(`/v1/corporate/companies/${this.getCompanyId()}/dashboard`);
+  }
+
+  async getInvitations() {
+    return api.request(`/v1/corporate/companies/${this.getCompanyId()}/invitations`);
+  }
+
+  async cancelInvitation(invitationId) {
+    return api.request(`/v1/corporate/companies/${this.getCompanyId()}/invitations/${invitationId}`, {
+      method: 'DELETE'
+    });
+  }
+
+  async resendInvitation(invitationId) {
+    return api.request(`/v1/corporate/companies/${this.getCompanyId()}/invitations/${invitationId}/resend`, {
+      method: 'POST'
+    });
+  }
+
+  async exportDashboard() {
+    return api.requestBlob(`/v1/corporate/companies/${this.getCompanyId()}/dashboard/export`);
   }
 
   // ══════════════════════════════════════════════════════
@@ -69,6 +96,13 @@ class CorporateService {
       method: 'POST',
       body: JSON.stringify(token),
       headers: { 'Content-Type': 'application/json' }
+    });
+  }
+
+  async updateMember(membershipId, data) {
+    return api.request(`/v1/corporate/companies/${this.getCompanyId()}/members/${membershipId}`, {
+      method: 'PUT',
+      body: JSON.stringify(data)
     });
   }
 
@@ -158,6 +192,13 @@ class CorporateService {
     });
   }
 
+  async updateAllocationContract(allocationId, data) {
+    return api.request(`/v1/corporate/companies/${this.getCompanyId()}/allocations/${allocationId}/contract`, {
+      method: 'PUT',
+      body: JSON.stringify(data)
+    });
+  }
+
   async assignFixedSlot(allocationId, data) {
     return api.request(`/v1/corporate/companies/${this.getCompanyId()}/allocations/${allocationId}/fixed-slots`, {
       method: 'POST',
@@ -175,8 +216,35 @@ class CorporateService {
   // BOOKINGS
   // ══════════════════════════════════════════════════════
 
-  async getBookings(page = 1, pageSize = 20) {
-    return api.request(`/v1/corporate/companies/${this.getCompanyId()}/bookings?page=${page}&pageSize=${pageSize}`);
+  async getBookings(page = 1, pageSize = 20, { status, isVisitor, fromUtc, toUtc } = {}) {
+    const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
+    if (status !== undefined && status !== null && status !== '' && status !== 'all') {
+      params.set('status', String(status));
+    }
+    if (isVisitor === true || isVisitor === false) {
+      params.set('isVisitor', String(isVisitor));
+    }
+    if (fromUtc) params.set('fromUtc', fromUtc);
+    if (toUtc) params.set('toUtc', toUtc);
+    return api.request(`/v1/corporate/companies/${this.getCompanyId()}/bookings?${params.toString()}`);
+  }
+
+  /**
+   * Download CSV export for corporate bookings (returns blob response).
+   */
+  async exportBookings({ status, isVisitor, fromUtc, toUtc } = {}) {
+    const params = new URLSearchParams();
+    if (status !== undefined && status !== null && status !== '' && status !== 'all') {
+      params.set('status', String(status));
+    }
+    if (isVisitor === true || isVisitor === false) {
+      params.set('isVisitor', String(isVisitor));
+    }
+    if (fromUtc) params.set('fromUtc', fromUtc);
+    if (toUtc) params.set('toUtc', toUtc);
+    const qs = params.toString();
+    const path = `/v1/corporate/companies/${this.getCompanyId()}/bookings/export${qs ? `?${qs}` : ''}`;
+    return api.requestBlob(path);
   }
 
   async getWaitlist() {
@@ -192,6 +260,13 @@ class CorporateService {
   async promoteWaitlistEntry(waitlistEntryId) {
     return api.request(`/v1/corporate/companies/${this.getCompanyId()}/waitlist/${waitlistEntryId}/promote`, {
       method: 'POST'
+    });
+  }
+
+  async cancelBooking(bookingId, reason = 'Cancelled from corporate bookings') {
+    return api.request(`/v1/corporate/companies/${this.getCompanyId()}/bookings/${bookingId}/cancel`, {
+      method: 'POST',
+      body: JSON.stringify({ reason })
     });
   }
 

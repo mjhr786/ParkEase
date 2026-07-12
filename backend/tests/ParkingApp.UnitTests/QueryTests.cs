@@ -6,7 +6,11 @@ using ParkingApp.Application.CQRS.Queries.Parking;
 using ParkingApp.Application.CQRS.Queries.Bookings;
 using ParkingApp.Application.DTOs;
 using ParkingApp.Application.Interfaces;
-using ParkingApp.Domain.Entities;
+using ParkingApp.Domain.Shared;
+using ParkingApp.Domain.Marketplace;
+using ParkingApp.Domain.Identity;
+using ParkingApp.Domain.Messaging;
+using ParkingApp.Domain.Corporate;
 using ParkingApp.Domain.Interfaces;
 using ParkingApp.Domain.Enums;
 using System.Linq.Expressions;
@@ -18,6 +22,7 @@ public class QueryTests
     private readonly Mock<IUnitOfWork> _mockUnitOfWork;
     private readonly Mock<IParkingSpaceRepository> _mockParkingRepository;
     private readonly Mock<IBookingRepository> _mockBookingRepository;
+    private readonly Mock<IParkingReadStore> _mockReadStore;
     private readonly Mock<ICacheService> _mockCache;
     private readonly Mock<IRoutingService> _mockRouting;
     private readonly Mock<ILogger<GetParkingByIdHandler>> _mockGetByIdLogger;
@@ -28,6 +33,7 @@ public class QueryTests
         _mockUnitOfWork = new Mock<IUnitOfWork>();
         _mockParkingRepository = new Mock<IParkingSpaceRepository>();
         _mockBookingRepository = new Mock<IBookingRepository>();
+        _mockReadStore = new Mock<IParkingReadStore>();
         _mockCache = new Mock<ICacheService>();
         _mockRouting = new Mock<IRoutingService>();
         _mockGetByIdLogger = new Mock<ILogger<GetParkingByIdHandler>>();
@@ -88,13 +94,13 @@ public class QueryTests
     public async Task SearchParkingHandler_WhenFound_ShouldSucceedWithReservations()
     {
         // Arrange
-        var handler = new SearchParkingHandler(_mockUnitOfWork.Object, _mockCache.Object, _mockRouting.Object, _mockSearchLogger.Object);
+        var handler = new SearchParkingHandler(_mockUnitOfWork.Object, _mockReadStore.Object, _mockCache.Object, _mockRouting.Object, _mockSearchLogger.Object);
         var parking = new ParkingSpace { Id = Guid.NewGuid(), Title = "Test Park", IsActive = true, Owner = new User { FirstName = "Owner" } };
         var bookings = new List<Booking> { new Booking { ParkingSpaceId = parking.Id, StartDateTime = DateTime.UtcNow.AddHours(1), EndDateTime = DateTime.UtcNow.AddHours(2) } };
 
-        _mockParkingRepository.Setup(r => r.SearchAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<double?>(), It.IsAny<double?>(), It.IsAny<double?>(), It.IsAny<DateTime?>(), It.IsAny<DateTime?>(), It.IsAny<decimal?>(), It.IsAny<decimal?>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<double?>(), It.IsAny<string?>(), It.IsAny<bool>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+        _mockReadStore.Setup(r => r.SearchAsync(It.IsAny<ParkingSearchDto>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new List<ParkingSpace> { parking });
-        _mockParkingRepository.Setup(r => r.CountAsync(It.IsAny<Expression<Func<ParkingSpace, bool>>>(), It.IsAny<CancellationToken>()))
+        _mockReadStore.Setup(r => r.CountActiveAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(1);
         _mockBookingRepository.Setup(r => r.GetActiveBookingsForSpacesAsync(It.IsAny<List<Guid>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(bookings);

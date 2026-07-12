@@ -1,7 +1,13 @@
 using Microsoft.EntityFrameworkCore.Storage;
-using ParkingApp.Domain.Entities;
+using Microsoft.Extensions.Logging;
+using ParkingApp.Application.Interfaces;
+using ParkingApp.Domain.Corporate;
 using ParkingApp.Domain.Events;
+using ParkingApp.Domain.Identity;
 using ParkingApp.Domain.Interfaces;
+using ParkingApp.Domain.Marketplace;
+using ParkingApp.Domain.Messaging;
+using ParkingApp.Domain.Shared;
 using ParkingApp.Infrastructure.Data;
 
 namespace ParkingApp.Infrastructure.Repositories;
@@ -9,9 +15,11 @@ namespace ParkingApp.Infrastructure.Repositories;
 public class UnitOfWork : IUnitOfWork
 {
     private readonly ApplicationDbContext _context;
-    private readonly IDomainEventDispatcher _eventDispatcher;
+    private readonly IOutboxWriter _outboxWriter;
+    private readonly IOutboxProcessor _outboxProcessor;
+    private readonly ILogger<UnitOfWork> _logger;
     private IDbContextTransaction? _transaction;
-    
+
     private IUserRepository? _users;
     private IParkingSpaceRepository? _parkingSpaces;
     private IBookingRepository? _bookings;
@@ -24,16 +32,20 @@ public class UnitOfWork : IUnitOfWork
     private INotificationRepository? _notifications;
     private IVehicleRepository? _vehicles;
     private IDeviceTokenRepository? _deviceTokens;
-
-    // Corporate Module
     private ICompanyRepository? _companies;
     private ICorporateBookingRepository? _corporateBookings;
     private IEmployeeInvitationRepository? _employeeInvitations;
 
-    public UnitOfWork(ApplicationDbContext context, IDomainEventDispatcher eventDispatcher)
+    public UnitOfWork(
+        ApplicationDbContext context,
+        IOutboxWriter outboxWriter,
+        IOutboxProcessor outboxProcessor,
+        ILogger<UnitOfWork> logger)
     {
         _context = context;
-        _eventDispatcher = eventDispatcher;
+        _outboxWriter = outboxWriter;
+        _outboxProcessor = outboxProcessor;
+        _logger = logger;
     }
 
     public IUserRepository Users => _users ??= new UserRepository(_context);
@@ -48,18 +60,13 @@ public class UnitOfWork : IUnitOfWork
     public INotificationRepository Notifications => _notifications ??= new NotificationRepository(_context);
     public IVehicleRepository Vehicles => _vehicles ??= new VehicleRepository(_context);
     public IDeviceTokenRepository DeviceTokens => _deviceTokens ??= new DeviceTokenRepository(_context);
-
-    // Corporate Module
     public ICompanyRepository Companies => _companies ??= new CompanyRepository(_context);
     public ICorporateBookingRepository CorporateBookings => _corporateBookings ??= new CorporateBookingRepository(_context);
     public IEmployeeInvitationRepository EmployeeInvitations => _employeeInvitations ??= new EmployeeInvitationRepository(_context);
 
     public async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
     {
-        // Persist changes first
-        var result = await _context.SaveChangesAsync(cancellationToken);
-
-        // Collect and dispatch domain events from all tracked entities
+        // 1) Collect domain events BEFORE save so outbox rows share this transaction
         var entitiesWithEvents = _context.ChangeTracker
             .Entries<BaseEntity>()
             .Where(e => e.Entity.DomainEvents.Any())
@@ -70,15 +77,27 @@ public class UnitOfWork : IUnitOfWork
             .SelectMany(e => e.DomainEvents)
             .ToList();
 
-        // Clear events before dispatching to prevent re-entrancy issues
         foreach (var entity in entitiesWithEvents)
-        {
             entity.ClearDomainEvents();
-        }
 
-        if (domainEvents.Any())
+        foreach (var domainEvent in domainEvents)
+            _outboxWriter.Enqueue(domainEvent);
+
+        // 2) Persist aggregates + outbox together
+        var result = await _context.SaveChangesAsync(cancellationToken);
+
+        // 3) After commit (or within ambient TX until CommitTransactionAsync): process outbox
+        //    Failures leave rows Pending for background retry — they are not lost.
+        if (domainEvents.Count > 0)
         {
-            await _eventDispatcher.DispatchEventsAsync(domainEvents, cancellationToken);
+            try
+            {
+                await _outboxProcessor.ProcessPendingAsync(batchSize: 50, cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Immediate outbox processing failed; background service will retry");
+            }
         }
 
         return result;

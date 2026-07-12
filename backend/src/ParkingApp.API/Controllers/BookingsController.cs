@@ -1,294 +1,354 @@
 using System.Security.Claims;
-using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using ParkingApp.Application.DTOs;
-using ParkingApp.Application.Interfaces;
 using ParkingApp.Application.CQRS;
+using ParkingApp.Application.CQRS.Commands.Bookings;
 using ParkingApp.Application.CQRS.Queries.Bookings;
+using ParkingApp.Application.DTOs;
+using ParkingApp.Domain.Enums;
 
 namespace ParkingApp.API.Controllers;
 
+/// <summary>
+/// Bookings controller using CQRS pattern
+/// </summary>
 [ApiController]
-[Route("api/[controller]")]
+[Route("api/bookings")]
 [Authorize]
+[Produces("application/json")]
 public class BookingsController : ControllerBase
 {
-    private readonly IBookingService _bookingService;
-    private readonly IValidator<CreateBookingDto> _createValidator;
+    private readonly IDispatcher _dispatcher;
 
-    public BookingsController(
-        IBookingService bookingService,
-        IValidator<CreateBookingDto> createValidator)
+    public BookingsController(IDispatcher dispatcher)
     {
-        _bookingService = bookingService;
-        _createValidator = createValidator;
+        _dispatcher = dispatcher;
     }
 
+    /// <summary>
+    /// Get booking by ID
+    /// </summary>
     [HttpGet("{id:guid}")]
+    [ProducesResponseType(typeof(ApiResponse<BookingDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<BookingDto>), StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetById(Guid id, CancellationToken cancellationToken)
     {
         var userId = GetUserId();
-        if (userId == null)
-        {
-            return Unauthorized();
-        }
+        if (userId == null) return Unauthorized();
 
-        var result = await _bookingService.GetByIdAsync(id, userId.Value, cancellationToken);
-        if (!result.Success)
-        {
-            return NotFound(result);
-        }
+        var query = new GetBookingByIdQuery(id, userId.Value);
+        var result = await _dispatcher.QueryAsync(query, cancellationToken);
 
-        return Ok(result);
+        return result.Success ? Ok(result) : NotFound(result);
     }
 
+    /// <summary>
+    /// Get booking by reference number
+    /// </summary>
     [HttpGet("reference/{reference}")]
+    [ProducesResponseType(typeof(ApiResponse<BookingDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<BookingDto>), StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetByReference(string reference, CancellationToken cancellationToken)
     {
-        var result = await _bookingService.GetByReferenceAsync(reference, cancellationToken);
-        if (!result.Success)
-        {
-            return NotFound(result);
-        }
+        var query = new GetBookingByReferenceQuery(reference);
+        var result = await _dispatcher.QueryAsync(query, cancellationToken);
 
-        return Ok(result);
+        return result.Success ? Ok(result) : NotFound(result);
     }
 
+    /// <summary>
+    /// Get current user's bookings
+    /// </summary>
     [HttpGet("my-bookings")]
+    [ProducesResponseType(typeof(ApiResponse<BookingListResultDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetMyBookings([FromQuery] BookingFilterDto? filter, CancellationToken cancellationToken)
     {
         var userId = GetUserId();
-        if (userId == null)
-        {
-            return Unauthorized();
-        }
+        if (userId == null) return Unauthorized();
 
-        var result = await _bookingService.GetByUserAsync(userId.Value, filter, cancellationToken);
-        return Ok(result);
-    }
-
-    [HttpGet("parking-space/{parkingSpaceId:guid}")]
-    [Authorize(Roles = "User,Admin")]
-    public async Task<IActionResult> GetByParkingSpace(Guid parkingSpaceId, [FromQuery] BookingFilterDto? filter, CancellationToken cancellationToken)
-    {
-        var userId = GetUserId();
-        if (userId == null)
-        {
-            return Unauthorized();
-        }
-
-        var result = await _bookingService.GetByParkingSpaceAsync(parkingSpaceId, userId.Value, filter, cancellationToken);
-        if (!result.Success)
-        {
-            return result.Message == "Unauthorized" ? Forbid() : BadRequest(result);
-        }
+        var query = new GetUserBookingsQuery(userId.Value, filter);
+        var result = await _dispatcher.QueryAsync(query, cancellationToken);
 
         return Ok(result);
     }
 
-    [HttpPost("calculate-price")]
-    [AllowAnonymous]
-    public async Task<IActionResult> CalculatePrice([FromBody] PriceCalculationDto dto, CancellationToken cancellationToken)
-    {
-        var userId = GetUserId();
-        var result = userId.HasValue
-            ? await _bookingService.CalculatePriceAsync(dto, userId, cancellationToken)
-            : await _bookingService.CalculatePriceAsync(dto, cancellationToken);
-        if (!result.Success)
-        {
-            return BadRequest(result);
-        }
-
-        return Ok(result);
-    }
-
-    [HttpPost]
-    public async Task<IActionResult> Create([FromBody] CreateBookingDto dto, CancellationToken cancellationToken)
-    {
-        var validation = await _createValidator.ValidateAsync(dto, cancellationToken);
-        if (!validation.IsValid)
-        {
-            return BadRequest(new ApiResponse<BookingDto>(false, "Validation failed", null,
-                validation.Errors.Select(e => e.ErrorMessage).ToList()));
-        }
-
-        var userId = GetUserId();
-        if (userId == null)
-        {
-            return Unauthorized();
-        }
-
-        var result = await _bookingService.CreateAsync(userId.Value, dto, cancellationToken);
-        if (!result.Success)
-        {
-            return BadRequest(result);
-        }
-
-        return Created($"/api/bookings/{result.Data?.Id}", result);
-    }
-
-    [HttpPut("{id:guid}")]
-    public async Task<IActionResult> Update(Guid id, [FromBody] UpdateBookingDto dto, CancellationToken cancellationToken)
-    {
-        var userId = GetUserId();
-        if (userId == null)
-        {
-            return Unauthorized();
-        }
-
-        var result = await _bookingService.UpdateAsync(id, userId.Value, dto, cancellationToken);
-        if (!result.Success)
-        {
-            return result.Message == "Unauthorized" ? Forbid() : BadRequest(result);
-        }
-
-        return Ok(result);
-    }
-
-    [HttpPost("{id:guid}/cancel")]
-    public async Task<IActionResult> Cancel(Guid id, [FromBody] CancelBookingDto dto, CancellationToken cancellationToken)
-    {
-        var userId = GetUserId();
-        if (userId == null)
-        {
-            return Unauthorized();
-        }
-
-        var result = await _bookingService.CancelAsync(id, userId.Value, dto, cancellationToken);
-        if (!result.Success)
-        {
-            return result.Message == "Unauthorized" ? Forbid() : BadRequest(result);
-        }
-
-        return Ok(result);
-    }
-
-    [HttpPost("{id:guid}/check-in")]
-    public async Task<IActionResult> CheckIn(Guid id, CancellationToken cancellationToken)
-    {
-        var userId = GetUserId();
-        if (userId == null)
-        {
-            return Unauthorized();
-        }
-
-        var result = await _bookingService.CheckInAsync(id, userId.Value, cancellationToken);
-        if (!result.Success)
-        {
-            return BadRequest(result);
-        }
-
-        return Ok(result);
-    }
-
-    [HttpPost("{id:guid}/check-out")]
-    public async Task<IActionResult> CheckOut(Guid id, CancellationToken cancellationToken)
-    {
-        var userId = GetUserId();
-        if (userId == null)
-        {
-            return Unauthorized();
-        }
-
-        var result = await _bookingService.CheckOutAsync(id, userId.Value, cancellationToken);
-        if (!result.Success)
-        {
-            return BadRequest(result);
-        }
-
-        return Ok(result);
-    }
-
+    /// <summary>
+    /// Get bookings for vendor's parking spaces
+    /// </summary>
     [HttpGet("vendor-bookings")]
     [Authorize(Roles = "User,Admin")]
+    [ProducesResponseType(typeof(ApiResponse<BookingListResultDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetVendorBookings([FromQuery] BookingFilterDto? filter, CancellationToken cancellationToken)
     {
         var userId = GetUserId();
-        if (userId == null)
-        {
-            return Unauthorized();
-        }
+        if (userId == null) return Unauthorized();
 
-        var result = await _bookingService.GetVendorBookingsAsync(userId.Value, filter, cancellationToken);
+        var query = new GetVendorBookingsQuery(userId.Value, filter);
+        var result = await _dispatcher.QueryAsync(query, cancellationToken);
+
         return Ok(result);
     }
 
+    /// <summary>
+    /// Get the count of pending booking requests for the vendor
+    /// </summary>
     [HttpGet("pending-count")]
     [Authorize(Roles = "User,Admin")]
-    public async Task<IActionResult> GetPendingRequestsCount([FromServices] IDispatcher dispatcher, CancellationToken cancellationToken)
+    [ProducesResponseType(typeof(ApiResponse<int>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetPendingRequestsCount(CancellationToken cancellationToken)
     {
         var userId = GetUserId();
-        if (userId == null)
-        {
-            return Unauthorized();
-        }
+        if (userId == null) return Unauthorized();
 
         var query = new GetPendingRequestsCountQuery(userId.Value);
-        var result = await dispatcher.QueryAsync(query, cancellationToken);
+        var result = await _dispatcher.QueryAsync(query, cancellationToken);
         
         return Ok(result);
     }
 
+    /// <summary>
+    /// Get bookings for a specific parking space (vendor only)
+    /// </summary>
+    [HttpGet("parking-space/{parkingSpaceId:guid}")]
+    [Authorize(Roles = "User,Admin")]
+    [ProducesResponseType(typeof(ApiResponse<BookingListResultDto>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetByParkingSpace(Guid parkingSpaceId, [FromQuery] BookingFilterDto? filter, CancellationToken cancellationToken)
+    {
+        var userId = GetUserId();
+        if (userId == null) return Unauthorized();
+
+        var query = new GetBookingsByParkingSpaceQuery(parkingSpaceId, userId.Value, filter);
+        var result = await _dispatcher.QueryAsync(query, cancellationToken);
+
+        return result.Success ? Ok(result) : BadRequest(result);
+    }
+
+    /// <summary>
+    /// Calculate price for a booking
+    /// </summary>
+    [HttpPost("calculate-price")]
+    [AllowAnonymous]
+    [ProducesResponseType(typeof(ApiResponse<PriceBreakdownDto>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> CalculatePrice([FromBody] PriceCalculationDto dto, CancellationToken cancellationToken)
+    {
+        var userId = GetUserId();
+        var query = new CalculatePriceQuery(
+            dto.ParkingSpaceId,
+            dto.StartDateTime,
+            dto.EndDateTime,
+            (int)dto.PricingType,
+            dto.DiscountCode,
+            userId
+        );
+        var result = await _dispatcher.QueryAsync(query, cancellationToken);
+
+        return result.Success ? Ok(result) : BadRequest(result);
+    }
+
+    /// <summary>
+    /// Create a new booking
+    /// </summary>
+    [HttpPost]
+    [ProducesResponseType(typeof(ApiResponse<BookingDto>), StatusCodes.Status201Created)]
+    [ProducesResponseType(typeof(ApiResponse<BookingDto>), StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> Create([FromBody] CreateBookingDto dto, CancellationToken cancellationToken)
+    {
+        var userId = GetUserId();
+        if (userId == null) return Unauthorized();
+
+        var command = new CreateBookingCommand(
+            userId.Value,
+            dto.ParkingSpaceId,
+            dto.StartDateTime,
+            dto.EndDateTime,
+            dto.PricingType,
+            dto.VehicleType,
+            dto.SlotNumber,
+            dto.VehicleNumber,
+            dto.VehicleModel,
+            dto.VehicleColor,
+            dto.DiscountCode
+        );
+
+        var result = await _dispatcher.SendAsync(command, cancellationToken);
+
+        if (!result.Success)
+            return BadRequest(result);
+
+        return CreatedAtAction(nameof(GetById), new { id = result.Data?.Id }, result);
+    }
+
+    /// <summary>
+    /// Update an existing booking
+    /// </summary>
+    [HttpPut("{id:guid}")]
+    [ProducesResponseType(typeof(ApiResponse<BookingDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<BookingDto>), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ApiResponse<BookingDto>), StatusCodes.Status403Forbidden)]
+    public async Task<IActionResult> Update(Guid id, [FromBody] UpdateBookingDto dto, CancellationToken cancellationToken)
+    {
+        var userId = GetUserId();
+        if (userId == null) return Unauthorized();
+
+        var command = new UpdateBookingCommand(id, userId.Value, dto);
+        var result = await _dispatcher.SendAsync(command, cancellationToken);
+
+        if (!result.Success)
+        {
+            return result.Message == "Unauthorized" ? Forbid() : BadRequest(result);
+        }
+
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// Cancel a booking
+    /// </summary>
+    [HttpPost("{id:guid}/cancel")]
+    [ProducesResponseType(typeof(ApiResponse<BookingDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<BookingDto>), StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> Cancel(Guid id, [FromBody] CancelBookingDto dto, CancellationToken cancellationToken)
+    {
+        var userId = GetUserId();
+        if (userId == null) return Unauthorized();
+
+        var command = new CancelBookingCommand(id, userId.Value, dto.Reason ?? "Cancelled by user");
+        var result = await _dispatcher.SendAsync(command, cancellationToken);
+
+        return result.Success ? Ok(result) : BadRequest(result);
+    }
+
+    /// <summary>
+    /// Approve a booking (vendor only)
+    /// </summary>
     [HttpPost("{id:guid}/approve")]
     [Authorize(Roles = "User,Admin")]
+    [ProducesResponseType(typeof(ApiResponse<BookingDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<BookingDto>), StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> Approve(Guid id, CancellationToken cancellationToken)
     {
         var userId = GetUserId();
-        if (userId == null)
-        {
-            return Unauthorized();
-        }
+        if (userId == null) return Unauthorized();
 
-        var result = await _bookingService.ApproveAsync(id, userId.Value, cancellationToken);
-        if (!result.Success)
-        {
-            return result.Message == "Unauthorized" ? Forbid() : BadRequest(result);
-        }
+        var command = new ApproveBookingCommand(id, userId.Value);
+        var result = await _dispatcher.SendAsync(command, cancellationToken);
 
-        return Ok(result);
+        return result.Success ? Ok(result) : BadRequest(result);
     }
 
+    /// <summary>
+    /// Reject a booking (vendor only)
+    /// </summary>
     [HttpPost("{id:guid}/reject")]
     [Authorize(Roles = "User,Admin")]
+    [ProducesResponseType(typeof(ApiResponse<BookingDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<BookingDto>), StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> Reject(Guid id, [FromBody] RejectBookingDto? dto, CancellationToken cancellationToken)
     {
         var userId = GetUserId();
-        if (userId == null)
-        {
-            return Unauthorized();
-        }
+        if (userId == null) return Unauthorized();
 
-        var result = await _bookingService.RejectAsync(id, userId.Value, dto?.Reason, cancellationToken);
-        if (!result.Success)
-        {
-            return result.Message == "Unauthorized" ? Forbid() : BadRequest(result);
-        }
+        var command = new RejectBookingCommand(id, userId.Value, dto?.Reason);
+        var result = await _dispatcher.SendAsync(command, cancellationToken);
 
-        return Ok(result);
+        return result.Success ? Ok(result) : BadRequest(result);
     }
 
-    [HttpPost("{id:guid}/extend")]
-    public async Task<IActionResult> Extend(Guid id, [FromBody] ExtendBookingDto dto, CancellationToken cancellationToken)
+    /// <summary>
+    /// Check in to a booking
+    /// </summary>
+    [HttpPost("{id:guid}/check-in")]
+    [ProducesResponseType(typeof(ApiResponse<BookingDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<BookingDto>), StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> CheckIn(Guid id, CancellationToken cancellationToken)
     {
         var userId = GetUserId();
-        if (userId == null)
-        {
-            return Unauthorized();
-        }
+        if (userId == null) return Unauthorized();
 
-        var result = await _bookingService.ExtendAsync(id, userId.Value, dto, cancellationToken);
-        if (!result.Success)
-        {
-            return BadRequest(result);
-        }
+        var command = new CheckInCommand(id, userId.Value);
+        var result = await _dispatcher.SendAsync(command, cancellationToken);
 
-        return Ok(result);
+        return result.Success ? Ok(result) : BadRequest(result);
+    }
+
+    /// <summary>
+    /// Check out from a booking
+    /// </summary>
+    [HttpPost("{id:guid}/check-out")]
+    [ProducesResponseType(typeof(ApiResponse<BookingDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<BookingDto>), StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> CheckOut(Guid id, CancellationToken cancellationToken)
+    {
+        var userId = GetUserId();
+        if (userId == null) return Unauthorized();
+
+        var command = new CheckOutCommand(id, userId.Value);
+        var result = await _dispatcher.SendAsync(command, cancellationToken);
+
+        return result.Success ? Ok(result) : BadRequest(result);
+    }
+
+    /// <summary>
+    /// Request an extension for a booking (creates pending extension request for vendor approval)
+    /// </summary>
+    [HttpPost("{id:guid}/extend")]
+    [ProducesResponseType(typeof(ApiResponse<BookingDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<BookingDto>), StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> RequestExtension(Guid id, [FromBody] ExtendBookingDto dto, CancellationToken cancellationToken)
+    {
+        var userId = GetUserId();
+        if (userId == null) return Unauthorized();
+
+        var command = new RequestExtensionCommand(id, userId.Value, dto.NewEndDateTime);
+        var result = await _dispatcher.SendAsync(command, cancellationToken);
+
+        return result.Success ? Ok(result) : BadRequest(result);
+    }
+
+    /// <summary>
+    /// Approve a pending extension request (vendor only)
+    /// </summary>
+    [HttpPost("{id:guid}/approve-extension")]
+    [Authorize(Roles = "User,Admin")]
+    [ProducesResponseType(typeof(ApiResponse<BookingDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<BookingDto>), StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> ApproveExtension(Guid id, CancellationToken cancellationToken)
+    {
+        var userId = GetUserId();
+        if (userId == null) return Unauthorized();
+
+        var command = new ApproveExtensionCommand(id, userId.Value);
+        var result = await _dispatcher.SendAsync(command, cancellationToken);
+
+        return result.Success ? Ok(result) : BadRequest(result);
+    }
+
+    /// <summary>
+    /// Reject a pending extension request (vendor only)
+    /// </summary>
+    [HttpPost("{id:guid}/reject-extension")]
+    [Authorize(Roles = "User,Admin")]
+    [ProducesResponseType(typeof(ApiResponse<BookingDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<BookingDto>), StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> RejectExtension(Guid id, [FromBody] RejectBookingDto? dto, CancellationToken cancellationToken)
+    {
+        var userId = GetUserId();
+        if (userId == null) return Unauthorized();
+
+        var command = new RejectExtensionCommand(id, userId.Value, dto?.Reason);
+        var result = await _dispatcher.SendAsync(command, cancellationToken);
+
+        return result.Success ? Ok(result) : BadRequest(result);
     }
 
     private Guid? GetUserId()
     {
-        var userIdClaim = HttpContext?.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
         return Guid.TryParse(userIdClaim, out var userId) ? userId : null;
     }
 }
+
+/// <summary>
+/// DTO for rejecting a booking
+/// </summary>
+public record RejectBookingDto(string? Reason);

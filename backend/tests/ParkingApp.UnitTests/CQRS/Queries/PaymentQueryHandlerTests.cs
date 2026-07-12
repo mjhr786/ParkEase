@@ -6,7 +6,11 @@ using Microsoft.Extensions.Logging;
 using Moq;
 using ParkingApp.Application.CQRS.Queries.Payments;
 using ParkingApp.Application.Interfaces;
-using ParkingApp.Domain.Entities;
+using ParkingApp.Domain.Shared;
+using ParkingApp.Domain.Marketplace;
+using ParkingApp.Domain.Identity;
+using ParkingApp.Domain.Messaging;
+using ParkingApp.Domain.Corporate;
 using ParkingApp.Domain.Interfaces;
 using Xunit;
 

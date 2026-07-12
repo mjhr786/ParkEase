@@ -28,6 +28,13 @@ public record CreateCompanyDto(
     [Required][StringLength(500)] string BillingAddress,
     BillingType BillingType);
 
+public record UpdateCompanyDto(
+    [StringLength(200, MinimumLength = 3)] string? Name = null,
+    [EmailAddress] string? ContactEmail = null,
+    [Phone] string? ContactPhone = null,
+    [StringLength(500)] string? BillingAddress = null,
+    BillingType? BillingType = null);
+
 // ══════════════════════════════════════════════════════
 // MEMBERSHIP DTOs
 // ══════════════════════════════════════════════════════
@@ -41,7 +48,8 @@ public record MembershipDto(
     string? EmployeeCode,
     int Priority,
     bool IsActive,
-    DateTime CreatedAt);
+    DateTime CreatedAt,
+    Guid? CompanyId = null);
 
 public record CompanyMembersDto(
     List<MembershipDto> Members,
@@ -55,6 +63,13 @@ public record AddMemberDto(
     string? EmployeeCode = null,
     [Range(1, 10)] int Priority = 1);
 
+/// <param name="ClearEmployeeCode">When true, clears employee code even if EmployeeCode is null.</param>
+public record UpdateMemberDto(
+    CompanyRole? Role = null,
+    [Range(1, 10)] int? Priority = null,
+    string? EmployeeCode = null,
+    bool ClearEmployeeCode = false);
+
 // ══════════════════════════════════════════════════════
 // INVITATION DTOs
 // ══════════════════════════════════════════════════════
@@ -63,13 +78,15 @@ public record InviteMemberDto(
     [Required][EmailAddress] string Email,
     CompanyRole Role = CompanyRole.Employee);
 
+/// <param name="InvitationToken">Included for company admins so they can share the accept link.</param>
 public record InvitationDto(
     Guid Id,
     string Email,
     CompanyRole Role,
     InvitationStatus Status,
     DateTime ExpiresAt,
-    DateTime CreatedAt);
+    DateTime CreatedAt,
+    string? InvitationToken = null);
 
 // ══════════════════════════════════════════════════════
 // ALLOCATION DTOs
@@ -94,7 +111,14 @@ public record ParkingAllocationDto(
     DateTime? ApprovedAt,
     BookingPolicyDto? Policy,
     List<FixedSlotAssignmentDto> FixedAssignments,
-    DateTime CreatedAt);
+    DateTime CreatedAt,
+    string? VendorName = null);
+
+public record UpdateAllocationContractDto(
+    [Required][Range(0, 999999.99)] decimal MonthlyRate,
+    [Required] DateTime StartDate,
+    [Required] DateTime EndDate,
+    [StringLength(100)] string? LeaseReference = null);
 
 public record VendorParkingAllocationDto(
     Guid Id,
@@ -229,7 +253,21 @@ public record CorporateBookingDto(
     DateTime EndDateTime,
     BookingStatus BookingStatus,
     string? QrCodeToken,
-    DateTime CreatedAt);
+    DateTime CreatedAt,
+    Guid? AllocationId = null,
+    string? ParkingSpaceTitle = null,
+    Guid? MembershipId = null,
+    string? MemberName = null,
+    string? MemberEmail = null,
+    decimal TotalAmount = 0,
+    string? VehicleNumber = null);
+
+/// <summary>Optional filters for corporate booking list/export.</summary>
+public record CorporateBookingListFilter(
+    BookingStatus? Status = null,
+    bool? IsVisitor = null,
+    DateTime? FromUtc = null,
+    DateTime? ToUtc = null);
 
 public record CorporateWaitlistDto(
     Guid Id,
@@ -293,7 +331,17 @@ public record CompanyDashboardDto(
     int ActiveWaitlistEntries,
     int SuspiciousActivityCount,
     List<PeakHourDto> PeakHours,
-    List<FraudAlertDto> FraudAlerts);
+    List<FraudAlertDto> FraudAlerts,
+    int ExpiringAllocationsWithin30Days = 0,
+    List<ExpiringAllocationDto>? ExpiringAllocations = null);
+
+public record ExpiringAllocationDto(
+    Guid AllocationId,
+    string ParkingSpaceTitle,
+    DateTime EndDate,
+    string? LeaseReference,
+    ParkingAllocationSource SourceType,
+    decimal MonthlyRate);
 
 public record AllocationUtilizationDto(
     Guid AllocationId,

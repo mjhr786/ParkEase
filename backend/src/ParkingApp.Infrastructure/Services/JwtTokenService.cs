@@ -4,8 +4,12 @@ using System.Security.Cryptography;
 using System.Text;
 using Microsoft.Extensions.Configuration;
 using Microsoft.IdentityModel.Tokens;
-using ParkingApp.Domain.Entities;
-using ParkingApp.Domain.Interfaces;
+using ParkingApp.Application.Interfaces;
+using ParkingApp.Domain.Shared;
+using ParkingApp.Domain.Marketplace;
+using ParkingApp.Domain.Identity;
+using ParkingApp.Domain.Messaging;
+using ParkingApp.Domain.Corporate;
 
 namespace ParkingApp.Infrastructure.Services;
 

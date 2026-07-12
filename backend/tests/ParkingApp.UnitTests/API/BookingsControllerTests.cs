@@ -1,177 +1,216 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Security.Claims;
-using System.Threading;
-using System.Threading.Tasks;
-using FluentAssertions;
-using FluentValidation;
-using FluentValidation.Results;
-using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Mvc;
 using Moq;
+using FluentAssertions;
+using Xunit;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Http;
+using System.Security.Claims;
 using ParkingApp.API.Controllers;
 using ParkingApp.Application.CQRS;
 using ParkingApp.Application.CQRS.Queries.Bookings;
+using ParkingApp.Application.CQRS.Commands.Bookings;
 using ParkingApp.Application.DTOs;
-using ParkingApp.Application.Interfaces;
-using ParkingApp.BuildingBlocks.Common;
-using Xunit;
+using ParkingApp.Domain.Enums;
 
 namespace ParkingApp.UnitTests.API;
 
 public class BookingsControllerTests
 {
-    private readonly Mock<IBookingService> _bookingServiceMock;
-    private readonly Mock<IValidator<CreateBookingDto>> _createValidatorMock;
-    private readonly Mock<IDispatcher> _dispatcherMock;
+    private readonly Mock<IDispatcher> _mockDispatcher;
     private readonly BookingsController _controller;
+    private readonly Guid _userId;
 
     public BookingsControllerTests()
     {
-        _bookingServiceMock = new Mock<IBookingService>();
-        _createValidatorMock = new Mock<IValidator<CreateBookingDto>>();
-        _dispatcherMock = new Mock<IDispatcher>();
+        _mockDispatcher = new Mock<IDispatcher>();
+        _controller = new BookingsController(_mockDispatcher.Object);
+        _userId = Guid.NewGuid();
 
-        _controller = new BookingsController(
-            _bookingServiceMock.Object,
-            _createValidatorMock.Object);
-    }
-
-    private void SetupControllerUser(ControllerBase controller, Guid userId, string role = "User")
-    {
-        var claims = new[] 
-        { 
-            new Claim(ClaimTypes.NameIdentifier, userId.ToString()),
-            new Claim(ClaimTypes.Role, role)
-        };
-        var identity = new ClaimsIdentity(claims, "Test");
-        var claimsPrincipal = new ClaimsPrincipal(identity);
-        
-        controller.ControllerContext = new ControllerContext
+        // Setup mock user
+        var user = new ClaimsPrincipal(new ClaimsIdentity(new Claim[]
         {
-            HttpContext = new DefaultHttpContext { User = claimsPrincipal }
+            new Claim(ClaimTypes.NameIdentifier, _userId.ToString())
+        }, "mock"));
+
+        _controller.ControllerContext = new ControllerContext()
+        {
+            HttpContext = new DefaultHttpContext() { User = user }
         };
     }
 
     [Fact]
-    public async Task GetById_ReturnsOkObject()
+    public async Task GetById_WhenSuccessful_ShouldReturnOk()
     {
-        var userId = Guid.NewGuid();
+        // Arrange
         var bookingId = Guid.NewGuid();
-        SetupControllerUser(_controller, userId);
+        var resultDto = new ApiResponse<BookingDto>(true, null, CreateDummyBookingDto(bookingId));
+        
+        _mockDispatcher.Setup(d => d.QueryAsync(It.IsAny<GetBookingByIdQuery>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(resultDto);
 
-        _bookingServiceMock.Setup(s => s.GetByIdAsync(bookingId, userId, It.IsAny<CancellationToken>()))
-            .Returns(Task.FromResult(new ApiResponse<BookingDto>(true, "Success", new BookingDto(), null)));
-
+        // Act
         var result = await _controller.GetById(bookingId, CancellationToken.None);
 
-        result.Should().BeOfType<OkObjectResult>();
+        // Assert
+        var okResult = result.Should().BeOfType<OkObjectResult>().Subject;
+        okResult.Value.Should().Be(resultDto);
     }
 
     [Fact]
-    public async Task GetMyBookings_ReturnsOk()
+    public async Task GetById_WhenNotFound_ShouldReturnNotFound()
     {
-        var userId = Guid.NewGuid();
-        SetupControllerUser(_controller, userId);
-
-        _bookingServiceMock.Setup(s => s.GetByUserAsync(userId, It.IsAny<BookingFilterDto>(), It.IsAny<CancellationToken>()))
-            .Returns(Task.FromResult(new ApiResponse<BookingListResultDto>(true, "Success", new BookingListResultDto(new List<BookingDto>(), 0, 1, 10, 1), null)));
-
-        var result = await _controller.GetMyBookings(null, CancellationToken.None);
-
-        result.Should().BeOfType<OkObjectResult>();
-    }
-
-    [Fact]
-    public async Task Create_ValidDto_ReturnsCreated()
-    {
-        var userId = Guid.NewGuid();
-        SetupControllerUser(_controller, userId);
-        var dto = new CreateBookingDto(Guid.NewGuid(), DateTime.UtcNow, DateTime.UtcNow.AddHours(2), ParkingApp.Domain.Enums.PricingType.Hourly, ParkingApp.Domain.Enums.VehicleType.Car, null, null, null, null, null);
+        // Arrange
         var bookingId = Guid.NewGuid();
+        var resultDto = new ApiResponse<BookingDto>(false, "Booking not found", null);
 
-        _createValidatorMock.Setup(v => v.ValidateAsync(dto, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new ValidationResult());
+        _mockDispatcher.Setup(d => d.QueryAsync(It.IsAny<GetBookingByIdQuery>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(resultDto);
 
-        _bookingServiceMock.Setup(s => s.CreateAsync(userId, dto, It.IsAny<CancellationToken>()))
-            .Returns(Task.FromResult(new ApiResponse<BookingDto>(true, "Success", new BookingDto() { Id = bookingId }, null)));
+        // Act
+        var result = await _controller.GetById(bookingId, CancellationToken.None);
 
-        var result = await _controller.Create(dto, CancellationToken.None);
-
-        var createdResult = result.Should().BeOfType<CreatedResult>().Subject;
-        createdResult.Location.Should().Contain(bookingId.ToString());
+        // Assert
+        var notFoundResult = result.Should().BeOfType<NotFoundObjectResult>().Subject;
+        notFoundResult.Value.Should().Be(resultDto);
     }
 
     [Fact]
-    public async Task Cancel_ReturnsOk()
+    public async Task Update_WhenSuccessful_ShouldReturnOk()
     {
-        var userId = Guid.NewGuid();
+        // Arrange
         var bookingId = Guid.NewGuid();
-        SetupControllerUser(_controller, userId);
-        var dto = new CancelBookingDto("Test");
+        var dto = new UpdateBookingDto(null, null, null, "NEW-123", null);
+        var resultDto = new ApiResponse<BookingDto>(true, "Updated", CreateDummyBookingDto(bookingId));
 
-        _bookingServiceMock.Setup(s => s.CancelAsync(bookingId, userId, dto, It.IsAny<CancellationToken>()))
-            .Returns(Task.FromResult(new ApiResponse<BookingDto>(true, "Success", new BookingDto(), null)));
+        _mockDispatcher.Setup(d => d.SendAsync(It.IsAny<UpdateBookingCommand>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(resultDto);
 
+        // Act
+        var result = await _controller.Update(bookingId, dto, CancellationToken.None);
+
+        // Assert
+        var okResult = result.Should().BeOfType<OkObjectResult>().Subject;
+        okResult.Value.Should().Be(resultDto);
+    }
+
+    [Fact]
+    public async Task Update_WhenUnauthorized_ShouldReturnForbid()
+    {
+        // Arrange
+        var bookingId = Guid.NewGuid();
+        var dto = new UpdateBookingDto(null, null, null, "NEW-123", null);
+        var resultDto = new ApiResponse<BookingDto>(false, "Unauthorized", null);
+
+        _mockDispatcher.Setup(d => d.SendAsync(It.IsAny<UpdateBookingCommand>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(resultDto);
+
+        // Act
+        var result = await _controller.Update(bookingId, dto, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<ForbidResult>();
+    }
+
+    [Fact]
+    public async Task GetPendingRequestsCount_ShouldReturnOk()
+    {
+        // Arrange
+        var resultDto = new ApiResponse<int>(true, null, 5);
+        _mockDispatcher.Setup(d => d.QueryAsync(It.IsAny<GetPendingRequestsCountQuery>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(resultDto);
+
+        // Act
+        var result = await _controller.GetPendingRequestsCount(CancellationToken.None);
+
+        // Assert
+        var okResult = result.Should().BeOfType<OkObjectResult>().Subject;
+        okResult.Value.Should().Be(resultDto);
+    }
+
+    [Fact]
+    public async Task Cancel_ShouldReturnOk()
+    {
+        // Arrange
+        var bookingId = Guid.NewGuid();
+        var dto = new CancelBookingDto("Reason");
+        var resultDto = new ApiResponse<BookingDto>(true, "Cancelled", CreateDummyBookingDto(bookingId));
+        _mockDispatcher.Setup(d => d.SendAsync(It.IsAny<CancelBookingCommand>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(resultDto);
+
+        // Act
         var result = await _controller.Cancel(bookingId, dto, CancellationToken.None);
 
+        // Assert
         result.Should().BeOfType<OkObjectResult>();
     }
 
     [Fact]
-    public async Task GetVendorBookings_VendorRole_ReturnsOk()
+    public async Task Approve_ShouldReturnOk()
     {
-        var userId = Guid.NewGuid();
-        SetupControllerUser(_controller, userId, "Vendor");
-
-        _bookingServiceMock.Setup(s => s.GetVendorBookingsAsync(userId, It.IsAny<BookingFilterDto>(), It.IsAny<CancellationToken>()))
-            .Returns(Task.FromResult(new ApiResponse<BookingListResultDto>(true, "Success", new BookingListResultDto(new List<BookingDto>(), 0, 1, 10, 1), null)));
-
-        var result = await _controller.GetVendorBookings(null, CancellationToken.None);
-
-        result.Should().BeOfType<OkObjectResult>();
-    }
-
-    [Fact]
-    public async Task CalculatePrice_ReturnsOk()
-    {
-        var dto = new PriceCalculationDto(Guid.NewGuid(), DateTime.UtcNow, DateTime.UtcNow.AddHours(2), ParkingApp.Domain.Enums.PricingType.Hourly, null);
-        _bookingServiceMock.Setup(s => s.CalculatePriceAsync(dto, It.IsAny<CancellationToken>()))
-            .Returns(Task.FromResult(new ApiResponse<PriceBreakdownDto>(true, "Success", new PriceBreakdownDto(10m, 0m, 1m, 11m, 10m, "1h", 1, "h"), null)));
-
-        var result = await _controller.CalculatePrice(dto, CancellationToken.None);
-
-        result.Should().BeOfType<OkObjectResult>();
-    }
-
-    [Fact]
-    public async Task CheckIn_ReturnsOk()
-    {
-        var userId = Guid.NewGuid();
+        // Arrange
         var bookingId = Guid.NewGuid();
-        SetupControllerUser(_controller, userId);
+        var resultDto = new ApiResponse<BookingDto>(true, "Approved", CreateDummyBookingDto(bookingId));
+        _mockDispatcher.Setup(d => d.SendAsync(It.IsAny<ApproveBookingCommand>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(resultDto);
 
-        _bookingServiceMock.Setup(s => s.CheckInAsync(bookingId, userId, It.IsAny<CancellationToken>()))
-            .Returns(Task.FromResult(new ApiResponse<BookingDto>(true, "Success", new BookingDto(), null)));
+        // Act
+        var result = await _controller.Approve(bookingId, CancellationToken.None);
 
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+    }
+
+    [Fact]
+    public async Task Reject_ShouldReturnOk()
+    {
+        // Arrange
+        var bookingId = Guid.NewGuid();
+        var dto = new global::ParkingApp.API.Controllers.RejectBookingDto("Reason");
+        var resultDto = new ApiResponse<BookingDto>(true, "Rejected", CreateDummyBookingDto(bookingId));
+        _mockDispatcher.Setup(d => d.SendAsync(It.IsAny<RejectBookingCommand>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(resultDto);
+
+        // Act
+        var result = await _controller.Reject(bookingId, dto, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+    }
+
+    [Fact]
+    public async Task CheckIn_ShouldReturnOk()
+    {
+        // Arrange
+        var bookingId = Guid.NewGuid();
+        var resultDto = new ApiResponse<BookingDto>(true, "CheckedIn", CreateDummyBookingDto(bookingId));
+        _mockDispatcher.Setup(d => d.SendAsync(It.IsAny<CheckInCommand>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(resultDto);
+
+        // Act
         var result = await _controller.CheckIn(bookingId, CancellationToken.None);
 
+        // Assert
         result.Should().BeOfType<OkObjectResult>();
     }
 
     [Fact]
-    public async Task CheckOut_ReturnsOk()
+    public async Task CheckOut_ShouldReturnOk()
     {
-        var userId = Guid.NewGuid();
+        // Arrange
         var bookingId = Guid.NewGuid();
-        SetupControllerUser(_controller, userId);
+        var resultDto = new ApiResponse<BookingDto>(true, "CheckedOut", CreateDummyBookingDto(bookingId));
+        _mockDispatcher.Setup(d => d.SendAsync(It.IsAny<CheckOutCommand>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(resultDto);
 
-        _bookingServiceMock.Setup(s => s.CheckOutAsync(bookingId, userId, It.IsAny<CancellationToken>()))
-            .Returns(Task.FromResult(new ApiResponse<BookingDto>(true, "Success", new BookingDto(), null)));
-
+        // Act
         var result = await _controller.CheckOut(bookingId, CancellationToken.None);
 
+        // Assert
         result.Should().BeOfType<OkObjectResult>();
     }
+
+    private BookingDto CreateDummyBookingDto(Guid id)
+    {
+        return new BookingDto { Id = id };
+    }
 }
+

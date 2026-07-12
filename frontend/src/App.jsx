@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate, Link, useNavigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, Link, useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { ChatProvider, useChatContext } from './contexts/ChatContext';
 import { NotificationProvider, useNotificationContext } from './context/NotificationContext';
@@ -29,7 +29,10 @@ const CorporateDashboard = React.lazy(() => import('./pages/Corporate/CorporateD
 const CorporateParkingSpaces = React.lazy(() => import('./pages/Corporate/CorporateParkingSpaces'));
 const CompanyMembers = React.lazy(() => import('./pages/Corporate/CompanyMembers'));
 const CompanyAllocations = React.lazy(() => import('./pages/Corporate/CompanyAllocations'));
+const CompanyBookings = React.lazy(() => import('./pages/Corporate/CompanyBookings'));
+const CompanySettings = React.lazy(() => import('./pages/Corporate/CompanySettings'));
 const AcceptInvitation = React.lazy(() => import('./pages/Corporate/AcceptInvitation'));
+const OutboxAdmin = React.lazy(() => import('./pages/Admin/OutboxAdmin'));
 
 function Loading() {
   return (
@@ -40,7 +43,7 @@ function Loading() {
 }
 
 function Header() {
-  const { isAuthenticated, user, logout } = useAuth();
+  const { isAuthenticated, user, logout, isAdmin } = useAuth();
   const { isCorporateMode } = useCompany();
   const { unreadCount } = useChatContext();
   const navigate = useNavigate();
@@ -225,7 +228,10 @@ function Header() {
                       { to: '/corporate/parking-spaces', icon: '🏗️', label: 'Parking Inventory' },
                       { to: '/corporate/members', icon: '👥', label: 'Members' },
                       { to: '/corporate/allocations', icon: '🅿️', label: 'Allocations' },
-                      { to: '/profile', icon: '👤', label: 'My Profile' }
+                      { to: '/corporate/bookings', icon: '📅', label: 'Corp Bookings' },
+                      { to: '/corporate/settings', icon: '⚙️', label: 'Company Settings' },
+                      { to: '/profile', icon: '👤', label: 'My Profile' },
+                      ...(isAdmin ? [{ to: '/admin/outbox', icon: '📬', label: 'Outbox Admin' }] : []),
                     ] : [
                       { to: '/dashboard', icon: '🏠', label: 'Dashboard' },
                       { to: '/bookings', icon: '📅', label: 'My Bookings' },
@@ -234,6 +240,7 @@ function Header() {
                       { to: '/profile', icon: '👤', label: 'My Profile' },
                       { to: '/my/listings', icon: '💰', label: 'My Listings' },
                       { to: '/my/requests', icon: '📋', label: 'Vendor Inbox', badge: pendingRequests > 0 ? pendingRequests : null },
+                      ...(isAdmin ? [{ to: '/admin/outbox', icon: '📬', label: 'Outbox Admin' }] : []),
                     ]).map(item => (
                       <Link
                         key={item.to}
@@ -319,20 +326,33 @@ function Header() {
 
 function ProtectedRoute({ children }) {
   const { isAuthenticated, loading } = useAuth();
+  const location = useLocation();
 
   if (loading) {
     return <Loading />;
   }
 
   if (!isAuthenticated) {
-    return <Navigate to="/login" />;
+    const returnUrl = `${location.pathname}${location.search || ''}`;
+    const to = returnUrl && returnUrl !== '/'
+      ? `/login?returnUrl=${encodeURIComponent(returnUrl)}`
+      : '/login';
+    return <Navigate to={to} replace />;
   }
 
   return children;
 }
 
+function safeReturnPath(raw) {
+  if (!raw || typeof raw !== 'string') return null;
+  if (!raw.startsWith('/') || raw.startsWith('//')) return null;
+  return raw;
+}
+
 function AppRoutes() {
   const { isAuthenticated } = useAuth();
+  const [searchParams] = useSearchParams();
+  const authedHome = safeReturnPath(searchParams.get('returnUrl')) || '/dashboard';
 
   return (
     <Suspense fallback={<Loading />}>
@@ -342,11 +362,11 @@ function AppRoutes() {
         <Route path="/parking/:id" element={<ParkingDetails />} />
         <Route
           path="/login"
-          element={isAuthenticated ? <Navigate to="/dashboard" /> : <Login />}
+          element={isAuthenticated ? <Navigate to={authedHome} replace /> : <Login />}
         />
         <Route
           path="/register"
-          element={isAuthenticated ? <Navigate to="/dashboard" /> : <Register />}
+          element={isAuthenticated ? <Navigate to={authedHome} replace /> : <Register />}
         />
         <Route
           path="/dashboard"
@@ -445,10 +465,34 @@ function AppRoutes() {
           }
         />
         <Route
+          path="/corporate/bookings"
+          element={
+            <ProtectedRoute>
+              <CompanyBookings />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/corporate/settings"
+          element={
+            <ProtectedRoute>
+              <CompanySettings />
+            </ProtectedRoute>
+          }
+        />
+        <Route
           path="/invite/accept/:token"
           element={
             <ProtectedRoute>
               <AcceptInvitation />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/outbox"
+          element={
+            <ProtectedRoute>
+              <OutboxAdmin />
             </ProtectedRoute>
           }
         />

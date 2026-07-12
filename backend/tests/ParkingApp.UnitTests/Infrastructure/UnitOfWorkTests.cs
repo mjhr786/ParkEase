@@ -1,10 +1,13 @@
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
-using ParkingApp.Domain.Entities;
+using ParkingApp.Application.Interfaces;
 using ParkingApp.Domain.Events;
-using ParkingApp.Domain.Interfaces;
+using ParkingApp.Domain.Events.Bookings;
+using ParkingApp.Domain.Identity;
 using ParkingApp.Infrastructure.Data;
+using ParkingApp.Infrastructure.Outbox;
 using ParkingApp.Infrastructure.Repositories;
 using Xunit;
 
@@ -12,12 +15,16 @@ namespace ParkingApp.UnitTests.Infrastructure.Repositories;
 
 public class UnitOfWorkTests
 {
-    private readonly Mock<IDomainEventDispatcher> _dispatcherMock;
     private readonly ApplicationDbContext _context;
+    private readonly Mock<IOutboxProcessor> _processorMock;
 
     public UnitOfWorkTests()
     {
-        _dispatcherMock = new Mock<IDomainEventDispatcher>();
+        _processorMock = new Mock<IOutboxProcessor>();
+        _processorMock
+            .Setup(p => p.ProcessPendingAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(0);
+
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()
             .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
             .ConfigureWarnings(x => x.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.InMemoryEventId.TransactionIgnoredWarning))
@@ -25,13 +32,17 @@ public class UnitOfWorkTests
         _context = new ApplicationDbContext(options);
     }
 
+    private UnitOfWork CreateUow()
+    {
+        var writer = new OutboxWriter(_context);
+        return new UnitOfWork(_context, writer, _processorMock.Object, NullLogger<UnitOfWork>.Instance);
+    }
+
     [Fact]
     public void Repositories_AreLazilyInitialized()
     {
-        // Arrange
-        var uow = new UnitOfWork(_context, _dispatcherMock.Object);
+        var uow = CreateUow();
 
-        // Act & Assert
         uow.Users.Should().NotBeNull();
         uow.ParkingSpaces.Should().NotBeNull();
         uow.Bookings.Should().NotBeNull();
@@ -45,63 +56,62 @@ public class UnitOfWorkTests
     }
 
     [Fact]
-    public async Task SaveChangesAsync_DispatchesDomainEvents()
+    public async Task SaveChangesAsync_EnqueuesDomainEventsToOutbox_AndProcesses()
     {
-        // Arrange
-        var uow = new UnitOfWork(_context, _dispatcherMock.Object);
-        var user = new User
-        {
-            Id = Guid.NewGuid(),
-            Email = "test@example.com",
-            PasswordHash = "hash",
-            FirstName = "Test",
-            LastName = "User",
-            PhoneNumber = "1234567890"
-        };
-        var domainEvent = new Mock<IDomainEvent>().Object;
-        user.AddDomainEvent(domainEvent);
-        
+        var uow = CreateUow();
+        var user = User.Register("test@example.com", "hash", "Test", "User", "1234567890");
+        user.AddDomainEvent(new BookingCancelledEvent(
+            Guid.NewGuid(), user.Id, Guid.NewGuid(), "BK-1", "reason"));
+
         _context.Users.Add(user);
 
-        // Act
         await uow.SaveChangesAsync();
 
-        // Assert
-        _dispatcherMock.Verify(d => d.DispatchEventsAsync(It.Is<IEnumerable<IDomainEvent>>(e => e.Contains(domainEvent)), It.IsAny<CancellationToken>()), Times.Once);
+        _context.OutboxMessages.Should().ContainSingle();
+        var msg = _context.OutboxMessages.Single();
+        msg.TypeName.Should().Contain(nameof(BookingCancelledEvent));
+        msg.IdempotencyKey.Should().StartWith(nameof(BookingCancelledEvent));
         user.DomainEvents.Should().BeEmpty();
+
+        _processorMock.Verify(
+            p => p.ProcessPendingAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task SaveChangesAsync_WhenProcessorFails_DoesNotThrow_AndKeepsOutboxRow()
+    {
+        _processorMock
+            .Setup(p => p.ProcessPendingAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("handler boom"));
+
+        var uow = CreateUow();
+        var user = User.Register("fail@example.com", "hash", "F", "U", "1");
+        user.AddDomainEvent(new BookingConfirmedEvent(Guid.NewGuid(), user.Id, Guid.NewGuid(), "BK"));
+        _context.Users.Add(user);
+
+        var act = () => uow.SaveChangesAsync();
+        await act.Should().NotThrowAsync();
+
+        _context.OutboxMessages.Should().ContainSingle(m => m.Status == OutboxStatus.Pending);
     }
 
     [Fact]
     public async Task TransactionMethods_Work()
     {
-        // Arrange
-        var uow = new UnitOfWork(_context, _dispatcherMock.Object);
+        var uow = CreateUow();
 
-        // Act & Assert
-        // In-memory database doesn't support transactions in the same way, 
-        // but it shouldn't throw if we call them unless we use a provider that supports them.
-        // Actually, InMemoryDatabase DOES support transactions now in newer versions or it just no-ops.
-        
-        var beginAction = () => uow.BeginTransactionAsync();
-        await beginAction.Should().NotThrowAsync();
-
-        var commitAction = () => uow.CommitTransactionAsync();
-        await commitAction.Should().NotThrowAsync();
-
-        var rollbackAction = () => uow.RollbackTransactionAsync();
-        await rollbackAction.Should().NotThrowAsync();
+        await FluentActions.Invoking(() => uow.BeginTransactionAsync()).Should().NotThrowAsync();
+        await FluentActions.Invoking(() => uow.CommitTransactionAsync()).Should().NotThrowAsync();
+        await FluentActions.Invoking(() => uow.RollbackTransactionAsync()).Should().NotThrowAsync();
     }
 
     [Fact]
     public void Dispose_DisposesContext()
     {
-        // Arrange
-        var uow = new UnitOfWork(_context, _dispatcherMock.Object);
-
-        // Act
+        var uow = CreateUow();
         uow.Dispose();
 
-        // Assert
         var action = () => _context.Users.ToList();
         action.Should().Throw<ObjectDisposedException>();
     }

@@ -1,7 +1,14 @@
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import showToast from '../utils/toast.jsx';
+
+function safeReturnUrl(raw) {
+    if (!raw || typeof raw !== 'string') return null;
+    // Only allow same-app relative paths (block open redirects).
+    if (!raw.startsWith('/') || raw.startsWith('//')) return null;
+    return raw;
+}
 
 export default function Login() {
     const [email, setEmail] = useState('');
@@ -9,6 +16,8 @@ export default function Login() {
     const [loading, setLoading] = useState(false);
     const { login } = useAuth();
     const navigate = useNavigate();
+    const [searchParams] = useSearchParams();
+    const returnUrl = safeReturnUrl(searchParams.get('returnUrl'));
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -17,7 +26,7 @@ export default function Login() {
         const result = await login(email, password);
 
         if (result.success) {
-            navigate('/dashboard');
+            navigate(returnUrl || '/dashboard');
         } else {
             showToast.error(result.message || 'Login failed');
         }
@@ -25,11 +34,19 @@ export default function Login() {
         setLoading(false);
     };
 
+    const registerLink = returnUrl
+        ? `/register?returnUrl=${encodeURIComponent(returnUrl)}`
+        : '/register';
+
     return (
         <div className="auth-page">
             <div className="card auth-card">
                 <h1 className="auth-title">Welcome Back</h1>
-                <p className="auth-subtitle">Sign in to your account</p>
+                <p className="auth-subtitle">
+                    {returnUrl?.includes('/invite/accept/')
+                        ? 'Sign in to accept your company invitation'
+                        : 'Sign in to your account'}
+                </p>
 
                 <form onSubmit={handleSubmit}>
                     <div className="form-group">
@@ -62,7 +79,7 @@ export default function Login() {
                 </form>
 
                 <p className="auth-footer">
-                    Don't have an account? <Link to="/register">Sign up</Link>
+                    Don&apos;t have an account? <Link to={registerLink}>Sign up</Link>
                 </p>
             </div>
         </div>

@@ -2,7 +2,11 @@ using FluentAssertions;
 using Xunit;
 using ParkingApp.Application.Mappings;
 using ParkingApp.Application.DTOs;
-using ParkingApp.Domain.Entities;
+using ParkingApp.Domain.Shared;
+using ParkingApp.Domain.Marketplace;
+using ParkingApp.Domain.Identity;
+using ParkingApp.Domain.Messaging;
+using ParkingApp.Domain.Corporate;
 using ParkingApp.Domain.Enums;
 using NetTopologySuite.Geometries;
 

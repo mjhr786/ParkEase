@@ -6,6 +6,11 @@ using ParkingApp.Application.Interfaces;
 using ParkingApp.Domain.Events;
 using ParkingApp.Domain.Interfaces;
 using ParkingApp.Infrastructure.Data;
+using ParkingApp.Infrastructure.ReadModel.Bookings;
+using ParkingApp.Infrastructure.ReadModel.Corporate;
+using ParkingApp.Infrastructure.ReadModel.Parking;
+using ParkingApp.Infrastructure.Outbox;
+using ParkingApp.Infrastructure.ReadModel.Reviews;
 using ParkingApp.Infrastructure.Repositories;
 using ParkingApp.Infrastructure.Services;
 using StackExchange.Redis;
@@ -28,11 +33,29 @@ public static class DependencyInjection
         services.AddSingleton<ISqlConnectionFactory>(new NpgsqlConnectionFactory(connectionString));
 
 
-        // Domain Events
+        // Domain Events (still used if callers dispatch directly; primary path is outbox)
         services.AddScoped<IDomainEventDispatcher, DomainEventDispatcher>();
 
-        // Repositories
-        services.AddScoped<IUnitOfWork, UnitOfWork>();
+        // Transactional outbox
+        services.AddScoped<IOutboxWriter, OutboxWriter>();
+        services.AddScoped<IOutboxProcessor, OutboxProcessor>();
+        services.AddScoped<IOutboxAdminStore, OutboxAdminStore>();
+        services.AddHostedService<OutboxBackgroundService>();
+
+        // Corporate waitlist auto-promotion
+        services.Configure<WaitlistAutoPromotionOptions>(
+            configuration.GetSection(WaitlistAutoPromotionOptions.SectionName));
+        services.AddScoped<IWaitlistPromotionStore, WaitlistPromotionStore>();
+        services.AddHostedService<WaitlistAutoPromotionBackgroundService>();
+
+        // Unit of Work: one implementation; context ports resolve to the same scoped instance
+        services.AddScoped<UnitOfWork>();
+        services.AddScoped<IUnitOfWork>(sp => sp.GetRequiredService<UnitOfWork>());
+        services.AddScoped<IMarketplaceUnitOfWork>(sp => sp.GetRequiredService<UnitOfWork>());
+        services.AddScoped<IIdentityUnitOfWork>(sp => sp.GetRequiredService<UnitOfWork>());
+        services.AddScoped<IMessagingUnitOfWork>(sp => sp.GetRequiredService<UnitOfWork>());
+        services.AddScoped<ICorporateUnitOfWork>(sp => sp.GetRequiredService<UnitOfWork>());
+
         services.AddScoped<IUserRepository, UserRepository>();
         services.AddScoped<IParkingSpaceRepository, ParkingSpaceRepository>();
         services.AddScoped<IBookingRepository, BookingRepository>();
@@ -41,12 +64,18 @@ public static class DependencyInjection
         services.AddScoped<IConversationRepository, ConversationRepository>();
         services.AddScoped<IChatMessageRepository, ChatMessageRepository>();
         services.AddScoped<IDashboardRepository, DashboardRepository>();
+        services.AddScoped<ICompanyReadStore, CompanyReadStore>();
+        services.AddScoped<IParkingReadStore, ParkingReadStore>();
+        services.AddScoped<IBookingReadStore, BookingReadStore>();
+        services.AddScoped<IReviewReadStore, ReviewReadStore>();
         services.AddScoped<IDeviceTokenRepository, DeviceTokenRepository>();
 
         // Services
         services.AddScoped<ICorporateTenantContext, CorporateTenantContext>();
         services.AddScoped<ICompanyQuotaCache, CompanyQuotaCache>();
+        services.AddSingleton<ICorporateWebLinkBuilder, CorporateWebLinkBuilder>();
         services.AddScoped<ITokenService, JwtTokenService>();
+        services.AddScoped<IPasswordHasher, BcryptPasswordHasher>();
         services.AddScoped<IPaymentService, StripePaymentService>();
         services.AddScoped<IParkingAvailabilityModelService, ParkingAvailabilityMlModelService>();
         services.AddHttpClient<IEmailService, ResendEmailService>();

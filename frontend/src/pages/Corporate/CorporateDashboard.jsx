@@ -5,10 +5,17 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 
+const formatMoney = (value) => {
+    const n = Number(value);
+    if (Number.isNaN(n)) return '—';
+    return n.toLocaleString(undefined, { style: 'currency', currency: 'INR', maximumFractionDigits: 0 });
+};
+
 const CorporateDashboard = () => {
     const { activeCompanyId, companyDetails, isCorporateMode } = useCompany();
     const [stats, setStats] = useState(null);
     const [loading, setLoading] = useState(true);
+    const [exporting, setExporting] = useState(false);
     const navigate = useNavigate();
 
     useEffect(() => {
@@ -36,6 +43,26 @@ const CorporateDashboard = () => {
         loadStats();
     }, [activeCompanyId, isCorporateMode, navigate]);
 
+    const handleExport = async () => {
+        setExporting(true);
+        try {
+            const { blob, fileName } = await corporateService.exportDashboard();
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = fileName || `corporate-dashboard-${new Date().toISOString().slice(0, 10)}.csv`;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            URL.revokeObjectURL(url);
+            toast.success('Dashboard CSV downloaded');
+        } catch (err) {
+            toast.error(err?.message || 'Export failed');
+        } finally {
+            setExporting(false);
+        }
+    };
+
     if (!isCorporateMode) return null;
 
     if (loading) {
@@ -48,10 +75,24 @@ const CorporateDashboard = () => {
 
     return (
         <div className="container" style={{ padding: '2rem 0', color: '#f1f5f9' }}>
-            <h1 style={{ marginBottom: '0.5rem', color: 'white', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <span style={{ fontSize: '2rem' }}>🏢</span> {companyDetails?.name || 'Company'} Dashboard
-            </h1>
-            <p style={{ color: '#94a3b8', marginBottom: '2rem' }}>Overview of corporate parking usage and policies for {companyDetails?.name}.</p>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
+                <div>
+                    <h1 style={{ marginBottom: '0.5rem', color: 'white', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <span style={{ fontSize: '2rem' }}>🏢</span> {companyDetails?.name || 'Company'} Dashboard
+                    </h1>
+                    <p style={{ color: '#94a3b8', margin: 0 }}>
+                        Overview of corporate parking usage and policies for {companyDetails?.name}. Export is a full snapshot for reporting (not invoicing).
+                    </p>
+                </div>
+                <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                    <button type="button" className="btn btn-secondary" onClick={() => navigate('/corporate/bookings')}>
+                        View bookings
+                    </button>
+                    <button type="button" className="btn btn-primary" onClick={handleExport} disabled={exporting}>
+                        {exporting ? 'Exporting…' : 'Export CSV'}
+                    </button>
+                </div>
+            </div>
 
             {/* Top Stat Cards */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1.5rem', marginBottom: '2rem' }}>
@@ -59,7 +100,11 @@ const CorporateDashboard = () => {
                 <StatCard title="Active Allocations" value={stats.activeAllocations} secondary={`out of ${stats.totalAllocations} total spaces`} icon="🅿️" />
                 <StatCard title="Owned Parking" value={stats.ownedParkingSpaces || 0} secondary={`${stats.ownedParkingSlots || 0} owned slots`} icon="🏗️" color="#38bdf8" />
                 <StatCard title="Leased Parking" value={stats.leasedAllocations || 0} secondary={`${stats.pendingVendorAllocations || 0} pending approvals`} icon="🤝" color="#a78bfa" />
+                <StatCard title="Waitlist Pressure" value={stats.activeWaitlistEntries || 0} secondary="Pending waitlist entries" icon="⏳" color="#fbbf24" />
+                <StatCard title="Expiring (30d)" value={stats.expiringAllocationsWithin30Days || 0} secondary="Active contracts ending soon" icon="📆" color="#f97316" />
                 <StatCard title="Bookings This Month" value={stats.totalBookingsThisMonth} secondary={`including ${stats.visitorBookingsThisMonth} visitors`} icon="📅" />
+                <StatCard title="Hours Used (Month)" value={Number(stats.totalHoursUsedThisMonth || 0).toFixed(1)} secondary="Employee + visitor hours" icon="⏱️" color="#22d3ee" />
+                <StatCard title="Monthly Spend" value={formatMoney(stats.monthlySpend)} secondary="Active allocation rates" icon="💰" color="#34d399" />
                 <StatCard title="Utilization Rate" value={`${stats.utilizationPercentage}%`} secondary={`Today's slot usage`} icon="📊" />
                 <StatCard title="Suspicious Activity" value={stats.suspiciousActivityCount} secondary={`Overlapping bookings detected`} icon="⚠️" color="#ef4444" />
             </div>
@@ -72,10 +117,10 @@ const CorporateDashboard = () => {
                         <ResponsiveContainer width="100%" height="100%">
                             <LineChart data={stats.bookingsByDay}>
                                 <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-                                <XAxis dataKey="day" stroke="#94a3b8" />
+                                <XAxis dataKey="label" stroke="#94a3b8" />
                                 <YAxis stroke="#94a3b8" allowDecimals={false} />
                                 <Tooltip contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #334155', borderRadius: '8px' }} />
-                                <Line type="monotone" dataKey="bookingCount" stroke="#8b5cf6" strokeWidth={3} dot={{ r: 4, fill: '#8b5cf6' }} activeDot={{ r: 6 }} name="Bookings" />
+                                <Line type="monotone" dataKey="volume" stroke="#8b5cf6" strokeWidth={3} dot={{ r: 4, fill: '#8b5cf6' }} activeDot={{ r: 6 }} name="Bookings" />
                             </LineChart>
                         </ResponsiveContainer>
                     </div>
@@ -103,6 +148,53 @@ const CorporateDashboard = () => {
                     </div>
                 </div>
             </div>
+
+            {/* Expiring contracts */}
+            {(stats.expiringAllocations?.length > 0 || (stats.expiringAllocationsWithin30Days || 0) > 0) && (
+                <div style={{ background: '#1e293b', borderRadius: '12px', padding: '1.5rem', border: '1px solid rgba(249,115,22,0.25)', marginTop: '2rem' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', gap: '1rem', flexWrap: 'wrap' }}>
+                        <h3 style={{ margin: 0, color: 'white', fontSize: '1.1rem' }}>Contracts expiring within 30 days</h3>
+                        <button type="button" className="btn btn-secondary" onClick={() => navigate('/corporate/allocations')}>
+                            Manage allocations
+                        </button>
+                    </div>
+                    {stats.expiringAllocations?.length > 0 ? (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
+                            {stats.expiringAllocations.map((item) => (
+                                <div
+                                    key={item.allocationId}
+                                    style={{
+                                        display: 'grid',
+                                        gridTemplateColumns: '1.4fr 1fr 1fr',
+                                        gap: '0.75rem',
+                                        padding: '0.85rem 1rem',
+                                        background: 'rgba(249,115,22,0.08)',
+                                        borderRadius: '8px',
+                                        border: '1px solid rgba(249,115,22,0.2)',
+                                    }}
+                                >
+                                    <div>
+                                        <strong style={{ color: 'white' }}>{item.parkingSpaceTitle}</strong>
+                                        <div style={{ color: '#94a3b8', fontSize: '0.8rem' }}>
+                                            {item.sourceType === 1 ? 'Owned' : 'Leased'}
+                                            {item.leaseReference ? ` · ${item.leaseReference}` : ''}
+                                        </div>
+                                    </div>
+                                    <div style={{ color: '#fdba74', fontSize: '0.9rem' }}>
+                                        Ends {new Date(item.endDate).toLocaleDateString()}
+                                    </div>
+                                    <div style={{ color: '#e2e8f0', fontSize: '0.9rem', textAlign: 'right' }}>
+                                        ₹{Number(item.monthlyRate || 0).toLocaleString()}
+                                        /mo
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    ) : (
+                        <p style={{ color: '#94a3b8', margin: 0 }}>Expiring contracts detected — open Allocations to review terms.</p>
+                    )}
+                </div>
+            )}
 
             {/* Peak Hours & Fraud */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '2rem', marginTop: '2rem' }}>

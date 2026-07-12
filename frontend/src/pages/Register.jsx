@@ -1,7 +1,13 @@
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import showToast from '../utils/toast.jsx';
+
+function safeReturnUrl(raw) {
+    if (!raw || typeof raw !== 'string') return null;
+    if (!raw.startsWith('/') || raw.startsWith('//')) return null;
+    return raw;
+}
 
 export default function Register() {
     const [formData, setFormData] = useState({
@@ -15,6 +21,8 @@ export default function Register() {
     const [loading, setLoading] = useState(false);
     const { register } = useAuth();
     const navigate = useNavigate();
+    const [searchParams] = useSearchParams();
+    const returnUrl = safeReturnUrl(searchParams.get('returnUrl'));
 
     const handleChange = (e) => {
         setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -40,7 +48,7 @@ export default function Register() {
         const result = await register(registerData);
 
         if (result.success) {
-            navigate('/dashboard');
+            navigate(returnUrl || '/dashboard');
         } else {
             showToast.error(result.message || 'Registration failed');
         }
@@ -48,11 +56,19 @@ export default function Register() {
         setLoading(false);
     };
 
+    const loginLink = returnUrl
+        ? `/login?returnUrl=${encodeURIComponent(returnUrl)}`
+        : '/login';
+
     return (
         <div className="auth-page">
             <div className="card auth-card">
                 <h1 className="auth-title">Create Account</h1>
-                <p className="auth-subtitle">Join our parking community</p>
+                <p className="auth-subtitle">
+                    {returnUrl?.includes('/invite/accept/')
+                        ? 'Create an account to accept your company invitation'
+                        : 'Join our parking community'}
+                </p>
 
                 <form onSubmit={handleSubmit}>
                     <div className="grid grid-2">
@@ -109,8 +125,6 @@ export default function Register() {
                         />
                     </div>
 
-
-
                     <div className="form-group">
                         <label className="form-label">Password</label>
                         <input
@@ -143,7 +157,7 @@ export default function Register() {
                 </form>
 
                 <p className="auth-footer">
-                    Already have an account? <Link to="/login">Sign in</Link>
+                    Already have an account? <Link to={loginLink}>Sign in</Link>
                 </p>
             </div>
         </div>

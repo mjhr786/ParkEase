@@ -1,5 +1,9 @@
 using ParkingApp.Application.Interfaces;
-using ParkingApp.Domain.Entities;
+using ParkingApp.Domain.Shared;
+using ParkingApp.Domain.Marketplace;
+using ParkingApp.Domain.Identity;
+using ParkingApp.Domain.Messaging;
+using ParkingApp.Domain.Corporate;
 using ParkingApp.Domain.Enums;
 using ParkingApp.Domain.Interfaces;
 
@@ -11,9 +15,9 @@ public class ParkingPassPricingService : IParkingPassPricingService
     private const decimal ServiceFeeRate = 0.05m;
     private static readonly IReadOnlyDictionary<DateOnly, decimal> EmptyBookedHoursByDay = new Dictionary<DateOnly, decimal>();
 
-    private readonly IUnitOfWork _unitOfWork;
+    private readonly IMarketplaceUnitOfWork _unitOfWork;
 
-    public ParkingPassPricingService(IUnitOfWork unitOfWork)
+    public ParkingPassPricingService(IMarketplaceUnitOfWork unitOfWork)
     {
         _unitOfWork = unitOfWork;
     }

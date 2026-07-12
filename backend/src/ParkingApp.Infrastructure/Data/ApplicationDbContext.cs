@@ -1,10 +1,14 @@
 using Microsoft.EntityFrameworkCore;
 using NetTopologySuite.Geometries;
-using ParkingApp.Domain.Entities;
-using ParkingApp.Domain.Entities.Corporate;
+using ParkingApp.Domain.Shared;
+using ParkingApp.Domain.Marketplace;
+using ParkingApp.Domain.Identity;
+using ParkingApp.Domain.Messaging;
+using ParkingApp.Domain.Corporate;
 using ParkingApp.Domain.Enums;
 using ParkingApp.Domain.ValueObjects;
 using ParkingApp.Application.Interfaces;
+using ParkingApp.Infrastructure.Outbox;
 
 namespace ParkingApp.Infrastructure.Data;
 
@@ -43,17 +47,52 @@ public class ApplicationDbContext : DbContext
     public DbSet<EmployeeInvitation> EmployeeInvitations => Set<EmployeeInvitation>();
     public DbSet<CompanyUsage> CompanyUsages => Set<CompanyUsage>();
     public DbSet<CorporateWaitlistEntry> CorporateWaitlistEntries => Set<CorporateWaitlistEntry>();
+    public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
+
+        // Domain events are pure domain infrastructure — never persisted.
+        // Ids are always client-generated (BaseEntity.Id = Guid.NewGuid()). ValueGeneratedOnAdd
+        // (EF key convention) makes navigation-discovered children track as Modified/UPDATE
+        // instead of Added/INSERT → DbUpdateConcurrencyException ("expected 1 row, affected 0").
+        foreach (var entityType in modelBuilder.Model.GetEntityTypes())
+        {
+            if (typeof(BaseEntity).IsAssignableFrom(entityType.ClrType))
+            {
+                modelBuilder.Entity(entityType.ClrType).Ignore(nameof(BaseEntity.DomainEvents));
+                modelBuilder.Entity(entityType.ClrType)
+                    .Property(nameof(BaseEntity.Id))
+                    .ValueGeneratedNever();
+            }
+        }
+
+        modelBuilder.Entity<OutboxMessage>(entity =>
+        {
+            entity.ToTable("OutboxMessages");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.TypeName).HasMaxLength(512).IsRequired();
+            entity.Property(e => e.Payload).IsRequired();
+            entity.Property(e => e.IdempotencyKey).HasMaxLength(256).IsRequired();
+            entity.Property(e => e.LastError).HasMaxLength(2000);
+            entity.HasIndex(e => e.IdempotencyKey);
+            entity.HasIndex(e => new { e.Status, e.AvailableAfterUtc });
+            entity.HasIndex(e => e.CreatedAtUtc);
+        });
 
         // User configuration
         modelBuilder.Entity<User>(entity =>
         {
             entity.HasKey(e => e.Id);
             entity.HasIndex(e => e.Email).IsUnique();
-            entity.Property(e => e.Email).HasMaxLength(255).IsRequired();
+            // Email value object ↔ string column (no schema change)
+            entity.Property(e => e.Email)
+                .HasConversion(
+                    email => email.Value,
+                    value => new Email(value))
+                .HasMaxLength(255)
+                .IsRequired();
             entity.Property(e => e.PasswordHash).HasMaxLength(255).IsRequired();
             entity.Property(e => e.FirstName).HasMaxLength(100).IsRequired();
             entity.Property(e => e.LastName).HasMaxLength(100).IsRequired();
@@ -121,7 +160,7 @@ public class ApplicationDbContext : DbContext
             entity.Property(e => e.AllowedVehicleTypes).HasMaxLength(500);
             entity.Property(e => e.ImageUrls).HasMaxLength(4000);
             entity.Property(e => e.SpecialInstructions).HasMaxLength(2000);
-            entity.Property(e => e.OwnershipType).HasConversion<int>().HasDefaultValue(ParkingSpaceOwnershipType.IndividualVendor);
+            entity.Property(e => e.OwnershipType).HasConversion<int>();
             entity.HasIndex(e => e.City);
             entity.HasIndex(e => e.ZoneCode);
             entity.HasIndex(e => e.CompanyOwnerId);
@@ -270,8 +309,21 @@ public class ApplicationDbContext : DbContext
         modelBuilder.Entity<Payment>(entity =>
         {
             entity.HasKey(e => e.Id);
-            entity.Property(e => e.Amount).HasPrecision(18, 2);
-            entity.Property(e => e.Currency).HasMaxLength(3);
+            // Money VO mapped onto existing Amount + Currency columns (no migration)
+            entity.OwnsOne(e => e.Charge, money =>
+            {
+                money.Property(m => m.Amount)
+                    .HasColumnName("Amount")
+                    .HasPrecision(18, 2)
+                    .IsRequired();
+                money.Property(m => m.Currency)
+                    .HasColumnName("Currency")
+                    .HasMaxLength(3)
+                    .IsRequired();
+            });
+            entity.Navigation(e => e.Charge).IsRequired();
+            entity.Ignore(e => e.Amount);
+            entity.Ignore(e => e.Currency);
             entity.Property(e => e.TransactionId).HasMaxLength(100);
             entity.Property(e => e.PaymentGatewayReference).HasMaxLength(200);
             entity.Property(e => e.PaymentGateway).HasMaxLength(50);
@@ -464,7 +516,9 @@ public class ApplicationDbContext : DbContext
         {
             entity.HasKey(e => e.Id);
             entity.Property(e => e.MonthlyRate).HasPrecision(18, 2);
-            entity.Property(e => e.SourceType).HasConversion<int>().HasDefaultValue(ParkingAllocationSource.VendorLease);
+            // Defaults live in the domain; avoid ValueGeneratedOnAdd (HasDefaultValue implies it),
+            // which confuses change tracking for client-set values on insert.
+            entity.Property(e => e.SourceType).HasConversion<int>();
             entity.Property(e => e.LeaseReference).HasMaxLength(100);
 
             // Owned: Quota
@@ -478,12 +532,12 @@ public class ApplicationDbContext : DbContext
             // Owned: BookingPolicy
             entity.OwnsOne(e => e.BookingPolicy, bp =>
             {
-                bp.Property(p => p.MaxBookingsPerEmployeePerDay).HasColumnName("MaxBookingsPerDay").HasDefaultValue(1);
-                bp.Property(p => p.MaxBookingsPerEmployeePerWeek).HasColumnName("MaxBookingsPerWeek").HasDefaultValue(5);
-                bp.Property(p => p.PriorityThreshold).HasColumnName("PriorityThreshold").HasDefaultValue(1);
+                bp.Property(p => p.MaxBookingsPerEmployeePerDay).HasColumnName("MaxBookingsPerDay");
+                bp.Property(p => p.MaxBookingsPerEmployeePerWeek).HasColumnName("MaxBookingsPerWeek");
+                bp.Property(p => p.PriorityThreshold).HasColumnName("PriorityThreshold");
                 bp.Property(p => p.AllowedStartTime).HasColumnName("AllowedStartTime");
                 bp.Property(p => p.AllowedEndTime).HasColumnName("AllowedEndTime");
-                bp.Property(p => p.AllowWeekends).HasColumnName("AllowWeekends").HasDefaultValue(false);
+                bp.Property(p => p.AllowWeekends).HasColumnName("AllowWeekends");
             });
 
             entity.Property(e => e.RejectionReason).HasMaxLength(500);

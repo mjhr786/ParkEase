@@ -1,5 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Text;
+using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Moq;
 using Moq.Protected;
@@ -20,18 +22,17 @@ public class OSRMServiceTests
     [Fact]
     public async Task GetBatchRoutingAsync_ReturnsCorrectDistanceAndDuration()
     {
-        // Arrange
         var handlerMock = new Mock<HttpMessageHandler>();
         var response = new
         {
             code = "Ok",
             distances = new[]
             {
-                new[] { 0.0, 1000.0, 5500.0 }
+                new double?[] { 1000.0, 5500.0 }
             },
             durations = new[]
             {
-                new[] { 0.0, 120.0, 600.0 }
+                new double?[] { 120.0, 600.0 }
             }
         };
 
@@ -40,68 +41,138 @@ public class OSRMServiceTests
            .Setup<Task<HttpResponseMessage>>(
               "SendAsync",
               ItExpr.IsAny<HttpRequestMessage>(),
-              ItExpr.IsAny<CancellationToken>()
-           )
+              ItExpr.IsAny<CancellationToken>())
            .ReturnsAsync(new HttpResponseMessage
            {
                StatusCode = HttpStatusCode.OK,
-               Content = JsonContent.Create(response)
+               Content = new StringContent(JsonSerializer.Serialize(response), Encoding.UTF8, "application/json")
            });
 
-        var httpClient = new HttpClient(handlerMock.Object);
+        var httpClient = new HttpClient(handlerMock.Object)
+        {
+            BaseAddress = new Uri("https://router.project-osrm.org/")
+        };
         var service = new OSRMService(httpClient, _loggerMock.Object);
 
-        var startLat = 12.9716;
-        var startLng = 77.5946;
         var destinations = new List<(double Lat, double Lng)>
         {
-            (12.9750, 77.5950), // ~1km
-            (13.0000, 77.6000)  // ~5.5km
+            (12.9750, 77.5950),
+            (13.0000, 77.6000)
         };
 
-        // Act
-        var results = await service.GetBatchRoutingAsync(startLat, startLng, destinations);
+        var results = await service.GetBatchRoutingAsync(12.9716, 77.5946, destinations);
 
-        // Assert
         Assert.Equal(2, results.Count);
-        
-        // Dest 1: 1000m -> 1.0km, 120s -> 2 mins
         Assert.Equal(1.0, results[0].Distance);
         Assert.Equal(2, results[0].Duration);
-
-        // Dest 2: 5500m -> 5.5km, 600s -> 10 mins
         Assert.Equal(5.5, results[1].Distance);
         Assert.Equal(10, results[1].Duration);
     }
 
     [Fact]
-    public async Task GetBatchRoutingAsync_OnApiError_ReturnsEmptyFallback()
+    public async Task GetBatchRoutingAsync_OnApiError_FallsBackToHaversine()
     {
-        // Arrange
         var handlerMock = new Mock<HttpMessageHandler>();
         handlerMock
            .Protected()
            .Setup<Task<HttpResponseMessage>>(
               "SendAsync",
               ItExpr.IsAny<HttpRequestMessage>(),
-              ItExpr.IsAny<CancellationToken>()
-           )
+              ItExpr.IsAny<CancellationToken>())
            .ReturnsAsync(new HttpResponseMessage
            {
-               StatusCode = HttpStatusCode.InternalServerError
+               StatusCode = HttpStatusCode.BadRequest,
+               Content = new StringContent("""{"message":"URL string malformed","code":"InvalidUrl"}""")
            });
 
-        var httpClient = new HttpClient(handlerMock.Object);
+        var httpClient = new HttpClient(handlerMock.Object)
+        {
+            BaseAddress = new Uri("https://router.project-osrm.org/")
+        };
         var service = new OSRMService(httpClient, _loggerMock.Object);
 
-        var destinations = new List<(double Lat, double Lng)> { (12.0, 77.0) };
+        var destinations = new List<(double Lat, double Lng)> { (12.9750, 77.5950) };
 
-        // Act
-        var results = await service.GetBatchRoutingAsync(0, 0, destinations);
+        var results = await service.GetBatchRoutingAsync(12.9716, 77.5946, destinations);
 
-        // Assert
         Assert.Single(results);
-        Assert.Equal(0.0, results[0].Distance);
-        Assert.Equal(0, results[0].Duration);
+        Assert.True(results[0].Distance > 0);
+        Assert.True(results[0].Duration > 0);
     }
+
+    [Fact]
+    public async Task GetBatchRoutingAsync_SkipsInvalidZeroCoordinates_DoesNotCallOsrm()
+    {
+        var handlerMock = new Mock<HttpMessageHandler>(MockBehavior.Strict);
+
+        var httpClient = new HttpClient(handlerMock.Object)
+        {
+            BaseAddress = new Uri("https://router.project-osrm.org/")
+        };
+        var service = new OSRMService(httpClient, _loggerMock.Object);
+
+        var destinations = new List<(double Lat, double Lng)>
+        {
+            (0, 0),
+            (0.0, 0.0)
+        };
+
+        var results = await service.GetBatchRoutingAsync(12.9716, 77.5946, destinations);
+
+        Assert.Equal(2, results.Count);
+        Assert.All(results, r =>
+        {
+            Assert.Equal(0.0, r.Distance);
+            Assert.Equal(0, r.Duration);
+        });
+        handlerMock.Protected().Verify(
+            "SendAsync",
+            Times.Never(),
+            ItExpr.IsAny<HttpRequestMessage>(),
+            ItExpr.IsAny<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task GetBatchRoutingAsync_FiltersInvalidDestinations_AndRoutesValidOnes()
+    {
+        var handlerMock = new Mock<HttpMessageHandler>();
+        var response = new
+        {
+            code = "Ok",
+            distances = new[] { new double?[] { 1000.0 } },
+            durations = new[] { new double?[] { 120.0 } }
+        };
+
+        handlerMock
+           .Protected()
+           .Setup<Task<HttpResponseMessage>>(
+              "SendAsync",
+              ItExpr.IsAny<HttpRequestMessage>(),
+              ItExpr.IsAny<CancellationToken>())
+           .ReturnsAsync(new HttpResponseMessage
+           {
+               StatusCode = HttpStatusCode.OK,
+               Content = new StringContent(JsonSerializer.Serialize(response), Encoding.UTF8, "application/json")
+           });
+
+        var httpClient = new HttpClient(handlerMock.Object)
+        {
+            BaseAddress = new Uri("https://router.project-osrm.org/")
+        };
+        var service = new OSRMService(httpClient, _loggerMock.Object);
+
+        var destinations = new List<(double Lat, double Lng)>
+        {
+            (0, 0),                 // invalid — must not be sent
+            (12.9750, 77.5950)      // valid
+        };
+
+        var results = await service.GetBatchRoutingAsync(12.9716, 77.5946, destinations);
+
+        Assert.Equal(2, results.Count);
+        Assert.Equal(0.0, results[0].Distance);
+        Assert.Equal(1.0, results[1].Distance);
+        Assert.Equal(2, results[1].Duration);
+    }
+
 }

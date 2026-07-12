@@ -24,7 +24,8 @@ public record Email
     }
 
     public static implicit operator string(Email email) => email.Value;
-    public static explicit operator Email(string value) => new(value);
+    /// <summary>Allows domain and tests to assign validated emails from strings.</summary>
+    public static implicit operator Email(string value) => new(value);
 
     public override string ToString() => Value;
 }

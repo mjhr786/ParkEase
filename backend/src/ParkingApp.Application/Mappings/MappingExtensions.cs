@@ -1,5 +1,9 @@
 using ParkingApp.Application.DTOs;
-using ParkingApp.Domain.Entities;
+using ParkingApp.Domain.Shared;
+using ParkingApp.Domain.Marketplace;
+using ParkingApp.Domain.Identity;
+using ParkingApp.Domain.Messaging;
+using ParkingApp.Domain.Corporate;
 using ParkingApp.Domain.Enums;
 
 namespace ParkingApp.Application.Mappings;
@@ -9,7 +13,7 @@ public static class MappingExtensions
     // User mappings
     public static UserDto ToDto(this User user) => new(
         user.Id,
-        user.Email,
+        user.Email?.Value ?? string.Empty,
         user.FirstName,
         user.LastName,
         user.PhoneNumber,
@@ -177,37 +181,60 @@ public static class MappingExtensions
         );
     }
 
-    public static ParkingSpace ToEntity(this CreateParkingSpaceDto dto, Guid ownerId) => new()
-    {
-        OwnerId = ownerId,
-        Title = dto.Title,
-        Description = dto.Description,
-        Address = dto.Address,
-        City = dto.City,
-        State = dto.State,
-        Country = dto.Country,
-        PostalCode = dto.PostalCode,
-        Latitude = dto.Latitude,
-        Longitude = dto.Longitude,
-        Location = new NetTopologySuite.Geometries.Point(dto.Longitude, dto.Latitude) { SRID = 4326 },
-        ParkingType = dto.ParkingType,
-        TotalSpots = dto.TotalSpots,
-        AvailableSpots = dto.TotalSpots,
-        HourlyRate = dto.HourlyRate,
-        DailyRate = dto.DailyRate,
-        WeeklyRate = dto.WeeklyRate,
-        MonthlyRate = dto.MonthlyRate,
-        OpenTime = dto.OpenTime ?? new TimeSpan(0, 0, 0),
-        CloseTime = dto.CloseTime ?? new TimeSpan(23, 59, 59),
-        Is24Hours = dto.Is24Hours,
-        Amenities = dto.Amenities != null ? string.Join(",", dto.Amenities) : null,
-        AllowedVehicleTypes = dto.AllowedVehicleTypes != null 
-            ? string.Join(",", dto.AllowedVehicleTypes.Select(v => v.ToString())) 
-            : null,
-        ImageUrls = dto.ImageUrls != null ? string.Join(",", dto.ImageUrls) : null,
-        SpecialInstructions = dto.SpecialInstructions,
-        ZoneCode = dto.ZoneCode?.Trim().ToUpperInvariant()
-    };
+    public static ParkingSpace ToEntity(this CreateParkingSpaceDto dto, Guid ownerId) =>
+        ParkingSpace.CreateForVendor(
+            ownerId,
+            dto.Title,
+            dto.Description,
+            dto.Address,
+            dto.City,
+            dto.State,
+            dto.Country,
+            dto.PostalCode,
+            dto.Latitude,
+            dto.Longitude,
+            dto.ParkingType,
+            dto.TotalSpots,
+            dto.HourlyRate,
+            dto.DailyRate,
+            dto.WeeklyRate,
+            dto.MonthlyRate,
+            dto.OpenTime,
+            dto.CloseTime,
+            dto.Is24Hours,
+            dto.Amenities,
+            dto.AllowedVehicleTypes?.Select(v => v.ToString()),
+            dto.ImageUrls,
+            dto.SpecialInstructions,
+            dto.ZoneCode);
+
+    public static ParkingSpace ToCompanyEntity(this CreateParkingSpaceDto dto, Guid adminUserId, Guid companyId) =>
+        ParkingSpace.CreateForCompany(
+            adminUserId,
+            companyId,
+            dto.Title,
+            dto.Description,
+            dto.Address,
+            dto.City,
+            dto.State,
+            dto.Country,
+            dto.PostalCode,
+            dto.Latitude,
+            dto.Longitude,
+            dto.ParkingType,
+            dto.TotalSpots,
+            dto.HourlyRate,
+            dto.DailyRate,
+            dto.WeeklyRate,
+            dto.MonthlyRate,
+            dto.OpenTime,
+            dto.CloseTime,
+            dto.Is24Hours,
+            dto.Amenities,
+            dto.AllowedVehicleTypes?.Select(v => v.ToString()),
+            dto.ImageUrls,
+            dto.SpecialInstructions,
+            dto.ZoneCode);
 
     // Booking mappings
     public static BookingDto ToDto(this Booking booking) => new(

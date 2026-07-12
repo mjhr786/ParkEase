@@ -1,10 +1,13 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using FluentAssertions;
 using Microsoft.Extensions.DependencyInjection;
 using Moq;
 using ParkingApp.Application.CQRS;
+using ParkingApp.Application.CQRS.Behaviors;
 using Xunit;
 
 namespace ParkingApp.UnitTests.CQRS;
@@ -49,6 +52,8 @@ public class DispatcherTests
     {
         var handler = new DummyCommandHandler();
         _mockServiceProvider.Setup(sp => sp.GetService(typeof(ICommandHandler<DummyCommand, int>))).Returns(handler);
+        _mockServiceProvider.Setup(sp => sp.GetService(typeof(IEnumerable<IDispatcherBehavior>)))
+            .Returns(Enumerable.Empty<IDispatcherBehavior>());
         var dispatcher = new Dispatcher(_mockServiceProvider.Object);
 
         var result = await dispatcher.SendAsync(new DummyCommand());
@@ -73,6 +78,8 @@ public class DispatcherTests
     {
         var handler = new DummyQueryHandler();
         _mockServiceProvider.Setup(sp => sp.GetService(typeof(IQueryHandler<DummyQuery, string>))).Returns(handler);
+        _mockServiceProvider.Setup(sp => sp.GetService(typeof(IEnumerable<IDispatcherBehavior>)))
+            .Returns(Enumerable.Empty<IDispatcherBehavior>());
         var dispatcher = new Dispatcher(_mockServiceProvider.Object);
 
         var result = await dispatcher.QueryAsync(new DummyQuery());

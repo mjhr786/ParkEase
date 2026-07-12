@@ -1,7 +1,7 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
+using ParkingApp.Application.Interfaces;
 using ParkingApp.Domain.Enums;
-using ParkingApp.Domain.Interfaces;
 using Stripe;
 
 namespace ParkingApp.Infrastructure.Services;

@@ -97,6 +97,48 @@ class ApiService {
     return response;
   }
 
+  /**
+   * Authenticated fetch that returns a Blob (file downloads / CSV export).
+   * @returns {{ blob: Blob, fileName: string|null }}
+   */
+  async requestBlob(endpoint, options = {}) {
+    const url = `${this.baseUrl}${endpoint}`;
+    const token = this.getToken();
+    const headers = { ...options.headers };
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    let response = await fetch(url, { ...options, headers });
+
+    if (response.status === 401) {
+      const refreshed = await this.refreshToken();
+      if (refreshed) {
+        headers['Authorization'] = `Bearer ${this.getToken()}`;
+        response = await fetch(url, { ...options, headers });
+      } else {
+        this.clearTokens();
+        window.location.href = '/login';
+        throw new Error('Unauthorized');
+      }
+    }
+
+    if (!response.ok) {
+      const contentType = response.headers.get('content-type') || '';
+      if (contentType.includes('application/json')) {
+        const data = await response.json();
+        throw new Error(data.message || `HTTP error! status: ${response.status}`);
+      }
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const disposition = response.headers.get('content-disposition') || '';
+    const match = /filename\*?=(?:UTF-8''|")?([^\";]+)/i.exec(disposition);
+    const fileName = match ? decodeURIComponent(match[1].replace(/"/g, '')) : null;
+    const blob = await response.blob();
+    return { blob, fileName };
+  }
+
   async refreshToken() {
     const refreshToken = localStorage.getItem('refreshToken');
     if (!refreshToken) return false;
@@ -321,14 +363,14 @@ class ApiService {
 
   // Booking endpoints
   async calculatePrice(data) {
-    return this.request('/v2/bookings/calculate-price', {
+    return this.request('/bookings/calculate-price', {
       method: 'POST',
       body: JSON.stringify(data),
     });
   }
 
   async createBooking(data) {
-    return this.request('/v2/bookings', {
+    return this.request('/bookings', {
       method: 'POST',
       body: JSON.stringify(data),
     });
@@ -336,15 +378,15 @@ class ApiService {
 
   async getMyBookings(params = {}) {
     const queryString = new URLSearchParams(params).toString();
-    return this.request(`/v2/bookings/my-bookings?${queryString}`);
+    return this.request(`/bookings/my-bookings?${queryString}`);
   }
 
   async getBookingById(id) {
-    return this.request(`/v2/bookings/${id}`);
+    return this.request(`/bookings/${id}`);
   }
 
   async cancelBooking(id, reason) {
-    return this.request(`/v2/bookings/${id}/cancel`, {
+    return this.request(`/bookings/${id}/cancel`, {
       method: 'POST',
       body: JSON.stringify({ reason }),
     });
@@ -352,7 +394,7 @@ class ApiService {
 
   // Request an extension (creates a pending extension request for vendor approval)
   async requestExtension(id, data) {
-    return this.request(`/v2/bookings/${id}/extend`, {
+    return this.request(`/bookings/${id}/extend`, {
       method: 'POST',
       body: JSON.stringify(data),
     });
@@ -365,43 +407,43 @@ class ApiService {
 
   // Vendor: approve a pending extension request
   async approveExtension(id) {
-    return this.request(`/v2/bookings/${id}/approve-extension`, { method: 'POST' });
+    return this.request(`/bookings/${id}/approve-extension`, { method: 'POST' });
   }
 
   // Vendor: reject a pending extension request
   async rejectExtension(id, reason) {
-    return this.request(`/v2/bookings/${id}/reject-extension`, {
+    return this.request(`/bookings/${id}/reject-extension`, {
       method: 'POST',
       body: JSON.stringify({ reason }),
     });
   }
 
   async checkIn(id) {
-    return this.request(`/v2/bookings/${id}/check-in`, { method: 'POST' });
+    return this.request(`/bookings/${id}/check-in`, { method: 'POST' });
   }
 
   async checkOut(id) {
-    return this.request(`/v2/bookings/${id}/check-out`, { method: 'POST' });
+    return this.request(`/bookings/${id}/check-out`, { method: 'POST' });
   }
 
   async getVendorBookings(params = {}) {
     const queryString = new URLSearchParams(params).toString();
-    return this.request(`/v2/bookings/vendor-bookings?${queryString}`);
+    return this.request(`/bookings/vendor-bookings?${queryString}`);
   }
 
   async approveBooking(id) {
-    return this.request(`/v2/bookings/${id}/approve`, { method: 'POST' });
+    return this.request(`/bookings/${id}/approve`, { method: 'POST' });
   }
 
   async rejectBooking(id, reason) {
-    return this.request(`/v2/bookings/${id}/reject`, {
+    return this.request(`/bookings/${id}/reject`, {
       method: 'POST',
       body: JSON.stringify({ reason }),
     });
   }
 
   async getPendingRequestsCount() {
-    return this.request('/v2/bookings/pending-count');
+    return this.request('/bookings/pending-count');
   }
 
   // Payment endpoints
@@ -509,6 +551,32 @@ class ApiService {
 
   async deleteVehicle(id) {
     return this.request(`/vehicles/${id}`, { method: 'DELETE' });
+  }
+
+  // Admin — transactional outbox
+  async getOutboxMessages({ status, type, page = 1, pageSize = 50 } = {}) {
+    const params = new URLSearchParams();
+    if (status !== undefined && status !== null && status !== '') params.set('status', status);
+    if (type) params.set('type', type);
+    params.set('page', String(page));
+    params.set('pageSize', String(pageSize));
+    return this.request(`/admin/outbox?${params.toString()}`);
+  }
+
+  async getOutboxMessage(id) {
+    return this.request(`/admin/outbox/${id}`);
+  }
+
+  async requeueOutboxMessage(id) {
+    return this.request(`/admin/outbox/${id}/requeue`, { method: 'POST' });
+  }
+
+  async requeueAllFailedOutbox() {
+    return this.request('/admin/outbox/requeue-failed', { method: 'POST' });
+  }
+
+  async processOutboxNow(batchSize = 50) {
+    return this.request(`/admin/outbox/process?batchSize=${batchSize}`, { method: 'POST' });
   }
 }
 

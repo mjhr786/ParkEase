@@ -1,7 +1,11 @@
 using Microsoft.Extensions.Logging;
 using ParkingApp.Application.DTOs;
 using ParkingApp.Application.Interfaces;
-using ParkingApp.Domain.Entities;
+using ParkingApp.Domain.Shared;
+using ParkingApp.Domain.Marketplace;
+using ParkingApp.Domain.Identity;
+using ParkingApp.Domain.Messaging;
+using ParkingApp.Domain.Corporate;
 using ParkingApp.Domain.Enums;
 using ParkingApp.Domain.Interfaces;
 
@@ -17,13 +21,13 @@ public class ParkingAvailabilityPredictionService : IParkingAvailabilityPredicti
     private static readonly TimeSpan SingleForecastCacheDuration = TimeSpan.FromMinutes(1);
     private static readonly TimeSpan OwnerForecastCacheDuration = TimeSpan.FromSeconds(30);
 
-    private readonly IUnitOfWork _unitOfWork;
+    private readonly IMarketplaceUnitOfWork _unitOfWork;
     private readonly ICacheService _cache;
     private readonly IParkingAvailabilityModelService _modelService;
     private readonly ILogger<ParkingAvailabilityPredictionService> _logger;
 
     public ParkingAvailabilityPredictionService(
-        IUnitOfWork unitOfWork,
+        IMarketplaceUnitOfWork unitOfWork,
         ICacheService cache,
         IParkingAvailabilityModelService modelService,
         ILogger<ParkingAvailabilityPredictionService> logger)

@@ -5,7 +5,11 @@ using Microsoft.Extensions.Logging;
 using ParkingApp.Application.CQRS.Commands.Payments;
 using ParkingApp.Application.DTOs;
 using ParkingApp.Application.Interfaces;
-using ParkingApp.Domain.Entities;
+using ParkingApp.Domain.Shared;
+using ParkingApp.Domain.Marketplace;
+using ParkingApp.Domain.Identity;
+using ParkingApp.Domain.Messaging;
+using ParkingApp.Domain.Corporate;
 using ParkingApp.Domain.Interfaces;
 using ParkingApp.Domain.Enums;
 
@@ -47,7 +51,7 @@ public class PaymentTests
     public async Task ProcessPaymentHandler_WhenBookingNotFound_ShouldReturnFailure()
     {
         // Arrange
-        var handler = new ProcessPaymentHandler(_mockUnitOfWork.Object, _mockPaymentService.Object, _mockNotificationService.Object, _mockEmailService.Object, _mockProcessLogger.Object);
+        var handler = new ProcessPaymentHandler(_mockUnitOfWork.Object, _mockUnitOfWork.Object, _mockPaymentService.Object, _mockNotificationService.Object, _mockEmailService.Object, _mockProcessLogger.Object);
         _mockBookingRepository.Setup(r => r.GetByIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>())).ReturnsAsync((Booking?)null);
 
         var dto = new CreatePaymentDto(Guid.NewGuid(), PaymentMethod.CreditCard);
@@ -64,7 +68,7 @@ public class PaymentTests
     public async Task ProcessPaymentHandler_WhenDirectPaymentSucceeds_ShouldUpdateStatus()
     {
         // Arrange
-        var handler = new ProcessPaymentHandler(_mockUnitOfWork.Object, _mockPaymentService.Object, _mockNotificationService.Object, _mockEmailService.Object, _mockProcessLogger.Object);
+        var handler = new ProcessPaymentHandler(_mockUnitOfWork.Object, _mockUnitOfWork.Object, _mockPaymentService.Object, _mockNotificationService.Object, _mockEmailService.Object, _mockProcessLogger.Object);
         var userId = Guid.NewGuid();
         var booking = new Booking 
         { 
@@ -103,7 +107,7 @@ public class PaymentTests
     public async Task VerifyPaymentHandler_WithValidSignature_ShouldConfirmBooking()
     {
         // Arrange
-        var handler = new VerifyPaymentHandler(_mockUnitOfWork.Object, _mockPaymentService.Object, _mockNotificationService.Object, _mockEmailService.Object, _mockVerifyLogger.Object);
+        var handler = new VerifyPaymentHandler(_mockUnitOfWork.Object, _mockUnitOfWork.Object, _mockPaymentService.Object, _mockNotificationService.Object, _mockEmailService.Object, _mockVerifyLogger.Object);
         var userId = Guid.NewGuid();
         var booking = new Booking { Id = Guid.NewGuid(), UserId = userId, Status = BookingStatus.AwaitingPayment };
         

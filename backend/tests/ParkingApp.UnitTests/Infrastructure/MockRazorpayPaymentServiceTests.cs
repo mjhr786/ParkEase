@@ -1,6 +1,6 @@
 using FluentAssertions;
+using ParkingApp.Application.Interfaces;
 using ParkingApp.Domain.Enums;
-using ParkingApp.Domain.Interfaces;
 using ParkingApp.Infrastructure.Services;
 using System.Threading;
 using System.Threading.Tasks;

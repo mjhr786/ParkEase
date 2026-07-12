@@ -5,7 +5,11 @@ using Microsoft.Extensions.Logging;
 using ParkingApp.Application.CQRS.Commands.Parking;
 using ParkingApp.Application.DTOs;
 using ParkingApp.Application.Interfaces;
-using ParkingApp.Domain.Entities;
+using ParkingApp.Domain.Shared;
+using ParkingApp.Domain.Marketplace;
+using ParkingApp.Domain.Identity;
+using ParkingApp.Domain.Messaging;
+using ParkingApp.Domain.Corporate;
 using ParkingApp.Domain.Interfaces;
 using ParkingApp.Domain.Enums;
 using ParkingApp.Domain.Events.Parking;
@@ -49,7 +53,7 @@ public class ParkingTests
     public async Task CreateParkingHandler_WhenOwnerIsVendor_ShouldSucceed()
     {
         // Arrange
-        var handler = new CreateParkingHandler(_mockUnitOfWork.Object, _mockCache.Object, _mockCreateLogger.Object);
+        var handler = new CreateParkingHandler(_mockUnitOfWork.Object, _mockUnitOfWork.Object, _mockCreateLogger.Object);
         var ownerId = Guid.NewGuid();
         var owner = new User { Id = ownerId, Role = UserRole.User, Email = "vendor@test.com", FirstName = "Vendor" };
         
@@ -75,7 +79,7 @@ public class ParkingTests
     public async Task UpdateParkingHandler_WhenUnauthorized_ShouldReturnFailure()
     {
         // Arrange
-        var handler = new UpdateParkingHandler(_mockUnitOfWork.Object, _mockCache.Object, _mockUpdateLogger.Object);
+        var handler = new UpdateParkingHandler(_mockUnitOfWork.Object, _mockUpdateLogger.Object);
         var parkingId = Guid.NewGuid();
         var ownerId = Guid.NewGuid();
         var otherUserId = Guid.NewGuid();
@@ -96,16 +100,16 @@ public class ParkingTests
     }
 
     [Fact]
-    public async Task DeleteParkingHandler_WhenSuccessful_ShouldRemoveAndInvalidateCache()
+    public async Task DeleteParkingHandler_WhenSuccessful_ShouldRemoveAndRaiseDomainEvent()
     {
         // Arrange
-        var handler = new DeleteParkingHandler(_mockUnitOfWork.Object, _mockCache.Object, _mockDeleteLogger.Object);
+        var handler = new DeleteParkingHandler(_mockUnitOfWork.Object, _mockDeleteLogger.Object);
         var parkingId = Guid.NewGuid();
         var ownerId = Guid.NewGuid();
         var parking = new ParkingSpace { Id = parkingId, OwnerId = ownerId };
         
         _mockParkingRepository.Setup(r => r.GetByIdAsync(parkingId, It.IsAny<CancellationToken>())).ReturnsAsync(parking);
-        _mockBookingRepository.Setup(r => r.AnyAsync(It.IsAny<System.Linq.Expressions.Expression<System.Func<Booking, bool>>>(), It.IsAny<CancellationToken>()))
+        _mockBookingRepository.Setup(r => r.HasBlockingBookingsForSpaceAsync(parkingId, It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(false); // No bookings
 
         // Act
@@ -113,15 +117,18 @@ public class ParkingTests
 
         // Assert
         result.Success.Should().BeTrue();
-        _mockParkingRepository.Verify(r => r.Remove(parking), Times.Once);
-        _mockCache.Verify(c => c.RemoveByPatternAsync("search:*", It.IsAny<CancellationToken>()), Times.Once);
+        _mockParkingRepository.Verify(r => r.Update(parking), Times.Once);
+        // Cache invalidation is handled by ParkingSpaceDeletedCacheHandler after SaveChanges
+        parking.IsDeleted.Should().BeTrue();
+        parking.IsActive.Should().BeFalse();
+        parking.DomainEvents.Should().ContainSingle(e => e is ParkingApp.Domain.Events.Parking.ParkingSpaceDeletedEvent);
     }
 
     [Fact]
     public async Task ToggleActiveHandler_WhenParkingNotFound_ShouldReturnFailure()
     {
         // Arrange
-        var handler = new ToggleActiveParkingHandler(_mockUnitOfWork.Object, _mockCache.Object, _mockToggleLogger.Object);
+        var handler = new ToggleActiveParkingHandler(_mockUnitOfWork.Object, _mockToggleLogger.Object);
         _mockParkingRepository.Setup(r => r.GetByIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>())).ReturnsAsync((ParkingSpace?)null);
 
         // Act

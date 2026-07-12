@@ -4,12 +4,28 @@ import { useAuth } from '../contexts/AuthContext';
 import api from '../services/api';
 import LocationMap from '../components/LocationMap';
 import BookedSlots from '../components/BookedSlots';
+import NearMeRadiusPicker, {
+    DEFAULT_NEAR_ME_RADIUS_KM,
+    NEAR_ME_RADIUS_OPTIONS_KM,
+} from '../components/NearMeRadiusPicker';
 import INDIAN_STATES_CITIES, { STATES } from '../utils/indianStatesCities';
 import toast from 'react-hot-toast';
 
 const PARKING_TYPES = ['Open', 'Covered', 'Garage', 'Street', 'Underground'];
 const VEHICLE_TYPES = ['Car', 'Motorcycle', 'SUV', 'Truck', 'Van', 'Electric'];
 import { API_BASE_URL } from '../config';
+
+function parseRadiusFromParams(searchParams) {
+    const raw = searchParams.get('radius') ?? searchParams.get('radiusKm');
+    if (raw == null || raw === '') {
+        return searchParams.get('lat') ? DEFAULT_NEAR_ME_RADIUS_KM : '';
+    }
+    const parsed = Number(raw);
+    if (!Number.isFinite(parsed) || parsed <= 0) {
+        return DEFAULT_NEAR_ME_RADIUS_KM;
+    }
+    return parsed;
+}
 
 export default function Search() {
     const [searchParams] = useSearchParams();
@@ -21,12 +37,17 @@ export default function Search() {
     const [hoveredId, setHoveredId] = useState(null);
     const [favorites, setFavorites] = useState([]);
     const [favoritesLoading, setFavoritesLoading] = useState(false);
+    const [nearMeOpen, setNearMeOpen] = useState(false);
+    const [nearMeRadiusKm, setNearMeRadiusKm] = useState(
+        () => Number(parseRadiusFromParams(searchParams)) || DEFAULT_NEAR_ME_RADIUS_KM
+    );
+    const [locating, setLocating] = useState(false);
     const [filters, setFilters] = useState({
         state: '',
         city: searchParams.get('city') || '',
         latitude: searchParams.get('lat') || '',
         longitude: searchParams.get('lng') || '',
-        radiusKm: searchParams.get('lat') ? 5 : '',
+        radiusKm: parseRadiusFromParams(searchParams),
         address: '',
         minPrice: '',
         maxPrice: '',
@@ -34,7 +55,7 @@ export default function Search() {
         vehicleType: '',
         minRating: '',
         amenities: [], // Added array for amenities
-        sortBy: 'distance', // Default to distance if location available
+        sortBy: searchParams.get('lat') ? 'distance' : '', // Prefer nearest when location provided
         sortDescending: false,
         page: 1,
         pageSize: 12,
@@ -157,18 +178,33 @@ export default function Search() {
             toast.error("Geolocation is not supported by your browser");
             return;
         }
+        setNearMeRadiusKm(Number(filters.radiusKm) || DEFAULT_NEAR_ME_RADIUS_KM);
+        setNearMeOpen(true);
+    };
 
+    const confirmNearMe = () => {
+        if (!navigator.geolocation) {
+            toast.error("Geolocation is not supported by your browser");
+            return;
+        }
+
+        setLocating(true);
         const toastId = toast.loading("Getting your location...");
+        const radius = Number(nearMeRadiusKm) || DEFAULT_NEAR_ME_RADIUS_KM;
+
         navigator.geolocation.getCurrentPosition(
             (position) => {
                 toast.dismiss(toastId);
-                toast.success("Location found!");
+                toast.success(`Searching within ${radius} km of your location`);
+                setLocating(false);
+                setNearMeOpen(false);
                 const newFilters = {
                     ...filters,
                     latitude: position.coords.latitude,
                     longitude: position.coords.longitude,
-                    radiusKm: 5,
+                    radiusKm: radius,
                     page: 1,
+                    sortBy: filters.sortBy || 'distance',
                     city: '', // Clear city/state if using exact coordinates
                     state: '',
                     address: ''
@@ -178,6 +214,7 @@ export default function Search() {
             },
             (error) => {
                 toast.dismiss(toastId);
+                setLocating(false);
                 let errorMessage = "Unable to retrieve your location";
                 if (error.code === 1) errorMessage = "Location access denied. Please allow location access in your browser.";
                 toast.error(errorMessage);
@@ -236,6 +273,36 @@ export default function Search() {
                                     value={filters.address}
                                     onChange={(e) => handleFilterChange('address', e.target.value)}
                                 />
+                            </div>
+
+                            <div className="form-group" style={{ margin: 0 }}>
+                                <label className="form-label">
+                                    Radius (km)
+                                    {filters.latitude && filters.longitude ? (
+                                        <span style={{ color: 'var(--color-text-muted)', fontWeight: 400 }}> · Near Me</span>
+                                    ) : null}
+                                </label>
+                                <select
+                                    className="form-select"
+                                    value={filters.radiusKm === '' ? '' : Number(filters.radiusKm)}
+                                    onChange={(e) => {
+                                        const value = e.target.value === '' ? '' : Number(e.target.value);
+                                        handleFilterChange('radiusKm', value);
+                                    }}
+                                    disabled={!filters.latitude || !filters.longitude}
+                                    title={
+                                        filters.latitude && filters.longitude
+                                            ? 'Distance from your location'
+                                            : 'Use Near Me first to search by radius'
+                                    }
+                                >
+                                    <option value="">
+                                        {filters.latitude && filters.longitude ? 'Select radius' : 'Use Near Me'}
+                                    </option>
+                                    {NEAR_ME_RADIUS_OPTIONS_KM.map((km) => (
+                                        <option key={km} value={km}>{km} km</option>
+                                    ))}
+                                </select>
                             </div>
 
                             <div className="form-group" style={{ margin: 0 }}>
@@ -354,7 +421,7 @@ export default function Search() {
 
                         <div className="flex gap-2 mt-2">
                             <div className="form-group" style={{ margin: 0, alignSelf: 'flex-end', display: 'flex', gap: '0.5rem' }}>
-                                <button type="button" className="btn btn-secondary" onClick={handleNearMeClick} style={{ flex: '1 0 auto', padding: '0.875rem 0.5rem', whiteSpace: 'nowrap' }} title="Use my current location">
+                                <button type="button" className="btn btn-secondary" onClick={handleNearMeClick} style={{ flex: '1 0 auto', padding: '0.875rem 0.5rem', whiteSpace: 'nowrap' }} title="Search parking near your location">
                                     📍 Near Me
                                 </button>
                                 <button type="submit" className="btn btn-primary" style={{ flex: '2 1 auto' }}>
@@ -364,6 +431,15 @@ export default function Search() {
                         </div>
                     </form>
                 </div>
+
+                <NearMeRadiusPicker
+                    open={nearMeOpen}
+                    radiusKm={nearMeRadiusKm}
+                    onRadiusChange={setNearMeRadiusKm}
+                    onConfirm={confirmNearMe}
+                    onCancel={() => !locating && setNearMeOpen(false)}
+                    loading={locating}
+                />
 
                 {/* Split View: Cards + Map */}
                 <div className="search-split">

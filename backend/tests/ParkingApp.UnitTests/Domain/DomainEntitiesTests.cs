@@ -1,6 +1,10 @@
 using FluentAssertions;
 using Xunit;
-using ParkingApp.Domain.Entities;
+using ParkingApp.Domain.Shared;
+using ParkingApp.Domain.Marketplace;
+using ParkingApp.Domain.Identity;
+using ParkingApp.Domain.Messaging;
+using ParkingApp.Domain.Corporate;
 using ParkingApp.Domain.Enums;
 using ParkingApp.Domain.ValueObjects;
 using ParkingApp.Domain.Models;
@@ -14,13 +18,17 @@ public class DomainEntitiesTests
     [Fact]
     public void AllEntities_ShouldGetAndSetProperties_UsingReflection()
     {
+        // Only BaseEntity subclasses (aggregates/entities), not VO records in context namespaces
         var entityTypes = typeof(BaseEntity).Assembly.GetTypes()
-            .Where(t => t.IsClass && !t.IsAbstract && t.Namespace == "ParkingApp.Domain.Entities");
+            .Where(t => t.IsClass
+                && !t.IsAbstract
+                && !t.IsGenericTypeDefinition
+                && typeof(BaseEntity).IsAssignableFrom(t));
 
         foreach (var type in entityTypes)
         {
-            var instance = Activator.CreateInstance(type);
-            instance.Should().NotBeNull();
+            var instance = Activator.CreateInstance(type, nonPublic: true);
+            instance.Should().NotBeNull($"expected parameterless/internal ctor for entity {type.Name}");
             
             foreach (var prop in type.GetProperties())
             {
@@ -50,7 +58,7 @@ public class DomainEntitiesTests
     {
         var booking = new Booking { Status = BookingStatus.Confirmed };
         var act = () => booking.AwaitPayment();
-        act.Should().Throw<InvalidOperationException>();
+        act.Should().Throw<ParkingApp.BuildingBlocks.Exceptions.BusinessRuleException>();
     }
 
     [Fact]
@@ -68,7 +76,7 @@ public class DomainEntitiesTests
     {
         var booking = new Booking { Status = BookingStatus.Confirmed };
         var act = () => booking.Reject("Reason");
-        act.Should().Throw<InvalidOperationException>();
+        act.Should().Throw<ParkingApp.BuildingBlocks.Exceptions.BusinessRuleException>();
     }
 
     [Fact]
@@ -85,7 +93,7 @@ public class DomainEntitiesTests
     {
         var booking = new Booking { Status = BookingStatus.Confirmed };
         var act = () => booking.CheckOut();
-        act.Should().Throw<InvalidOperationException>();
+        act.Should().Throw<ParkingApp.BuildingBlocks.Exceptions.BusinessRuleException>();
     }
 
     [Fact]
@@ -105,11 +113,11 @@ public class DomainEntitiesTests
     {
         var bookingCompleted = new Booking { Status = BookingStatus.Completed };
         var act1 = () => bookingCompleted.Cancel("Reason");
-        act1.Should().Throw<InvalidOperationException>();
+        act1.Should().Throw<ParkingApp.BuildingBlocks.Exceptions.BusinessRuleException>();
 
         var bookingCancelled = new Booking { Status = BookingStatus.Cancelled };
         var act2 = () => bookingCancelled.Cancel("Reason");
-        act2.Should().Throw<InvalidOperationException>();
+        act2.Should().Throw<ParkingApp.BuildingBlocks.Exceptions.BusinessRuleException>();
     }
 
     [Fact]
@@ -122,7 +130,7 @@ public class DomainEntitiesTests
         };
         availability.ParkingSpaceId.Should().NotBeEmpty();
 
-        var paymentRequest = new ParkingApp.Domain.Interfaces.PaymentRequest 
+        var paymentRequest = new ParkingApp.Application.Interfaces.PaymentRequest 
         { 
             BookingId = Guid.NewGuid(), UserId = Guid.NewGuid(), Amount = 10, Currency = "USD", 
             PaymentMethod = PaymentMethod.CreditCard, Description = "desc", 
@@ -131,16 +139,16 @@ public class DomainEntitiesTests
         paymentRequest.Amount.Should().Be(10);
         paymentRequest.Metadata["key"].Should().Be("val");
         
-        var paymentResult = new ParkingApp.Domain.Interfaces.PaymentResult
+        var paymentResult = new ParkingApp.Application.Interfaces.PaymentResult
         {
             Success = true, TransactionId = "123", PaymentGatewayReference = "resp", Status = PaymentStatus.Pending, ErrorMessage = "err", ReceiptUrl = "url"
         };
         paymentResult.Success.Should().BeTrue();
 
-        var refundReq = new ParkingApp.Domain.Interfaces.RefundRequest { PaymentId = Guid.NewGuid(), Amount = 10, Reason = "reason" };
+        var refundReq = new ParkingApp.Application.Interfaces.RefundRequest { PaymentId = Guid.NewGuid(), Amount = 10, Reason = "reason" };
         refundReq.Amount.Should().Be(10);
         
-        var refundRes = new ParkingApp.Domain.Interfaces.RefundResult { Success = true, RefundTransactionId = "rtx", RefundedAmount = 10, ErrorMessage = "err" };
+        var refundRes = new ParkingApp.Application.Interfaces.RefundResult { Success = true, RefundTransactionId = "rtx", RefundedAmount = 10, ErrorMessage = "err" };
         refundRes.Success.Should().BeTrue();
 
         var payment = new Payment { BookingId = Guid.NewGuid(), UserId = Guid.NewGuid(), Amount = 10, Currency = "USD", 

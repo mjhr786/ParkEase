@@ -1,7 +1,11 @@
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using NetTopologySuite.Geometries;
-using ParkingApp.Domain.Entities;
+using ParkingApp.Domain.Shared;
+using ParkingApp.Domain.Marketplace;
+using ParkingApp.Domain.Identity;
+using ParkingApp.Domain.Messaging;
+using ParkingApp.Domain.Corporate;
 using ParkingApp.Infrastructure.Data;
 using ParkingApp.Infrastructure.Repositories;
 using Xunit;
@@ -67,5 +71,31 @@ public class ParkingSpaceRepositoryTests
         var result = await _repository.GetMapCoordinatesAsync();
         result.Should().HaveCount(1);
         result.First().Latitude.Should().Be(10);
+    }
+
+    [Fact]
+    public async Task ExistsWithZoneCodeAsync_MatchesExactZone()
+    {
+        var owner = new User { Id = Guid.NewGuid(), Email = "o@t.com", PasswordHash = "h", FirstName = "F", LastName = "L", PhoneNumber = "P" };
+        var space = new ParkingSpace
+        {
+            Id = Guid.NewGuid(),
+            Title = "Space",
+            Description = "D",
+            Address = "A",
+            City = "C",
+            State = "S",
+            Country = "Cu",
+            PostalCode = "P",
+            OwnerId = owner.Id,
+            ZoneCode = "ZONE-A"
+        };
+        _context.Users.Add(owner);
+        _context.ParkingSpaces.Add(space);
+        await _context.SaveChangesAsync();
+
+        (await _repository.ExistsWithZoneCodeAsync("ZONE-A")).Should().BeTrue();
+        (await _repository.ExistsWithZoneCodeAsync("ZONE-B")).Should().BeFalse();
+        (await _repository.ExistsWithZoneCodeAsync("")).Should().BeFalse();
     }
 }

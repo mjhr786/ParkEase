@@ -9,7 +9,7 @@ const AcceptInvitation = () => {
     const { token } = useParams();
     const navigate = useNavigate();
     const { isAuthenticated } = useAuth();
-    const { loadCompanies } = useCompany();
+    const { switchCompany } = useCompany();
     
     const [status, setStatus] = useState('processing'); // processing, success, error
     const [errorMessage, setErrorMessage] = useState('');
@@ -17,7 +17,7 @@ const AcceptInvitation = () => {
     useEffect(() => {
         if (!isAuthenticated) {
             toast.error('Please login to accept the invitation.');
-            navigate('/login');
+            navigate(`/login?returnUrl=${encodeURIComponent(`/invite/accept/${token || ''}`)}`);
             return;
         }
 
@@ -26,9 +26,13 @@ const AcceptInvitation = () => {
                 const response = await corporateService.acceptInvitation(token);
                 if (response.success) {
                     setStatus('success');
-                    toast.success('Waitlist/Invitation accepted successfully! You are now part of the company.');
-                    await loadCompanies(); // Refresh the company switcher list
-                    setTimeout(() => navigate('/dashboard'), 3000);
+                    toast.success('Invitation accepted! You are now part of the company.');
+                    // Switch into the new company if the API returns membership/company context
+                    const companyId = response.data?.companyId;
+                    if (companyId && switchCompany) {
+                        switchCompany(companyId);
+                    }
+                    setTimeout(() => navigate(companyId ? '/corporate/dashboard' : '/dashboard'), 2500);
                 } else {
                     setStatus('error');
                     setErrorMessage(response.message || 'The invitation link is invalid or has expired.');
@@ -64,7 +68,7 @@ const AcceptInvitation = () => {
                         <div style={{ fontSize: '4rem', marginBottom: '1rem' }}>🎉</div>
                         <h2 style={{ color: '#10b981', marginBottom: '1rem' }}>Welcome Aboard!</h2>
                         <p style={{ color: '#cbd5e1', marginBottom: '2rem' }}>
-                            Your corporate invitation has been accepted. You can now switch to the Corporate Mode from the header dropdown to access enterprise parking benefits.
+                            Your corporate invitation has been accepted. You will be taken to the corporate dashboard shortly.
                         </p>
                         <p style={{ color: '#64748b', fontSize: '0.85rem' }}>Redirecting to dashboard...</p>
                     </>

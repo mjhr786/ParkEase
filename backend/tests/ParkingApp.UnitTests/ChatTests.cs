@@ -6,7 +6,11 @@ using ParkingApp.Application.CQRS.Commands.Chat;
 using ParkingApp.Application.CQRS.Queries.Chat;
 using ParkingApp.Application.DTOs;
 using ParkingApp.Application.Interfaces;
-using ParkingApp.Domain.Entities;
+using ParkingApp.Domain.Shared;
+using ParkingApp.Domain.Marketplace;
+using ParkingApp.Domain.Identity;
+using ParkingApp.Domain.Messaging;
+using ParkingApp.Domain.Corporate;
 using ParkingApp.Domain.Interfaces;
 using System.Linq.Expressions;
 
@@ -43,7 +47,7 @@ public class ChatTests
     [Fact]
     public async Task SendMessage_WhenContentEmpty_ShouldReturnFailure()
     {
-        var handler = new SendMessageHandler(_mockUnitOfWork.Object, _mockLogger.Object, _mockPushService.Object);
+        var handler = new SendMessageHandler(_mockUnitOfWork.Object, _mockUnitOfWork.Object, _mockUnitOfWork.Object, _mockLogger.Object, _mockPushService.Object);
         var dto = new SendMessageDto(Guid.NewGuid(), "   ");
         var result = await handler.HandleAsync(new SendMessageCommand(Guid.NewGuid(), dto));
 
@@ -54,7 +58,7 @@ public class ChatTests
     [Fact]
     public async Task SendMessage_WhenContentTooLong_ShouldReturnFailure()
     {
-        var handler = new SendMessageHandler(_mockUnitOfWork.Object, _mockLogger.Object, _mockPushService.Object);
+        var handler = new SendMessageHandler(_mockUnitOfWork.Object, _mockUnitOfWork.Object, _mockUnitOfWork.Object, _mockLogger.Object, _mockPushService.Object);
         var dto = new SendMessageDto(Guid.NewGuid(), new string('x', 2001));
         var result = await handler.HandleAsync(new SendMessageCommand(Guid.NewGuid(), dto));
 
@@ -65,7 +69,7 @@ public class ChatTests
     [Fact]
     public async Task SendMessage_WhenParkingNotFound_ShouldReturnFailure()
     {
-        var handler = new SendMessageHandler(_mockUnitOfWork.Object, _mockLogger.Object, _mockPushService.Object);
+        var handler = new SendMessageHandler(_mockUnitOfWork.Object, _mockUnitOfWork.Object, _mockUnitOfWork.Object, _mockLogger.Object, _mockPushService.Object);
         _mockParkingRepo.Setup(r => r.GetByIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((ParkingSpace?)null);
 
@@ -79,7 +83,7 @@ public class ChatTests
     [Fact]
     public async Task SendMessage_WhenSenderIsOwner_ShouldReturnFailure()
     {
-        var handler = new SendMessageHandler(_mockUnitOfWork.Object, _mockLogger.Object, _mockPushService.Object);
+        var handler = new SendMessageHandler(_mockUnitOfWork.Object, _mockUnitOfWork.Object, _mockUnitOfWork.Object, _mockLogger.Object, _mockPushService.Object);
         var userId = Guid.NewGuid();
         var parkingId = Guid.NewGuid();
         var parking = new ParkingSpace { Id = parkingId, OwnerId = userId };
@@ -97,7 +101,7 @@ public class ChatTests
     [Fact]
     public async Task SendMessage_WhenValid_ShouldCreateConversationAndMessage()
     {
-        var handler = new SendMessageHandler(_mockUnitOfWork.Object, _mockLogger.Object, _mockPushService.Object);
+        var handler = new SendMessageHandler(_mockUnitOfWork.Object, _mockUnitOfWork.Object, _mockUnitOfWork.Object, _mockLogger.Object, _mockPushService.Object);
         var senderId = Guid.NewGuid();
         var ownerId = Guid.NewGuid();
         var parkingId = Guid.NewGuid();
@@ -130,7 +134,7 @@ public class ChatTests
     [Fact]
     public async Task SendMessage_WhenConversationExists_ShouldReuseIt()
     {
-        var handler = new SendMessageHandler(_mockUnitOfWork.Object, _mockLogger.Object, _mockPushService.Object);
+        var handler = new SendMessageHandler(_mockUnitOfWork.Object, _mockUnitOfWork.Object, _mockUnitOfWork.Object, _mockLogger.Object, _mockPushService.Object);
         var senderId = Guid.NewGuid();
         var ownerId = Guid.NewGuid();
         var parkingId = Guid.NewGuid();

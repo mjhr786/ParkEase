@@ -1,6 +1,10 @@
 using FluentAssertions;
-using ParkingApp.Domain.Entities;
-using ParkingApp.Domain.Entities.Corporate;
+using ParkingApp.Domain.Shared;
+using ParkingApp.Domain.Marketplace;
+using ParkingApp.Domain.Identity;
+using ParkingApp.Domain.Messaging;
+using ParkingApp.Domain.Corporate;
+using ParkingApp.Domain.Corporate;
 using ParkingApp.Domain.Enums;
 using ParkingApp.Domain.ValueObjects;
 
@@ -429,6 +433,173 @@ public class CompanyAggregateTests
     }
 
     [Fact]
+    public void CreateOwnedParkingAllocation_ShouldRejectOverlappingPeriodForSameParkingSpace()
+    {
+        var creatorId = Guid.NewGuid();
+        var parkingSpaceId = Guid.NewGuid();
+        var company = CreateCompany(creatorId);
+
+        company.CreateOwnedParkingAllocation(
+            creatorId,
+            parkingSpaceId,
+            Quota.Create(10, 0, 10),
+            500m,
+            Utc(2026, 7, 12, 0, 0),
+            Utc(2027, 7, 12, 0, 0),
+            parkingCapacity: 100,
+            BookingPolicy.Default());
+
+        var act = () => company.CreateOwnedParkingAllocation(
+            creatorId,
+            parkingSpaceId,
+            Quota.Create(10, 2, 8),
+            500m,
+            Utc(2026, 7, 12, 0, 0),
+            Utc(2027, 7, 12, 0, 0),
+            parkingCapacity: 100,
+            BookingPolicy.Default());
+
+        act.Should()
+            .Throw<InvalidOperationException>()
+            .WithMessage("*already allocated for an overlapping contract period*");
+    }
+
+    [Fact]
+    public void CreateOwnedParkingAllocation_ShouldAllowNonOverlappingPeriodForSameParkingSpace()
+    {
+        var creatorId = Guid.NewGuid();
+        var parkingSpaceId = Guid.NewGuid();
+        var company = CreateCompany(creatorId);
+
+        company.CreateOwnedParkingAllocation(
+            creatorId,
+            parkingSpaceId,
+            Quota.Create(10, 0, 10),
+            500m,
+            Utc(2026, 1, 1, 0, 0),
+            Utc(2026, 6, 30, 0, 0),
+            parkingCapacity: 100,
+            BookingPolicy.Default());
+
+        var second = company.CreateOwnedParkingAllocation(
+            creatorId,
+            parkingSpaceId,
+            Quota.Create(10, 0, 10),
+            500m,
+            Utc(2026, 7, 1, 0, 0),
+            Utc(2026, 12, 31, 0, 0),
+            parkingCapacity: 100,
+            BookingPolicy.Default());
+
+        second.Status.Should().Be(AllocationStatus.Active);
+        company.Allocations.Count(a => a.ParkingSpaceId == parkingSpaceId && !a.IsDeleted).Should().Be(2);
+    }
+
+    [Fact]
+    public void RequestAllocation_ShouldRejectOverlappingPeriodForSameParkingSpace()
+    {
+        var creatorId = Guid.NewGuid();
+        var parkingSpaceId = Guid.NewGuid();
+        var company = CreateCompany(creatorId);
+
+        company.RequestAllocation(
+            creatorId,
+            parkingSpaceId,
+            Quota.Create(4, 1, 3),
+            800m,
+            Utc(2026, 1, 1, 0, 0),
+            Utc(2026, 12, 31, 0, 0),
+            parkingCapacity: 20,
+            BookingPolicy.Default());
+
+        var act = () => company.RequestAllocation(
+            creatorId,
+            parkingSpaceId,
+            Quota.Create(2, 0, 2),
+            900m,
+            Utc(2026, 6, 1, 0, 0),
+            Utc(2027, 1, 1, 0, 0),
+            parkingCapacity: 20,
+            BookingPolicy.Default());
+
+        act.Should()
+            .Throw<InvalidOperationException>()
+            .WithMessage("*already allocated for an overlapping contract period*");
+    }
+
+    [Fact]
+    public void UpdateAllocationContract_ShouldRejectOverlapWithAnotherAllocation()
+    {
+        var creatorId = Guid.NewGuid();
+        var parkingSpaceId = Guid.NewGuid();
+        var company = CreateCompany(creatorId);
+
+        var first = company.CreateOwnedParkingAllocation(
+            creatorId,
+            parkingSpaceId,
+            Quota.Create(10, 0, 10),
+            500m,
+            Utc(2026, 1, 1, 0, 0),
+            Utc(2026, 6, 30, 0, 0),
+            parkingCapacity: 100,
+            BookingPolicy.Default());
+
+        var second = company.CreateOwnedParkingAllocation(
+            creatorId,
+            parkingSpaceId,
+            Quota.Create(10, 0, 10),
+            500m,
+            Utc(2026, 7, 1, 0, 0),
+            Utc(2026, 12, 31, 0, 0),
+            parkingCapacity: 100,
+            BookingPolicy.Default());
+
+        var act = () => company.UpdateAllocationContract(
+            creatorId,
+            second.Id,
+            monthlyRate: 500m,
+            startDate: Utc(2026, 5, 1, 0, 0),
+            endDate: Utc(2026, 12, 31, 0, 0),
+            leaseReference: null);
+
+        act.Should()
+            .Throw<InvalidOperationException>()
+            .WithMessage("*already allocated for an overlapping contract period*");
+        first.EndDate.Should().Be(Utc(2026, 6, 30, 0, 0));
+    }
+
+    [Fact]
+    public void CreateOwnedParkingAllocation_ShouldAllowReuseAfterRejection()
+    {
+        var creatorId = Guid.NewGuid();
+        var parkingSpaceId = Guid.NewGuid();
+        var company = CreateCompany(creatorId);
+
+        var pending = company.RequestAllocation(
+            creatorId,
+            parkingSpaceId,
+            Quota.Create(4, 1, 3),
+            800m,
+            Utc(2026, 1, 1, 0, 0),
+            Utc(2026, 12, 31, 0, 0),
+            parkingCapacity: 20,
+            BookingPolicy.Default());
+        company.RejectAllocation(pending.Id, "Capacity unavailable");
+
+        var owned = company.CreateOwnedParkingAllocation(
+            creatorId,
+            parkingSpaceId,
+            Quota.Create(4, 0, 4),
+            0m,
+            Utc(2026, 1, 1, 0, 0),
+            Utc(2026, 12, 31, 0, 0),
+            parkingCapacity: 20,
+            BookingPolicy.Default());
+
+        owned.Status.Should().Be(AllocationStatus.Active);
+    }
+
+    [Fact]
     public void EnsureEmployeeBookingAllowed_ShouldEnforceDailyLimit()
     {
         var allocation = ParkingAllocation.Create(
@@ -452,6 +623,53 @@ public class CompanyAggregateTests
         act.Should()
             .Throw<InvalidOperationException>()
             .WithMessage("*Daily booking limit*");
+    }
+
+    [Fact]
+    public void UpdateAllocationContract_ShouldUpdateLeaseTerms()
+    {
+        var creatorId = Guid.NewGuid();
+        var company = CreateCompany(creatorId);
+        var allocation = company.RequestAllocation(
+            creatorId,
+            Guid.NewGuid(),
+            Quota.Create(4, 1, 3),
+            800m,
+            Utc(2026, 1, 1, 0, 0),
+            Utc(2026, 6, 30, 23, 59),
+            parkingCapacity: 20,
+            BookingPolicy.Default());
+        allocation.SetVendorLeaseMetadata(Guid.NewGuid(), "PO-100");
+
+        company.UpdateAllocationContract(
+            creatorId,
+            allocation.Id,
+            monthlyRate: 950m,
+            startDate: Utc(2026, 2, 1, 0, 0),
+            endDate: Utc(2026, 12, 31, 23, 59),
+            leaseReference: "PO-200");
+
+        allocation.MonthlyRate.Should().Be(950m);
+        allocation.StartDate.Should().Be(Utc(2026, 2, 1, 0, 0));
+        allocation.EndDate.Should().Be(Utc(2026, 12, 31, 23, 59));
+        allocation.LeaseReference.Should().Be("PO-200");
+    }
+
+    [Fact]
+    public void UpdateContractTerms_WhenRejected_ShouldThrow()
+    {
+        var allocation = ParkingAllocation.Create(
+            Guid.NewGuid(),
+            Guid.NewGuid(),
+            Quota.Create(2, 0, 2),
+            100m,
+            Utc(2026, 1, 1, 0, 0),
+            Utc(2026, 3, 1, 0, 0));
+        allocation.Reject("No capacity");
+
+        var act = () => allocation.UpdateContractTerms(120m, Utc(2026, 1, 1, 0, 0), Utc(2026, 4, 1, 0, 0), "X");
+
+        act.Should().Throw<InvalidOperationException>().WithMessage("*Rejected*");
     }
 
     private static Company CreateCompany(Guid creatorId)
@@ -484,17 +702,19 @@ public class CompanyAggregateTests
 
     private static Booking CreatePendingBooking(Guid userId, Guid parkingSpaceId, string vehicleNumber, DateTime startUtc, DateTime endUtc)
     {
-        return new Booking
-        {
-            UserId = userId,
-            ParkingSpaceId = parkingSpaceId,
-            StartDateTime = startUtc,
-            EndDateTime = endUtc,
-            PricingType = PricingType.Hourly,
-            VehicleType = VehicleType.Car,
-            VehicleNumber = vehicleNumber,
-            Status = BookingStatus.Pending
-        };
+        return Booking.CreateMarketplace(
+            userId,
+            parkingSpaceId,
+            startUtc,
+            endUtc,
+            PricingType.Hourly,
+            VehicleType.Car,
+            baseAmount: 0,
+            taxAmount: 0,
+            serviceFee: 0,
+            discountAmount: 0,
+            totalAmount: 0,
+            vehicleNumber: vehicleNumber);
     }
 
     private static DateTime Utc(int year, int month, int day, int hour, int minute)

@@ -2,9 +2,13 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import toast from 'react-hot-toast';
+import NearMeRadiusPicker, { DEFAULT_NEAR_ME_RADIUS_KM } from '../components/NearMeRadiusPicker';
 
 export default function Home() {
     const [searchCity, setSearchCity] = useState('');
+    const [nearMeOpen, setNearMeOpen] = useState(false);
+    const [nearMeRadiusKm, setNearMeRadiusKm] = useState(DEFAULT_NEAR_ME_RADIUS_KM);
+    const [locating, setLocating] = useState(false);
     const { isAuthenticated } = useAuth();
     const navigate = useNavigate();
 
@@ -20,15 +24,30 @@ export default function Home() {
             toast.error("Geolocation is not supported by your browser");
             return;
         }
+        setNearMeOpen(true);
+    };
 
+    const confirmNearMe = () => {
+        if (!navigator.geolocation) {
+            toast.error("Geolocation is not supported by your browser");
+            return;
+        }
+
+        setLocating(true);
         const toastId = toast.loading("Getting your location...");
         navigator.geolocation.getCurrentPosition(
             (position) => {
                 toast.dismiss(toastId);
-                navigate(`/search?lat=${position.coords.latitude}&lng=${position.coords.longitude}`);
+                setLocating(false);
+                setNearMeOpen(false);
+                const radius = Number(nearMeRadiusKm) || DEFAULT_NEAR_ME_RADIUS_KM;
+                navigate(
+                    `/search?lat=${position.coords.latitude}&lng=${position.coords.longitude}&radius=${radius}`
+                );
             },
             (error) => {
                 toast.dismiss(toastId);
+                setLocating(false);
                 let errorMessage = "Unable to retrieve your location";
                 if (error.code === 1) errorMessage = "Location access denied. Please allow location access in your browser.";
                 toast.error(errorMessage);
@@ -64,7 +83,7 @@ export default function Home() {
                                     />
                                 </div>
                                 <div className="form-group" style={{ flex: 'none', alignSelf: 'flex-end', display: 'flex', gap: '0.5rem' }}>
-                                    <button type="button" onClick={handleNearMe} className="btn btn-secondary" style={{ whiteSpace: 'nowrap' }} title="Use my current location">
+                                    <button type="button" onClick={handleNearMe} className="btn btn-secondary" style={{ whiteSpace: 'nowrap' }} title="Search parking near your location">
                                         📍 Near Me
                                     </button>
                                     <button type="submit" className="btn btn-primary">
@@ -74,6 +93,15 @@ export default function Home() {
                             </div>
                         </form>
                     </div>
+
+                    <NearMeRadiusPicker
+                        open={nearMeOpen}
+                        radiusKm={nearMeRadiusKm}
+                        onRadiusChange={setNearMeRadiusKm}
+                        onConfirm={confirmNearMe}
+                        onCancel={() => !locating && setNearMeOpen(false)}
+                        loading={locating}
+                    />
 
                     {!isAuthenticated && (
                         <div className="mt-3 flex-center gap-2">

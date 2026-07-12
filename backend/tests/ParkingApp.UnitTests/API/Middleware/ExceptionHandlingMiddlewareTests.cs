@@ -10,6 +10,7 @@ using Microsoft.Extensions.Logging;
 using Moq;
 using ParkingApp.API.Middleware;
 using ParkingApp.Application.DTOs;
+using ParkingApp.BuildingBlocks.Exceptions;
 using Xunit;
 
 namespace ParkingApp.UnitTests.API.Middleware;
@@ -58,5 +59,37 @@ public class ExceptionHandlingMiddlewareTests
         apiResponse!.Success.Should().BeFalse();
         apiResponse.Message.Should().Be(expectedMessage);
         apiResponse.Errors.Should().Contain(expectedMessage);
+    }
+
+    [Fact]
+    public async Task InvokeAsync_WhenBusinessRuleExceptionThrown_ReturnsBadRequest()
+    {
+        RequestDelegate next = _ => throw new BusinessRuleException("Booking.Cancel", "Cannot cancel booking in Completed status");
+        var middleware = new ExceptionHandlingMiddleware(next, _loggerMock.Object);
+        var context = new DefaultHttpContext();
+        context.Response.Body = new MemoryStream();
+
+        await middleware.InvokeAsync(context);
+
+        context.Response.StatusCode.Should().Be((int)HttpStatusCode.BadRequest);
+        context.Response.Body.Seek(0, SeekOrigin.Begin);
+        var jsonResponse = await new StreamReader(context.Response.Body).ReadToEndAsync();
+        var apiResponse = JsonSerializer.Deserialize<ApiResponse<object>>(jsonResponse, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
+
+        apiResponse!.Success.Should().BeFalse();
+        apiResponse.Message.Should().Contain("Cannot cancel booking");
+    }
+
+    [Fact]
+    public async Task InvokeAsync_WhenNotFoundExceptionThrown_ReturnsNotFound()
+    {
+        RequestDelegate next = _ => throw new NotFoundException("Booking", Guid.NewGuid());
+        var middleware = new ExceptionHandlingMiddleware(next, _loggerMock.Object);
+        var context = new DefaultHttpContext();
+        context.Response.Body = new MemoryStream();
+
+        await middleware.InvokeAsync(context);
+
+        context.Response.StatusCode.Should().Be((int)HttpStatusCode.NotFound);
     }
 }

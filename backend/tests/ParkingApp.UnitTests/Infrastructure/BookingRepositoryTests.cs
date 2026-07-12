@@ -1,6 +1,10 @@
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
-using ParkingApp.Domain.Entities;
+using ParkingApp.Domain.Shared;
+using ParkingApp.Domain.Marketplace;
+using ParkingApp.Domain.Identity;
+using ParkingApp.Domain.Messaging;
+using ParkingApp.Domain.Corporate;
 using ParkingApp.Domain.Enums;
 using ParkingApp.Infrastructure.Data;
 using ParkingApp.Infrastructure.Repositories;
@@ -89,6 +93,50 @@ public class BookingRepositoryTests
         // Act & Assert
         var overlap = await _repository.HasOverlappingBookingAsync(space.Id, start.AddHours(-1), start.AddHours(1));
         overlap.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task HasBlockingBookingsForSpaceAsync_TrueWhenConfirmedAndNotEnded()
+    {
+        var (user, space) = CreateBaseEntities();
+        var now = DateTime.UtcNow;
+        _context.Bookings.Add(new Booking
+        {
+            Id = Guid.NewGuid(),
+            UserId = user.Id,
+            ParkingSpaceId = space.Id,
+            StartDateTime = now.AddHours(-1),
+            EndDateTime = now.AddHours(2),
+            Status = BookingStatus.Confirmed,
+            BaseAmount = 10,
+            TotalAmount = 10
+        });
+        await _context.SaveChangesAsync();
+
+        var blocking = await _repository.HasBlockingBookingsForSpaceAsync(space.Id, now);
+        blocking.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task HasBlockingBookingsForSpaceAsync_FalseWhenCompleted()
+    {
+        var (user, space) = CreateBaseEntities();
+        var now = DateTime.UtcNow;
+        _context.Bookings.Add(new Booking
+        {
+            Id = Guid.NewGuid(),
+            UserId = user.Id,
+            ParkingSpaceId = space.Id,
+            StartDateTime = now.AddHours(-3),
+            EndDateTime = now.AddHours(-1),
+            Status = BookingStatus.Completed,
+            BaseAmount = 10,
+            TotalAmount = 10
+        });
+        await _context.SaveChangesAsync();
+
+        var blocking = await _repository.HasBlockingBookingsForSpaceAsync(space.Id, now);
+        blocking.Should().BeFalse();
     }
 
     [Fact]

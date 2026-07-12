@@ -1,6 +1,7 @@
 using System.Net;
 using System.Text.Json;
 using ParkingApp.Application.DTOs;
+using ParkingApp.BuildingBlocks.Exceptions;
 
 namespace ParkingApp.API.Middleware;
 
@@ -23,7 +24,11 @@ public class ExceptionHandlingMiddleware
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "An unhandled exception occurred: {Message}", ex.Message);
+            if (ex is DomainException)
+                _logger.LogWarning(ex, "Domain exception: {Message}", ex.Message);
+            else
+                _logger.LogError(ex, "An unhandled exception occurred: {Message}", ex.Message);
+
             await HandleExceptionAsync(context, ex);
         }
     }
@@ -32,24 +37,85 @@ public class ExceptionHandlingMiddleware
     {
         context.Response.ContentType = "application/json";
 
-        var (statusCode, message) = exception switch
-        {
-            ArgumentException => (HttpStatusCode.BadRequest, exception.Message),
-            UnauthorizedAccessException => (HttpStatusCode.Unauthorized, "Unauthorized access"),
-            KeyNotFoundException => (HttpStatusCode.NotFound, "Resource not found"),
-            InvalidOperationException => (HttpStatusCode.BadRequest, exception.Message),
-            _ => (HttpStatusCode.InternalServerError, "An error occurred. Please try again later.")
-        };
+        var (statusCode, message, errors) = MapException(exception);
 
         context.Response.StatusCode = (int)statusCode;
 
-        var response = new ApiResponse<object>(false, message, null, new List<string> { message });
+        var response = new ApiResponse<object>(false, message, null, errors);
         var json = JsonSerializer.Serialize(response, new JsonSerializerOptions
         {
             PropertyNamingPolicy = JsonNamingPolicy.CamelCase
         });
 
         await context.Response.WriteAsync(json);
+    }
+
+    private static (HttpStatusCode StatusCode, string Message, List<string> Errors) MapException(Exception exception)
+    {
+        return exception switch
+        {
+            NotFoundException notFound => (
+                HttpStatusCode.NotFound,
+                notFound.Message,
+                new List<string> { notFound.Message }),
+
+            ValidationException validation => (
+                HttpStatusCode.BadRequest,
+                validation.Message,
+                validation.Errors.Count > 0
+                    ? validation.Errors.SelectMany(kvp => kvp.Value).ToList()
+                    : new List<string> { validation.Message }),
+
+            UnauthorizedException unauthorized => (
+                HttpStatusCode.Unauthorized,
+                unauthorized.Message,
+                new List<string> { unauthorized.Message }),
+
+            ForbiddenException forbidden => (
+                HttpStatusCode.Forbidden,
+                forbidden.Message,
+                new List<string> { forbidden.Message }),
+
+            ConflictException conflict => (
+                HttpStatusCode.Conflict,
+                conflict.Message,
+                new List<string> { conflict.Message }),
+
+            BusinessRuleException businessRule => (
+                HttpStatusCode.BadRequest,
+                businessRule.Message,
+                new List<string> { businessRule.Message }),
+
+            DomainException domain => (
+                HttpStatusCode.BadRequest,
+                domain.Message,
+                new List<string> { domain.Message }),
+
+            ArgumentException argument => (
+                HttpStatusCode.BadRequest,
+                argument.Message,
+                new List<string> { argument.Message }),
+
+            UnauthorizedAccessException => (
+                HttpStatusCode.Unauthorized,
+                "Unauthorized access",
+                new List<string> { "Unauthorized access" }),
+
+            KeyNotFoundException => (
+                HttpStatusCode.NotFound,
+                "Resource not found",
+                new List<string> { "Resource not found" }),
+
+            InvalidOperationException invalidOp => (
+                HttpStatusCode.BadRequest,
+                invalidOp.Message,
+                new List<string> { invalidOp.Message }),
+
+            _ => (
+                HttpStatusCode.InternalServerError,
+                "An error occurred. Please try again later.",
+                new List<string> { "An error occurred. Please try again later." })
+        };
     }
 }
 

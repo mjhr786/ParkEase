@@ -37,7 +37,7 @@ public class NotificationCoordinator : INotificationCoordinator
             "Sending notification to user {UserId}: Type={Type}, Channels={Channels}",
             userId, request.Type, request.Channels);
         // Save to DB first
-        var notificationEntity = new ParkingApp.Domain.Entities.Notification
+        var notificationEntity = new ParkingApp.Domain.Messaging.Notification
         {
             UserId = userId,
             Type = Enum.TryParse<ParkingApp.Domain.Enums.NotificationType>(request.Type, true, out var parsedType)
@@ -55,31 +55,27 @@ public class NotificationCoordinator : INotificationCoordinator
         
         await _unitOfWork.Notifications.AddAsync(notificationEntity, cancellationToken);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
-        
-        var tasks = new List<Task>();
-        
-        // In-App notification (SignalR)
-        if (request.Channels.HasFlag(NotificationChannels.InApp))
-        {
-            tasks.Add(SendInAppAsync(userId, notificationEntity, cancellationToken));
-        }
-        
-        // Push notification
-        if (request.Channels.HasFlag(NotificationChannels.Push))
-        {
-            tasks.Add(SendPushAsync(userId, request, cancellationToken));
-        }
-        
-        // SMS notification
-        if (request.Channels.HasFlag(NotificationChannels.Sms))
-        {
-            tasks.Add(SendSmsAsync(userId, request, cancellationToken));
-        }
-        
-        // Wait for all channels to complete
+
+        // Deliver channels sequentially. Push and SMS both query the scoped ApplicationDbContext
+        // (device tokens / user phone); running them in parallel via Task.WhenAll causes
+        // "A second operation was started on this context instance before a previous operation completed".
         try
         {
-            await Task.WhenAll(tasks);
+            if (request.Channels.HasFlag(NotificationChannels.InApp))
+            {
+                await SendInAppAsync(userId, notificationEntity, cancellationToken);
+            }
+
+            if (request.Channels.HasFlag(NotificationChannels.Push))
+            {
+                await SendPushAsync(userId, request, cancellationToken);
+            }
+
+            if (request.Channels.HasFlag(NotificationChannels.Sms))
+            {
+                await SendSmsAsync(userId, request, cancellationToken);
+            }
+
             _logger.LogDebug("All notification channels completed for user {UserId}", userId);
         }
         catch (Exception ex)
@@ -94,15 +90,17 @@ public class NotificationCoordinator : INotificationCoordinator
         _logger.LogInformation(
             "Sending bulk notification to {UserCount} users: Type={Type}",
             userIdList.Count, request.Type);
-        
-        var tasks = userIdList.Select(userId => SendAsync(userId, request, cancellationToken));
-        
-        await Task.WhenAll(tasks);
+
+        // Sequential: each SendAsync uses the same scoped IUnitOfWork / DbContext.
+        foreach (var userId in userIdList)
+        {
+            await SendAsync(userId, request, cancellationToken);
+        }
         
         _logger.LogInformation("Bulk notification completed for {UserCount} users", userIdList.Count);
     }
     
-    private async Task SendInAppAsync(Guid userId, ParkingApp.Domain.Entities.Notification entity, CancellationToken cancellationToken)
+    private async Task SendInAppAsync(Guid userId, ParkingApp.Domain.Messaging.Notification entity, CancellationToken cancellationToken)
     {
         try
         {
@@ -153,18 +151,17 @@ public class NotificationCoordinator : INotificationCoordinator
     {
         try
         {
-            // Lookup user's phone number
+            // Only send SMS for high priority or critical notifications (check before DB access)
+            if (request.Priority < NotificationPriority.High)
+            {
+                _logger.LogDebug("SMS skipped for user {UserId}: priority too low", userId);
+                return;
+            }
+
             var user = await _unitOfWork.Users.GetByIdAsync(userId, cancellationToken);
             if (user == null || string.IsNullOrEmpty(user.PhoneNumber))
             {
                 _logger.LogDebug("SMS skipped for user {UserId}: no phone number", userId);
-                return;
-            }
-            
-            // Only send SMS for high priority or critical notifications
-            if (request.Priority < NotificationPriority.High)
-            {
-                _logger.LogDebug("SMS skipped for user {UserId}: priority too low", userId);
                 return;
             }
             

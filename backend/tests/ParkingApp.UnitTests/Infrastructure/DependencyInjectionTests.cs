@@ -7,6 +7,7 @@ using ParkingApp.Domain.Events;
 using ParkingApp.Domain.Interfaces;
 using ParkingApp.Infrastructure;
 using ParkingApp.Infrastructure.Data;
+using ParkingApp.Infrastructure.ReadModel.Corporate;
 using ParkingApp.Infrastructure.Repositories;
 using ParkingApp.Infrastructure.Services;
 using System;
@@ -43,8 +44,19 @@ public class DependencyInjectionTests
         provider.GetService<ApplicationDbContext>().Should().NotBeNull();
         provider.GetService<ISqlConnectionFactory>().Should().BeOfType<NpgsqlConnectionFactory>();
         provider.GetService<IDomainEventDispatcher>().Should().BeOfType<DomainEventDispatcher>();
-        provider.GetService<IUnitOfWork>().Should().BeOfType<UnitOfWork>();
+        var uow = provider.GetService<IUnitOfWork>();
+        uow.Should().BeOfType<UnitOfWork>();
+        // Context ports must resolve to the same scoped UnitOfWork instance
+        ReferenceEquals(uow, provider.GetService<IMarketplaceUnitOfWork>()).Should().BeTrue();
+        ReferenceEquals(uow, provider.GetService<IIdentityUnitOfWork>()).Should().BeTrue();
+        ReferenceEquals(uow, provider.GetService<IMessagingUnitOfWork>()).Should().BeTrue();
+        ReferenceEquals(uow, provider.GetService<ICorporateUnitOfWork>()).Should().BeTrue();
+        provider.GetService<ICompanyReadStore>().Should().BeOfType<CompanyReadStore>();
+        provider.GetService<IParkingReadStore>().Should().BeOfType<ParkingApp.Infrastructure.ReadModel.Parking.ParkingReadStore>();
+        provider.GetService<IBookingReadStore>().Should().BeOfType<ParkingApp.Infrastructure.ReadModel.Bookings.BookingReadStore>();
+        provider.GetService<IReviewReadStore>().Should().BeOfType<ParkingApp.Infrastructure.ReadModel.Reviews.ReviewReadStore>();
         provider.GetService<ITokenService>().Should().BeOfType<JwtTokenService>();
+        provider.GetService<IPasswordHasher>().Should().BeOfType<BcryptPasswordHasher>();
         provider.GetService<IPaymentService>().Should().BeOfType<StripePaymentService>();
         provider.GetService<IEmailService>().Should().BeOfType<ResendEmailService>();
         provider.GetService<ICacheService>().Should().BeOfType<InMemoryCacheService>();

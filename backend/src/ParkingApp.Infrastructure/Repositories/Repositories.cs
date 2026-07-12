@@ -1,7 +1,11 @@
 using System.Linq.Expressions;
 using Microsoft.EntityFrameworkCore;
 using NetTopologySuite.Geometries;
-using ParkingApp.Domain.Entities;
+using ParkingApp.Domain.Shared;
+using ParkingApp.Domain.Marketplace;
+using ParkingApp.Domain.Identity;
+using ParkingApp.Domain.Messaging;
+using ParkingApp.Domain.Corporate;
 using ParkingApp.Domain.Enums;
 using ParkingApp.Domain.Interfaces;
 using ParkingApp.Infrastructure.Data;
@@ -91,11 +95,6 @@ public class Repository<T> : IRepository<T> where T : BaseEntity
     {
         _dbSet.RemoveRange(entities);
     }
-
-    public IQueryable<T> Query()
-    {
-        return _dbSet.AsQueryable();
-    }
 }
 
 public class UserRepository : Repository<User>, IUserRepository
@@ -104,7 +103,16 @@ public class UserRepository : Repository<User>, IUserRepository
 
     public async Task<User?> GetByEmailAsync(string email, CancellationToken cancellationToken = default)
     {
-        return await _dbSet.FirstOrDefaultAsync(u => u.Email.ToLower() == email.ToLower(), cancellationToken);
+        try
+        {
+            var normalized = new ParkingApp.Domain.ValueObjects.Email(email);
+            // Value converter maps Email ↔ string; equality compares provider values
+            return await _dbSet.FirstOrDefaultAsync(u => u.Email == normalized, cancellationToken);
+        }
+        catch (ArgumentException)
+        {
+            return null;
+        }
     }
 
     public async Task<User?> GetByRefreshTokenAsync(string refreshToken, CancellationToken cancellationToken = default)
@@ -284,6 +292,17 @@ public class ParkingSpaceRepository : Repository<ParkingSpace>, IParkingSpaceRep
             .OrderByDescending(p => p.CreatedAt)
             .ToListAsync(cancellationToken);
     }
+
+    public async Task<bool> ExistsWithZoneCodeAsync(string zoneCode, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(zoneCode))
+            return false;
+
+        var normalized = zoneCode.Trim();
+        return await _dbSet.AnyAsync(
+            p => p.ZoneCode != null && p.ZoneCode == normalized,
+            cancellationToken);
+    }
 }
 
 public class BookingRepository : Repository<Booking>, IBookingRepository
@@ -385,6 +404,22 @@ public class BookingRepository : Repository<Booking>, IBookingRepository
             b.EndDateTime > startDateTime,
             cancellationToken);
     }
+
+    public async Task<bool> HasBlockingBookingsForSpaceAsync(
+        Guid parkingSpaceId,
+        DateTime utcNow,
+        CancellationToken cancellationToken = default)
+    {
+        return await _dbSet.AnyAsync(b =>
+            b.ParkingSpaceId == parkingSpaceId &&
+            (b.Status == BookingStatus.Confirmed ||
+             b.Status == BookingStatus.InProgress ||
+             b.Status == BookingStatus.Pending ||
+             b.Status == BookingStatus.AwaitingPayment) &&
+            b.EndDateTime > utcNow,
+            cancellationToken);
+    }
+
     public async Task<IEnumerable<Booking>> GetActiveBookingsForSpacesAsync(IEnumerable<Guid> parkingSpaceIds, CancellationToken cancellationToken = default)
     {
         return await _dbSet

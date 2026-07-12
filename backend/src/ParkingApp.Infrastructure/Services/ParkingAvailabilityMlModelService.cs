@@ -5,9 +5,13 @@ using Microsoft.ML;
 using Microsoft.ML.Data;
 using ParkingApp.Application.DTOs;
 using ParkingApp.Application.Interfaces;
-using ParkingApp.Domain.Entities;
+using ParkingApp.Domain.Shared;
+using ParkingApp.Domain.Marketplace;
+using ParkingApp.Domain.Identity;
+using ParkingApp.Domain.Messaging;
+using ParkingApp.Domain.Corporate;
 using ParkingApp.Domain.Enums;
-using ParkingApp.Domain.Interfaces;
+using ParkingApp.Infrastructure.Data;
 
 namespace ParkingApp.Infrastructure.Services;
 
@@ -20,16 +24,16 @@ public class ParkingAvailabilityMlModelService : IParkingAvailabilityModelServic
 
     private static readonly MLContext MlContext = new(seed: 42);
 
-    private readonly IUnitOfWork _unitOfWork;
+    private readonly ApplicationDbContext _dbContext;
     private readonly IMemoryCache _memoryCache;
     private readonly ILogger<ParkingAvailabilityMlModelService> _logger;
 
     public ParkingAvailabilityMlModelService(
-        IUnitOfWork unitOfWork,
+        ApplicationDbContext dbContext,
         IMemoryCache memoryCache,
         ILogger<ParkingAvailabilityMlModelService> logger)
     {
-        _unitOfWork = unitOfWork;
+        _dbContext = dbContext;
         _memoryCache = memoryCache;
         _logger = logger;
     }
@@ -88,7 +92,8 @@ public class ParkingAvailabilityMlModelService : IParkingAvailabilityModelServic
         var alignedNowUtc = AlignToInterval(nowUtc, intervalMinutes);
         var historyStartUtc = alignedNowUtc.AddDays(-TrainingLookbackDays);
 
-        var parkingSpaces = await _unitOfWork.ParkingSpaces.Query()
+        // Infrastructure may query EF directly; Domain repos must not expose IQueryable.
+        var parkingSpaces = await _dbContext.ParkingSpaces
             .AsNoTracking()
             .Where(parking => parking.TotalSpots > 0)
             .Select(parking => new ParkingSnapshot(
@@ -108,7 +113,7 @@ public class ParkingAvailabilityMlModelService : IParkingAvailabilityModelServic
         }
 
         var parkingIds = parkingSpaces.Select(parking => parking.Id).ToList();
-        var bookings = await _unitOfWork.Bookings.Query()
+        var bookings = await _dbContext.Bookings
             .AsNoTracking()
             .Where(booking =>
                 parkingIds.Contains(booking.ParkingSpaceId) &&

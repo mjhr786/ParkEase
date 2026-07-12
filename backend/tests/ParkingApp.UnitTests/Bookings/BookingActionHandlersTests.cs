@@ -3,7 +3,11 @@ using FluentAssertions;
 using Xunit;
 using ParkingApp.Application.CQRS.Commands.Bookings;
 using ParkingApp.Application.DTOs;
-using ParkingApp.Domain.Entities;
+using ParkingApp.Domain.Shared;
+using ParkingApp.Domain.Marketplace;
+using ParkingApp.Domain.Identity;
+using ParkingApp.Domain.Messaging;
+using ParkingApp.Domain.Corporate;
 using ParkingApp.Domain.Interfaces;
 using ParkingApp.Domain.Enums;
 using ParkingApp.Application.Interfaces;
@@ -33,7 +37,7 @@ public class BookingActionHandlersTests
     public async Task CancelBookingHandler_WhenAuthorized_ShouldCancelSuccessfully()
     {
         // Arrange
-        var handler = new CancelBookingHandler(_mockUnitOfWork.Object, _mockNotificationCoordinator.Object, _mockEmailService.Object, _mockCacheService.Object);
+        var handler = new CancelBookingHandler(_mockUnitOfWork.Object, _mockEmailService.Object);
         var userId = Guid.NewGuid();
         var booking = new Booking 
         { 
@@ -56,7 +60,8 @@ public class BookingActionHandlersTests
         result.Success.Should().BeTrue();
         booking.Status.Should().Be(BookingStatus.Cancelled);
         booking.CancellationReason.Should().Be("No longer needed");
-        _mockNotificationCoordinator.Verify(n => n.SendAsync(It.IsAny<Guid>(), It.IsAny<NotificationRequest>(), It.IsAny<CancellationToken>()), Times.Once);
+        booking.DomainEvents.Should().ContainSingle(e => e is ParkingApp.Domain.Events.Bookings.BookingCancelledEvent);
+        // Owner push is delivered by BookingCancelledNotificationHandler after SaveChanges (domain events)
     }
 
     [Fact]

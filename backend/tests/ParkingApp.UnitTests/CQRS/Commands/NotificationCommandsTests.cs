@@ -4,7 +4,11 @@ using System.Threading.Tasks;
 using FluentAssertions;
 using Moq;
 using ParkingApp.Application.CQRS.Commands.Notifications;
-using ParkingApp.Domain.Entities;
+using ParkingApp.Domain.Shared;
+using ParkingApp.Domain.Marketplace;
+using ParkingApp.Domain.Identity;
+using ParkingApp.Domain.Messaging;
+using ParkingApp.Domain.Corporate;
 using ParkingApp.Domain.Interfaces;
 using Xunit;
 

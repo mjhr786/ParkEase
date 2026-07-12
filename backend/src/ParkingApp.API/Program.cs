@@ -56,22 +56,28 @@ builder.Services.AddResponseCompression(options =>
     options.EnableForHttps = true;
 });
 
-// Add CORS
+// Add CORS (origins overridable via Cors:AllowedOrigins in appsettings / env)
+var corsOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()
+    ?? new[]
+    {
+        "http://localhost:5173",
+        "https://localhost:5173",
+        "http://localhost:3000",
+        "http://127.0.0.1:5173",
+        "http://localhost:5174",
+        "https://localhost:5174",
+        "https://parkease.azurewebsites.net",
+        "http://parkeaseapp.runasp.net",
+        "https://parkeaseapp.runasp.net",
+        "http://masjidfinder.runasp.net",
+        "https://masjidfinder.runasp.net",
+    };
+
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowFrontend", policy =>
     {
-        policy.WithOrigins(
-                "http://localhost:5173", 
-                "https://localhost:5173",
-                "http://localhost:3000",
-                "http://127.0.0.1:5173",
-                "http://localhost:5174",
-                "https://localhost:5174",
-                "https://parkease.azurewebsites.net", // Azure URL (keep if needed)
-                "http://parkeaseapp.runasp.net",   // MonsterASP.net
-                "https://parkeaseapp.runasp.net"   // MonsterASP.net
-              )
+        policy.WithOrigins(corsOrigins)
               .AllowAnyHeader()
               .AllowAnyMethod()
               .AllowCredentials();
@@ -108,7 +114,7 @@ else
     Log.Information(">> Using Local File Storage");
 }
 
-builder.Services.AddScoped<IFileUploadService, FileUploadService>();
+
 
 // Add SignalR for real-time notifications
 builder.Services.AddSignalR(options =>
@@ -182,6 +188,9 @@ using (var scope = app.Services.CreateScope())
 }
 
 // Configure middleware pipeline
+// CORS must run early so preflight OPTIONS and error responses get ACAO headers.
+app.UseCors("AllowFrontend");
+
 app.UseMiddleware<SecurityHeadersMiddleware>();
 app.UseMiddleware<ExceptionHandlingMiddleware>();
 
@@ -196,8 +205,6 @@ app.UseSerilogRequestLogging(options =>
         diagnosticContext.Set("UserAgent", httpContext.Request.Headers["User-Agent"].ToString());
     };
 });
-
-app.UseCors("AllowFrontend");
 
 app.UseMiddleware<RateLimitingMiddleware>();
 
@@ -243,14 +250,17 @@ app.UseAuthentication();
 app.UseAuthorization();
 app.UseMiddleware<CorporateTenantMiddleware>();
 
-app.MapControllers();
+app.MapControllers().RequireCors("AllowFrontend");
 
 // Health check endpoint
-app.MapGet("/health", () => Results.Ok(new { status = "healthy", timestamp = DateTime.UtcNow }));
+app.MapGet("/health", () => Results.Ok(new { status = "healthy", timestamp = DateTime.UtcNow }))
+    .RequireCors("AllowFrontend");
 
 // Map SignalR hub for notifications
-app.MapHub<ParkingApp.Notifications.Hubs.NotificationHub>("/hubs/notifications");
-app.MapHub<ParkingApp.Notifications.Hubs.ChatHub>("/hubs/chat");
+app.MapHub<ParkingApp.Notifications.Hubs.NotificationHub>("/hubs/notifications")
+    .RequireCors("AllowFrontend");
+app.MapHub<ParkingApp.Notifications.Hubs.ChatHub>("/hubs/chat")
+    .RequireCors("AllowFrontend");
 
 // SPA fallback - serve index.html for any unmatched routes (must be last!)
 app.MapFallbackToFile("index.html");

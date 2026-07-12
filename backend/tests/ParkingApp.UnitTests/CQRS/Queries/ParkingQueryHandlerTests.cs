@@ -11,7 +11,11 @@ using Moq;
 using ParkingApp.Application.CQRS.Queries.Parking;
 using ParkingApp.Application.DTOs;
 using ParkingApp.Application.Interfaces;
-using ParkingApp.Domain.Entities;
+using ParkingApp.Domain.Shared;
+using ParkingApp.Domain.Marketplace;
+using ParkingApp.Domain.Identity;
+using ParkingApp.Domain.Messaging;
+using ParkingApp.Domain.Corporate;
 using ParkingApp.Domain.Interfaces;
 using Xunit;
 
@@ -22,22 +26,22 @@ public class ParkingQueryHandlerTests
     private readonly Mock<IUnitOfWork> _mockUow;
     private readonly Mock<IParkingSpaceRepository> _mockParkingRepo;
     private readonly Mock<IBookingRepository> _mockBookingRepo;
+    private readonly Mock<IParkingReadStore> _mockReadStore;
     private readonly Mock<ICacheService> _mockCache;
     private readonly Mock<IRoutingService> _mockRouting;
-    private readonly Mock<ISqlConnectionFactory> _mockSql;
     
     public ParkingQueryHandlerTests()
     {
         _mockUow = new Mock<IUnitOfWork>();
         _mockParkingRepo = new Mock<IParkingSpaceRepository>();
         _mockBookingRepo = new Mock<IBookingRepository>();
+        _mockReadStore = new Mock<IParkingReadStore>();
 
         _mockUow.Setup(u => u.ParkingSpaces).Returns(_mockParkingRepo.Object);
         _mockUow.Setup(u => u.Bookings).Returns(_mockBookingRepo.Object);
         
         _mockCache = new Mock<ICacheService>();
         _mockRouting = new Mock<IRoutingService>();
-        _mockSql = new Mock<ISqlConnectionFactory>();
     }
 
     // GetParkingByIdHandler Tests
@@ -92,7 +96,7 @@ public class ParkingQueryHandlerTests
     public async Task SearchParkingHandler_ShouldReturnFromCache()
     {
         var logger = new Mock<ILogger<SearchParkingHandler>>();
-        var handler = new SearchParkingHandler(_mockUow.Object, _mockCache.Object, _mockRouting.Object, logger.Object);
+        var handler = new SearchParkingHandler(_mockUow.Object, _mockReadStore.Object, _mockCache.Object, _mockRouting.Object, logger.Object);
         var searchDto = new ParkingSearchDto();
         var cacheKey = $"search:{searchDto.State}:{searchDto.City}:{searchDto.Address}:{searchDto.ParkingType}:{searchDto.VehicleType}:{searchDto.MinPrice}:{searchDto.MaxPrice}::{searchDto.Page}:{searchDto.PageSize}";
         var cachedResult = new ParkingSearchResultDto(new List<ParkingSpaceDto>(), 0, 1, 10, 0);
@@ -102,33 +106,33 @@ public class ParkingQueryHandlerTests
         var res = await handler.HandleAsync(new SearchParkingQuery(searchDto));
 
         res.Success.Should().BeTrue();
-        _mockParkingRepo.Verify(r => r.SearchAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<double?>(), It.IsAny<double?>(), It.IsAny<double?>(), It.IsAny<DateTime?>(), It.IsAny<DateTime?>(), It.IsAny<decimal?>(), It.IsAny<decimal?>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<double?>(), It.IsAny<string>(), It.IsAny<bool>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()), Times.Never);
+        _mockReadStore.Verify(r => r.SearchAsync(It.IsAny<ParkingSearchDto>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
     public async Task SearchParkingHandler_ShouldSucceed()
     {
         var logger = new Mock<ILogger<SearchParkingHandler>>();
-        var handler = new SearchParkingHandler(_mockUow.Object, _mockCache.Object, _mockRouting.Object, logger.Object);
+        var handler = new SearchParkingHandler(_mockUow.Object, _mockReadStore.Object, _mockCache.Object, _mockRouting.Object, logger.Object);
         var searchDto = new ParkingSearchDto { City = "TestCity" };
         var parkingId = Guid.NewGuid();
-        var spaces = new List<ParkingSpace> { new ParkingSpace { Id = parkingId, Title = "A", TotalSpots = 1 } }.AsEnumerable();
+        var spaces = new List<ParkingSpace> { new ParkingSpace { Id = parkingId, Title = "A", TotalSpots = 1 } };
         
-        _mockParkingRepo.Setup(r => r.SearchAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<double?>(), It.IsAny<double?>(), It.IsAny<double?>(), It.IsAny<DateTime?>(), It.IsAny<DateTime?>(), It.IsAny<decimal?>(), It.IsAny<decimal?>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<double?>(), It.IsAny<string>(), It.IsAny<bool>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>())).ReturnsAsync(spaces);
-        _mockParkingRepo.Setup(r => r.CountAsync(It.IsAny<Expression<Func<ParkingSpace, bool>>>(), It.IsAny<CancellationToken>())).ReturnsAsync(1);
+        _mockReadStore.Setup(r => r.SearchAsync(It.IsAny<ParkingSearchDto>(), It.IsAny<CancellationToken>())).ReturnsAsync(spaces);
+        _mockReadStore.Setup(r => r.CountActiveAsync(It.IsAny<CancellationToken>())).ReturnsAsync(1);
         _mockBookingRepo.Setup(r => r.GetActiveBookingsForSpacesAsync(It.IsAny<List<Guid>>(), It.IsAny<CancellationToken>())).ReturnsAsync(new List<Booking>());
 
         var res = await handler.HandleAsync(new SearchParkingQuery(searchDto));
 
         res.Success.Should().BeTrue();
-        res.Data.TotalCount.Should().Be(1);
+        res.Data!.TotalCount.Should().Be(1);
     }
 
     // GetMapCoordinatesHandler Tests
     [Fact]
     public async Task GetMapCoordinatesHandler_ShouldReturnFromCache()
     {
-        var handler = new GetMapCoordinatesHandler(_mockSql.Object, _mockCache.Object);
+        var handler = new GetMapCoordinatesHandler(_mockReadStore.Object, _mockCache.Object);
         var searchDto = new ParkingSearchDto();
         var cacheKey = $"map:{searchDto.State}:{searchDto.City}:{searchDto.Address}:{searchDto.ParkingType}:{searchDto.VehicleType}:{searchDto.MinPrice}:{searchDto.MaxPrice}:{searchDto.RadiusKm}:{searchDto.Latitude}:{searchDto.Longitude}:";
         var cachedResult = new List<ParkingMapDto> { new ParkingMapDto(Guid.NewGuid(), "A", "A", "C", 1, 1, 1, null, 1, ParkingApp.Domain.Enums.ParkingType.Open) };
@@ -138,7 +142,26 @@ public class ParkingQueryHandlerTests
         var res = await handler.HandleAsync(new GetMapCoordinatesQuery(searchDto));
 
         res.Success.Should().BeTrue();
-        res.Data.Count.Should().Be(1);
-        _mockSql.Verify(s => s.CreateConnection(), Times.Never);
+        res.Data!.Count.Should().Be(1);
+        _mockReadStore.Verify(r => r.GetMapPinsAsync(It.IsAny<ParkingSearchDto>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task GetMapCoordinatesHandler_ShouldLoadFromReadStore_WhenNotCached()
+    {
+        var handler = new GetMapCoordinatesHandler(_mockReadStore.Object, _mockCache.Object);
+        var searchDto = new ParkingSearchDto { City = "Mumbai" };
+        var pins = new List<ParkingMapDto>
+        {
+            new(Guid.NewGuid(), "Pin", "Addr", "Mumbai", 19, 72, 50, null, 4.5, ParkingApp.Domain.Enums.ParkingType.Open)
+        };
+        _mockReadStore.Setup(r => r.GetMapPinsAsync(It.IsAny<ParkingSearchDto>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(pins);
+
+        var res = await handler.HandleAsync(new GetMapCoordinatesQuery(searchDto));
+
+        res.Success.Should().BeTrue();
+        res.Data.Should().HaveCount(1);
+        _mockReadStore.Verify(r => r.GetMapPinsAsync(It.IsAny<ParkingSearchDto>(), It.IsAny<CancellationToken>()), Times.Once);
     }
 }

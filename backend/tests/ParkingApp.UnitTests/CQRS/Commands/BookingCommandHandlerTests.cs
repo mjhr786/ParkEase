@@ -8,7 +8,11 @@ using ParkingApp.Application.CQRS.Commands.Bookings;
 using ParkingApp.Application.CQRS.Handlers.Bookings;
 using ParkingApp.Application.DTOs;
 using ParkingApp.Application.Interfaces;
-using ParkingApp.Domain.Entities;
+using ParkingApp.Domain.Shared;
+using ParkingApp.Domain.Marketplace;
+using ParkingApp.Domain.Identity;
+using ParkingApp.Domain.Messaging;
+using ParkingApp.Domain.Corporate;
 using ParkingApp.Domain.Enums;
 using ParkingApp.Domain.Interfaces;
 using Xunit;
@@ -86,7 +90,7 @@ public class BookingCommandHandlerTests
     [Fact]
     public async Task CancelBookingHandler_ShouldFail_WhenUnauthorized()
     {
-        var handler = new CancelBookingHandler(_mockUow.Object, _mockNotification.Object, _mockEmail.Object, _mockCache.Object);
+        var handler = new CancelBookingHandler(_mockUow.Object, _mockEmail.Object);
         var booking = new Booking { UserId = Guid.NewGuid() };
         _mockBookingRepo.Setup(r => r.GetByIdWithDetailsAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>())).ReturnsAsync(booking);
 
@@ -99,7 +103,7 @@ public class BookingCommandHandlerTests
     [Fact]
     public async Task CancelBookingHandler_ShouldSucceed()
     {
-        var handler = new CancelBookingHandler(_mockUow.Object, _mockNotification.Object, _mockEmail.Object, _mockCache.Object);
+        var handler = new CancelBookingHandler(_mockUow.Object, _mockEmail.Object);
         var userId = Guid.NewGuid();
         var booking = new Booking { Id = Guid.NewGuid(), UserId = userId, Status = BookingStatus.Pending };
         _mockBookingRepo.Setup(r => r.GetByIdWithDetailsAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>())).ReturnsAsync(booking);

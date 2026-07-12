@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using FluentAssertions;
@@ -8,8 +7,11 @@ using Moq;
 using ParkingApp.Application.CQRS.Commands.Auth;
 using ParkingApp.Application.DTOs;
 using ParkingApp.Application.Interfaces;
-using ParkingApp.Domain.Entities;
-using ParkingApp.Domain.Enums;
+using ParkingApp.Domain.Shared;
+using ParkingApp.Domain.Marketplace;
+using ParkingApp.Domain.Identity;
+using ParkingApp.Domain.Messaging;
+using ParkingApp.Domain.Corporate;
 using ParkingApp.Domain.Interfaces;
 using Xunit;
 
@@ -20,6 +22,7 @@ public class AuthCommandsTests
     private readonly Mock<IUnitOfWork> _mockUow;
     private readonly Mock<IUserRepository> _mockUserRepo;
     private readonly Mock<ITokenService> _mockTokenService;
+    private readonly Mock<IPasswordHasher> _mockPasswordHasher;
     private readonly Mock<ILogger<RegisterHandler>> _mockRegisterLogger;
     private readonly Mock<ILogger<LoginHandler>> _mockLoginLogger;
     private readonly Mock<ILogger<LogoutHandler>> _mockLogoutLogger;
@@ -32,17 +35,28 @@ public class AuthCommandsTests
         _mockUow.Setup(u => u.Users).Returns(_mockUserRepo.Object);
 
         _mockTokenService = new Mock<ITokenService>();
+        _mockPasswordHasher = new Mock<IPasswordHasher>();
         _mockRegisterLogger = new Mock<ILogger<RegisterHandler>>();
         _mockLoginLogger = new Mock<ILogger<LoginHandler>>();
         _mockLogoutLogger = new Mock<ILogger<LogoutHandler>>();
         _mockChangePasswordLogger = new Mock<ILogger<ChangePasswordHandler>>();
+
+        _mockPasswordHasher
+            .Setup(h => h.Hash(It.IsAny<string>()))
+            .Returns((string password) => $"hash:{password}");
+        _mockPasswordHasher
+            .Setup(h => h.Verify(It.IsAny<string>(), It.IsAny<string>()))
+            .Returns((string password, string hash) => hash == $"hash:{password}");
     }
 
-    // RegisterHandler Tests
     [Fact]
     public async Task RegisterHandler_ShouldFail_WhenEmailExists()
     {
-        var handler = new RegisterHandler(_mockUow.Object, _mockTokenService.Object, _mockRegisterLogger.Object);
+        var handler = new RegisterHandler(
+            _mockUow.Object,
+            _mockTokenService.Object,
+            _mockPasswordHasher.Object,
+            _mockRegisterLogger.Object);
         _mockUserRepo.Setup(r => r.GetByEmailAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(new User());
 
         var res = await handler.HandleAsync(new RegisterCommand(new RegisterDto("test@test.com", "Pass123", "F", "L", "123")));
@@ -54,24 +68,31 @@ public class AuthCommandsTests
     [Fact]
     public async Task RegisterHandler_ShouldSucceed()
     {
-        var handler = new RegisterHandler(_mockUow.Object, _mockTokenService.Object, _mockRegisterLogger.Object);
-        _mockUserRepo.Setup(r => r.GetByEmailAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync((User)null);
+        var handler = new RegisterHandler(
+            _mockUow.Object,
+            _mockTokenService.Object,
+            _mockPasswordHasher.Object,
+            _mockRegisterLogger.Object);
+        _mockUserRepo.Setup(r => r.GetByEmailAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync((User)null!);
         _mockTokenService.Setup(t => t.GenerateAccessToken(It.IsAny<User>())).Returns("token");
         _mockTokenService.Setup(t => t.GenerateRefreshToken()).Returns("refresh");
 
         var res = await handler.HandleAsync(new RegisterCommand(new RegisterDto("test@test.com", "Pass123", "F", "L", "123")));
 
         res.Success.Should().BeTrue();
-        res.Data.AccessToken.Should().Be("token");
+        res.Data!.AccessToken.Should().Be("token");
         _mockUow.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
     }
 
-    // LoginHandler Tests
     [Fact]
     public async Task LoginHandler_ShouldFail_WhenUserNotFound()
     {
-        var handler = new LoginHandler(_mockUow.Object, _mockTokenService.Object, _mockLoginLogger.Object);
-        _mockUserRepo.Setup(r => r.GetByEmailAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync((User)null);
+        var handler = new LoginHandler(
+            _mockUow.Object,
+            _mockTokenService.Object,
+            _mockPasswordHasher.Object,
+            _mockLoginLogger.Object);
+        _mockUserRepo.Setup(r => r.GetByEmailAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync((User)null!);
 
         var res = await handler.HandleAsync(new LoginCommand(new LoginDto("test@test.com", "Pass123")));
 
@@ -82,8 +103,12 @@ public class AuthCommandsTests
     [Fact]
     public async Task LoginHandler_ShouldFail_WhenPasswordIncorrect()
     {
-        var handler = new LoginHandler(_mockUow.Object, _mockTokenService.Object, _mockLoginLogger.Object);
-        var user = new User { PasswordHash = BCrypt.Net.BCrypt.HashPassword("RealPass") };
+        var handler = new LoginHandler(
+            _mockUow.Object,
+            _mockTokenService.Object,
+            _mockPasswordHasher.Object,
+            _mockLoginLogger.Object);
+        var user = new User { PasswordHash = "hash:RealPass" };
         _mockUserRepo.Setup(r => r.GetByEmailAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(user);
 
         var res = await handler.HandleAsync(new LoginCommand(new LoginDto("test@test.com", "WrongPass")));
@@ -94,8 +119,12 @@ public class AuthCommandsTests
     [Fact]
     public async Task LoginHandler_ShouldSucceed()
     {
-        var handler = new LoginHandler(_mockUow.Object, _mockTokenService.Object, _mockLoginLogger.Object);
-        var user = new User { PasswordHash = BCrypt.Net.BCrypt.HashPassword("Pass123"), IsActive = true };
+        var handler = new LoginHandler(
+            _mockUow.Object,
+            _mockTokenService.Object,
+            _mockPasswordHasher.Object,
+            _mockLoginLogger.Object);
+        var user = new User { PasswordHash = "hash:Pass123", IsActive = true };
         _mockUserRepo.Setup(r => r.GetByEmailAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(user);
         _mockTokenService.Setup(t => t.GenerateAccessToken(It.IsAny<User>())).Returns("token");
         _mockTokenService.Setup(t => t.GenerateRefreshToken()).Returns("refresh");
@@ -103,16 +132,15 @@ public class AuthCommandsTests
         var res = await handler.HandleAsync(new LoginCommand(new LoginDto("test@test.com", "Pass123")));
 
         res.Success.Should().BeTrue();
-        res.Data.AccessToken.Should().Be("token");
+        res.Data!.AccessToken.Should().Be("token");
         _mockUow.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
     }
 
-    // RefreshTokenHandler Tests
     [Fact]
     public async Task RefreshTokenHandler_ShouldFail_WhenInvalidToken()
     {
         var handler = new RefreshTokenHandler(_mockUow.Object, _mockTokenService.Object);
-        _mockUserRepo.Setup(r => r.GetByRefreshTokenAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync((User)null);
+        _mockUserRepo.Setup(r => r.GetByRefreshTokenAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync((User)null!);
 
         var res = await handler.HandleAsync(new RefreshTokenCommand(new RefreshTokenDto("token")));
 
@@ -133,11 +161,10 @@ public class AuthCommandsTests
         var res = await handler.HandleAsync(new RefreshTokenCommand(new RefreshTokenDto("token1")));
 
         res.Success.Should().BeTrue();
-        res.Data.AccessToken.Should().Be("token2");
+        res.Data!.AccessToken.Should().Be("token2");
         _mockUow.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
     }
 
-    // LogoutHandler Tests
     [Fact]
     public async Task LogoutHandler_ShouldSucceed()
     {
@@ -152,12 +179,14 @@ public class AuthCommandsTests
         _mockUow.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
     }
 
-    // ChangePasswordHandler Tests
     [Fact]
     public async Task ChangePasswordHandler_ShouldFail_WhenPasswordIncorrect()
     {
-        var handler = new ChangePasswordHandler(_mockUow.Object, _mockChangePasswordLogger.Object);
-        var user = new User { PasswordHash = BCrypt.Net.BCrypt.HashPassword("RealPass") };
+        var handler = new ChangePasswordHandler(
+            _mockUow.Object,
+            _mockPasswordHasher.Object,
+            _mockChangePasswordLogger.Object);
+        var user = new User { PasswordHash = "hash:RealPass" };
         _mockUserRepo.Setup(r => r.GetByIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>())).ReturnsAsync(user);
 
         var res = await handler.HandleAsync(new ChangePasswordCommand(Guid.NewGuid(), new ChangePasswordDto("WrongPass", "NewPass")));
@@ -169,15 +198,17 @@ public class AuthCommandsTests
     [Fact]
     public async Task ChangePasswordHandler_ShouldSucceed()
     {
-        var handler = new ChangePasswordHandler(_mockUow.Object, _mockChangePasswordLogger.Object);
-        var user = new User { PasswordHash = BCrypt.Net.BCrypt.HashPassword("Pass123") };
+        var handler = new ChangePasswordHandler(
+            _mockUow.Object,
+            _mockPasswordHasher.Object,
+            _mockChangePasswordLogger.Object);
+        var user = new User { PasswordHash = "hash:Pass123" };
         _mockUserRepo.Setup(r => r.GetByIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>())).ReturnsAsync(user);
 
         var res = await handler.HandleAsync(new ChangePasswordCommand(Guid.NewGuid(), new ChangePasswordDto("Pass123", "NewPass123")));
 
         res.Success.Should().BeTrue();
-        var isMatch = BCrypt.Net.BCrypt.Verify("NewPass123", user.PasswordHash);
-        isMatch.Should().BeTrue();
+        user.PasswordHash.Should().Be("hash:NewPass123");
         _mockUow.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
     }
 }

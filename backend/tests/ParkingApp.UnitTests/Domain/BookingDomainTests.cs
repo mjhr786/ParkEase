@@ -1,7 +1,13 @@
 using FluentAssertions;
 using Xunit;
-using ParkingApp.Domain.Entities;
+using ParkingApp.BuildingBlocks.Exceptions;
+using ParkingApp.Domain.Shared;
+using ParkingApp.Domain.Marketplace;
+using ParkingApp.Domain.Identity;
+using ParkingApp.Domain.Messaging;
+using ParkingApp.Domain.Corporate;
 using ParkingApp.Domain.Enums;
+using ParkingApp.Domain.Events.Bookings;
 
 namespace ParkingApp.UnitTests.Domain;
 
@@ -18,6 +24,7 @@ public class BookingDomainTests
 
         // Assert
         booking.Status.Should().Be(BookingStatus.Confirmed);
+        booking.DomainEvents.Should().ContainSingle(e => e is BookingConfirmedEvent);
     }
 
     [Theory]
@@ -33,7 +40,7 @@ public class BookingDomainTests
         var act = () => booking.Confirm();
 
         // Assert
-        act.Should().Throw<InvalidOperationException>()
+        act.Should().Throw<BusinessRuleException>()
             .WithMessage($"Cannot confirm booking in {status} status");
     }
 
@@ -51,6 +58,7 @@ public class BookingDomainTests
         booking.Status.Should().Be(BookingStatus.Cancelled);
         booking.CancellationReason.Should().Be(reason);
         booking.CancelledAt.Should().NotBeNull();
+        booking.DomainEvents.Should().ContainSingle(e => e is BookingCancelledEvent);
     }
 
     [Fact]
@@ -70,6 +78,7 @@ public class BookingDomainTests
         // Assert
         booking.Status.Should().Be(BookingStatus.InProgress);
         booking.CheckInTime.Should().NotBeNull();
+        booking.DomainEvents.Should().ContainSingle(e => e is BookingCheckedInEvent);
     }
 
     [Fact]
@@ -87,7 +96,7 @@ public class BookingDomainTests
         var act = () => booking.CheckIn();
 
         // Assert
-        act.Should().Throw<InvalidOperationException>()
+        act.Should().Throw<BusinessRuleException>()
             .WithMessage("Check-in is only allowed within 1 hour before start time");
     }
 
@@ -125,15 +134,15 @@ public class BookingDomainTests
 
         // Act & Assert
         var act = () => booking.ApplyDiscount("CHEAT", 200);
-        act.Should().Throw<ArgumentException>().WithMessage("Invalid discount amount");
+        act.Should().Throw<ValidationException>().WithMessage("*Invalid discount amount*");
     }
 
     [Fact]
-    public void ApplyDiscount_WhenNegativeAmount_ShouldThrowArgumentException()
+    public void ApplyDiscount_WhenNegativeAmount_ShouldThrowValidationException()
     {
         var booking = new Booking { Status = BookingStatus.Pending };
         var act = () => booking.ApplyDiscount("CHEAT", -10);
-        act.Should().Throw<ArgumentException>().WithMessage("Invalid discount amount");
+        act.Should().Throw<ValidationException>().WithMessage("*Invalid discount amount*");
     }
 
     [Fact]
@@ -141,19 +150,19 @@ public class BookingDomainTests
     {
         var b1 = new Booking { Status = BookingStatus.Confirmed };
         Action a1 = () => b1.AwaitPayment();
-        a1.Should().Throw<InvalidOperationException>();
+        a1.Should().Throw<BusinessRuleException>();
 
         var b2 = new Booking { Status = BookingStatus.Confirmed };
         Action a2 = () => b2.Reject("reason");
-        a2.Should().Throw<InvalidOperationException>();
+        a2.Should().Throw<BusinessRuleException>();
 
         var b3 = new Booking { Status = BookingStatus.Completed };
         Action a3 = () => b3.Cancel("reason");
-        a3.Should().Throw<InvalidOperationException>();
+        a3.Should().Throw<BusinessRuleException>();
 
         var b4 = new Booking { Status = BookingStatus.Pending };
         Action a4 = () => b4.CheckIn();
-        a4.Should().Throw<InvalidOperationException>();
+        a4.Should().Throw<BusinessRuleException>();
     }
 
     [Fact]

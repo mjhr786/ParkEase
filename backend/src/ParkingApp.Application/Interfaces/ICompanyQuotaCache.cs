@@ -35,7 +35,8 @@ public sealed record CompanyQuotaCacheEntry(
     int PriorityThreshold,
     TimeSpan AllowedStartTime,
     TimeSpan AllowedEndTime,
-    bool AllowWeekends)
+    bool AllowWeekends,
+    string? VendorName = null)
 {
     public bool IsBookable => Status == AllocationStatus.Active && ParkingSpaceIsActive;
 }

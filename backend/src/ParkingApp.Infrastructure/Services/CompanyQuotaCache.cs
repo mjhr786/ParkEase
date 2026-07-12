@@ -52,10 +52,12 @@ public sealed class CompanyQuotaCache : ICompanyQuotaCache
                         pa."PriorityThreshold" AS PriorityThreshold,
                         pa."AllowedStartTime" AS AllowedStartTime,
                         pa."AllowedEndTime" AS AllowedEndTime,
-                        pa."AllowWeekends" AS AllowWeekends
+                        pa."AllowWeekends" AS AllowWeekends,
+                        TRIM(COALESCE(vu."FirstName", '') || ' ' || COALESCE(vu."LastName", '')) AS VendorName
                     FROM "ParkingAllocations" pa
                     INNER JOIN "Companies" c ON c."Id" = pa."CompanyId"
                     INNER JOIN "ParkingSpaces" ps ON ps."Id" = pa."ParkingSpaceId"
+                    LEFT JOIN "Users" vu ON vu."Id" = pa."VendorId" AND vu."IsDeleted" = FALSE
                     WHERE pa."CompanyId" = @CompanyId
                         AND pa."IsDeleted" = FALSE
                         AND c."IsDeleted" = FALSE
@@ -114,6 +116,7 @@ public sealed class CompanyQuotaCache : ICompanyQuotaCache
         public TimeSpan AllowedStartTime { get; set; }
         public TimeSpan AllowedEndTime { get; set; }
         public bool AllowWeekends { get; set; }
+        public string? VendorName { get; set; }
 
         public CompanyQuotaCacheEntry ToCacheEntry() => new(
             CompanyId,
@@ -141,6 +144,7 @@ public sealed class CompanyQuotaCache : ICompanyQuotaCache
             PriorityThreshold,
             AllowedStartTime,
             AllowedEndTime,
-            AllowWeekends);
+            AllowWeekends,
+            string.IsNullOrWhiteSpace(VendorName) ? null : VendorName.Trim());
     }
 }
