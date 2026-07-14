@@ -5,12 +5,14 @@ using StackExchange.Redis;
 namespace ParkingApp.Infrastructure.Caching;
 
 /// <summary>
-/// Builds StackExchange.Redis options suitable for Upstash (TLS) and local Redis.
+/// Builds StackExchange.Redis options suitable for Upstash (TLS) and local Redis Docker.
 /// </summary>
 public static class RedisConnectionFactory
 {
     /// <summary>
     /// Returns true when a real Redis endpoint is configured (not empty / placeholder).
+    /// Bare <c>localhost:6379</c> without a password is treated as unconfigured so local
+    /// Docker must use an explicit connection (e.g. <c>localhost:6379,password=...</c>).
     /// </summary>
     public static bool IsConfigured(string? connectionString)
     {
@@ -24,6 +26,26 @@ public static class RedisConnectionFactory
             or "SET_VIA_USER_SECRETS_OR_ENV_VAR");
     }
 
+    /// <summary>
+    /// Human-readable cache target for startup logs (no secrets).
+    /// </summary>
+    public static string DescribeTarget(string? connectionString)
+    {
+        if (!IsConfigured(connectionString))
+            return "not configured";
+
+        var value = connectionString!.Trim();
+        if (value.Contains("upstash.io", StringComparison.OrdinalIgnoreCase)
+            || value.StartsWith("rediss://", StringComparison.OrdinalIgnoreCase))
+            return "Upstash";
+
+        if (value.Contains("localhost", StringComparison.OrdinalIgnoreCase)
+            || value.Contains("127.0.0.1", StringComparison.OrdinalIgnoreCase))
+            return "local Docker";
+
+        return "Redis";
+    }
+
     public static ConfigurationOptions CreateOptions(string connectionString, RedisCacheOptions cacheOptions)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
@@ -31,12 +53,15 @@ public static class RedisConnectionFactory
 
         var options = ParseConnectionString(connectionString.Trim());
 
-        // Upstash requires TLS; enforce when host or scheme implies it.
-        if (connectionString.Contains("upstash.io", StringComparison.OrdinalIgnoreCase)
-            || connectionString.StartsWith("rediss://", StringComparison.OrdinalIgnoreCase))
+        // Upstash requires TLS; local Docker Redis uses plain TCP on 6379.
+        if (IsTlsRequired(connectionString))
         {
             options.Ssl = true;
             options.SslProtocols = SslProtocols.Tls12 | SslProtocols.Tls13;
+        }
+        else
+        {
+            options.Ssl = false;
         }
 
         // Do not crash the host if Redis is briefly unavailable — degrade via cache service try/catch.
@@ -51,6 +76,12 @@ public static class RedisConnectionFactory
         options.DefaultDatabase = 0;
 
         return options;
+    }
+
+    public static bool IsTlsRequired(string connectionString)
+    {
+        return connectionString.Contains("upstash.io", StringComparison.OrdinalIgnoreCase)
+            || connectionString.StartsWith("rediss://", StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>

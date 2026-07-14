@@ -95,8 +95,9 @@ public static class DependencyInjection
     }
 
     /// <summary>
-    /// Prefer Upstash/Redis when ConnectionStrings:Redis is configured; otherwise in-memory.
-    /// Connection is lazy (first resolve). Operations fail-open inside <see cref="RedisCacheService"/>.
+    /// Prefer Redis when ConnectionStrings:Redis is configured:
+    /// Development → local Docker Redis; Production → Upstash (rediss://).
+    /// Otherwise in-memory. Connection is lazy (first resolve). Operations fail-open inside <see cref="RedisCacheService"/>.
     /// </summary>
     private static void RegisterCache(IServiceCollection services, IConfiguration configuration)
     {
@@ -127,7 +128,8 @@ public static class DependencyInjection
         });
 
         var instanceName = configuration["Redis:InstanceName"] ?? "ParkEase_";
-        Console.WriteLine($">> Using REDIS Cache (Upstash ParkEase, instance={instanceName})");
+        var target = RedisConnectionFactory.DescribeTarget(redisConnection);
+        Console.WriteLine($">> Using REDIS Cache ({target}, instance={instanceName})");
     }
 
     /// <summary>

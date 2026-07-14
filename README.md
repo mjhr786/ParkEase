@@ -97,36 +97,50 @@ Vertical slices under Application CQRS:
 
 ## Caching (Redis / Upstash)
 
-ParkEase uses a production-grade distributed cache tuned for **limited Upstash storage and bandwidth**.
+ParkEase uses a production-grade distributed cache. **Local Development** uses Docker Redis; **Production** uses Upstash (`rediss://`).
 
 ### Runtime selection
-| Condition | Implementation |
-|-----------|----------------|
-| `ConnectionStrings:Redis` set (real endpoint) | `RedisCacheService` + `IConnectionMultiplexer` |
-| Missing / placeholder (`SET_VIA_USER_SECRETS_OR_ENV_VAR`) | `InMemoryCacheService` |
+| Environment | Source | Implementation |
+|-------------|--------|----------------|
+| Development | `appsettings.Development.json` → local Docker Redis | `RedisCacheService` |
+| Production | `appsettings.Production.json` → Upstash | `RedisCacheService` |
+| Missing / placeholder | `SET_VIA_USER_SECRETS_OR_ENV_VAR` / empty | `InMemoryCacheService` |
 
 Startup logs:
 ```text
->> Using REDIS Cache (Upstash ParkEase, instance=ParkEase_Dev_)
+>> Using REDIS Cache (local Docker, instance=ParkEase_Local_)
+>> Using REDIS Cache (Upstash, instance=ParkEase_Prod_)
 # or
 >> Using IN-MEMORY Cache (Redis not configured)
 ```
 
-### Configuration
+### Local Docker Redis
 
-**User secrets (local development)** — never commit Redis passwords:
+From repo root:
 
 ```bash
-cd backend/src/ParkingApp.API
-
-dotnet user-secrets set "ConnectionStrings:Redis" "rediss://default:<TOKEN>@<host>.upstash.io:6379"
-dotnet user-secrets set "Redis:InstanceName" "ParkEase_Dev_"
-
-# Also typical secrets:
-# ConnectionStrings:DefaultConnection, Jwt:SecretKey, Stripe:*, Storage:R2:*, Resend:ApiKey, Firebase:*
+cd Redis
+docker compose up -d
 ```
 
-**`appsettings.json` (non-secret defaults):**
+Compose maps `localhost:6379` with password `DevRedis@123` (see `Redis/docker-compose.yml`).
+
+**`appsettings.Development.json`** (applied when `ASPNETCORE_ENVIRONMENT=Development`):
+
+```json
+"ConnectionStrings": {
+  "Redis": "localhost:6379,password=DevRedis@123,abortConnect=false"
+},
+"Redis": {
+  "InstanceName": "ParkEase_Local_"
+}
+```
+
+Bare `localhost:6379` (no password) is treated as unconfigured so the API falls back to in-memory cache.
+
+### Configuration
+
+**`appsettings.json` (non-secret defaults / placeholders):**
 
 ```json
 "ConnectionStrings": {
@@ -150,6 +164,13 @@ dotnet user-secrets set "Redis:InstanceName" "ParkEase_Dev_"
 **Production:** `appsettings.Production.json` (or host env vars) should set:
 - `ConnectionStrings:Redis` — Upstash `rediss://` URL  
 - `Redis:InstanceName` — e.g. `ParkEase_Prod_` (isolates keys per environment)
+
+Optional override via user secrets / env (any environment):
+
+```bash
+cd backend/src/ParkingApp.API
+dotnet user-secrets set "ConnectionStrings:Redis" "rediss://default:<TOKEN>@<host>.upstash.io:6379"
+```
 
 Upstash console DB name: **ParkEase**. The DB name is a label; connectivity uses host + TLS + password.
 

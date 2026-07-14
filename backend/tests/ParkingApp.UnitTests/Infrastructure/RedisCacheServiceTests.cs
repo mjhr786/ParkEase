@@ -286,6 +286,18 @@ public class RedisCacheServiceTests
         RedisConnectionFactory.IsConfigured("SET_VIA_USER_SECRETS_OR_ENV_VAR").Should().BeFalse();
         RedisConnectionFactory.IsConfigured("rediss://default:pwd@host.upstash.io:6379").Should().BeTrue();
         RedisConnectionFactory.IsConfigured("localhost:6380").Should().BeTrue();
+        RedisConnectionFactory.IsConfigured("localhost:6379,password=DevRedis@123,abortConnect=false")
+            .Should().BeTrue();
+    }
+
+    [Fact]
+    public void RedisConnectionFactory_DescribeTarget_DistinguishesLocalAndUpstash()
+    {
+        RedisConnectionFactory.DescribeTarget(null).Should().Be("not configured");
+        RedisConnectionFactory.DescribeTarget("localhost:6379,password=DevRedis@123")
+            .Should().Be("local Docker");
+        RedisConnectionFactory.DescribeTarget("rediss://default:pwd@host.upstash.io:6379")
+            .Should().Be("Upstash");
     }
 
     [Fact]
@@ -301,6 +313,20 @@ public class RedisCacheServiceTests
         options.Password.Should().Be("pwd");
         options.EndPoints.Should().ContainSingle();
         options.EndPoints[0].ToString().Should().Contain("upright-lark-103744.upstash.io:6379");
+    }
+
+    [Fact]
+    public void RedisConnectionFactory_CreateOptions_DisablesSslForLocalDocker()
+    {
+        var options = RedisConnectionFactory.CreateOptions(
+            "localhost:6379,password=DevRedis@123,abortConnect=false",
+            new RedisCacheOptions());
+
+        options.Ssl.Should().BeFalse();
+        options.AbortOnConnectFail.Should().BeFalse();
+        options.Password.Should().Be("DevRedis@123");
+        options.EndPoints.Should().ContainSingle();
+        options.EndPoints[0].ToString().Should().Contain("localhost:6379");
     }
 
     [Fact]
