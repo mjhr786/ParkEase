@@ -1,8 +1,9 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, Suspense, lazy } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../services/api';
-import LocationMap from '../components/LocationMap';
+// Leaflet only when the details map mounts
+const LocationMap = lazy(() => import('../components/LocationMap'));
 import BookedSlots from '../components/BookedSlots';
 import ImageGallery from '../components/ImageGallery';
 import ParkingSlotModal from '../components/ParkingSlotModal';
@@ -419,11 +420,7 @@ export default function ParkingDetails() {
                     isPending: true,
                 });
                 showToast.success('Booking request submitted! Waiting for owner approval.');
-
-                // Clear slot selection before refresh so the validation effect doesn't false-fire
-                setBooking(prev => ({ ...prev, slotNumber: '' }));
-                // Re-fetch parking details to update reservation list
-                fetchParkingDetails();
+                navigate('/bookings');
             } else {
                 showToast.error(getErrorMessage(response));
             }
@@ -618,14 +615,16 @@ export default function ParkingDetails() {
                         <div className="card mt-2">
                             <h3 className="card-title">Location</h3>
                             <div style={{ marginTop: '0.75rem' }}>
-                                <LocationMap
-                                    singleLocation={{
-                                        latitude: parking.latitude,
-                                        longitude: parking.longitude,
-                                        title: parking.title
-                                    }}
-                                    height="250px"
-                                />
+                                <Suspense fallback={<div className="loading" style={{ minHeight: '250px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><div className="spinner" /></div>}>
+                                    <LocationMap
+                                        singleLocation={{
+                                            latitude: parking.latitude,
+                                            longitude: parking.longitude,
+                                            title: parking.title
+                                        }}
+                                        height="250px"
+                                    />
+                                </Suspense>
                             </div>
                         </div>
 

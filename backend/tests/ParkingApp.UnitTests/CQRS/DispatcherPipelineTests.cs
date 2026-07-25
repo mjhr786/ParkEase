@@ -5,11 +5,18 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using ParkingApp.Application.CQRS;
 using ParkingApp.Application.CQRS.Behaviors;
-using ParkingApp.Application.CQRS.Commands.Bookings;
+using ParkingApp.Marketplace.Application.Commands.Bookings;
+using ParkingApp.Marketplace.Application.Validators;
 using ParkingApp.Application.DTOs;
-using ParkingApp.Application.Validators;
+using ParkingApp.Identity.Application.DTOs;
+using ParkingApp.Marketplace.Contracts.DTOs;
+using ParkingApp.Messaging.Application.DTOs;
+using ParkingApp.Notifications.Application.DTOs;
+using ParkingApp.Corporate.Application.DTOs;
 using ParkingApp.Domain.Enums;
-using ParkingApp.Domain.Interfaces;
+using ParkingApp.Marketplace.Contracts.Enums;
+using ParkingApp.BuildingBlocks.Enums;
+using ParkingApp.BuildingBlocks.Persistence;
 using Xunit;
 
 namespace ParkingApp.UnitTests.CQRS;
@@ -39,13 +46,13 @@ public class DispatcherPipelineTests
         services.AddScoped<IValidator<CreateBookingCommand>, CreateBookingCommandValidator>();
         services.AddScoped<IDispatcherBehavior, LoggingBehavior>();
         services.AddScoped<IDispatcherBehavior, ValidationBehavior>();
-        services.AddScoped(_ => new Mock<IUnitOfWork>().Object);
+        services.AddScoped(_ => new Mock<IUnitOfWorkTransaction>().Object);
         services.AddScoped<IDispatcher, Dispatcher>();
 
         var sp = services.BuildServiceProvider();
         var dispatcher = sp.GetRequiredService<IDispatcher>();
 
-        // Start in the past → fails validator
+        // Start in the past — fails validator
         var command = new CreateBookingCommand(
             Guid.NewGuid(),
             Guid.Empty, // also invalid
@@ -73,7 +80,7 @@ public class DispatcherPipelineTests
         services.AddScoped<IValidator<CreateBookingCommand>, CreateBookingCommandValidator>();
         services.AddScoped<IDispatcherBehavior, LoggingBehavior>();
         services.AddScoped<IDispatcherBehavior, ValidationBehavior>();
-        services.AddScoped(_ => new Mock<IUnitOfWork>().Object);
+        services.AddScoped(_ => new Mock<IUnitOfWorkTransaction>().Object);
         services.AddScoped<IDispatcher, Dispatcher>();
 
         var sp = services.BuildServiceProvider();
@@ -98,7 +105,7 @@ public class DispatcherPipelineTests
     [Fact]
     public async Task TransactionBehavior_WhenNotTransactional_DoesNotBeginTransaction()
     {
-        var uow = new Mock<IUnitOfWork>();
+        var uow = new Mock<IUnitOfWorkTransaction>();
         var behavior = new TransactionBehavior(uow.Object);
         var called = false;
 
@@ -124,7 +131,7 @@ public class DispatcherPipelineTests
     [Fact]
     public async Task TransactionBehavior_WhenTransactional_BeginsAndCommits()
     {
-        var uow = new Mock<IUnitOfWork>();
+        var uow = new Mock<IUnitOfWorkTransaction>();
         var behavior = new TransactionBehavior(uow.Object);
 
         var result = await behavior.HandleAsync(
@@ -150,4 +157,29 @@ public class DispatcherPipelineTests
 
         result.Should().Be("ok");
     }
+
+    [Fact]
+    public async Task LoggingBehavior_DoesNotThrow_WhenSlowThresholdConfigured()
+    {
+        var options = Microsoft.Extensions.Options.Options.Create(
+            new PerformanceLoggingOptions { SlowRequestMs = 0 });
+        var behavior = new LoggingBehavior(NullLogger<LoggingBehavior>.Instance, options);
+
+        var result = await behavior.HandleAsync(
+            new object(),
+            isCommand: true,
+            next: async () =>
+            {
+                await Task.Delay(1);
+                return 42;
+            },
+            CancellationToken.None);
+
+        result.Should().Be(42);
+    }
 }
+
+
+
+
+

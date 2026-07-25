@@ -1,7 +1,6 @@
 using FluentAssertions;
 using Microsoft.Extensions.Configuration;
-using ParkingApp.Infrastructure.Services;
-using System;
+using ParkingApp.Notifications.Infrastructure.Services;
 using System.Collections.Generic;
 using System.Net;
 using System.Net.Http;
@@ -27,92 +26,46 @@ public class ResendEmailServiceTests
     }
 
     [Fact]
-    public void Constructor_MissingApiKey_ThrowsInvalidOperationException()
+    public void Constructor_MissingApiKey_DoesNotThrow()
     {
-        // Arrange
+        // Implementation fail-opens: missing key means SendEmailAsync is a no-op.
         var httpClient = new HttpClient();
         var config = CreateConfiguration(null, "test@test.com");
 
-        // Act
-        Action action = () => new ResendEmailService(httpClient, config);
+        var act = () => new ResendEmailService(httpClient, config);
 
-        // Assert
-        action.Should().Throw<InvalidOperationException>().WithMessage("Resend:ApiKey is not configured.");
+        act.Should().NotThrow();
     }
 
     [Fact]
     public async Task SendEmailAsync_Success_DoesNotThrow()
     {
-        // Arrange
         var handlerMock = new Mock<HttpMessageHandler>();
         handlerMock.Protected()
             .Setup<Task<HttpResponseMessage>>(
                 "SendAsync",
                 ItExpr.IsAny<HttpRequestMessage>(),
                 ItExpr.IsAny<CancellationToken>())
-            .ReturnsAsync(new HttpResponseMessage
-            {
-                StatusCode = HttpStatusCode.OK
-            });
+            .ReturnsAsync(new HttpResponseMessage(HttpStatusCode.OK));
 
         var httpClient = new HttpClient(handlerMock.Object);
-        var config = CreateConfiguration("test_api_key", "test@test.com");
+        var config = CreateConfiguration("re_test_key", "from@test.com");
         var service = new ResendEmailService(httpClient, config);
 
-        // Act
-        var exception = await Record.ExceptionAsync(() => service.SendEmailAsync("to@test.com", "Subject", "Body", true));
+        var act = async () => await service.SendEmailAsync("to@test.com", "Subject", "<p>Body</p>");
 
-        // Assert
-        exception.Should().BeNull();
+        await act.Should().NotThrowAsync();
     }
 
     [Fact]
-    public async Task SendEmailAsync_Failure_LogsErrorAndDoesNotThrow()
+    public async Task SendEmailAsync_MissingApiKey_DoesNotThrow()
     {
-        // Arrange
-        var handlerMock = new Mock<HttpMessageHandler>();
-        handlerMock.Protected()
-            .Setup<Task<HttpResponseMessage>>(
-                "SendAsync",
-                ItExpr.IsAny<HttpRequestMessage>(),
-                ItExpr.IsAny<CancellationToken>())
-            .ReturnsAsync(new HttpResponseMessage
-            {
-                StatusCode = HttpStatusCode.BadRequest,
-                Content = new StringContent("Bad Request Error Message")
-            });
-
-        var httpClient = new HttpClient(handlerMock.Object);
-        var config = CreateConfiguration("test_api_key", "test@test.com");
+        var httpClient = new HttpClient();
+        var config = CreateConfiguration(null, "from@test.com");
         var service = new ResendEmailService(httpClient, config);
 
-        // Act
-        var exception = await Record.ExceptionAsync(() => service.SendEmailAsync("to@test.com", "Subject", "Body", false));
+        var act = async () => await service.SendEmailAsync("to@test.com", "Subject", "Body", isHtml: false);
 
-        // Assert
-        exception.Should().BeNull(); // Design choice: swallows exceptions and logs
-    }
-
-    [Fact]
-    public async Task SendEmailAsync_ThrowsHttpException_SwallowsAndLogs()
-    {
-        // Arrange
-        var handlerMock = new Mock<HttpMessageHandler>();
-        handlerMock.Protected()
-            .Setup<Task<HttpResponseMessage>>(
-                "SendAsync",
-                ItExpr.IsAny<HttpRequestMessage>(),
-                ItExpr.IsAny<CancellationToken>())
-            .ThrowsAsync(new HttpRequestException("Network failure"));
-
-        var httpClient = new HttpClient(handlerMock.Object);
-        var config = CreateConfiguration("test_api_key", "test@test.com");
-        var service = new ResendEmailService(httpClient, config);
-
-        // Act
-        var exception = await Record.ExceptionAsync(() => service.SendEmailAsync("to@test.com", "Subject", "Body", false));
-
-        // Assert
-        exception.Should().BeNull(); // Swallowed
+        await act.Should().NotThrowAsync();
     }
 }

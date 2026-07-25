@@ -1,0 +1,13 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>ParkingApp.Messaging.Contracts</RootNamespace>
+    <Description>Cross-module contracts for the Messaging module (no Domain references).</Description>
+  </PropertyGroup>
+
+  <!-- Contracts depend only on BuildingBlocks if needed; currently pure BCL. -->
+
+</Project>

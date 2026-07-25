@@ -1,0 +1,113 @@
+using ParkingApp.Infrastructure.Services;
+using ParkingApp.Application.Interfaces;
+using FluentAssertions;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using ParkingApp.Identity.Application.Interfaces;
+using ParkingApp.Marketplace.Application.Interfaces;
+using ParkingApp.Corporate.Application.Interfaces;
+using ParkingApp.BuildingBlocks.Domain;
+using ParkingApp.Infrastructure.Persistence;
+using ParkingApp.Corporate.Domain.Interfaces;
+using ParkingApp.Marketplace.Domain.Interfaces;
+using ParkingApp.Identity.Domain.Interfaces;
+using ParkingApp.Messaging.Domain.Interfaces;
+using ParkingApp.Infrastructure;
+using ParkingApp.Infrastructure.Data;
+using ParkingApp.Infrastructure.Repositories;
+using ParkingApp.Corporate.Infrastructure.ReadStores;
+using ParkingApp.Marketplace.Infrastructure.Services;
+using ParkingApp.Identity.Infrastructure.Services;
+using ParkingApp.Notifications.Infrastructure;
+using ParkingApp.Notifications.Infrastructure.Services;
+using System.Collections.Generic;
+using Xunit;
+
+namespace ParkingApp.UnitTests.Infrastructure.Services;
+
+public class DependencyInjectionTests
+{
+    [Fact]
+    public void AddInfrastructure_WithoutRedis_RegistersServices()
+    {
+        // Arrange
+        var services = new ServiceCollection();
+        var inMemorySettings = new Dictionary<string, string?> {
+            {"ConnectionStrings:DefaultConnection", "Host=localhost;Database=test;Username=postgres;Password=admin"},
+            {"ConnectionStrings:Redis", ""},
+            {"Jwt:SecretKey", "super_secret_key_for_testing"},
+            {"Resend:ApiKey", "test_resend_api_key"}
+        };
+        IConfiguration configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(inMemorySettings)
+            .Build();
+
+        services.AddLogging();
+        services.AddSingleton<IConfiguration>(configuration);
+
+        // Act — host shared infra + Notifications (email registration)
+        services.AddInfrastructure(configuration);
+        services.AddNotificationServices(configuration);
+        var provider = services.BuildServiceProvider();
+
+        // Assert
+        provider.GetService<ApplicationDbContext>().Should().NotBeNull();
+        provider.GetService<ISqlConnectionFactory>().Should().BeOfType<NpgsqlConnectionFactory>();
+        provider.GetService<IDomainEventDispatcher>().Should().BeOfType<DomainEventDispatcher>();
+        var uow = provider.GetService<IUnitOfWork>();
+        uow.Should().BeOfType<UnitOfWork>();
+        // Context ports must resolve to the same scoped UnitOfWork instance
+        ReferenceEquals(uow, provider.GetService<IMarketplaceUnitOfWork>()).Should().BeTrue();
+        ReferenceEquals(uow, provider.GetService<IIdentityUnitOfWork>()).Should().BeTrue();
+        ReferenceEquals(uow, provider.GetService<IMessagingUnitOfWork>()).Should().BeTrue();
+        ReferenceEquals(uow, provider.GetService<ICorporateUnitOfWork>()).Should().BeTrue();
+        provider.GetService<ICompanyReadStore>().Should().BeOfType<CompanyReadStore>();
+        provider.GetService<IParkingReadStore>().Should().BeOfType<ParkingApp.Marketplace.Infrastructure.ReadModel.Parking.ParkingReadStore>();
+        provider.GetService<IBookingReadStore>().Should().BeOfType<ParkingApp.Marketplace.Infrastructure.ReadModel.Bookings.BookingReadStore>();
+        provider.GetService<IReviewReadStore>().Should().BeOfType<ParkingApp.Marketplace.Infrastructure.ReadModel.Reviews.ReviewReadStore>();
+        provider.GetService<ITokenService>().Should().BeOfType<JwtTokenService>();
+        provider.GetService<IPasswordHasher>().Should().BeOfType<BcryptPasswordHasher>();
+        provider.GetService<IPaymentService>().Should().BeOfType<StripePaymentService>();
+        provider.GetService<IEmailService>().Should().BeOfType<ResendEmailService>();
+        provider.GetService<ICacheService>().Should().BeOfType<InMemoryCacheService>();
+    }
+
+    [Fact]
+    public void AddInfrastructure_WithRedis_RegistersRedisServices()
+    {
+        // Arrange
+        var services = new ServiceCollection();
+        var inMemorySettings = new Dictionary<string, string?> {
+            {"ConnectionStrings:DefaultConnection", "Host=localhost;Database=test;Username=postgres;Password=admin"},
+            {"ConnectionStrings:Redis", "localhost:6380"},
+            {"Jwt:SecretKey", "super_secret_key_for_testing"},
+            {"Resend:ApiKey", "test_resend_api_key"}
+        };
+        IConfiguration configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(inMemorySettings)
+            .Build();
+
+        services.AddLogging();
+        services.AddSingleton<IConfiguration>(configuration);
+
+        // Act
+        services.AddInfrastructure(configuration);
+        var provider = services.BuildServiceProvider();
+
+        // Assert
+        // We can't strictly assert the resolution of ICacheService here because it attempts to connect to localhost:6380
+        // and throws a RedisConnectionException during BuildServiceProvider/GetService, so we just check the descriptor instead.
+        services.Should().Contain(d => d.ServiceType == typeof(ParkingApp.Application.Interfaces.ICacheService) && d.ImplementationFactory != null);
+        services.Should().Contain(d => d.ServiceType == typeof(StackExchange.Redis.IConnectionMultiplexer));
+    }
+}
+
+
+
+
+
+
+
+
+
+

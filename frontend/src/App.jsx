@@ -48,6 +48,7 @@ function Header() {
   const { isCorporateMode } = useCompany();
   const { unreadCount } = useChatContext();
   const navigate = useNavigate();
+  const location = useLocation();
   const [profileOpen, setProfileOpen] = React.useState(false);
   const profileRef = React.useRef(null);
   const [pendingRequests, setPendingRequests] = React.useState(0);
@@ -74,15 +75,20 @@ function Header() {
   React.useEffect(() => {
     let mounted = true;
     const fetchPendingCount = async () => {
-      if (isAuthenticated) {
-        try {
-          const response = await api.getPendingRequestsCount();
-          if (response?.success && mounted) {
-            setPendingRequests(response.data);
-          }
-        } catch (error) {
-          console.error("Failed to fetch pending requests count:", error);
+      if (!isAuthenticated) {
+        if (mounted) setPendingRequests(0);
+        return;
+      }
+      try {
+        const response = await api.getPendingRequestsCount();
+        if (response?.success && mounted) {
+          const count = typeof response.data === 'number'
+            ? response.data
+            : Number(response.data) || 0;
+          setPendingRequests(count);
         }
+      } catch (error) {
+        console.error("Failed to fetch pending requests count:", error);
       }
     };
 
@@ -96,21 +102,52 @@ function Header() {
           'booking.requested',
           'booking.approved',
           'booking.rejected',
+          'booking.cancelled',
           'extension.requested',
           'extension.approved',
           'extension.rejected'
         ],
         () => {
-          fetchPendingCount();
+          // Small delay so backend cache invalidation from the mutation is visible
+          setTimeout(fetchPendingCount, 150);
         }
       );
     }
 
+    // Re-sync badge when returning to the tab (covers missed SignalR / local actions)
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        fetchPendingCount();
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+
     return () => {
       mounted = false;
       unsubscribe();
+      document.removeEventListener('visibilitychange', onVisibility);
     };
   }, [isAuthenticated, subscribeToRefresh]);
+
+  // Re-fetch badge when opening Vendor Inbox so a stale count clears even if events were missed
+  React.useEffect(() => {
+    if (!isAuthenticated || location.pathname !== '/my/requests') return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const response = await api.getPendingRequestsCount();
+        if (!cancelled && response?.success) {
+          const count = typeof response.data === 'number'
+            ? response.data
+            : Number(response.data) || 0;
+          setPendingRequests(count);
+        }
+      } catch {
+        /* ignore */
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [isAuthenticated, location.pathname]);
 
   const initials = user
     ? `${user.firstName?.[0] ?? ''}${user.lastName?.[0] ?? ''}`.toUpperCase()
@@ -125,22 +162,29 @@ function Header() {
 
           {isAuthenticated ? (
             <>
-              {/* Messages with badge */}
+              {/* Messages with badge (same red style as conversation unread chips) */}
               <Link to="/chat" className="nav-link" style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
                 Messages
-                {unreadCount > 0 && (
-                  <span style={{
-                    background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
-                    color: 'white',
-                    borderRadius: '10px',
-                    padding: '1px 7px',
-                    fontSize: '0.7rem',
-                    fontWeight: '700',
-                    minWidth: '18px',
-                    textAlign: 'center',
-                    lineHeight: '1.4',
-                  }}>
-                    {unreadCount > 99 ? '99+' : unreadCount}
+                {Number(unreadCount) > 0 && (
+                  <span
+                    aria-label={`${unreadCount} unread messages`}
+                    style={{
+                      background: '#ef4444',
+                      color: 'white',
+                      borderRadius: '999px',
+                      padding: '0 6px',
+                      fontSize: '0.7rem',
+                      fontWeight: '700',
+                      minWidth: '18px',
+                      height: '18px',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      lineHeight: 1,
+                      boxShadow: '0 0 0 2px rgba(10,10,15,0.85)',
+                    }}
+                  >
+                    {Number(unreadCount) > 99 ? '99+' : Number(unreadCount)}
                   </span>
                 )}
               </Link>

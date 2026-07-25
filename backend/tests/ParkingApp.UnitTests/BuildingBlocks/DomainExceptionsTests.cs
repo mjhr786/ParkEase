@@ -97,3 +97,8 @@ public class DomainExceptionsTests
         ex.ErrorCode.Should().Be("EXTERNAL_SERVICE_ERROR");
     }
 }
+
+
+
+
+

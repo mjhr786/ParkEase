@@ -4,9 +4,15 @@ using ParkingApp.Application.CQRS.Commands.Corporate;
 using ParkingApp.Application.CQRS.Commands.Corporate.Companies;
 using ParkingApp.Application.CQRS.Commands.Corporate.Members;
 using ParkingApp.Application.DTOs;
-using ParkingApp.Domain.Corporate;
+using ParkingApp.Identity.Application.DTOs;
+using ParkingApp.Marketplace.Contracts.DTOs;
+using ParkingApp.Messaging.Application.DTOs;
+using ParkingApp.Notifications.Application.DTOs;
+using ParkingApp.Corporate.Application.DTOs;
+using ParkingApp.Corporate.Domain;
 using ParkingApp.Domain.Enums;
-using ParkingApp.Domain.Interfaces;
+using ParkingApp.Infrastructure.Persistence;
+using ParkingApp.Corporate.Domain.Interfaces;
 using Xunit;
 
 namespace ParkingApp.UnitTests.Corporate;
@@ -102,3 +108,8 @@ public class UpdateCompanyTests
         renewed.ExpiresAt.Should().BeAfter(DateTime.UtcNow.AddDays(6));
     }
 }
+
+
+
+
+

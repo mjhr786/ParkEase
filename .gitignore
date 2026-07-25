@@ -441,3 +441,21 @@ deploy-monsterapp
 deploy-monsterapp.bat
 deploy-monsterasp.bat
 deploy-monsterasp*
+
+# Recovered files
+RecoveredFiles/
+
+# Local scripts and text artifacts
+*.bat
+*.ps1
+*.txt
+*.patch
+
+# Docs folder
+docs/
+
+# Local tools / one-off utilities
+ResetOutbox/
+**/ResetOutbox/
+CheckDB.cs
+**/CheckDB.cs

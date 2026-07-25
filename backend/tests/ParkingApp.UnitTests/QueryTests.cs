@@ -1,18 +1,29 @@
+using ParkingApp.Application.Interfaces;
 using Moq;
 using FluentAssertions;
 using Xunit;
 using Microsoft.Extensions.Logging;
-using ParkingApp.Application.CQRS.Queries.Parking;
-using ParkingApp.Application.CQRS.Queries.Bookings;
+using ParkingApp.Marketplace.Application.Queries.Parking;
+using ParkingApp.Marketplace.Application.Queries.Bookings;
 using ParkingApp.Application.DTOs;
-using ParkingApp.Application.Interfaces;
-using ParkingApp.Domain.Shared;
-using ParkingApp.Domain.Marketplace;
-using ParkingApp.Domain.Identity;
-using ParkingApp.Domain.Messaging;
-using ParkingApp.Domain.Corporate;
-using ParkingApp.Domain.Interfaces;
+using ParkingApp.Identity.Application.DTOs;
+using ParkingApp.Marketplace.Contracts.DTOs;
+using ParkingApp.Messaging.Application.DTOs;
+using ParkingApp.Notifications.Application.DTOs;
+using ParkingApp.Corporate.Application.DTOs;
+using ParkingApp.Identity.Application.Interfaces;
+using ParkingApp.Marketplace.Application.Interfaces;
+using ParkingApp.Corporate.Application.Interfaces;
+using ParkingApp.BuildingBlocks.Domain;
+using ParkingApp.Marketplace.Domain.Entities;
+using ParkingApp.Identity.Domain.Entities;
+using ParkingApp.Messaging.Domain.Entities;
+using ParkingApp.Corporate.Domain;
+using ParkingApp.Infrastructure.Persistence;
+using ParkingApp.Marketplace.Domain.Interfaces;
 using ParkingApp.Domain.Enums;
+using ParkingApp.Marketplace.Contracts.Enums;
+using ParkingApp.BuildingBlocks.Enums;
 using System.Linq.Expressions;
 
 namespace ParkingApp.UnitTests;
@@ -94,8 +105,13 @@ public class QueryTests
     public async Task SearchParkingHandler_WhenFound_ShouldSucceedWithReservations()
     {
         // Arrange
-        var handler = new SearchParkingHandler(_mockUnitOfWork.Object, _mockReadStore.Object, _mockCache.Object, _mockRouting.Object, _mockSearchLogger.Object);
-        var parking = new ParkingSpace { Id = Guid.NewGuid(), Title = "Test Park", IsActive = true, Owner = new User { FirstName = "Owner" } };
+        var discovery = Microsoft.Extensions.Options.Options.Create(new ParkingApp.Marketplace.Application.Options.MarketplaceDiscoveryOptions());
+        var discoveryMonitor = new TestDiscoveryOptionsMonitor(discovery.Value);
+        var routingMonitor = new TestRoutingOptionsMonitor(new ParkingApp.Marketplace.Application.Options.RoutingOptions { UseOsrmOnSearch = true });
+        var handler = new SearchParkingHandler(
+            _mockUnitOfWork.Object, _mockReadStore.Object, _mockCache.Object, _mockRouting.Object,
+            discoveryMonitor, routingMonitor, _mockSearchLogger.Object);
+        var parking = new ParkingSpace { Id = Guid.NewGuid(), Title = "Test Park", IsActive = true };
         var bookings = new List<Booking> { new Booking { ParkingSpaceId = parking.Id, StartDateTime = DateTime.UtcNow.AddHours(1), EndDateTime = DateTime.UtcNow.AddHours(2) } };
 
         _mockReadStore.Setup(r => r.SearchAsync(It.IsAny<ParkingSearchDto>(), It.IsAny<CancellationToken>()))
@@ -115,4 +131,28 @@ public class QueryTests
         result.Data!.ParkingSpaces.Should().HaveCount(1);
         result.Data.ParkingSpaces.First().ActiveReservations.Should().NotBeNull();
     }
+
+    private sealed class TestDiscoveryOptionsMonitor : Microsoft.Extensions.Options.IOptionsMonitor<ParkingApp.Marketplace.Application.Options.MarketplaceDiscoveryOptions>
+    {
+        public TestDiscoveryOptionsMonitor(ParkingApp.Marketplace.Application.Options.MarketplaceDiscoveryOptions current) => CurrentValue = current;
+        public ParkingApp.Marketplace.Application.Options.MarketplaceDiscoveryOptions CurrentValue { get; }
+        public ParkingApp.Marketplace.Application.Options.MarketplaceDiscoveryOptions Get(string? name) => CurrentValue;
+        public IDisposable OnChange(Action<ParkingApp.Marketplace.Application.Options.MarketplaceDiscoveryOptions, string?> listener) => new Noop();
+        private sealed class Noop : IDisposable { public void Dispose() { } }
+    }
+
+    private sealed class TestRoutingOptionsMonitor : Microsoft.Extensions.Options.IOptionsMonitor<ParkingApp.Marketplace.Application.Options.RoutingOptions>
+    {
+        public TestRoutingOptionsMonitor(ParkingApp.Marketplace.Application.Options.RoutingOptions current) => CurrentValue = current;
+        public ParkingApp.Marketplace.Application.Options.RoutingOptions CurrentValue { get; }
+        public ParkingApp.Marketplace.Application.Options.RoutingOptions Get(string? name) => CurrentValue;
+        public IDisposable OnChange(Action<ParkingApp.Marketplace.Application.Options.RoutingOptions, string?> listener) => new Noop();
+        private sealed class Noop : IDisposable { public void Dispose() { } }
+    }
 }
+
+
+
+
+
+

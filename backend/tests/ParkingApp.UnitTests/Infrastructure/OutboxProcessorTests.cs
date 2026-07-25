@@ -2,9 +2,11 @@ using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
-using ParkingApp.Application.Interfaces;
-using ParkingApp.Domain.Events;
-using ParkingApp.Domain.Events.Bookings;
+using ParkingApp.Identity.Application.Interfaces;
+using ParkingApp.Marketplace.Application.Interfaces;
+using ParkingApp.Corporate.Application.Interfaces;
+using ParkingApp.BuildingBlocks.Domain;
+using ParkingApp.Marketplace.Domain.Events;
 using ParkingApp.Infrastructure.Data;
 using ParkingApp.Infrastructure.Outbox;
 using Xunit;
@@ -110,3 +112,8 @@ public class OutboxProcessorTests
         handler.Calls.Should().Be(1);
     }
 }
+
+
+
+
+

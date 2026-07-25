@@ -85,16 +85,7 @@ const STATUS_COLORS = {
     9: '#8b5cf6', // Extension Payment Due (same purple as AwaitingPayment)
 };
 
-const REFRESH_TRIGGERS = [
-    'booking.approved',
-    'booking.rejected',
-    'payment.completed',
-    'booking.checkin',
-    'booking.checkout',
-    'extension.requested',
-    'extension.approved',
-    'extension.rejected',
-];
+const REFRESH_TRIGGERS = ['booking.approved', 'booking.rejected', 'payment.completed', 'extension.requested', 'extension.approved', 'extension.rejected'];
 
 export default function MyBookings() {
     const [bookings, setBookings] = useState([]);
@@ -532,7 +523,7 @@ export default function MyBookings() {
                                     </div>
 
                                     <div className="flex gap-1 mt-2">
-                                        {booking.status === 6 && ( // AwaitingPayment (initial booking)
+                                        {(booking.status === 6 || booking.status === 'AwaitingPayment') && ( // AwaitingPayment (initial booking)
                                             <>
                                                 <button
                                                     className="btn btn-primary"
@@ -550,23 +541,26 @@ export default function MyBookings() {
                                                 </button>
                                             </>
                                         )}
-                                        {booking.status === 9 && ( // AwaitingExtensionPayment
+                                        {(booking.status === 9 || booking.status === 'AwaitingExtensionPayment') && ( // AwaitingExtensionPayment
                                             <>
                                                 <div style={{ width: '100%', padding: '0.5rem', background: 'rgba(139,92,246,0.1)', borderRadius: 'var(--radius-sm)', marginBottom: '0.5rem', fontSize: '0.85rem', color: '#8b5cf6' }}>
-                                                    ⏳ Extension approved — pay ₹{booking.pendingExtensionAmount?.toFixed(2)} to confirm the new end time of {booking.pendingExtensionEndDateTime ? new Date(booking.pendingExtensionEndDateTime).toLocaleString() : ''}
+                                                    ⏳ Extension approved — pay ₹{Number(booking.pendingExtensionAmount || 0).toFixed(2)} to confirm the new end time of {booking.pendingExtensionEndDateTime ? new Date(booking.pendingExtensionEndDateTime).toLocaleString() : ''}
                                                 </div>
                                                 <button
                                                     className="btn btn-primary"
                                                     onClick={() => handlePayment(booking.id, booking.pendingExtensionAmount)}
                                                     disabled={payingId === booking.id}
                                                 >
-                                                    {payingId === booking.id ? 'Processing...' : `Pay Extension ₹${booking.pendingExtensionAmount?.toFixed(2)}`}
+                                                    {payingId === booking.id ? 'Processing...' : `Pay ₹${Number(booking.pendingExtensionAmount || 0).toFixed(2)}`}
                                                 </button>
                                             </>
                                         )}
-                                        {booking.status === 8 && ( // PendingExtension — user waiting for vendor
+                                        {(booking.status === 8 || booking.status === 'PendingExtension') && ( // PendingExtension — user waiting for vendor
                                             <div style={{ width: '100%', padding: '0.5rem', background: 'rgba(245,158,11,0.1)', borderRadius: 'var(--radius-sm)', fontSize: '0.85rem', color: '#f59e0b' }}>
                                                 ⏳ Extension request pending owner approval — proposed new end: {booking.pendingExtensionEndDateTime ? new Date(booking.pendingExtensionEndDateTime).toLocaleString() : ''}
+                                                {Number(booking.pendingExtensionAmount) > 0 && (
+                                                    <> · amount due if approved: ₹{Number(booking.pendingExtensionAmount).toFixed(2)}</>
+                                                )}
                                             </div>
                                         )}
 
@@ -615,8 +609,14 @@ export default function MyBookings() {
                                                 {cancellingId === booking.id ? 'Cancelling...' : 'Cancel'}
                                             </button>
                                         )}
-                                        {/* Navigation Button for all active bookings */}
-                                        {[1, 2, 6, 9].includes(booking.status) && booking.latitude && booking.longitude && (
+                                        {/* Navigation Button for all active bookings.
+                                            Use Boolean(...) so a missing/zero lat/lng does not render as "0"
+                                            (React renders the number 0 from short-circuit && expressions). */}
+                                        {Boolean(
+                                            [1, 2, 6, 9].includes(booking.status) &&
+                                            booking.latitude &&
+                                            booking.longitude
+                                        ) && (
                                             <a
                                                 href={`https://www.google.com/maps/dir/?api=1&destination=${parseFloat(booking.latitude)},${parseFloat(booking.longitude)}`}
                                                 target="_blank"
@@ -808,3 +808,4 @@ export default function MyBookings() {
         </>
     );
 }
+

@@ -31,3 +31,8 @@ public class DomainExceptionMappingTests
         response.Errors.Should().Contain("Invalid discount amount");
     }
 }
+
+
+
+
+

@@ -2,15 +2,23 @@ using Moq;
 using FluentAssertions;
 using Xunit;
 using Microsoft.Extensions.Logging;
-using ParkingApp.Application.CQRS.Commands.Auth;
+using ParkingApp.Identity.Application.Commands.Auth;
 using ParkingApp.Application.DTOs;
-using ParkingApp.Application.Interfaces;
-using ParkingApp.Domain.Shared;
-using ParkingApp.Domain.Marketplace;
-using ParkingApp.Domain.Identity;
-using ParkingApp.Domain.Messaging;
-using ParkingApp.Domain.Corporate;
-using ParkingApp.Domain.Interfaces;
+using ParkingApp.Identity.Application.DTOs;
+using ParkingApp.Marketplace.Contracts.DTOs;
+using ParkingApp.Messaging.Application.DTOs;
+using ParkingApp.Notifications.Application.DTOs;
+using ParkingApp.Corporate.Application.DTOs;
+using ParkingApp.Identity.Application.Interfaces;
+using ParkingApp.Marketplace.Application.Interfaces;
+using ParkingApp.Corporate.Application.Interfaces;
+using ParkingApp.BuildingBlocks.Domain;
+using ParkingApp.Marketplace.Domain.Entities;
+using ParkingApp.Identity.Domain.Entities;
+using ParkingApp.Messaging.Domain.Entities;
+using ParkingApp.Corporate.Domain;
+using ParkingApp.Infrastructure.Persistence;
+using ParkingApp.Identity.Domain.Interfaces;
 
 namespace ParkingApp.UnitTests;
 
@@ -64,6 +72,9 @@ public class AuthTests
             Id = Guid.NewGuid(),
             Email = "test@example.com",
             PasswordHash = $"hash:{password}",
+            FirstName = "Test",
+            LastName = "User",
+            PhoneNumber = "1",
             IsActive = true
         };
 
@@ -133,7 +144,7 @@ public class AuthTests
     public async Task LogoutHandler_WhenUserExists_ShouldClearRefreshToken()
     {
         var handler = new LogoutHandler(_mockUnitOfWork.Object, _mockLogoutLogger.Object);
-        var user = new User { Id = Guid.NewGuid(), RefreshToken = "old-token" };
+        var user = new User { Id = Guid.NewGuid(), Email = "test@example.com", PasswordHash = "hash", FirstName = "Test", LastName = "User", PhoneNumber = "1", IsActive = true };
         _mockUserRepository.Setup(r => r.GetByIdAsync(user.Id, It.IsAny<CancellationToken>())).ReturnsAsync(user);
 
         var result = await handler.HandleAsync(new LogoutCommand(user.Id));
@@ -155,7 +166,16 @@ public class AuthTests
             _mockPasswordHasher.Object,
             _mockPasswordLogger.Object);
         var oldPassword = "OldPass123!";
-        var user = new User { Id = Guid.NewGuid(), PasswordHash = $"hash:{oldPassword}" };
+        var user = new User
+        {
+            Id = Guid.NewGuid(),
+            Email = "test@example.com",
+            PasswordHash = "hash:OldPass123!",
+            FirstName = "Test",
+            LastName = "User",
+            PhoneNumber = "1",
+            IsActive = true
+        };
         _mockUserRepository.Setup(r => r.GetByIdAsync(user.Id, It.IsAny<CancellationToken>())).ReturnsAsync(user);
 
         var dto = new ChangePasswordDto(oldPassword, "NewPass123!");
@@ -168,3 +188,8 @@ public class AuthTests
 
     #endregion
 }
+
+
+
+
+

@@ -1,10 +1,19 @@
+using ParkingApp.Application.Interfaces;
 using Moq;
 using FluentAssertions;
 using Xunit;
 using Microsoft.Extensions.Logging;
-using ParkingApp.Application.CQRS.Queries.Dashboard;
-using ParkingApp.Application.Interfaces;
+using ParkingApp.Marketplace.Application.Queries.Dashboard;
+using ParkingApp.Marketplace.Application.Interfaces;
+using ParkingApp.Identity.Application.Interfaces;
+using ParkingApp.Marketplace.Application.Interfaces;
+using ParkingApp.Corporate.Application.Interfaces;
 using ParkingApp.Application.DTOs;
+using ParkingApp.Identity.Application.DTOs;
+using ParkingApp.Marketplace.Contracts.DTOs;
+using ParkingApp.Messaging.Application.DTOs;
+using ParkingApp.Notifications.Application.DTOs;
+using ParkingApp.Corporate.Application.DTOs;
 using ParkingApp.Domain.Enums;
 
 namespace ParkingApp.UnitTests.Dashboard;
@@ -118,3 +127,9 @@ public class DashboardHandlerTests
         _mockCache.Verify(c => c.SetAsync(It.IsAny<string>(), It.IsAny<MemberDashboardDto>(), It.IsAny<TimeSpan>(), It.IsAny<CancellationToken>()), Times.Once);
     }
 }
+
+
+
+
+
+

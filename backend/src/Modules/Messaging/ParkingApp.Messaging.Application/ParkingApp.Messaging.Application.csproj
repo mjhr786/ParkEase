@@ -1,0 +1,26 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>ParkingApp.Messaging.Application</RootNamespace>
+    <Description>Messaging module application layer (chat CQRS).</Description>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- P1.1: shared kernel in BuildingBlocks (CQRS, ApiResponse) -->
+    <ProjectReference Include="..\..\..\ParkingApp.BuildingBlocks\ParkingApp.BuildingBlocks.csproj" />
+    <ProjectReference Include="..\ParkingApp.Messaging.Domain\ParkingApp.Messaging.Domain.csproj" />
+    <ProjectReference Include="..\ParkingApp.Messaging.Contracts\ParkingApp.Messaging.Contracts.csproj" />
+    <ProjectReference Include="..\..\Identity\ParkingApp.Identity.Contracts\ParkingApp.Identity.Contracts.csproj" />
+    <ProjectReference Include="..\..\Marketplace\ParkingApp.Marketplace.Contracts\ParkingApp.Marketplace.Contracts.csproj" />
+    <ProjectReference Include="..\..\Notifications\ParkingApp.Notifications.Contracts\ParkingApp.Notifications.Contracts.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.2" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.2" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="ParkingApp.UnitTests" />
+    <InternalsVisibleTo Include="DynamicProxyGenAssembly2" />
+  </ItemGroup>
+</Project>

@@ -1,0 +1,11 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>ParkingApp.Identity.Contracts</RootNamespace>
+    <Description>Cross-module contracts for the Identity module (no Domain references).</Description>
+  </PropertyGroup>
+
+</Project>

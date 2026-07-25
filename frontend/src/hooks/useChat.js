@@ -34,13 +34,17 @@ export function useChat(onMessageReceived, onMessagesRead) {
 
         const connection = new signalR.HubConnectionBuilder()
             .withUrl(`${API_URL}/hubs/chat`, {
-                accessTokenFactory: () => token,
+                accessTokenFactory: () => localStorage.getItem('accessToken'),
                 skipNegotiation: true,
                 transport: signalR.HttpTransportType.WebSockets
             })
             .withAutomaticReconnect([0, 2000, 5000, 10000, 30000])
             .configureLogging(signalR.LogLevel.Warning)
             .build();
+
+        // Must be > server KeepAlive (default 30s). Default client timeout is 30s and races the ping.
+        connection.serverTimeoutInMilliseconds = 90000;
+        connection.keepAliveIntervalInMilliseconds = 15000;
 
         connection.on('ReceiveMessage', (message) => {
             if (onMessageRef.current) onMessageRef.current(message);

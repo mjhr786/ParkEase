@@ -6,9 +6,14 @@ using Microsoft.AspNetCore.Http;
 using System.Security.Claims;
 using ParkingApp.API.Controllers;
 using ParkingApp.Application.CQRS;
-using ParkingApp.Application.CQRS.Queries.Bookings;
-using ParkingApp.Application.CQRS.Commands.Bookings;
+using ParkingApp.Marketplace.Application.Queries.Bookings;
+using ParkingApp.Marketplace.Application.Commands.Bookings;
 using ParkingApp.Application.DTOs;
+using ParkingApp.Identity.Application.DTOs;
+using ParkingApp.Marketplace.Contracts.DTOs;
+using ParkingApp.Messaging.Application.DTOs;
+using ParkingApp.Notifications.Application.DTOs;
+using ParkingApp.Corporate.Application.DTOs;
 using ParkingApp.Domain.Enums;
 
 namespace ParkingApp.UnitTests.API;
@@ -213,4 +218,9 @@ public class BookingsControllerTests
         return new BookingDto { Id = id };
     }
 }
+
+
+
+
+
 

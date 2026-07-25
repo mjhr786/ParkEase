@@ -1,11 +1,19 @@
+using ParkingApp.Notifications.Application.EventHandlers;
+using ParkingApp.Marketplace.Application.Commands.Bookings;
+using ParkingApp.Marketplace.Application.Queries.Bookings;
+using ParkingApp.Marketplace.Application.Interfaces;
+using ParkingApp.Notifications.Application.Queries;
+using ParkingApp.Notifications.Application.Commands;
+using ParkingApp.Application.Interfaces;
 using FluentAssertions;
 using ParkingApp.BuildingBlocks.Exceptions;
-using ParkingApp.Domain.Shared;
-using ParkingApp.Domain.Marketplace;
-using ParkingApp.Domain.Identity;
-using ParkingApp.Domain.Messaging;
-using ParkingApp.Domain.Corporate;
+using ParkingApp.BuildingBlocks.Domain;
+using ParkingApp.Marketplace.Domain.Entities;
+using ParkingApp.Identity.Domain.Entities;
+using ParkingApp.Messaging.Domain.Entities;
+using ParkingApp.Corporate.Domain;
 using ParkingApp.Domain.Enums;
+using ParkingApp.Marketplace.Contracts.Enums;
 using Xunit;
 
 namespace ParkingApp.UnitTests.Domain;
@@ -55,7 +63,7 @@ public class PaymentAndUserFactoryTests
         var user = User.Register("Test@Example.com", "hash", "Ada", "Lovelace", "999");
 
         user.Email.Value.Should().Be("test@example.com");
-        user.Role.Should().Be(UserRole.User);
+        user.Role.Should().Be(ParkingApp.Identity.Domain.Enums.UserRole.User);
         user.IsActive.Should().BeTrue();
 
         user.RecordLogin("refresh-1", DateTime.UtcNow.AddDays(7));
@@ -88,3 +96,10 @@ public class PaymentAndUserFactoryTests
         act.Should().Throw<BusinessRuleException>();
     }
 }
+
+
+
+
+
+
+

@@ -1,8 +1,8 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using ParkingApp.Application.CQRS;
-using ParkingApp.Application.CQRS.Commands.Notifications;
-using ParkingApp.Application.CQRS.Queries.Notifications;
+using ParkingApp.Notifications.Application.Commands.Notifications;
+using ParkingApp.Notifications.Application.Queries.Notifications;
 
 namespace ParkingApp.API.Controllers;
 

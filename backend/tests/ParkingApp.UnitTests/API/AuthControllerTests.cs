@@ -12,9 +12,14 @@ using Microsoft.AspNetCore.Mvc;
 using Moq;
 using ParkingApp.API.Controllers;
 using ParkingApp.Application.CQRS;
-using ParkingApp.Application.CQRS.Commands.Auth;
-using ParkingApp.Application.CQRS.Commands.Users;
+using ParkingApp.Identity.Application.Commands.Auth;
+using ParkingApp.Identity.Application.Commands.Users;
 using ParkingApp.Application.DTOs;
+using ParkingApp.Identity.Application.DTOs;
+using ParkingApp.Marketplace.Contracts.DTOs;
+using ParkingApp.Messaging.Application.DTOs;
+using ParkingApp.Notifications.Application.DTOs;
+using ParkingApp.Corporate.Application.DTOs;
 using ParkingApp.BuildingBlocks.Common;
 using Xunit;
 
@@ -44,7 +49,7 @@ public class AuthControllerTests
     {
         // Arrange
         var dto = new RegisterDto("test@test.com", "password", "Test", "User", "12345");
-        var tokenDto = new TokenDto("token", "refresh", DateTime.UtcNow.AddHours(1), new UserDto(Guid.NewGuid(), "test@test.com", "Test", "User", "12345", ParkingApp.Domain.Enums.UserRole.User, true, true, DateTime.UtcNow));
+        var tokenDto = new TokenDto("token", "refresh", DateTime.UtcNow.AddHours(1), new UserDto(Guid.NewGuid(), "test@test.com", "Test", "User", "12345", ParkingApp.Identity.Domain.Enums.UserRole.User, true, true, DateTime.UtcNow));
         var result = new ApiResponse<TokenDto>(true, "Success", tokenDto, null);
 
         _registerValidatorMock
@@ -88,7 +93,7 @@ public class AuthControllerTests
     {
          // Arrange
         var dto = new LoginDto("test@test.com", "password");
-        var tokenDto = new TokenDto("token", "refresh", DateTime.UtcNow.AddHours(1), new UserDto(Guid.NewGuid(), "test@test.com", "Test", "User", "12345", ParkingApp.Domain.Enums.UserRole.User, true, true, DateTime.UtcNow));
+        var tokenDto = new TokenDto("token", "refresh", DateTime.UtcNow.AddHours(1), new UserDto(Guid.NewGuid(), "test@test.com", "Test", "User", "12345", ParkingApp.Identity.Domain.Enums.UserRole.User, true, true, DateTime.UtcNow));
         var result = new ApiResponse<TokenDto>(true, "Success", tokenDto, null);
 
         _loginValidatorMock
@@ -133,7 +138,7 @@ public class AuthControllerTests
     {
         // Arrange
         var dto = new RefreshTokenDto("refresh");
-        var tokenDto = new TokenDto("new-token", "new-refresh", DateTime.UtcNow.AddHours(1), new UserDto(Guid.NewGuid(), "test@test.com", "Test", "User", "12345", ParkingApp.Domain.Enums.UserRole.User, true, true, DateTime.UtcNow));
+        var tokenDto = new TokenDto("new-token", "new-refresh", DateTime.UtcNow.AddHours(1), new UserDto(Guid.NewGuid(), "test@test.com", "Test", "User", "12345", ParkingApp.Identity.Domain.Enums.UserRole.User, true, true, DateTime.UtcNow));
         var result = new ApiResponse<TokenDto>(true, "Success", tokenDto, null);
 
         _dispatcherMock
@@ -214,7 +219,7 @@ public class UsersControllerTests
          // Arrange
         var userId = Guid.NewGuid();
         SetupControllerUser(_controller, userId);
-        var userDto = new UserDto(userId, "test@test.com", "Test", "User", "12345", ParkingApp.Domain.Enums.UserRole.User, true, true, DateTime.UtcNow);
+        var userDto = new UserDto(userId, "test@test.com", "Test", "User", "12345", ParkingApp.Identity.Domain.Enums.UserRole.User, true, true, DateTime.UtcNow);
         
         _dispatcherMock
             .Setup(d => d.QueryAsync(It.Is<GetCurrentUserQuery>(q => q.UserId == userId), It.IsAny<CancellationToken>()))
@@ -234,7 +239,7 @@ public class UsersControllerTests
         var userId = Guid.NewGuid();
         SetupControllerUser(_controller, userId);
         var dto = new UpdateUserDto("NewName", null, null);
-        var userDto = new UserDto(userId, "test@test.com", "NewName", "User", "12345", ParkingApp.Domain.Enums.UserRole.User, true, true, DateTime.UtcNow);
+        var userDto = new UserDto(userId, "test@test.com", "NewName", "User", "12345", ParkingApp.Identity.Domain.Enums.UserRole.User, true, true, DateTime.UtcNow);
         
         _dispatcherMock
             .Setup(d => d.SendAsync(It.Is<UpdateUserCommand>(c => c.UserId == userId && c.Dto == dto), It.IsAny<CancellationToken>()))
@@ -277,3 +282,8 @@ public class UsersControllerTests
         };
     }
 }
+
+
+
+
+

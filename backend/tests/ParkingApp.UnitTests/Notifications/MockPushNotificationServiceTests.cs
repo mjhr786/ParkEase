@@ -1,8 +1,12 @@
+using ParkingApp.Notifications.Contracts;
 using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using Moq;
-using ParkingApp.Application.Interfaces;
-using ParkingApp.Notifications.Services;
+using ParkingApp.Identity.Application.Interfaces;
+using ParkingApp.Marketplace.Application.Interfaces;
+using ParkingApp.Corporate.Application.Interfaces;
+using ParkingApp.Notifications.Application.Services;
+using ParkingApp.Notifications.Infrastructure.Services;
 using System;
 using System.Threading;
 using System.Threading.Tasks;
@@ -104,3 +108,10 @@ public class MockPushNotificationServiceTests
         result.SuccessCount.Should().Be(2);
     }
 }
+
+
+
+
+
+
+

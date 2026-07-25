@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>ParkingApp.Marketplace.Contracts</RootNamespace>
+    <Description>Cross-module contracts for the Marketplace module.</Description>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\ParkingApp.BuildingBlocks\ParkingApp.BuildingBlocks.csproj" />
+  </ItemGroup>
+</Project>
+

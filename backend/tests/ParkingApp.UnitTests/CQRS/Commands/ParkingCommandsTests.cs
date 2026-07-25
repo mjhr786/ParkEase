@@ -1,3 +1,4 @@
+using ParkingApp.Application.Interfaces;
 using System;
 using System.Threading;
 using System.Threading.Tasks;
@@ -5,16 +6,28 @@ using System.Linq.Expressions;
 using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using Moq;
-using ParkingApp.Application.CQRS.Commands.Parking;
+using ParkingApp.Marketplace.Application.Commands.Parking;
 using ParkingApp.Application.DTOs;
-using ParkingApp.Application.Interfaces;
-using ParkingApp.Domain.Shared;
-using ParkingApp.Domain.Marketplace;
-using ParkingApp.Domain.Identity;
-using ParkingApp.Domain.Messaging;
-using ParkingApp.Domain.Corporate;
+using ParkingApp.Identity.Application.DTOs;
+using ParkingApp.Marketplace.Contracts.DTOs;
+using ParkingApp.Messaging.Application.DTOs;
+using ParkingApp.Notifications.Application.DTOs;
+using ParkingApp.Corporate.Application.DTOs;
+using ParkingApp.Identity.Application.Interfaces;
+using ParkingApp.Marketplace.Application.Interfaces;
+using ParkingApp.Corporate.Application.Interfaces;
+using ParkingApp.BuildingBlocks.Domain;
+using ParkingApp.Marketplace.Domain.Entities;
+using ParkingApp.Identity.Domain.Entities;
+using ParkingApp.Messaging.Domain.Entities;
+using ParkingApp.Corporate.Domain;
 using ParkingApp.Domain.Enums;
-using ParkingApp.Domain.Interfaces;
+using ParkingApp.Marketplace.Contracts.Enums;
+using ParkingApp.Identity.Domain.Enums;
+using ParkingApp.Infrastructure.Persistence;
+using ParkingApp.Marketplace.Domain.Interfaces;
+using ParkingApp.Identity.Domain.Interfaces;
+using ParkingApp.Identity.Contracts;
 using Xunit;
 
 namespace ParkingApp.UnitTests.CQRS.Commands;
@@ -25,6 +38,7 @@ public class ParkingCommandsTests
     private readonly Mock<IParkingSpaceRepository> _mockParkingRepo;
     private readonly Mock<IUserRepository> _mockUserRepo;
     private readonly Mock<IBookingRepository> _mockBookingRepo;
+    private readonly Mock<IUserLookup> _mockUsers;
     private readonly Mock<ICacheService> _mockCache;
     private readonly Mock<ILogger<CreateParkingHandler>> _mockCreateLogger;
     private readonly Mock<ILogger<UpdateParkingHandler>> _mockUpdateLogger;
@@ -37,6 +51,7 @@ public class ParkingCommandsTests
         _mockParkingRepo = new Mock<IParkingSpaceRepository>();
         _mockUserRepo = new Mock<IUserRepository>();
         _mockBookingRepo = new Mock<IBookingRepository>();
+        _mockUsers = new Mock<IUserLookup>();
 
         _mockUow.Setup(u => u.ParkingSpaces).Returns(_mockParkingRepo.Object);
         _mockUow.Setup(u => u.Users).Returns(_mockUserRepo.Object);
@@ -53,8 +68,8 @@ public class ParkingCommandsTests
     [Fact]
     public async Task CreateParkingHandler_ShouldFail_WhenOwnerNotFound()
     {
-        var handler = new CreateParkingHandler(_mockUow.Object, _mockUow.Object, _mockCreateLogger.Object);
-        _mockUserRepo.Setup(r => r.GetByIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>())).ReturnsAsync((User)null);
+        var handler = new CreateParkingHandler(_mockUow.Object, _mockUsers.Object, _mockCreateLogger.Object);
+        _mockUsers.Setup(r => r.GetByIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>())).ReturnsAsync((UserSummary?)null);
 
         var res = await handler.HandleAsync(new CreateParkingCommand(Guid.NewGuid(), new CreateParkingSpaceDto("T", "D", "A", "C", "S", "C", "P", 1, 1, ParkingType.Open, 1, 1, 1, 1, 1, default, default, false, null, null, null, null)));
 
@@ -66,11 +81,12 @@ public class ParkingCommandsTests
     [Fact]
     public async Task CreateParkingHandler_ShouldSucceed()
     {
-        var handler = new CreateParkingHandler(_mockUow.Object, _mockUow.Object, _mockCreateLogger.Object);
-        var owner = new User { Id = Guid.NewGuid(), Role = UserRole.User };
-        _mockUserRepo.Setup(r => r.GetByIdAsync(owner.Id, It.IsAny<CancellationToken>())).ReturnsAsync(owner);
+        var handler = new CreateParkingHandler(_mockUow.Object, _mockUsers.Object, _mockCreateLogger.Object);
+        var ownerId = Guid.NewGuid();
+        _mockUsers.Setup(r => r.GetByIdAsync(ownerId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new UserSummary(ownerId, "test@example.com", "Test", "User", "1", IsActive: true));
 
-        var res = await handler.HandleAsync(new CreateParkingCommand(owner.Id, new CreateParkingSpaceDto("T", "D", "A", "C", "S", "C", "P", 1, 1, ParkingType.Open, 1, 1, 1, 1, 1, default, default, false, null, null, null, null)));
+        var res = await handler.HandleAsync(new CreateParkingCommand(ownerId, new CreateParkingSpaceDto("T", "D", "A", "C", "S", "C", "P", 1, 1, ParkingType.Open, 1, 1, 1, 1, 1, default, default, false, null, null, null, null)));
 
         res.Success.Should().BeTrue();
         _mockParkingRepo.Verify(r => r.AddAsync(It.IsAny<ParkingSpace>(), It.IsAny<CancellationToken>()), Times.Once);
@@ -167,3 +183,9 @@ public class ParkingCommandsTests
         _mockUow.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
     }
 }
+
+
+
+
+
+

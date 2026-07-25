@@ -1,8 +1,21 @@
+using ParkingApp.Notifications.Application.EventHandlers;
+using ParkingApp.Marketplace.Application.Commands.Bookings;
+using ParkingApp.Marketplace.Application.Queries.Bookings;
+using ParkingApp.Notifications.Application.Queries;
+using ParkingApp.Notifications.Application.Commands;
+using ParkingApp.Application.Interfaces;
 using FluentAssertions;
 using Moq;
 using ParkingApp.Application.CQRS.Shared.Outbox;
 using ParkingApp.Application.DTOs;
-using ParkingApp.Application.Interfaces;
+using ParkingApp.Identity.Application.DTOs;
+using ParkingApp.Marketplace.Contracts.DTOs;
+using ParkingApp.Messaging.Application.DTOs;
+using ParkingApp.Notifications.Application.DTOs;
+using ParkingApp.Corporate.Application.DTOs;
+using ParkingApp.Identity.Application.Interfaces;
+using ParkingApp.Marketplace.Application.Interfaces;
+using ParkingApp.Corporate.Application.Interfaces;
 using Xunit;
 
 namespace ParkingApp.UnitTests.CQRS;
@@ -53,3 +66,9 @@ public class OutboxAdminHandlerTests
         result.Data!.ProcessedCount.Should().Be(3);
     }
 }
+
+
+
+
+
+

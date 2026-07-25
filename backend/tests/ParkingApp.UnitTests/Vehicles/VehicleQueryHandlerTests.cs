@@ -5,13 +5,14 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using ParkingApp.Application.CQRS.Queries.Vehicles;
-using ParkingApp.Domain.Shared;
-using ParkingApp.Domain.Marketplace;
-using ParkingApp.Domain.Identity;
-using ParkingApp.Domain.Messaging;
-using ParkingApp.Domain.Corporate;
-using ParkingApp.Domain.Interfaces;
+using ParkingApp.Identity.Application.Queries.Vehicles;
+using ParkingApp.BuildingBlocks.Domain;
+using ParkingApp.Marketplace.Domain.Entities;
+using ParkingApp.Identity.Domain.Entities;
+using ParkingApp.Messaging.Domain.Entities;
+using ParkingApp.Corporate.Domain;
+using ParkingApp.Infrastructure.Persistence;
+using ParkingApp.Identity.Domain.Interfaces;
 using System;
 
 namespace ParkingApp.UnitTests.Vehicles;
@@ -64,3 +65,8 @@ public class VehicleQueryHandlerTests
         result.Data.Should().BeEmpty();
     }
 }
+
+
+
+
+

@@ -1,14 +1,20 @@
 using Moq;
 using FluentAssertions;
 using Xunit;
-using ParkingApp.Application.CQRS.Queries.Favorites;
+using ParkingApp.Marketplace.Application.Queries.Favorites;
 using ParkingApp.Application.DTOs;
-using ParkingApp.Domain.Shared;
-using ParkingApp.Domain.Marketplace;
-using ParkingApp.Domain.Identity;
-using ParkingApp.Domain.Messaging;
-using ParkingApp.Domain.Corporate;
-using ParkingApp.Domain.Interfaces;
+using ParkingApp.Identity.Application.DTOs;
+using ParkingApp.Marketplace.Contracts.DTOs;
+using ParkingApp.Messaging.Application.DTOs;
+using ParkingApp.Notifications.Application.DTOs;
+using ParkingApp.Corporate.Application.DTOs;
+using ParkingApp.BuildingBlocks.Domain;
+using ParkingApp.Marketplace.Domain.Entities;
+using ParkingApp.Identity.Domain.Entities;
+using ParkingApp.Messaging.Domain.Entities;
+using ParkingApp.Corporate.Domain;
+using ParkingApp.Infrastructure.Persistence;
+using ParkingApp.Marketplace.Domain.Interfaces;
 using ParkingApp.Domain.Enums;
 
 namespace ParkingApp.UnitTests.Favorites;
@@ -36,16 +42,14 @@ public class GetMyFavoritesQueryHandlerTests
         var parkingSpace1 = new ParkingSpace 
         { 
             Id = Guid.NewGuid(), 
-            Title = "Space 1", 
-            Owner = new User { FirstName = "Owner 1" },
+            Title = "Space 1",
             AllowedVehicleTypes = "Car,Bike",
             Amenities = "CCTV,Lighting"
         };
         var parkingSpace2 = new ParkingSpace 
         { 
             Id = Guid.NewGuid(), 
-            Title = "Space 2", 
-            Owner = new User { FirstName = "Owner 2" },
+            Title = "Space 2",
             AllowedVehicleTypes = "Car",
             Amenities = "Security"
         };
@@ -69,3 +73,8 @@ public class GetMyFavoritesQueryHandlerTests
         result.Data!.Any(f => f.Title == "Space 2").Should().BeTrue();
     }
 }
+
+
+
+
+

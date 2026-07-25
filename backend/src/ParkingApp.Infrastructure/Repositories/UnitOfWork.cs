@@ -1,18 +1,25 @@
 using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Extensions.Logging;
 using ParkingApp.Application.Interfaces;
-using ParkingApp.Domain.Corporate;
-using ParkingApp.Domain.Events;
-using ParkingApp.Domain.Identity;
-using ParkingApp.Domain.Interfaces;
-using ParkingApp.Domain.Marketplace;
-using ParkingApp.Domain.Messaging;
-using ParkingApp.Domain.Shared;
+
+using ParkingApp.Corporate.Domain;
+using ParkingApp.Corporate.Domain.Interfaces; // Corporate UoW ports (historical namespace in Corporate.Domain)
+using ParkingApp.Identity.Domain.Entities;
+using ParkingApp.Marketplace.Domain.Interfaces;
+using ParkingApp.Identity.Domain.Interfaces;
+using ParkingApp.Marketplace.Domain.Entities;
+using ParkingApp.BuildingBlocks.Domain;
 using ParkingApp.Infrastructure.Data;
+using ParkingApp.Infrastructure.Persistence;
+using ParkingApp.Messaging.Domain.Interfaces;
+using ParkingApp.Messaging.Infrastructure.Repositories;
+using ParkingApp.Corporate.Infrastructure.Repositories;
+using ParkingApp.Identity.Infrastructure.Repositories;
+using ParkingApp.Marketplace.Infrastructure.Repositories;
 
 namespace ParkingApp.Infrastructure.Repositories;
 
-public class UnitOfWork : IUnitOfWork
+public class UnitOfWork : IUnitOfWork, ICorporateUnitOfWork
 {
     private readonly ApplicationDbContext _context;
     private readonly IOutboxWriter _outboxWriter;
@@ -36,6 +43,8 @@ public class UnitOfWork : IUnitOfWork
     private ICorporateBookingRepository? _corporateBookings;
     private IEmployeeInvitationRepository? _employeeInvitations;
     private ICorporateInvoiceRepository? _invoices;
+
+    private readonly List<Guid> _pendingOutboxMessageIds = new();
 
     public UnitOfWork(
         ApplicationDbContext context,
@@ -68,7 +77,8 @@ public class UnitOfWork : IUnitOfWork
 
     public async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
     {
-        // 1) Collect domain events BEFORE save so outbox rows share this transaction
+        // 1) Collect domain events BEFORE save so outbox rows share this transaction.
+        // BuildingBlocks.BaseEntity covers Domain.Shared.BaseEntity and module domains.
         var entitiesWithEvents = _context.ChangeTracker
             .Entries<BaseEntity>()
             .Where(e => e.Entity.DomainEvents.Any())
@@ -95,13 +105,21 @@ public class UnitOfWork : IUnitOfWork
             var enqueuedIds = _outboxWriter.TakeEnqueuedMessageIds();
             if (enqueuedIds.Count > 0)
             {
-                try
+                if (_transaction != null)
                 {
-                    await _outboxProcessor.ProcessByIdsAsync(enqueuedIds, cancellationToken);
+                    // Delay processing until transaction commits to avoid Read-Uncommitted race conditions
+                    _pendingOutboxMessageIds.AddRange(enqueuedIds);
                 }
-                catch (Exception ex)
+                else
                 {
-                    _logger.LogWarning(ex, "Immediate outbox processing failed; background service will retry");
+                    try
+                    {
+                        await _outboxProcessor.ProcessByIdsAsync(enqueuedIds, cancellationToken);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, "Immediate outbox processing failed; background service will retry");
+                    }
                 }
             }
         }
@@ -121,6 +139,20 @@ public class UnitOfWork : IUnitOfWork
             await _transaction.CommitAsync(cancellationToken);
             await _transaction.DisposeAsync();
             _transaction = null;
+
+            if (_pendingOutboxMessageIds.Count > 0)
+            {
+                var idsToProcess = _pendingOutboxMessageIds.ToList();
+                _pendingOutboxMessageIds.Clear();
+                try
+                {
+                    await _outboxProcessor.ProcessByIdsAsync(idsToProcess, cancellationToken);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Post-commit outbox processing failed; background service will retry");
+                }
+            }
         }
     }
 

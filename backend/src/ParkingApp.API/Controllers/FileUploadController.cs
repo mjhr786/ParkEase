@@ -1,8 +1,13 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using ParkingApp.Application.CQRS;
-using ParkingApp.Application.CQRS.Commands.FileUpload;
+using ParkingApp.Marketplace.Application.Commands.FileUpload;
 using ParkingApp.Application.DTOs;
+using ParkingApp.Identity.Application.DTOs;
+using ParkingApp.Marketplace.Contracts.DTOs;
+using ParkingApp.Messaging.Application.DTOs;
+using ParkingApp.Notifications.Application.DTOs;
+
 using System.Security.Claims;
 
 namespace ParkingApp.API.Controllers;

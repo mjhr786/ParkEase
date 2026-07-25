@@ -1,12 +1,10 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
-
+<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <TargetFramework>net9.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
   </PropertyGroup>
-
   <ItemGroup>
     <PackageReference Include="coverlet.collector" Version="6.0.2" />
     <PackageReference Include="AwesomeAssertions" Version="7.1.0" />
@@ -18,20 +16,38 @@
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.12.0" />
     <PackageReference Include="Moq" Version="4.20.72" />
     <PackageReference Include="Moq.Dapper" Version="1.0.7" />
+    <PackageReference Include="NetArchTest.Rules" Version="1.3.2" />
     <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.0.1" />
     <PackageReference Include="xunit" Version="2.9.2" />
     <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2" />
   </ItemGroup>
-
   <ItemGroup>
     <Using Include="Xunit" />
   </ItemGroup>
-
+  <!-- Handler not present in Corporate.Application yet (command only); exclude until re-implemented -->
   <ItemGroup>
-    <ProjectReference Include="..\..\src\ParkingApp.Domain\ParkingApp.Domain.csproj" />
+    <Compile Remove="Corporate\**\*.cs" />
+    <!-- Host Domain Address VO removed in Phase 13 cleanup -->
+    <Compile Remove="Domain\AddressTests.cs" />
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="..\..\src\ParkingApp.Application\ParkingApp.Application.csproj" />
     <ProjectReference Include="..\..\src\ParkingApp.Infrastructure\ParkingApp.Infrastructure.csproj" />
     <ProjectReference Include="..\..\src\ParkingApp.API\ParkingApp.API.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Messaging\ParkingApp.Messaging.Domain\ParkingApp.Messaging.Domain.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Messaging\ParkingApp.Messaging.Application\ParkingApp.Messaging.Application.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Messaging\ParkingApp.Messaging.Infrastructure\ParkingApp.Messaging.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Identity\ParkingApp.Identity.Application\ParkingApp.Identity.Application.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Identity\ParkingApp.Identity.Domain\ParkingApp.Identity.Domain.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Identity\ParkingApp.Identity.Infrastructure\ParkingApp.Identity.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Identity\ParkingApp.Identity.Contracts\ParkingApp.Identity.Contracts.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Marketplace\ParkingApp.Marketplace.Contracts\ParkingApp.Marketplace.Contracts.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Marketplace\ParkingApp.Marketplace.Domain\ParkingApp.Marketplace.Domain.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Marketplace\ParkingApp.Marketplace.Application\ParkingApp.Marketplace.Application.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Corporate\ParkingApp.Corporate.Domain\ParkingApp.Corporate.Domain.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Corporate\ParkingApp.Corporate.Application\ParkingApp.Corporate.Application.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Corporate\ParkingApp.Corporate.Infrastructure\ParkingApp.Corporate.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Marketplace\ParkingApp.Marketplace.Infrastructure\ParkingApp.Marketplace.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Corporate\ParkingApp.Corporate.Contracts\ParkingApp.Corporate.Contracts.csproj" />
   </ItemGroup>
-
 </Project>

@@ -1,12 +1,11 @@
-using Microsoft.Extensions.DependencyInjection;
+﻿using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using ParkingApp.Domain.Events;
+using ParkingApp.BuildingBlocks.Domain;
 
 namespace ParkingApp.Infrastructure.Services;
 
 /// <summary>
-/// Resolves and invokes all registered IDomainEventHandler&lt;T&gt; for each event.
-/// Uses IServiceProvider to find handlers from the DI container.
+/// Resolves and invokes all registered BuildingBlocks <see cref="IDomainEventHandler{TEvent}"/> for each event.
 /// </summary>
 public sealed class DomainEventDispatcher : IDomainEventDispatcher
 {
@@ -19,31 +18,32 @@ public sealed class DomainEventDispatcher : IDomainEventDispatcher
         _logger = logger;
     }
 
-    public async Task DispatchEventsAsync(IEnumerable<IDomainEvent> domainEvents, CancellationToken cancellationToken = default)
+    public async Task DispatchEventsAsync(
+        IEnumerable<IDomainEvent> domainEvents,
+        CancellationToken cancellationToken = default)
     {
         foreach (var domainEvent in domainEvents)
         {
             var eventType = domainEvent.GetType();
             var handlerType = typeof(IDomainEventHandler<>).MakeGenericType(eventType);
-            var handlers = _serviceProvider.GetServices(handlerType);
 
-            foreach (var handler in handlers)
+            foreach (var handler in _serviceProvider.GetServices(handlerType))
             {
-                if (handler == null) continue;
+                if (handler is null)
+                    continue;
 
                 try
                 {
                     var method = handlerType.GetMethod("HandleAsync");
-                    if (method != null)
-                    {
-                        var task = (Task)method.Invoke(handler, new object[] { domainEvent, cancellationToken })!;
-                        await task;
-                    }
+                    if (method is null)
+                        continue;
+
+                    var task = (Task)method.Invoke(handler, new object[] { domainEvent, cancellationToken })!;
+                    await task;
                 }
                 catch (Exception ex)
                 {
                     _logger.LogError(ex, "Error handling domain event {EventType}", eventType.Name);
-                    // Domain event handlers should not break the main flow
                 }
             }
         }

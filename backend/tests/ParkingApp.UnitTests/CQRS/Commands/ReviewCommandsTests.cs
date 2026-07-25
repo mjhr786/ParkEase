@@ -1,19 +1,28 @@
+using ParkingApp.Application.Interfaces;
 using System;
 using System.Threading;
 using System.Threading.Tasks;
 using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using Moq;
-using ParkingApp.Application.CQRS.Commands.Reviews;
+using ParkingApp.Marketplace.Application.Commands.Reviews;
 using ParkingApp.Application.DTOs;
-using ParkingApp.Application.Interfaces;
-using ParkingApp.Domain.Shared;
-using ParkingApp.Domain.Marketplace;
-using ParkingApp.Domain.Identity;
-using ParkingApp.Domain.Messaging;
-using ParkingApp.Domain.Corporate;
+using ParkingApp.Identity.Application.DTOs;
+using ParkingApp.Marketplace.Contracts.DTOs;
+using ParkingApp.Messaging.Application.DTOs;
+using ParkingApp.Notifications.Application.DTOs;
+using ParkingApp.Corporate.Application.DTOs;
+using ParkingApp.Identity.Application.Interfaces;
+using ParkingApp.Marketplace.Application.Interfaces;
+using ParkingApp.Corporate.Application.Interfaces;
+using ParkingApp.BuildingBlocks.Domain;
+using ParkingApp.Marketplace.Domain.Entities;
+using ParkingApp.Identity.Domain.Entities;
+using ParkingApp.Messaging.Domain.Entities;
+using ParkingApp.Corporate.Domain;
 using ParkingApp.Domain.Enums;
-using ParkingApp.Domain.Interfaces;
+using ParkingApp.Infrastructure.Persistence;
+using ParkingApp.Marketplace.Domain.Interfaces;
 using Xunit;
 
 namespace ParkingApp.UnitTests.CQRS.Commands;
@@ -138,3 +147,9 @@ public class ReviewCommandsTests
         _mockUow.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
     }
 }
+
+
+
+
+
+

@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>ParkingApp.Identity.Application</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- Detached from host Domain: DeleteUser cascade via Marketplace/Messaging Contracts -->
+    <ProjectReference Include="..\..\..\ParkingApp.BuildingBlocks\ParkingApp.BuildingBlocks.csproj" />
+    <ProjectReference Include="..\ParkingApp.Identity.Domain\ParkingApp.Identity.Domain.csproj" />
+    <ProjectReference Include="..\ParkingApp.Identity.Contracts\ParkingApp.Identity.Contracts.csproj" />
+    <ProjectReference Include="..\..\Marketplace\ParkingApp.Marketplace.Contracts\ParkingApp.Marketplace.Contracts.csproj" />
+    <ProjectReference Include="..\..\Messaging\ParkingApp.Messaging.Contracts\ParkingApp.Messaging.Contracts.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="FluentValidation" Version="12.1.1" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.2" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.2" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="ParkingApp.UnitTests" />
+    <InternalsVisibleTo Include="ParkingApp.Identity.UnitTests" />
+    <InternalsVisibleTo Include="DynamicProxyGenAssembly2" />
+  </ItemGroup>
+</Project>

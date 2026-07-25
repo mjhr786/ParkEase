@@ -3,7 +3,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Logging;
 using Moq;
-using ParkingApp.Notifications.Hubs;
+using ParkingApp.Notifications.Infrastructure.Hubs;
 using System;
 using System.Security.Claims;
 using System.Threading.Tasks;
@@ -125,3 +125,9 @@ public class NotificationHubTests
         groupName.Should().Be($"user_{userId}");
     }
 }
+
+
+
+
+
+

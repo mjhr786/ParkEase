@@ -1,16 +1,17 @@
-using ParkingApp.Domain.Interfaces;
+using ParkingApp.BuildingBlocks.Persistence;
 
 namespace ParkingApp.Application.CQRS.Behaviors;
 
 /// <summary>
 /// Optional UoW transaction around commands implementing <see cref="ITransactionalCommand"/>.
 /// Does not wrap all commands by default (handlers already call SaveChanges).
+/// Uses BuildingBlocks transaction port so host Application stays free of host Domain.
 /// </summary>
 public sealed class TransactionBehavior : IDispatcherBehavior
 {
-    private readonly IUnitOfWork _unitOfWork;
+    private readonly IUnitOfWorkTransaction _unitOfWork;
 
-    public TransactionBehavior(IUnitOfWork unitOfWork)
+    public TransactionBehavior(IUnitOfWorkTransaction unitOfWork)
     {
         _unitOfWork = unitOfWork;
     }

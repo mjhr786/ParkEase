@@ -10,6 +10,11 @@ using Microsoft.Extensions.Logging;
 using Moq;
 using ParkingApp.API.Middleware;
 using ParkingApp.Application.DTOs;
+using ParkingApp.Identity.Application.DTOs;
+using ParkingApp.Marketplace.Contracts.DTOs;
+using ParkingApp.Messaging.Application.DTOs;
+using ParkingApp.Notifications.Application.DTOs;
+using ParkingApp.Corporate.Application.DTOs;
 using ParkingApp.BuildingBlocks.Exceptions;
 using Xunit;
 
@@ -92,4 +97,49 @@ public class ExceptionHandlingMiddlewareTests
 
         context.Response.StatusCode.Should().Be((int)HttpStatusCode.NotFound);
     }
+
+    [Fact]
+    public async Task InvokeAsync_WhenBadHttpRequestExceptionThrown_ReturnsClientStatusNot500()
+    {
+        // Incomplete/truncated body (e.g. refresh POST) must not surface as Internal Server Error.
+        RequestDelegate next = _ => throw new BadHttpRequestException("Unexpected end of request content.", StatusCodes.Status400BadRequest);
+        var middleware = new ExceptionHandlingMiddleware(next, _loggerMock.Object);
+        var context = new DefaultHttpContext();
+        context.Response.Body = new MemoryStream();
+
+        await middleware.InvokeAsync(context);
+
+        context.Response.StatusCode.Should().Be(StatusCodes.Status400BadRequest);
+        context.Response.Body.Seek(0, SeekOrigin.Begin);
+        var jsonResponse = await new StreamReader(context.Response.Body).ReadToEndAsync();
+        var apiResponse = JsonSerializer.Deserialize<ApiResponse<object>>(jsonResponse, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
+
+        apiResponse!.Success.Should().BeFalse();
+        apiResponse.Message.Should().Be("Invalid or incomplete request");
+        apiResponse.Errors.Should().Contain("Unexpected end of request content.");
+    }
+
+    [Fact]
+    public async Task InvokeAsync_WhenRequestAborted_DoesNotWriteResponse_AndSets499()
+    {
+        using var cts = new System.Threading.CancellationTokenSource();
+        cts.Cancel();
+
+        RequestDelegate next = _ => throw new OperationCanceledException(cts.Token);
+        var middleware = new ExceptionHandlingMiddleware(next, _loggerMock.Object);
+        var context = new DefaultHttpContext();
+        context.RequestAborted = cts.Token;
+        context.Response.Body = new MemoryStream();
+
+        await middleware.InvokeAsync(context);
+
+        // Client abort: no body, 499 so request logging does not report 200 or 500.
+        context.Response.Body.Length.Should().Be(0);
+        context.Response.StatusCode.Should().Be(ExceptionHandlingMiddleware.StatusClientClosedRequest);
+    }
 }
+
+
+
+
+

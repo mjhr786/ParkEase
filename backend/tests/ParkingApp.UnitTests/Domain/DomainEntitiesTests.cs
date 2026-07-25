@@ -1,13 +1,22 @@
+using ParkingApp.Notifications.Application.EventHandlers;
+using ParkingApp.Marketplace.Application.Commands.Bookings;
+using ParkingApp.Marketplace.Application.Queries.Bookings;
+using ParkingApp.Marketplace.Application.Interfaces;
+using ParkingApp.Notifications.Application.Queries;
+using ParkingApp.Notifications.Application.Commands;
+using ParkingApp.Application.Interfaces;
 using FluentAssertions;
 using Xunit;
-using ParkingApp.Domain.Shared;
-using ParkingApp.Domain.Marketplace;
-using ParkingApp.Domain.Identity;
-using ParkingApp.Domain.Messaging;
-using ParkingApp.Domain.Corporate;
+using ParkingApp.BuildingBlocks.Domain;
+using ParkingApp.Marketplace.Domain.Entities;
+using ParkingApp.Identity.Domain.Entities;
+using ParkingApp.Messaging.Domain.Entities;
+using ParkingApp.Corporate.Domain;
 using ParkingApp.Domain.Enums;
+using ParkingApp.Marketplace.Contracts.Enums;
 using ParkingApp.Domain.ValueObjects;
-using ParkingApp.Domain.Models;
+using ParkingApp.BuildingBlocks.ValueObjects;
+using ParkingApp.Marketplace.Domain.Models;
 using System;
 using System.Collections.Generic;
 
@@ -130,7 +139,7 @@ public class DomainEntitiesTests
         };
         availability.ParkingSpaceId.Should().NotBeEmpty();
 
-        var paymentRequest = new ParkingApp.Application.Interfaces.PaymentRequest 
+        var paymentRequest = new PaymentRequest 
         { 
             BookingId = Guid.NewGuid(), UserId = Guid.NewGuid(), Amount = 10, Currency = "USD", 
             PaymentMethod = PaymentMethod.CreditCard, Description = "desc", 
@@ -139,28 +148,28 @@ public class DomainEntitiesTests
         paymentRequest.Amount.Should().Be(10);
         paymentRequest.Metadata["key"].Should().Be("val");
         
-        var paymentResult = new ParkingApp.Application.Interfaces.PaymentResult
+        var paymentResult = new PaymentResult
         {
             Success = true, TransactionId = "123", PaymentGatewayReference = "resp", Status = PaymentStatus.Pending, ErrorMessage = "err", ReceiptUrl = "url"
         };
         paymentResult.Success.Should().BeTrue();
 
-        var refundReq = new ParkingApp.Application.Interfaces.RefundRequest { PaymentId = Guid.NewGuid(), Amount = 10, Reason = "reason" };
+        var refundReq = new RefundRequest { PaymentId = Guid.NewGuid(), Amount = 10, Reason = "reason" };
         refundReq.Amount.Should().Be(10);
         
-        var refundRes = new ParkingApp.Application.Interfaces.RefundResult { Success = true, RefundTransactionId = "rtx", RefundedAmount = 10, ErrorMessage = "err" };
+        var refundRes = new RefundResult { Success = true, RefundTransactionId = "rtx", RefundedAmount = 10, ErrorMessage = "err" };
         refundRes.Success.Should().BeTrue();
 
         var payment = new Payment { BookingId = Guid.NewGuid(), UserId = Guid.NewGuid(), Amount = 10, Currency = "USD", 
             PaymentMethod = PaymentMethod.CreditCard, Status = PaymentStatus.Pending, TransactionId = "tx1", 
             PaymentGatewayReference = "ref", PaymentGateway = "gate", PaidAt = DateTime.UtcNow, RefundedAt = DateTime.UtcNow, 
             RefundAmount = 10, RefundReason = "reason", RefundTransactionId = "rtx", ReceiptUrl = "url", 
-            InvoiceNumber = "inv", FailureReason = "fail", Metadata = "meta", Booking = new Booking(), User = new User() };
+            InvoiceNumber = "inv", FailureReason = "fail", Metadata = "meta", Booking = new Booking() };
         payment.BookingId.Should().NotBeEmpty();
 
         var review = new Review { UserId = Guid.NewGuid(), ParkingSpaceId = Guid.NewGuid(), BookingId = Guid.NewGuid(), 
             Rating = 5, Title = "Title", Comment = "Comment", HelpfulCount = 1, IsApproved = true, IsReported = false, 
-            OwnerResponse = "resp", OwnerResponseAt = DateTime.UtcNow, User = new User(), ParkingSpace = new ParkingSpace(), 
+            OwnerResponse = "resp", OwnerResponseAt = DateTime.UtcNow, ParkingSpace = new ParkingSpace(), 
             Booking = new Booking() };
         review.UserId.Should().NotBeEmpty();
 
@@ -172,10 +181,10 @@ public class DomainEntitiesTests
         m1.GetHashCode().Should().NotBe(m2.GetHashCode());
         m1.ToString().Should().Contain("Title");
 
-        var e1 = new ParkingApp.Domain.Events.Parking.ParkingSpaceCreatedEvent(Guid.NewGuid(), Guid.NewGuid(), "Title");
-        var e2 = new ParkingApp.Domain.Events.Parking.ParkingSpaceUpdatedEvent(e1.ParkingSpaceId, "T2");
-        var e3 = new ParkingApp.Domain.Events.Parking.ParkingSpaceDeletedEvent(e1.ParkingSpaceId, e1.OwnerId);
-        var e4 = new ParkingApp.Domain.Events.Parking.ParkingSpaceToggledEvent(e1.ParkingSpaceId, false);
+        var e1 = new ParkingApp.Marketplace.Domain.Events.ParkingSpaceCreatedEvent(Guid.NewGuid(), Guid.NewGuid(), "Title");
+        var e2 = new ParkingApp.Marketplace.Domain.Events.ParkingSpaceUpdatedEvent(e1.ParkingSpaceId, "T2");
+        var e3 = new ParkingApp.Marketplace.Domain.Events.ParkingSpaceDeletedEvent(e1.ParkingSpaceId, e1.OwnerId);
+        var e4 = new ParkingApp.Marketplace.Domain.Events.ParkingSpaceToggledEvent(e1.ParkingSpaceId, false);
 
         e1.Should().NotBeNull();
         e2.Should().NotBeNull();
@@ -191,3 +200,9 @@ public class DomainEntitiesTests
         avail1.ParkingSpaceId.Should().NotBeEmpty();
     }
 }
+
+
+
+
+
+

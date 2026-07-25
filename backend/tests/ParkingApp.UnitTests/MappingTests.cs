@@ -1,13 +1,21 @@
 using FluentAssertions;
 using Xunit;
-using ParkingApp.Application.Mappings;
+using ParkingApp.Marketplace.Application.Mappings;
+using ParkingApp.Marketplace.Application.Mappings;
 using ParkingApp.Application.DTOs;
-using ParkingApp.Domain.Shared;
-using ParkingApp.Domain.Marketplace;
-using ParkingApp.Domain.Identity;
-using ParkingApp.Domain.Messaging;
-using ParkingApp.Domain.Corporate;
+using ParkingApp.Identity.Application.DTOs;
+using ParkingApp.Marketplace.Contracts.DTOs;
+using ParkingApp.Messaging.Application.DTOs;
+using ParkingApp.Notifications.Application.DTOs;
+using ParkingApp.Corporate.Application.DTOs;
+using ParkingApp.BuildingBlocks.Domain;
+using ParkingApp.Marketplace.Domain.Entities;
+using ParkingApp.Identity.Domain.Entities;
+using ParkingApp.Messaging.Domain.Entities;
+using ParkingApp.Corporate.Domain;
 using ParkingApp.Domain.Enums;
+using ParkingApp.Marketplace.Contracts.Enums;
+using ParkingApp.BuildingBlocks.Enums;
 using NetTopologySuite.Geometries;
 
 namespace ParkingApp.UnitTests;
@@ -96,3 +104,8 @@ public class MappingTests
         dto.ActiveReservations!.First().StartDateTime.Should().Be(bookings[0].StartDateTime);
     }
 }
+
+
+
+
+

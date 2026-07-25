@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>ParkingApp.Marketplace.Domain</RootNamespace>
+    <Description>Marketplace module domain (parking, bookings, payments, passes, reviews).</Description>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\ParkingApp.BuildingBlocks\ParkingApp.BuildingBlocks.csproj" />
+    <ProjectReference Include="..\ParkingApp.Marketplace.Contracts\ParkingApp.Marketplace.Contracts.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="NetTopologySuite" Version="2.5.0" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="ParkingApp.UnitTests" />
+    <InternalsVisibleTo Include="ParkingApp.Marketplace.UnitTests" />
+    <InternalsVisibleTo Include="ParkingApp.Corporate.UnitTests" />
+    <InternalsVisibleTo Include="ParkingApp.Marketplace.Application" />
+    <InternalsVisibleTo Include="ParkingApp.Marketplace.Infrastructure" />
+    <InternalsVisibleTo Include="ParkingApp.Infrastructure" />
+  </ItemGroup>
+</Project>
+

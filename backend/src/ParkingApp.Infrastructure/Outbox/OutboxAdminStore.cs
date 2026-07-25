@@ -1,6 +1,12 @@
 using Microsoft.EntityFrameworkCore;
 using ParkingApp.Application.DTOs;
+using ParkingApp.Marketplace.Contracts.DTOs;
+
+
+
+
 using ParkingApp.Application.Interfaces;
+
 using ParkingApp.Infrastructure.Data;
 
 namespace ParkingApp.Infrastructure.Outbox;
@@ -123,7 +129,7 @@ public sealed class OutboxAdminStore : IOutboxAdminStore
         var shortName = ShortTypeName(m.TypeName);
         var preview = includeFullPayload
             ? m.Payload
-            : (m.Payload.Length <= 280 ? m.Payload : m.Payload[..280] + "â€¦");
+            : (m.Payload.Length <= 280 ? m.Payload : m.Payload[..280] + "GÇª");
 
         return new OutboxMessageDto(
             m.Id,
@@ -141,7 +147,7 @@ public sealed class OutboxAdminStore : IOutboxAdminStore
 
     private static string ShortTypeName(string typeName)
     {
-        // AssemblyQualifiedName â†’ type name only
+        // AssemblyQualifiedName GåÆ type name only
         var comma = typeName.IndexOf(',');
         var full = comma > 0 ? typeName[..comma] : typeName;
         var lastDot = full.LastIndexOf('.');

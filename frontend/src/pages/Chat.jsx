@@ -25,12 +25,11 @@ export default function Chat() {
     const { user } = useAuth();
     const {
         isConnected,
-        connectionState,
         registerMessageCallback,
         unregisterMessageCallback,
         registerReadCallback,
         unregisterReadCallback,
-        resetUnreadForConversation,
+        syncUnreadFromConversations,
         setActiveConversation,
         onlineUsers
     } = useChatContext();
@@ -49,8 +48,13 @@ export default function Chat() {
     const messagesContainerRef = useRef(null);
     const messageInputRef = useRef(null);
     const activeConversationRef = useRef(conversationId);
+    const conversationsRef = useRef(conversations);
 
-    // Keep ref and global context in sync with route param
+    // Keep refs and global context in sync
+    useEffect(() => {
+        conversationsRef.current = conversations;
+    }, [conversations]);
+
     useEffect(() => {
         activeConversationRef.current = conversationId;
         setActiveConversation(conversationId);
@@ -68,39 +72,50 @@ export default function Chat() {
         const currentConvId = activeConversationRef.current;
 
         // Only add to message thread if it belongs to the active conversation
-        if (message.conversationId === currentConvId) {
+        if (String(message.conversationId) === String(currentConvId)) {
             setMessages(prev => {
                 if (prev.some(m => m.id === message.id)) return prev;
-                return [...prev, message];
+                // Drop matching optimistic temp bubble when real message arrives
+                const withoutOptimistic = prev.filter(m =>
+                    !(m._optimistic && m.content === message.content && String(m.senderId) === String(message.senderId))
+                );
+                return [...withoutOptimistic, message];
             });
         }
 
-        // Update conversation list (preview, timestamp, and unread count)
-        setConversations(prev => {
-            const exists = prev.some(c => c.id === message.conversationId);
-            if (!exists) {
-                // New conversation appeared — reload the full list
-                api.getConversations().then(result => {
-                    if (result.success) {
-                        setConversations(result.data.conversations || []);
-                    }
-                }).catch(() => { });
-                return prev;
-            }
-            return prev.map(c =>
-                c.id === message.conversationId
+        // Update conversation list (preview, timestamp, and unread count).
+        // Header badge is owned by ChatContext on ReceiveMessage — do not re-sync here
+        // or the global count double-increments. Never call context setState (or fetch)
+        // inside a setConversations updater — that can update ChatProvider during Chat render.
+        const exists = conversationsRef.current.some(
+            c => String(c.id) === String(message.conversationId)
+        );
+        if (!exists) {
+            api.getConversations().then(result => {
+                if (result.success) {
+                    const list = result.data.conversations || [];
+                    setConversations(list);
+                    syncUnreadFromConversations(list);
+                }
+            }).catch(() => { });
+            return;
+        }
+
+        setConversations(prev =>
+            prev.map(c =>
+                String(c.id) === String(message.conversationId)
                     ? {
                         ...c,
                         lastMessagePreview: message.content,
                         lastMessageAt: message.createdAt,
-                        unreadCount: message.conversationId !== currentConvId
+                        unreadCount: String(message.conversationId) !== String(currentConvId)
                             ? (c.unreadCount || 0) + 1
                             : c.unreadCount
                     }
                     : c
-            );
-        });
-    }, []);
+            )
+        );
+    }, [syncUnreadFromConversations]);
 
     const handleMessagesRead = useCallback((convId) => {
         setMessages(prev => prev.map(m =>
@@ -123,20 +138,44 @@ export default function Chat() {
         loadConversations();
     }, []);
 
-    // Load messages when conversation changes
+    // Load messages + mark-as-read in parallel when conversation changes
     useEffect(() => {
-        if (conversationId) {
-            loadMessages(conversationId);
-            setShowMobileList(false);
+        if (!conversationId) return;
 
-            // Mark as read and clear unread badge locally + globally
-            api.markAsRead(conversationId).then(() => {
-                setConversations(prev => prev.map(c =>
-                    c.id === conversationId ? { ...c, unreadCount: 0 } : c
-                ));
-                resetUnreadForConversation(conversationId);
-            }).catch(() => { });
-        }
+        setShowMobileList(false);
+        let cancelled = false;
+
+        const openThread = async () => {
+            // Clear local unread immediately for snappy UI.
+            // Keep setState updaters pure: syncing the header badge must not run inside
+            // a setConversations updater (that updates ChatProvider while Chat renders).
+            const clearedList = conversationsRef.current.map(c =>
+                String(c.id) === String(conversationId) ? { ...c, unreadCount: 0 } : c
+            );
+            setConversations(clearedList);
+            syncUnreadFromConversations(clearedList);
+
+            try {
+                const [messagesResult] = await Promise.all([
+                    api.getMessages(conversationId),
+                    api.markAsRead(conversationId).catch(() => null),
+                ]);
+                if (cancelled) return;
+                if (messagesResult?.success) {
+                    setMessages((messagesResult.data || []).reverse());
+                    setSelectedConversation(
+                        conversations.find(c => String(c.id) === String(conversationId)) || null
+                    );
+                }
+            } catch (err) {
+                if (!cancelled) console.error('Failed to open conversation:', err);
+            }
+        };
+
+        openThread();
+        return () => { cancelled = true; };
+        // conversations intentionally not in deps — used only for header snapshot
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [conversationId]);
 
     // Check if we came from a parking page and already have a conversation for it
@@ -163,25 +202,15 @@ export default function Chat() {
             setLoading(true);
             const result = await api.getConversations();
             if (result.success) {
-                setConversations(result.data.conversations || []);
+                const list = result.data.conversations || [];
+                setConversations(list);
+                // Keep header "Messages" badge in sync with list (authoritative per-conversation counts)
+                syncUnreadFromConversations(list);
             }
         } catch (err) {
             console.error('Failed to load conversations:', err);
         } finally {
             setLoading(false);
-        }
-    };
-
-    const loadMessages = async (convId) => {
-        try {
-            const result = await api.getMessages(convId);
-            if (result.success) {
-                // Reverse to show oldest first
-                setMessages((result.data || []).reverse());
-                setSelectedConversation(conversations.find(c => c.id === convId) || null);
-            }
-        } catch (err) {
-            console.error('Failed to load messages:', err);
         }
     };
 
@@ -217,27 +246,55 @@ export default function Chat() {
         const conv = conversations.find(c => c.id === conversationId);
         if (!conv) return;
 
+        const content = newMessage.trim();
+        const tempId = `temp-${Date.now()}`;
+        const optimistic = {
+            id: tempId,
+            conversationId,
+            senderId: user?.id,
+            senderName: user?.fullName || user?.firstName || 'You',
+            content,
+            isRead: false,
+            createdAt: new Date().toISOString(),
+            _optimistic: true,
+        };
+
+        // Optimistic UI: show message immediately; reconcile with server / SignalR
+        setMessages(prev => [...prev, optimistic]);
+        setNewMessage('');
+        setConversations(prev => prev.map(c =>
+            c.id === conversationId
+                ? { ...c, lastMessagePreview: content, lastMessageAt: optimistic.createdAt }
+                : c
+        ));
         setSendingMessage(true);
+
         try {
             const result = await api.sendMessage({
                 parkingSpaceId: conv.parkingSpaceId,
-                content: newMessage.trim(),
+                content,
                 conversationId: conversationId
             });
             if (result.success && result.data) {
                 setMessages(prev => {
-                    if (prev.some(m => m.id === result.data.id)) return prev;
-                    return [...prev, result.data];
+                    const withoutTemp = prev.filter(m => m.id !== tempId);
+                    if (withoutTemp.some(m => m.id === result.data.id)) return withoutTemp;
+                    return [...withoutTemp, result.data];
                 });
-                setNewMessage('');
                 setConversations(prev => prev.map(c =>
                     c.id === conversationId
                         ? { ...c, lastMessagePreview: result.data.content, lastMessageAt: result.data.createdAt }
                         : c
                 ));
+            } else {
+                // Roll back optimistic message on failure
+                setMessages(prev => prev.filter(m => m.id !== tempId));
+                setNewMessage(content);
             }
         } catch (err) {
             console.error('Failed to send message:', err);
+            setMessages(prev => prev.filter(m => m.id !== tempId));
+            setNewMessage(content);
         } finally {
             setSendingMessage(false);
         }
@@ -270,10 +327,24 @@ export default function Chat() {
         return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     };
 
-    // Helper to generate a placeholder avatar based on the user's name
+    // Local SVG avatar — no external ui-avatars.com round-trips per row
     const getAvatarUrl = (name) => {
-        const cleanName = name || 'User';
-        return `https://ui-avatars.com/api/?name=${encodeURIComponent(cleanName)}&background=random&color=fff&size=100`;
+        const cleanName = (name || 'User').trim() || 'User';
+        const initials = cleanName
+            .split(/\s+/)
+            .slice(0, 2)
+            .map((p) => p[0]?.toUpperCase() || '')
+            .join('') || '?';
+        // Deterministic soft color from name
+        let hash = 0;
+        for (let i = 0; i < cleanName.length; i++) hash = cleanName.charCodeAt(i) + ((hash << 5) - hash);
+        const hue = Math.abs(hash) % 360;
+        const bg = `hsl(${hue}, 55%, 45%)`;
+        const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100">
+            <rect width="100" height="100" fill="${bg}"/>
+            <text x="50" y="50" dy="0.35em" text-anchor="middle" fill="#fff" font-family="system-ui,sans-serif" font-size="40" font-weight="600">${initials}</text>
+        </svg>`;
+        return `data:image/svg+xml,${encodeURIComponent(svg)}`;
     };
 
     return (

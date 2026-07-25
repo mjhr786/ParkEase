@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Security.Claims;
 using System.Threading;
 using System.Threading.Tasks;
@@ -8,14 +7,15 @@ using FluentAssertions;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.SignalR;
+using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using ParkingApp.API.Controllers;
 using ParkingApp.Application.CQRS;
-using ParkingApp.Application.CQRS.Commands.Chat;
-using ParkingApp.Application.CQRS.Queries.Chat;
+using ParkingApp.Messaging.Application.Commands.Chat;
+using ParkingApp.Messaging.Application.Queries.Chat;
 using ParkingApp.Application.DTOs;
-using ParkingApp.BuildingBlocks.Common;
-using ParkingApp.Notifications.Hubs;
+using ParkingApp.Messaging.Application.DTOs;
+using ParkingApp.Messaging.Infrastructure.Hubs;
 using Xunit;
 
 namespace ParkingApp.UnitTests.API;
@@ -37,8 +37,13 @@ public class ChatControllerTests
 
         _chatHubContextMock.Setup(x => x.Clients).Returns(_hubClientsMock.Object);
         _hubClientsMock.Setup(x => x.Group(It.IsAny<string>())).Returns(_clientProxyMock.Object);
+        _clientProxyMock.Setup(c => c.SendCoreAsync(It.IsAny<string>(), It.IsAny<object[]>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
 
-        _controller = new ChatController(_dispatcherMock.Object, _chatHubContextMock.Object);
+        _controller = new ChatController(
+            _dispatcherMock.Object,
+            _chatHubContextMock.Object,
+            NullLogger<ChatController>.Instance);
     }
 
     private void SetupControllerUser(ControllerBase controller, Guid userId)
@@ -46,7 +51,7 @@ public class ChatControllerTests
         var claims = new[] { new Claim(ClaimTypes.NameIdentifier, userId.ToString()) };
         var identity = new ClaimsIdentity(claims, "Test");
         var claimsPrincipal = new ClaimsPrincipal(identity);
-        
+
         controller.ControllerContext = new ControllerContext
         {
             HttpContext = new DefaultHttpContext { User = claimsPrincipal }
@@ -87,20 +92,13 @@ public class ChatControllerTests
     {
         var userId = Guid.NewGuid();
         var convId = Guid.NewGuid();
+        var recipientId = Guid.NewGuid();
         SetupControllerUser(_controller, userId);
         var dto = new SendMessageDto(Guid.NewGuid(), "Hello");
-        var messageDto = new ChatMessageDto(Guid.NewGuid(), convId, Guid.NewGuid(), "Sender", "Hello", false, DateTime.UtcNow);
+        var messageDto = new ChatMessageDto(Guid.NewGuid(), convId, userId, "Sender", "Hello", false, DateTime.UtcNow, recipientId);
 
         _dispatcherMock.Setup(d => d.SendAsync(It.IsAny<SendMessageCommand>(), It.IsAny<CancellationToken>()))
             .Returns(Task.FromResult(new ApiResponse<ChatMessageDto>(true, "Success", messageDto, null)));
-
-        var clist = new ConversationListDto(
-            new List<ConversationDto> 
-            { 
-                new ConversationDto(convId, Guid.NewGuid(), "Test", Guid.NewGuid(), "Participant", null, null, 0, DateTime.UtcNow) 
-            }, 1, 1, 10, 1);
-        _dispatcherMock.Setup(d => d.QueryAsync(It.IsAny<GetConversationsQuery>(), It.IsAny<CancellationToken>()))
-            .Returns(Task.FromResult(new ApiResponse<ConversationListDto>(true, "Success", clist, null)));
 
         var result = await _controller.SendMessage(dto, CancellationToken.None);
 
@@ -108,7 +106,13 @@ public class ChatControllerTests
         var apiRes = okResult.Value.Should().BeOfType<ApiResponse<ChatMessageDto>>().Subject;
         apiRes.Success.Should().BeTrue();
 
-        _clientProxyMock.Verify(c => c.SendCoreAsync("ReceiveMessage", new object[] { messageDto }, It.IsAny<CancellationToken>()), Times.AtLeastOnce);
+        // sender user + recipient user + conversation group
+        _clientProxyMock.Verify(
+            c => c.SendCoreAsync("ReceiveMessage", new object[] { messageDto }, It.IsAny<CancellationToken>()),
+            Times.Exactly(3));
+        _dispatcherMock.Verify(
+            d => d.QueryAsync(It.IsAny<GetConversationsQuery>(), It.IsAny<CancellationToken>()),
+            Times.Never);
     }
 
     [Fact]
@@ -116,23 +120,23 @@ public class ChatControllerTests
     {
         var userId = Guid.NewGuid();
         var convId = Guid.NewGuid();
+        var otherUserId = Guid.NewGuid();
         SetupControllerUser(_controller, userId);
 
+        var markResult = new MarkMessagesReadResult(true, otherUserId);
         _dispatcherMock.Setup(d => d.SendAsync(It.Is<MarkMessagesReadCommand>(c => c.ConversationId == convId), It.IsAny<CancellationToken>()))
-            .Returns(Task.FromResult(new ApiResponse<bool>(true, "Success", true, null)));
-
-        var clist = new ConversationListDto(
-            new List<ConversationDto> 
-            { 
-                new ConversationDto(convId, Guid.NewGuid(), "Test", Guid.NewGuid(), "Participant", null, null, 0, DateTime.UtcNow) 
-            }, 1, 1, 10, 1);
-        _dispatcherMock.Setup(d => d.QueryAsync(It.IsAny<GetConversationsQuery>(), It.IsAny<CancellationToken>()))
-            .Returns(Task.FromResult(new ApiResponse<ConversationListDto>(true, "Success", clist, null)));
+            .Returns(Task.FromResult(new ApiResponse<MarkMessagesReadResult>(true, "Success", markResult, null)));
 
         var result = await _controller.MarkAsRead(convId, CancellationToken.None);
 
         result.Should().BeOfType<OkObjectResult>();
-        _clientProxyMock.Verify(c => c.SendCoreAsync("MessagesRead", new object[] { convId }, It.IsAny<CancellationToken>()), Times.Once);
+        // other user group + conversation group
+        _clientProxyMock.Verify(
+            c => c.SendCoreAsync("MessagesRead", new object[] { convId }, It.IsAny<CancellationToken>()),
+            Times.Exactly(2));
+        _dispatcherMock.Verify(
+            d => d.QueryAsync(It.IsAny<GetConversationsQuery>(), It.IsAny<CancellationToken>()),
+            Times.Never);
     }
 
     [Fact]
@@ -141,16 +145,14 @@ public class ChatControllerTests
         var userId = Guid.NewGuid();
         SetupControllerUser(_controller, userId);
 
-        var clist = new ConversationListDto(
-            new List<ConversationDto> 
-            { 
-                new ConversationDto(Guid.NewGuid(), Guid.NewGuid(), "Test", Guid.NewGuid(), "Participant", null, null, 3, DateTime.UtcNow) 
-            }, 1, 1, 10, 1);
-        _dispatcherMock.Setup(d => d.QueryAsync(It.IsAny<GetConversationsQuery>(), It.IsAny<CancellationToken>()))
-            .Returns(Task.FromResult(new ApiResponse<ConversationListDto>(true, "Success", clist, null)));
+        _dispatcherMock.Setup(d => d.QueryAsync(It.IsAny<GetUnreadMessageCountQuery>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.FromResult(new ApiResponse<int>(true, null, 3, null)));
 
         var result = await _controller.GetUnreadCount(CancellationToken.None);
 
         var okResult = result.Should().BeOfType<OkObjectResult>().Subject;
+        var body = okResult.Value.Should().BeOfType<ApiResponse<int>>().Subject;
+        body.Success.Should().BeTrue();
+        body.Data.Should().Be(3);
     }
 }

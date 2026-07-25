@@ -1,8 +1,9 @@
-using System.Security.Cryptography;
+﻿using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using ParkingApp.Application.Interfaces;
-using ParkingApp.Domain.Events;
+
+using ParkingApp.BuildingBlocks.Domain;
 using ParkingApp.Infrastructure.Data;
 
 namespace ParkingApp.Infrastructure.Outbox;
@@ -61,13 +62,19 @@ public sealed class OutboxWriter : IOutboxWriter
 
     private static string BuildIdempotencyKey(string typeName, string payload, IDomainEvent domainEvent)
     {
-        // Prefer stable business keys when available via reflection (BookingId, ParkingSpaceId, …)
+        // Prefer a stable business identity when available so retries of the *same*
+        // side-effect collapse. Occurrence ticks are used for lifecycle events that
+        // legitimately repeat on the same aggregate (e.g. multiple extensions).
+        var paymentId = domainEvent.GetType().GetProperty("PaymentId")?.GetValue(domainEvent) as Guid?;
+        if (paymentId is { } payId && payId != Guid.Empty)
+            return $"{typeName}:payment:{payId:N}";
+
+        var occurred = domainEvent.OccurredOn.Ticks;
         var bookingId = domainEvent.GetType().GetProperty("BookingId")?.GetValue(domainEvent) as Guid?;
         if (bookingId is { } bid && bid != Guid.Empty)
-            return $"{typeName}:{bid:N}";
+            return $"{typeName}:{bid:N}:{occurred}";
 
         var parkingSpaceId = domainEvent.GetType().GetProperty("ParkingSpaceId")?.GetValue(domainEvent) as Guid?;
-        var occurred = domainEvent.OccurredOn.Ticks;
         if (parkingSpaceId is { } pid && pid != Guid.Empty)
             return $"{typeName}:{pid:N}:{occurred}";
 

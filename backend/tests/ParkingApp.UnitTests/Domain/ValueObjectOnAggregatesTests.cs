@@ -1,12 +1,10 @@
 using FluentAssertions;
 using ParkingApp.BuildingBlocks.Exceptions;
-using ParkingApp.Domain.Shared;
-using ParkingApp.Domain.Marketplace;
-using ParkingApp.Domain.Identity;
-using ParkingApp.Domain.Messaging;
-using ParkingApp.Domain.Corporate;
-using ParkingApp.Domain.Enums;
-using ParkingApp.Domain.ValueObjects;
+using ParkingApp.BuildingBlocks.ValueObjects;
+using ParkingApp.Marketplace.Domain.Entities;
+using ParkingApp.Marketplace.Domain.ValueObjects;
+using ParkingApp.Identity.Domain.Entities;
+using ParkingApp.Marketplace.Contracts.Enums;
 using Xunit;
 
 namespace ParkingApp.UnitTests.Domain;
@@ -54,3 +52,11 @@ public class ValueObjectOnAggregatesTests
         act.Should().Throw<ValidationException>();
     }
 }
+
+
+
+
+
+
+
+

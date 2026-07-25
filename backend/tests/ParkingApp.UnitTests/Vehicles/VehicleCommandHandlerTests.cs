@@ -5,15 +5,22 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using ParkingApp.Application.CQRS.Commands.Vehicles;
+using ParkingApp.Identity.Application.Commands.Vehicles;
 using ParkingApp.Application.DTOs;
-using ParkingApp.Domain.Shared;
-using ParkingApp.Domain.Marketplace;
-using ParkingApp.Domain.Identity;
-using ParkingApp.Domain.Messaging;
-using ParkingApp.Domain.Corporate;
-using ParkingApp.Domain.Interfaces;
+using ParkingApp.Identity.Application.DTOs;
+using ParkingApp.Marketplace.Contracts.DTOs;
+using ParkingApp.Messaging.Application.DTOs;
+using ParkingApp.Notifications.Application.DTOs;
+using ParkingApp.Corporate.Application.DTOs;
+using ParkingApp.BuildingBlocks.Domain;
+using ParkingApp.Marketplace.Domain.Entities;
+using ParkingApp.Identity.Domain.Entities;
+using ParkingApp.Messaging.Domain.Entities;
+using ParkingApp.Corporate.Domain;
+using ParkingApp.Infrastructure.Persistence;
+using ParkingApp.Identity.Domain.Interfaces;
 using ParkingApp.Domain.Enums;
+using ParkingApp.BuildingBlocks.Enums;
 using System;
 
 namespace ParkingApp.UnitTests.Vehicles;
@@ -203,3 +210,8 @@ public class VehicleCommandHandlerTests
         _mockVehicleRepo.Verify(r => r.Update(newestRemaining), Times.Once);
     }
 }
+
+
+
+
+

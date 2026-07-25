@@ -1,0 +1,38 @@
+using ParkingApp.Application.CQRS;
+using ParkingApp.Application.DTOs;
+using ParkingApp.Identity.Application.DTOs;
+
+using ParkingApp.Identity.Domain.Interfaces;
+
+namespace ParkingApp.Identity.Application.Queries.Vehicles;
+
+public record GetMyVehiclesQuery(Guid UserId) : IQuery<ApiResponse<IEnumerable<VehicleDto>>>;
+
+internal class GetMyVehiclesQueryHandler : IQueryHandler<GetMyVehiclesQuery, ApiResponse<IEnumerable<VehicleDto>>>
+{
+    private readonly IIdentityUnitOfWork _unitOfWork;
+
+    public GetMyVehiclesQueryHandler(IIdentityUnitOfWork unitOfWork)
+    {
+        _unitOfWork = unitOfWork;
+    }
+
+    public async Task<ApiResponse<IEnumerable<VehicleDto>>> HandleAsync(GetMyVehiclesQuery query, CancellationToken cancellationToken = default)
+    {
+        var vehicles = await _unitOfWork.Vehicles.GetByUserIdAsync(query.UserId, cancellationToken);
+        
+        var dtos = vehicles.Select(v => new VehicleDto(
+            v.Id,
+            v.UserId,
+            v.LicensePlate,
+            v.Make,
+            v.Model,
+            v.Color,
+            v.Type,
+            v.IsDefault,
+            v.CreatedAt
+        ));
+
+        return new ApiResponse<IEnumerable<VehicleDto>>(true, null, dtos);
+    }
+}

@@ -1,12 +1,13 @@
-using System.Data;
+﻿using System.Data;
 using Npgsql;
 using ParkingApp.Application.Interfaces;
+
 
 namespace ParkingApp.Infrastructure.Data;
 
 /// <summary>
 /// Creates raw Npgsql connections for Dapper read queries.
-/// Connections are NOT pooled here — Npgsql handles pooling internally.
+/// Connections are NOT pooled here ΓÇö Npgsql handles pooling internally.
 /// </summary>
 public sealed class NpgsqlConnectionFactory : ISqlConnectionFactory
 {

@@ -1,4 +1,5 @@
 import { API_ENDPOINTS } from '../config';
+import { dispatchAuthChanged } from '../utils/authEvents';
 
 // Use empty string for production (same origin) or localhost for development
 const API_BASE_URL = API_ENDPOINTS.BASE;
@@ -6,6 +7,8 @@ const API_BASE_URL = API_ENDPOINTS.BASE;
 class ApiService {
   constructor() {
     this.baseUrl = API_BASE_URL;
+    /** @type {Promise<boolean>|null} Single-flight refresh so concurrent 401s share one POST /auth/refresh */
+    this._refreshPromise = null;
   }
 
   getToken() {
@@ -15,12 +18,16 @@ class ApiService {
   setTokens(accessToken, refreshToken) {
     localStorage.setItem('accessToken', accessToken);
     localStorage.setItem('refreshToken', refreshToken);
+    // Notify SignalR hooks (same-tab) so they can connect after login/refresh without polling.
+    dispatchAuthChanged({ reason: 'tokens-set' });
   }
 
   clearTokens() {
     localStorage.removeItem('accessToken');
     localStorage.removeItem('refreshToken');
     localStorage.removeItem('user');
+    // Notify SignalR hooks to disconnect after logout / failed refresh.
+    dispatchAuthChanged({ reason: 'tokens-cleared' });
   }
 
   async request(endpoint, options = {}) {
@@ -140,19 +147,35 @@ class ApiService {
   }
 
   async refreshToken() {
+    // Coalesce concurrent refresh attempts (many API calls can 401 at once).
+    if (this._refreshPromise) {
+      return this._refreshPromise;
+    }
+
+    this._refreshPromise = this._doRefreshToken().finally(() => {
+      this._refreshPromise = null;
+    });
+    return this._refreshPromise;
+  }
+
+  async _doRefreshToken() {
     const refreshToken = localStorage.getItem('refreshToken');
     if (!refreshToken) return false;
 
     try {
+      const body = JSON.stringify({ refreshToken });
       const response = await fetch(`${this.baseUrl}/auth/refresh`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ refreshToken }),
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+        },
+        body,
       });
 
       if (response.ok) {
         const data = await response.json();
-        if (data.success && data.data) {
+        if (data.success && data.data?.accessToken && data.data?.refreshToken) {
           this.setTokens(data.data.accessToken, data.data.refreshToken);
           return true;
         }

@@ -1,8 +1,9 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, Suspense, lazy } from 'react';
 import { useSearchParams, Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../services/api';
-import LocationMap from '../components/LocationMap';
+// Leaflet is large — load only when Search map mounts (same UI, deferred JS).
+const LocationMap = lazy(() => import('../components/LocationMap'));
 import BookedSlots from '../components/BookedSlots';
 import NearMeRadiusPicker, {
     DEFAULT_NEAR_ME_RADIUS_KM,
@@ -576,12 +577,14 @@ export default function Search() {
 
                     {/* Right: Sticky Map */}
                     <div className="search-map" style={{ top: '80px' }}>
-                        <LocationMap
-                            parkingSpaces={mapParkingSpaces}
-                            height="100%"
-                            highlightedId={hoveredId}
-                            onMarkerHover={setHoveredId}
-                        />
+                        <Suspense fallback={<div className="loading" style={{ minHeight: '320px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><div className="spinner" /></div>}>
+                            <LocationMap
+                                parkingSpaces={mapParkingSpaces}
+                                height="100%"
+                                highlightedId={hoveredId}
+                                onMarkerHover={setHoveredId}
+                            />
+                        </Suspense>
                     </div>
                 </div>
             </div>

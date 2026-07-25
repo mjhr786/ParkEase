@@ -1,6 +1,11 @@
 using FluentAssertions;
-using ParkingApp.Domain.Interfaces;
+using ParkingApp.Infrastructure.Persistence;
+using ParkingApp.Corporate.Domain.Interfaces;
+using ParkingApp.Marketplace.Domain.Interfaces;
+using ParkingApp.Identity.Domain.Interfaces;
+using ParkingApp.Messaging.Domain.Interfaces;
 using Xunit;
+using BbTransaction = ParkingApp.BuildingBlocks.Persistence.IUnitOfWorkTransaction;
 
 namespace ParkingApp.UnitTests.Domain;
 
@@ -12,17 +17,17 @@ public class UnitOfWorkInterfacesTests
         typeof(IUnitOfWork).Should().Implement<IMarketplaceUnitOfWork>();
         typeof(IUnitOfWork).Should().Implement<IIdentityUnitOfWork>();
         typeof(IUnitOfWork).Should().Implement<IMessagingUnitOfWork>();
-        typeof(IUnitOfWork).Should().Implement<ICorporateUnitOfWork>();
         typeof(IUnitOfWork).Should().Implement<IDisposable>();
     }
 
     [Fact]
     public void ContextPorts_ExposeTransactionBoundary()
     {
-        typeof(IMarketplaceUnitOfWork).Should().Implement<IUnitOfWorkTransaction>();
-        typeof(IIdentityUnitOfWork).Should().Implement<IUnitOfWorkTransaction>();
-        typeof(IMessagingUnitOfWork).Should().Implement<IUnitOfWorkTransaction>();
-        typeof(ICorporateUnitOfWork).Should().Implement<IUnitOfWorkTransaction>();
+        // Module ports use BuildingBlocks transaction boundary
+        typeof(IMarketplaceUnitOfWork).Should().Implement<BbTransaction>();
+        typeof(IIdentityUnitOfWork).Should().Implement<BbTransaction>();
+        typeof(IMessagingUnitOfWork).Should().Implement<BbTransaction>();
+        typeof(ICorporateUnitOfWork).Should().Implement<BbTransaction>();
     }
 
     [Fact]
@@ -35,3 +40,8 @@ public class UnitOfWorkInterfacesTests
         });
     }
 }
+
+
+
+
+

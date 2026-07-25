@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>ParkingApp.Notifications.UnitTests</RootNamespace>
+    <Description>Isolated unit tests for the Notifications module.</Description>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\..\src\Modules\Notifications\ParkingApp.Notifications.Domain\ParkingApp.Notifications.Domain.csproj" />
+    <ProjectReference Include="..\..\..\..\src\Modules\Notifications\ParkingApp.Notifications.Application\ParkingApp.Notifications.Application.csproj" />
+    <ProjectReference Include="..\..\..\..\src\Modules\Notifications\ParkingApp.Notifications.Contracts\ParkingApp.Notifications.Contracts.csproj" />
+    <ProjectReference Include="..\..\..\..\src\Modules\Notifications\ParkingApp.Notifications.Infrastructure\ParkingApp.Notifications.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\..\..\src\ParkingApp.BuildingBlocks\ParkingApp.BuildingBlocks.csproj" />
+  </ItemGroup>
+</Project>

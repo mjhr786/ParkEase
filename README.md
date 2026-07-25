@@ -49,7 +49,7 @@ A full-stack parking management platform built with **.NET 9 Web API**, **React*
 | Layer | Technology |
 |-------|------------|
 | **Backend** | .NET 9, ASP.NET Core Web API, EF Core 9 |
-| **Frontend** | React 18, Vite, Recharts, Axios |
+| **Frontend** | React 18, Vite (manual vendor chunks + route/lazy maps), Recharts, Axios |
 | **Mobile** | React Native (Expo), Redux Toolkit |
 | **Database** | PostgreSQL + PostGIS (Supabase-compatible connection strings) |
 | **Cache** | **Upstash Redis** (`rediss://`) via StackExchange.Redis; in-memory fallback |
@@ -59,7 +59,7 @@ A full-stack parking management platform built with **.NET 9 Web API**, **React*
 | **Push** | Firebase Cloud Messaging (FCM) |
 | **Real-time** | SignalR |
 | **Maps / geo** | Leaflet, NetTopologySuite, OSRM |
-| **Forecasting** | Hybrid engine (booking math + ML.NET) |
+| **Forecasting** | Disabled by default (`Forecast:Enabled=false`, `EnableMl=false`) |
 | **Gateway** | YARP (optional reverse proxy) |
 | **Logging** | Serilog |
 
@@ -302,6 +302,34 @@ cd backend
 dotnet test tests/ParkingApp.UnitTests
 ```
 
+### 6. Production publish (FileZilla / free tier)
+
+**Do not use** the old multi-RID command alone if you care about disk size:
+
+```bat
+REM OLD — larger (all RIDs + symbol files often included)
+dotnet publish src/ParkingApp.API -c Release -o publish
+```
+
+**Preferred** (from `ParkEase/backend`):
+
+```powershell
+.\publish-for-filezilla.ps1
+```
+
+This builds the SPA, replaces stale `wwwroot/assets`, publishes **framework-dependent** for **`win-x64`**, and strips `.pdb`/`.dbg`/`.dwarf`.
+
+Manual equivalent (API only):
+
+```bat
+dotnet publish src/ParkingApp.API -c Release -r win-x64 --self-contained false -o publish ^
+  /p:DebugType=None /p:DebugSymbols=false
+```
+
+Then upload the **contents** of `backend/publish` to the site root with FileZilla.
+
+Full notes: [`docs/deploy-publish.md`](docs/deploy-publish.md).
+
 ---
 
 ## Configuration reference
@@ -316,7 +344,19 @@ dotnet test tests/ParkingApp.UnitTests
 | `Resend:*` | Transactional email |
 | `Storage:Provider` / `Storage:R2:*` | Object storage (R2) |
 | `Firebase:*` | FCM service account fields |
-| `Corporate:WaitlistAutoPromotion` | Background waitlist poller |
+| `Corporate:WaitlistAutoPromotion` | Background waitlist poller (default poll **90s** on free tier) |
+| `Outbox:*` | Background outbox cadence (adaptive empty backoff) |
+| `Logging:File` / `Logging:Performance` | File sink toggle; slow-request threshold (ms) |
+| `Marketplace:Search` / `Marketplace:Map` | Max page size (40), map pin cap (500), discovery cache TTL |
+| `Forecast:Enabled` | **false** by default — availability forecast feature fully off (API short-circuits) |
+| `Forecast:EnableMl` | **false** by default — ML.NET never runs unless both `Enabled` and `EnableMl` are **true** |
+| `Forecast:MaxHorizonHours` / `MinIntervalMinutes` | Clamp forecast cost (default 24h / 60m) when forecasts are re-enabled |
+| `Forecast:SingleCacheMinutes` / `OwnerCacheMinutes` | Forecast Redis TTL (default 5 / 3) |
+| `Routing:UseOsrmOnSearch` | **true** by default (same as today: OSRM + haversine fallback). Set **false** for haversine-only (no outbound OSRM) |
+| `SignalR:KeepAliveSeconds` / `ClientTimeoutSeconds` | Hub ping / idle timeout (default **30** / **60**; client timeout is auto-clamped ≥ 2× keepalive) |
+| `Media:EnableRuntimeResize` | **false** by default — on-the-fly Skia resize for local `/uploads` only. R2 public URLs never use it |
+| `Media:GenerateUploadThumbnail` | **false** by default on free Cloudflare R2 (avoids extra PutObject + storage). Full public image URLs stay the source of truth |
+| `Storage:Provider` / `Storage:R2:*` | Prefer **R2** on free tier; browser loads images from R2 public URL (no app-server CPU) |
 | `Cors:AllowedOrigins` | SPA / deployed frontends |
 
 **Local:** User Secrets (UserSecretsId on API project).  

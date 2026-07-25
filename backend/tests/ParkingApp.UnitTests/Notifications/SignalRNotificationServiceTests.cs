@@ -1,10 +1,14 @@
+using ParkingApp.Notifications.Contracts;
 using FluentAssertions;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Logging;
 using Moq;
-using ParkingApp.Application.Interfaces;
-using ParkingApp.Notifications.Hubs;
-using ParkingApp.Notifications.Services;
+using ParkingApp.Identity.Application.Interfaces;
+using ParkingApp.Marketplace.Application.Interfaces;
+using ParkingApp.Corporate.Application.Interfaces;
+using ParkingApp.Notifications.Infrastructure.Hubs;
+using ParkingApp.Notifications.Application.Services;
+using ParkingApp.Notifications.Infrastructure.Services;
 using System;
 using System.Collections.Generic;
 using System.Threading;
@@ -113,3 +117,10 @@ public class SignalRNotificationServiceTests
         exception.Should().BeNull();
     }
 }
+
+
+
+
+
+
+

@@ -2,18 +2,22 @@ using Moq;
 using FluentAssertions;
 using Xunit;
 using Microsoft.Extensions.Configuration;
-using ParkingApp.Infrastructure.Services;
-using ParkingApp.Domain.Shared;
-using ParkingApp.Domain.Marketplace;
-using ParkingApp.Domain.Identity;
-using ParkingApp.Domain.Messaging;
-using ParkingApp.Domain.Corporate;
+using ParkingApp.Marketplace.Infrastructure.Services;
+using ParkingApp.Identity.Infrastructure.Services;
+using ParkingApp.BuildingBlocks.Domain;
+using ParkingApp.Marketplace.Domain.Entities;
+using ParkingApp.Identity.Domain.Entities;
+using ParkingApp.Messaging.Domain.Entities;
+using ParkingApp.Corporate.Domain;
 using ParkingApp.Domain.Enums;
+using ParkingApp.Identity.Domain.Enums;
 using ParkingApp.BuildingBlocks.Common;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.Extensions.Options;
 using ParkingApp.API.Middleware;
+using ParkingApp.API.Options;
 using System.IO;
 using System.Text;
 
@@ -32,7 +36,7 @@ public class AdvancedInfrastructureTests
         mockConfig.Setup(c => c["Jwt:AccessTokenExpirationMinutes"]).Returns("60");
 
         var service = new JwtTokenService(mockConfig.Object);
-        var user = new User { Id = Guid.NewGuid(), Email = "test@test.com", Role = UserRole.User, FirstName = "John", LastName = "Doe" };
+        var user = new User { Id = Guid.NewGuid(), Email = "test@example.com", PasswordHash = "hash", FirstName = "Test", LastName = "User", PhoneNumber = "1", IsActive = true };
 
         // Act
         var token = service.GenerateAccessToken(user);
@@ -70,7 +74,8 @@ public class AdvancedInfrastructureTests
             return Task.CompletedTask; 
         };
 
-        var middleware = new ImageResizingMiddleware(next, mockLogger.Object, mockEnv.Object);
+        var monitor = new SimpleMediaOptionsMonitor(new MediaOptions { EnableRuntimeResize = false });
+        var middleware = new ImageResizingMiddleware(next, mockLogger.Object, mockEnv.Object, monitor);
 
         // Act
         await middleware.InvokeAsync(context);
@@ -90,4 +95,18 @@ public class AdvancedInfrastructureTests
         result.HasNextPage.Should().BeTrue();
         result.HasPreviousPage.Should().BeFalse();
     }
+
+    private sealed class SimpleMediaOptionsMonitor : IOptionsMonitor<MediaOptions>
+    {
+        public SimpleMediaOptionsMonitor(MediaOptions current) => CurrentValue = current;
+        public MediaOptions CurrentValue { get; }
+        public MediaOptions Get(string? name) => CurrentValue;
+        public IDisposable OnChange(Action<MediaOptions, string?> listener) => new Noop();
+        private sealed class Noop : IDisposable { public void Dispose() { } }
+    }
 }
+
+
+
+
+

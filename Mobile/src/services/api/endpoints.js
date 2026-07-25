@@ -1,4 +1,4 @@
-/**
+﻿/**
  * API Endpoints
  * All endpoint constants matching the backend controllers
  */
@@ -8,6 +8,7 @@ export const ENDPOINTS = {
     AUTH: {
         REGISTER: '/auth/register',
         LOGIN: '/auth/login',
+        GOOGLE_LOGIN: '/auth/google',
         REFRESH: '/auth/refresh',
         LOGOUT: '/auth/logout',
         CHANGE_PASSWORD: '/auth/change-password',
@@ -22,12 +23,13 @@ export const ENDPOINTS = {
     PARKING: {
         BASE: '/parking',
         SEARCH: '/parking/search',
+        MAP: '/parking/map',
         MY_LISTINGS: '/parking/my-listings',
         BY_ID: (id) => `/parking/${id}`,
         TOGGLE_ACTIVE: (id) => `/parking/${id}/toggle-active`,
     },
 
-    // Bookings
+    // Bookings (V2)
     BOOKINGS: {
         BASE: '/bookings',
         MY_BOOKINGS: '/bookings/my-bookings',
@@ -51,11 +53,37 @@ export const ENDPOINTS = {
     PAYMENTS: {
         BASE: '/payments',
         STRIPE_CONFIG: '/payments/stripe-config',
-        CREATE_ORDER: '/payments/create-order',
         VERIFY: '/payments/verify',
         REFUND: '/payments/refund',
         BY_ID: (id) => `/payments/${id}`,
-        BY_BOOKING: (bookingId) => `/payments/booking/${bookingId}`,
+    },
+
+    // Chat
+    CHAT: {
+        CONVERSATIONS: '/chat/conversations',
+        MESSAGES: (id) => `/chat/conversations/${id}/messages`,
+        SEND: '/chat/send',
+        UNREAD_COUNT: '/chat/unread-count',
+    },
+
+    // Notifications
+    NOTIFICATIONS: {
+        BASE: '/notifications',
+        MARK_READ: (id) => `/notifications/${id}/read`,
+        MARK_ALL_READ: '/notifications/read-all',
+        DELETE: (id) => `/notifications/${id}`,
+        CLEAR_ALL: '/notifications/clear-all',
+    },
+
+    // Vehicles
+    VEHICLES: {
+        BASE: '/vehicles',
+    },
+
+    // Favorites
+    FAVORITES: {
+        BASE: '/favorites',
+        TOGGLE: (id) => `/favorites/${id}/toggle`,
     },
 
     // Reviews
@@ -66,6 +94,12 @@ export const ENDPOINTS = {
         OWNER_RESPONSE: (id) => `/reviews/${id}/owner-response`,
     },
 
+    // Device Tokens (FCM)
+    DEVICE_TOKENS: {
+        REGISTER: '/device-tokens/register',
+        DEREGISTER: '/device-tokens/deregister',
+    },
+
     // Dashboard
     DASHBOARD: {
         VENDOR: '/dashboard/vendor',
@@ -74,7 +108,8 @@ export const ENDPOINTS = {
 
     // Files
     FILES: {
-        UPLOAD: (parkingSpaceId) => `/files/parking/${parkingSpaceId}/upload`,
+        SIGN_UPLOAD: (parkingSpaceId) => `/files/parking/${parkingSpaceId}/sign-upload`,
+        CONFIRM_UPLOAD: (parkingSpaceId) => `/files/parking/${parkingSpaceId}/confirm-upload`,
         DELETE: (parkingSpaceId, fileName) => `/files/parking/${parkingSpaceId}/${fileName}`,
         GET: (parkingSpaceId) => `/files/parking/${parkingSpaceId}`,
     },

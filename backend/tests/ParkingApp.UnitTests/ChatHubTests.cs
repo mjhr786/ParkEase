@@ -4,9 +4,11 @@ using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Logging;
 using Moq;
 using ParkingApp.Application.CQRS;
-using ParkingApp.Application.CQRS.Commands.Chat;
+using ParkingApp.Messaging.Application.Commands.Chat;
+using ParkingApp.Messaging.Application.Queries.Chat;
 using ParkingApp.Application.DTOs;
-using ParkingApp.Notifications.Hubs;
+using ParkingApp.Messaging.Application.DTOs;
+using ParkingApp.Messaging.Infrastructure.Hubs;
 using Xunit;
 
 namespace ParkingApp.UnitTests;
@@ -164,6 +166,42 @@ public class ChatHubTests
 
         await _hub.SendMessage(Guid.NewGuid(), "Hello");
 
-        _mockClientProxy.Verify(c => c.SendCoreAsync("ReceiveMessage", new object[] { msgDto }, It.IsAny<CancellationToken>()), Times.Once);
+        // sender user group + conversation group (no recipientId on dto)
+        _mockClientProxy.Verify(c => c.SendCoreAsync("ReceiveMessage", new object[] { msgDto }, It.IsAny<CancellationToken>()), Times.Exactly(2));
+    }
+
+    [Fact]
+    public async Task JoinConversation_WhenUnauthorized_ShouldSendError()
+    {
+        _mockContext.Setup(c => c.User).Returns((ClaimsPrincipal?)null);
+
+        await _hub.JoinConversation(Guid.NewGuid());
+
+        _fakeSingleClientProxy.Calls.Should().Contain(c => c.Method == "Error");
+    }
+
+    [Fact]
+    public async Task JoinConversation_WhenAccessGranted_ShouldAddToGroup()
+    {
+        var userId = Guid.NewGuid();
+        var convId = Guid.NewGuid();
+        var claims = new[] { new Claim(ClaimTypes.NameIdentifier, userId.ToString()) };
+        var identity = new ClaimsIdentity(claims, "TestAuthType");
+        _mockContext.Setup(c => c.User).Returns(new ClaimsPrincipal(identity));
+        _mockContext.Setup(c => c.ConnectionId).Returns("conn-join");
+
+        _mockDispatcher.Setup(d => d.QueryAsync(It.IsAny<CanAccessConversationQuery>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ApiResponse<bool>(true, null, true));
+
+        await _hub.JoinConversation(convId);
+
+        _mockGroups.Verify(g => g.AddToGroupAsync("conn-join", $"chat_conv_{convId}", It.IsAny<CancellationToken>()), Times.Once);
     }
 }
+
+
+
+
+
+
+

@@ -1,18 +1,20 @@
+using ParkingApp.Application.Interfaces;
 using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using Moq;
 using ParkingApp.Application.Caching;
-using ParkingApp.Application.EventHandlers;
-using ParkingApp.Application.Interfaces;
-using ParkingApp.Domain.Shared;
-using ParkingApp.Domain.Marketplace;
-using ParkingApp.Domain.Identity;
-using ParkingApp.Domain.Messaging;
-using ParkingApp.Domain.Corporate;
+using ParkingApp.Identity.Contracts;
+using ParkingApp.Marketplace.Contracts;
+using ParkingApp.Application.Contracts.Notifications;
+using ParkingApp.Marketplace.Application.EventHandlers;
+using ParkingApp.Identity.Application.Interfaces;
+using ParkingApp.Marketplace.Application.Interfaces;
+using ParkingApp.Corporate.Application.Interfaces;
 using ParkingApp.Domain.Enums;
-using ParkingApp.Domain.Events.Bookings;
-using ParkingApp.Domain.Events.Parking;
-using ParkingApp.Domain.Interfaces;
+using ParkingApp.Marketplace.Contracts.Enums;
+using ParkingApp.Marketplace.Domain.Events;
+using ParkingApp.Marketplace.Domain.Events;
+using ParkingApp.Marketplace.Domain.Entities;
 using Xunit;
 
 namespace ParkingApp.UnitTests.EventHandlers;
@@ -39,17 +41,15 @@ public class DomainEventHandlerTests
     public async Task BookingCancelledParkingCacheHandler_InvalidatesParkingCachesComprehensively()
     {
         var cache = new Mock<ICacheService>();
-        var uow = new Mock<IMarketplaceUnitOfWork>();
-        var parkingRepo = new Mock<IParkingSpaceRepository>();
+        var parkingLookup = new Mock<IParkingSpaceLookup>();
         var parkingId = Guid.NewGuid();
         var memberId = Guid.NewGuid();
         var vendorId = Guid.NewGuid();
 
-        parkingRepo.Setup(r => r.GetByIdAsync(parkingId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new ParkingSpace { Id = parkingId, OwnerId = vendorId });
-        uow.Setup(u => u.ParkingSpaces).Returns(parkingRepo.Object);
+        parkingLookup.Setup(r => r.GetByIdAsync(parkingId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ParkingSpaceSummary(parkingId, vendorId, "Lot", true, 5, "IndividualVendor"));
 
-        var handler = new BookingCancelledParkingCacheHandler(cache.Object, uow.Object);
+        var handler = new BookingCancelledParkingCacheHandler(cache.Object, parkingLookup.Object);
 
         await handler.HandleAsync(new BookingCancelledEvent(Guid.NewGuid(), memberId, parkingId, "REF1", "reason"));
 
@@ -64,47 +64,70 @@ public class DomainEventHandlerTests
     }
 
     [Fact]
+    public async Task BookingCheckedInNotificationHandler_NotifiesOwner()
+    {
+        var parkingLookup = new Mock<IParkingSpaceLookup>();
+        var userLookup = new Mock<IUserLookup>();
+        var notifications = new Mock<INotificationSender>();
+        var logger = new Mock<ILogger<BookingCheckedInNotificationHandler>>();
+
+        var ownerId = Guid.NewGuid();
+        var memberId = Guid.NewGuid();
+        var parkingId = Guid.NewGuid();
+        parkingLookup.Setup(r => r.GetByIdAsync(parkingId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ParkingSpaceSummary(parkingId, ownerId, "Downtown Lot", true, 5, "IndividualVendor"));
+        userLookup.Setup(r => r.GetByIdAsync(memberId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new UserSummary(memberId, "a@b.com", "Ada", "Lovelace"));
+
+        var handler = new BookingCheckedInNotificationHandler(
+            parkingLookup.Object, userLookup.Object, notifications.Object, logger.Object);
+        await handler.HandleAsync(new BookingCheckedInEvent(Guid.NewGuid(), memberId, parkingId, "REF-CI"));
+
+        notifications.Verify(n => n.SendAsync(
+            ownerId,
+            It.Is<NotificationSendRequest>(r =>
+                r.Title == "Guest Checked In" && r.Message.Contains("Ada") && r.Message.Contains("Downtown Lot")),
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
     public async Task BookingCancelledNotificationHandler_NotifiesOwner()
     {
-        var uow = new Mock<IUnitOfWork>();
-        var parkingRepo = new Mock<IParkingSpaceRepository>();
-        var notifications = new Mock<INotificationCoordinator>();
+        var parkingLookup = new Mock<IParkingSpaceLookup>();
+        var notifications = new Mock<INotificationSender>();
         var logger = new Mock<ILogger<BookingCancelledNotificationHandler>>();
 
         var ownerId = Guid.NewGuid();
         var memberId = Guid.NewGuid();
         var parkingId = Guid.NewGuid();
-        parkingRepo.Setup(r => r.GetByIdAsync(parkingId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new ParkingSpace { Id = parkingId, OwnerId = ownerId });
-        uow.Setup(u => u.ParkingSpaces).Returns(parkingRepo.Object);
+        parkingLookup.Setup(r => r.GetByIdAsync(parkingId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ParkingSpaceSummary(parkingId, ownerId, "Lot", true, 5, "IndividualVendor"));
 
-        var handler = new BookingCancelledNotificationHandler(uow.Object, notifications.Object, logger.Object);
+        var handler = new BookingCancelledNotificationHandler(parkingLookup.Object, notifications.Object, logger.Object);
         await handler.HandleAsync(new BookingCancelledEvent(Guid.NewGuid(), memberId, parkingId, "REF9", "changed plans"));
 
         notifications.Verify(n => n.SendAsync(
             ownerId,
-            It.Is<NotificationRequest>(r => r.Title == "Booking Cancelled" && r.Message.Contains("REF9")),
+            It.Is<NotificationSendRequest>(r => r.Title == "Booking Cancelled" && r.Message.Contains("REF9")),
             It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
     public async Task BookingCancelledNotificationHandler_SkipsWhenCancellerIsOwner()
     {
-        var uow = new Mock<IUnitOfWork>();
-        var parkingRepo = new Mock<IParkingSpaceRepository>();
-        var notifications = new Mock<INotificationCoordinator>();
+        var parkingLookup = new Mock<IParkingSpaceLookup>();
+        var notifications = new Mock<INotificationSender>();
         var logger = new Mock<ILogger<BookingCancelledNotificationHandler>>();
 
         var ownerId = Guid.NewGuid();
         var parkingId = Guid.NewGuid();
-        parkingRepo.Setup(r => r.GetByIdAsync(parkingId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new ParkingSpace { Id = parkingId, OwnerId = ownerId });
-        uow.Setup(u => u.ParkingSpaces).Returns(parkingRepo.Object);
+        parkingLookup.Setup(r => r.GetByIdAsync(parkingId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ParkingSpaceSummary(parkingId, ownerId, "Lot", true, 5, "IndividualVendor"));
 
-        var handler = new BookingCancelledNotificationHandler(uow.Object, notifications.Object, logger.Object);
+        var handler = new BookingCancelledNotificationHandler(parkingLookup.Object, notifications.Object, logger.Object);
         await handler.HandleAsync(new BookingCancelledEvent(Guid.NewGuid(), ownerId, parkingId, "REF9", "self"));
 
-        notifications.Verify(n => n.SendAsync(It.IsAny<Guid>(), It.IsAny<NotificationRequest>(), It.IsAny<CancellationToken>()), Times.Never);
+        notifications.Verify(n => n.SendAsync(It.IsAny<Guid>(), It.IsAny<NotificationSendRequest>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
@@ -115,3 +138,9 @@ public class DomainEventHandlerTests
         booking.DomainEvents.Should().ContainSingle(e => e is BookingCheckedOutEvent);
     }
 }
+
+
+
+
+
+

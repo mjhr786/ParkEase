@@ -1,9 +1,9 @@
-using System.ComponentModel.DataAnnotations;
+﻿using System.ComponentModel.DataAnnotations;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using ParkingApp.Application.CQRS;
-using ParkingApp.Application.CQRS.Commands.DeviceTokens;
+using ParkingApp.Identity.Application.Commands.DeviceTokens;
 
 namespace ParkingApp.API.Controllers;
 
@@ -54,7 +54,7 @@ public class DeviceTokensController : ControllerBase
     }
 }
 
-// ── Request DTO ────────────────────────────────────────────────────────────
+// ΓöÇΓöÇ Request DTO ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 
 public sealed record RegisterDeviceTokenRequest(
     [Required] string DeviceId,

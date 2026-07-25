@@ -6,10 +6,16 @@ using Microsoft.AspNetCore.Http;
 using System.Security.Claims;
 using ParkingApp.API.Controllers;
 using ParkingApp.Application.CQRS;
-using ParkingApp.Application.CQRS.Commands.Vehicles;
-using ParkingApp.Application.CQRS.Queries.Vehicles;
+using ParkingApp.Identity.Application.Commands.Vehicles;
+using ParkingApp.Identity.Application.Queries.Vehicles;
 using ParkingApp.Application.DTOs;
+using ParkingApp.Identity.Application.DTOs;
+using ParkingApp.Marketplace.Contracts.DTOs;
+using ParkingApp.Messaging.Application.DTOs;
+using ParkingApp.Notifications.Application.DTOs;
+using ParkingApp.Corporate.Application.DTOs;
 using ParkingApp.Domain.Enums;
+using ParkingApp.BuildingBlocks.Enums;
 
 namespace ParkingApp.UnitTests.API;
 
@@ -172,3 +178,8 @@ public class VehiclesControllerTests
         result.Should().BeOfType<UnauthorizedResult>();
     }
 }
+
+
+
+
+

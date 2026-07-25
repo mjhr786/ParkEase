@@ -1,18 +1,31 @@
+using ParkingApp.Application.Interfaces;
 using Moq;
 using FluentAssertions;
 using Xunit;
 using Microsoft.Extensions.Logging;
-using ParkingApp.Application.CQRS.Commands.Parking;
+using ParkingApp.Marketplace.Application.Commands.Parking;
 using ParkingApp.Application.DTOs;
-using ParkingApp.Application.Interfaces;
-using ParkingApp.Domain.Shared;
-using ParkingApp.Domain.Marketplace;
-using ParkingApp.Domain.Identity;
-using ParkingApp.Domain.Messaging;
-using ParkingApp.Domain.Corporate;
-using ParkingApp.Domain.Interfaces;
+using ParkingApp.Identity.Application.DTOs;
+using ParkingApp.Marketplace.Contracts.DTOs;
+using ParkingApp.Messaging.Application.DTOs;
+using ParkingApp.Notifications.Application.DTOs;
+using ParkingApp.Corporate.Application.DTOs;
+using ParkingApp.Identity.Application.Interfaces;
+using ParkingApp.Marketplace.Application.Interfaces;
+using ParkingApp.Corporate.Application.Interfaces;
+using ParkingApp.BuildingBlocks.Domain;
+using ParkingApp.Marketplace.Domain.Entities;
+using ParkingApp.Identity.Domain.Entities;
+using ParkingApp.Messaging.Domain.Entities;
+using ParkingApp.Corporate.Domain;
+using ParkingApp.Infrastructure.Persistence;
+using ParkingApp.Marketplace.Domain.Interfaces;
+using ParkingApp.Identity.Domain.Interfaces;
 using ParkingApp.Domain.Enums;
-using ParkingApp.Domain.Events.Parking;
+using ParkingApp.Marketplace.Contracts.Enums;
+using ParkingApp.Identity.Domain.Enums;
+using ParkingApp.Marketplace.Domain.Events;
+using ParkingApp.Identity.Contracts;
 
 namespace ParkingApp.UnitTests;
 
@@ -22,6 +35,7 @@ public class ParkingTests
     private readonly Mock<IParkingSpaceRepository> _mockParkingRepository;
     private readonly Mock<IUserRepository> _mockUserRepository;
     private readonly Mock<IBookingRepository> _mockBookingRepository;
+    private readonly Mock<IUserLookup> _mockUsers;
     private readonly Mock<ICacheService> _mockCache;
     
     private readonly Mock<ILogger<CreateParkingHandler>> _mockCreateLogger;
@@ -35,6 +49,7 @@ public class ParkingTests
         _mockParkingRepository = new Mock<IParkingSpaceRepository>();
         _mockUserRepository = new Mock<IUserRepository>();
         _mockBookingRepository = new Mock<IBookingRepository>();
+        _mockUsers = new Mock<IUserLookup>();
         _mockCache = new Mock<ICacheService>();
         
         _mockCreateLogger = new Mock<ILogger<CreateParkingHandler>>();
@@ -53,11 +68,10 @@ public class ParkingTests
     public async Task CreateParkingHandler_WhenOwnerIsVendor_ShouldSucceed()
     {
         // Arrange
-        var handler = new CreateParkingHandler(_mockUnitOfWork.Object, _mockUnitOfWork.Object, _mockCreateLogger.Object);
+        var handler = new CreateParkingHandler(_mockUnitOfWork.Object, _mockUsers.Object, _mockCreateLogger.Object);
         var ownerId = Guid.NewGuid();
-        var owner = new User { Id = ownerId, Role = UserRole.User, Email = "vendor@test.com", FirstName = "Vendor" };
-        
-        _mockUserRepository.Setup(r => r.GetByIdAsync(ownerId, It.IsAny<CancellationToken>())).ReturnsAsync(owner);
+        _mockUsers.Setup(r => r.GetByIdAsync(ownerId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new UserSummary(ownerId, "test@example.com", "Test", "User", "1", IsActive: true));
 
         var dto = new CreateParkingSpaceDto(
             "Premium Park", "Desc", "123 Street", "Tech City", "TS", "IN", "560001", 
@@ -121,7 +135,7 @@ public class ParkingTests
         // Cache invalidation is handled by ParkingSpaceDeletedCacheHandler after SaveChanges
         parking.IsDeleted.Should().BeTrue();
         parking.IsActive.Should().BeFalse();
-        parking.DomainEvents.Should().ContainSingle(e => e is ParkingApp.Domain.Events.Parking.ParkingSpaceDeletedEvent);
+        parking.DomainEvents.Should().ContainSingle(e => e is ParkingApp.Marketplace.Domain.Events.ParkingSpaceDeletedEvent);
     }
 
     [Fact]
@@ -139,3 +153,9 @@ public class ParkingTests
         result.Message.Should().Be("Parking space not found");
     }
 }
+
+
+
+
+
+

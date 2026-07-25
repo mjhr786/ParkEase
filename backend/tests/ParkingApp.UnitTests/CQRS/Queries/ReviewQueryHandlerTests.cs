@@ -1,3 +1,4 @@
+using ParkingApp.Application.Interfaces;
 using System;
 using System.Collections.Generic;
 using System.Data;
@@ -5,15 +6,23 @@ using System.Threading;
 using System.Threading.Tasks;
 using FluentAssertions;
 using Moq;
-using ParkingApp.Application.CQRS.Queries.Reviews;
+using ParkingApp.Marketplace.Application.Queries.Reviews;
 using ParkingApp.Application.DTOs;
-using ParkingApp.Application.Interfaces;
-using ParkingApp.Domain.Shared;
-using ParkingApp.Domain.Marketplace;
-using ParkingApp.Domain.Identity;
-using ParkingApp.Domain.Messaging;
-using ParkingApp.Domain.Corporate;
-using ParkingApp.Domain.Interfaces;
+using ParkingApp.Identity.Application.DTOs;
+using ParkingApp.Marketplace.Contracts.DTOs;
+using ParkingApp.Messaging.Application.DTOs;
+using ParkingApp.Notifications.Application.DTOs;
+using ParkingApp.Corporate.Application.DTOs;
+using ParkingApp.Identity.Application.Interfaces;
+using ParkingApp.Marketplace.Application.Interfaces;
+using ParkingApp.Corporate.Application.Interfaces;
+using ParkingApp.BuildingBlocks.Domain;
+using ParkingApp.Marketplace.Domain.Entities;
+using ParkingApp.Identity.Domain.Entities;
+using ParkingApp.Messaging.Domain.Entities;
+using ParkingApp.Corporate.Domain;
+using ParkingApp.Infrastructure.Persistence;
+using ParkingApp.Marketplace.Domain.Interfaces;
 using Xunit;
 
 namespace ParkingApp.UnitTests.CQRS.Queries;
@@ -98,3 +107,9 @@ public class ReviewQueryHandlerTests
         _mockCache.Verify(c => c.SetAsync($"reviews:parking:{spaceId}", list, It.IsAny<TimeSpan>(), It.IsAny<CancellationToken>()), Times.Once);
     }
 }
+
+
+
+
+
+

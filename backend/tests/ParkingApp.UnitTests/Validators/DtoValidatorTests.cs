@@ -1,9 +1,18 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using FluentValidation.TestHelper;
 using ParkingApp.Application.DTOs;
-using ParkingApp.Application.Validators;
+using ParkingApp.Identity.Application.DTOs;
+using ParkingApp.Marketplace.Contracts.DTOs;
+using ParkingApp.Messaging.Application.DTOs;
+using ParkingApp.Notifications.Application.DTOs;
+using ParkingApp.Corporate.Application.DTOs;
+using ParkingApp.Identity.Application.Validators;
+using ParkingApp.Marketplace.Application.Validators;
 using ParkingApp.Domain.Enums;
+using ParkingApp.Marketplace.Contracts.Enums;
+using ParkingApp.BuildingBlocks.Enums;
 using Xunit;
 
 namespace ParkingApp.UnitTests.Validators;
@@ -120,3 +129,8 @@ public class DtoValidatorTests
         result.ShouldNotHaveAnyValidationErrors();
     }
 }
+
+
+
+
+

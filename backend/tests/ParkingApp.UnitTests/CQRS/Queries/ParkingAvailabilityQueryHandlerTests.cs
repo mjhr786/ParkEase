@@ -1,7 +1,14 @@
 using Moq;
-using ParkingApp.Application.CQRS.Queries.ParkingAvailability;
+using ParkingApp.Marketplace.Application.Queries.ParkingAvailability;
 using ParkingApp.Application.DTOs;
-using ParkingApp.Application.Interfaces;
+using ParkingApp.Identity.Application.DTOs;
+using ParkingApp.Marketplace.Contracts.DTOs;
+using ParkingApp.Messaging.Application.DTOs;
+using ParkingApp.Notifications.Application.DTOs;
+using ParkingApp.Corporate.Application.DTOs;
+using ParkingApp.Identity.Application.Interfaces;
+using ParkingApp.Marketplace.Application.Interfaces;
+using ParkingApp.Corporate.Application.Interfaces;
 
 namespace ParkingApp.UnitTests.CQRS.Queries;
 
@@ -82,3 +89,8 @@ public class ParkingAvailabilityQueryHandlerTests
             });
     }
 }
+
+
+
+
+

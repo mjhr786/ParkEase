@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>ParkingApp.Messaging.Infrastructure</RootNamespace>
+    <Description>Messaging module infrastructure (EF configs, repositories, contract adapters).</Description>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\ParkingApp.BuildingBlocks\ParkingApp.BuildingBlocks.csproj" />
+    <ProjectReference Include="..\ParkingApp.Messaging.Domain\ParkingApp.Messaging.Domain.csproj" />
+    <ProjectReference Include="..\ParkingApp.Messaging.Contracts\ParkingApp.Messaging.Contracts.csproj" />
+    <ProjectReference Include="..\ParkingApp.Messaging.Application\ParkingApp.Messaging.Application.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="9.0.0" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" Version="9.0.0" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.2" />
+  </ItemGroup>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="ParkingApp.Infrastructure" />
+    <InternalsVisibleTo Include="ParkingApp.UnitTests" />
+  </ItemGroup>
+</Project>

@@ -1,8 +1,10 @@
 using Moq;
 using FluentAssertions;
 using Xunit;
-using ParkingApp.Application.CQRS.Queries.Bookings;
-using ParkingApp.Application.Interfaces;
+using ParkingApp.Marketplace.Application.Queries.Bookings;
+using ParkingApp.Identity.Application.Interfaces;
+using ParkingApp.Marketplace.Application.Interfaces;
+using ParkingApp.Corporate.Application.Interfaces;
 
 namespace ParkingApp.UnitTests.Bookings;
 
@@ -38,3 +40,8 @@ public class GetPendingRequestsCountHandlerTests
         result.Data.Should().Be(3);
     }
 }
+
+
+
+
+

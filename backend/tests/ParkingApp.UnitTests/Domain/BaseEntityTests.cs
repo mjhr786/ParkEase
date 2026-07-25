@@ -1,11 +1,6 @@
 using FluentAssertions;
 using Xunit;
-using ParkingApp.Domain.Shared;
-using ParkingApp.Domain.Marketplace;
-using ParkingApp.Domain.Identity;
-using ParkingApp.Domain.Messaging;
-using ParkingApp.Domain.Corporate;
-using ParkingApp.Domain.Events;
+using ParkingApp.BuildingBlocks.Domain;
 using System.Linq;
 
 namespace ParkingApp.UnitTests.Domain;
@@ -13,7 +8,10 @@ namespace ParkingApp.UnitTests.Domain;
 public class BaseEntityTests
 {
     private class TestEntity : BaseEntity { }
-    private class TestDomainEvent : IDomainEvent { public DateTime OccurredOn { get; } = DateTime.UtcNow; }
+    private class TestDomainEvent : ParkingApp.BuildingBlocks.Domain.IDomainEvent
+    {
+        public DateTime OccurredOn { get; } = DateTime.UtcNow;
+    }
 
     [Fact]
     public void AddDomainEvent_ShouldAddEventToList()
@@ -40,3 +38,8 @@ public class BaseEntityTests
         entity.DomainEvents.Should().BeEmpty();
     }
 }
+
+
+
+
+

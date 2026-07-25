@@ -3,7 +3,8 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using ParkingApp.Application.Interfaces;
-using ParkingApp.Domain.Events;
+
+using ParkingApp.BuildingBlocks.Domain;
 using ParkingApp.Infrastructure.Data;
 
 namespace ParkingApp.Infrastructure.Outbox;
@@ -81,13 +82,31 @@ public sealed class OutboxProcessor : IOutboxProcessor
                 continue;
             }
 
+            // Atomically try to claim the message for processing
+            var rowsAffected = await _db.OutboxMessages
+                .Where(m => m.Id == message.Id && (m.Status == OutboxStatus.Pending || m.Status == OutboxStatus.Failed))
+                .ExecuteUpdateAsync(s => s
+                    .SetProperty(x => x.Status, OutboxStatus.Processing)
+                    .SetProperty(x => x.AttemptCount, x => x.AttemptCount + 1),
+                    cancellationToken);
+
+            if (rowsAffected == 0)
+            {
+                // Another thread/process beat us to it, or it was already processed
+                continue;
+            }
+
+            // Sync the local tracked entity state so subsequent SaveChangesAsync doesn't overwrite
             message.Status = OutboxStatus.Processing;
             message.AttemptCount += 1;
-            await _db.SaveChangesAsync(cancellationToken);
+
+            // After claim, do not cancel mid-side-effect because the HTTP request ended.
+            // Otherwise the row can be retried and non-idempotent handlers fire again.
+            var workToken = CancellationToken.None;
 
             try
             {
-                await DispatchMessageAsync(message, cancellationToken);
+                await DispatchMessageAsync(message, workToken);
 
                 message.Status = OutboxStatus.Processed;
                 message.ProcessedAtUtc = DateTime.UtcNow;
@@ -110,7 +129,7 @@ public sealed class OutboxProcessor : IOutboxProcessor
                 message.AvailableAfterUtc = DateTime.UtcNow.AddSeconds(delaySeconds);
             }
 
-            await _db.SaveChangesAsync(cancellationToken);
+            await _db.SaveChangesAsync(workToken);
         }
 
         return processed;
@@ -127,14 +146,30 @@ public sealed class OutboxProcessor : IOutboxProcessor
                 })
                 .FirstOrDefault(t => t.FullName == message.TypeName || t.AssemblyQualifiedName == message.TypeName);
 
-        if (eventType == null || !typeof(IDomainEvent).IsAssignableFrom(eventType))
+        // BuildingBlocks.IDomainEvent ΓÇö module-domain events do not implement Domain.Events.IDomainEvent
+        if (eventType == null || !typeof(ParkingApp.BuildingBlocks.Domain.IDomainEvent).IsAssignableFrom(eventType))
             throw new InvalidOperationException($"Cannot resolve domain event type '{message.TypeName}'.");
 
         var domainEvent = JsonSerializer.Deserialize(message.Payload, eventType, JsonOptions)
             ?? throw new InvalidOperationException($"Failed to deserialize outbox payload for {message.TypeName}.");
 
-        var handlerInterface = typeof(IDomainEventHandler<>).MakeGenericType(eventType);
-        var handlers = _serviceProvider.GetServices(handlerInterface).Where(h => h != null).ToList();
+        var handlerInterfaces = new[]
+        {
+            typeof(IDomainEventHandler<>).MakeGenericType(eventType),
+        };
+
+        var handlers = new List<(object Handler, Type Interface)>();
+        var seen = new HashSet<object>(ReferenceEqualityComparer.Instance);
+        foreach (var iface in handlerInterfaces)
+        {
+            foreach (var h in _serviceProvider.GetServices(iface).Where(x => x != null)!)
+            {
+                if (seen.Add(h!))
+                    handlers.Add((h!, iface));
+            }
+        }
+
+        _logger.LogWarning("DEBUG: Resolving handlers for {Event}: Count = {Count}", eventType.Name, handlers.Count);
 
         if (handlers.Count == 0)
         {
@@ -142,13 +177,12 @@ public sealed class OutboxProcessor : IOutboxProcessor
             return;
         }
 
-        var method = handlerInterface.GetMethod("HandleAsync")
-            ?? throw new InvalidOperationException("HandleAsync not found on event handler interface.");
-
-        foreach (var handler in handlers)
+        foreach (var (handler, handlerInterface) in handlers)
         {
             try
             {
+                var method = handlerInterface.GetMethod("HandleAsync")
+                    ?? throw new InvalidOperationException("HandleAsync not found on event handler interface.");
                 // Rethrow so the outbox row stays pending for retry (unlike legacy silent dispatcher)
                 var task = (Task)method.Invoke(handler, new[] { domainEvent, cancellationToken })!;
                 await task;

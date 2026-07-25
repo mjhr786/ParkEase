@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>ParkingApp.Marketplace.UnitTests</RootNamespace>
+    <Description>Isolated unit tests for the Marketplace module.</Description>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\..\src\Modules\Marketplace\ParkingApp.Marketplace.Domain\ParkingApp.Marketplace.Domain.csproj" />
+    <ProjectReference Include="..\..\..\..\src\Modules\Marketplace\ParkingApp.Marketplace.Application\ParkingApp.Marketplace.Application.csproj" />
+    <ProjectReference Include="..\..\..\..\src\Modules\Marketplace\ParkingApp.Marketplace.Contracts\ParkingApp.Marketplace.Contracts.csproj" />
+    <ProjectReference Include="..\..\..\..\src\Modules\Marketplace\ParkingApp.Marketplace.Infrastructure\ParkingApp.Marketplace.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\..\..\src\ParkingApp.BuildingBlocks\ParkingApp.BuildingBlocks.csproj" />
+  </ItemGroup>
+</Project>

@@ -1,27 +1,48 @@
 using SkiaSharp;
 using Microsoft.AspNetCore.StaticFiles;
+using Microsoft.Extensions.Options;
+using ParkingApp.API.Options;
 
 namespace ParkingApp.API.Middleware;
 
+/// <summary>
+/// Optional on-the-fly resize for <b>local</b> <c>/uploads</c> images only (<c>?w=</c>/<c>?h=</c>).
+/// Production free-tier deployments use Cloudflare R2 public URLs — those never hit this middleware.
+/// When <see cref="MediaOptions.EnableRuntimeResize"/> is false (default), this is a pure no-op.
+/// </summary>
 public class ImageResizingMiddleware
 {
     private readonly RequestDelegate _next;
     private readonly ILogger<ImageResizingMiddleware> _logger;
     private readonly IWebHostEnvironment _env;
+    private readonly IOptionsMonitor<MediaOptions> _mediaOptions;
     private readonly FileExtensionContentTypeProvider _contentTypeProvider;
     private static readonly string[] SupportedExtensions = { ".jpg", ".jpeg", ".png", ".webp" };
 
-    public ImageResizingMiddleware(RequestDelegate next, ILogger<ImageResizingMiddleware> logger, IWebHostEnvironment env)
+    public ImageResizingMiddleware(
+        RequestDelegate next,
+        ILogger<ImageResizingMiddleware> logger,
+        IWebHostEnvironment env,
+        IOptionsMonitor<MediaOptions> mediaOptions)
     {
         _next = next;
         _logger = logger;
         _env = env;
+        _mediaOptions = mediaOptions;
         _contentTypeProvider = new FileExtensionContentTypeProvider();
     }
 
     public async Task InvokeAsync(HttpContext context)
     {
+        // Free-tier / R2 default: skip all work (no Skia decode, no disk thumb cache).
+        if (!_mediaOptions.CurrentValue.EnableRuntimeResize)
+        {
+            await _next(context);
+            return;
+        }
+
         var path = context.Request.Path;
+        // Only local uploads — R2 public URLs are absolute and never match /uploads.
         if (!path.StartsWithSegments("/uploads") || !HasResizeQuery(context.Request.Query))
         {
             await _next(context);
@@ -44,6 +65,13 @@ public class ImageResizingMiddleware
             return;
         }
 
+        // Cap dimensions when resize is enabled (abuse / free-tier CPU protection).
+        var maxDim = Math.Clamp(_mediaOptions.CurrentValue.MaxRuntimeResizeDimension, 64, 2048);
+        if (width.HasValue)
+            width = Math.Min(width.Value, maxDim);
+        if (height.HasValue)
+            height = Math.Min(height.Value, maxDim);
+
         var webRootPath = _env.WebRootPath ?? Path.Combine(_env.ContentRootPath, "wwwroot");
         var originalPath = Path.Combine(webRootPath, path.Value!.TrimStart('/'));
 
@@ -56,7 +84,7 @@ public class ImageResizingMiddleware
         try
         {
             var resizedPath = GetResizedPath(webRootPath, path.Value, width, height);
-            
+
             if (!File.Exists(resizedPath))
             {
                 await ResizeAndSaveImageAsync(originalPath, resizedPath, width, height);
@@ -99,7 +127,7 @@ public class ImageResizingMiddleware
         var fileName = Path.GetFileNameWithoutExtension(originalUrl);
         var extension = Path.GetExtension(originalUrl);
         var sizeSuffix = $"{(width.HasValue ? $"w{width}" : "")}{(height.HasValue ? $"h{height}" : "")}";
-        
+
         // Cache in a _resized folder to keep things clean
         // e.g. wwwroot/uploads/parking/123/_resized/image_w200.jpg
         var cacheDir = Path.Combine(webRootPath, directory!, "_resized");
@@ -145,7 +173,7 @@ public class ImageResizingMiddleware
             // Use SKSamplingOptions instead of obsolete SKFilterQuality
             var samplingOptions = new SKSamplingOptions(SKCubicResampler.Mitchell);
             using var resizedBitmap = originalBitmap.Resize(new SKImageInfo(newWidth, newHeight), samplingOptions);
-            
+
             if (resizedBitmap == null) return;
 
             using var image = SKImage.FromBitmap(resizedBitmap);

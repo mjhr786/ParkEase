@@ -1,12 +1,13 @@
 using FluentAssertions;
 using ParkingApp.BuildingBlocks.Exceptions;
-using ParkingApp.Domain.Shared;
-using ParkingApp.Domain.Marketplace;
-using ParkingApp.Domain.Identity;
-using ParkingApp.Domain.Messaging;
-using ParkingApp.Domain.Corporate;
+using ParkingApp.BuildingBlocks.Domain;
+using ParkingApp.Marketplace.Domain.Entities;
+using ParkingApp.Identity.Domain.Entities;
+using ParkingApp.Messaging.Domain.Entities;
+using ParkingApp.Corporate.Domain;
 using ParkingApp.Domain.Enums;
-using ParkingApp.Domain.Events.Parking;
+using ParkingApp.Marketplace.Contracts.Enums;
+using ParkingApp.Marketplace.Domain.Events;
 using Xunit;
 
 namespace ParkingApp.UnitTests.Domain;
@@ -132,3 +133,8 @@ public class ParkingSpaceFactoryTests
         parking.ImageUrls.Should().Be("a.jpg,b.jpg");
     }
 }
+
+
+
+
+

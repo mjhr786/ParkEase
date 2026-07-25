@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>ParkingApp.Identity.UnitTests</RootNamespace>
+    <Description>Isolated unit tests for the Identity module.</Description>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\..\src\Modules\Identity\ParkingApp.Identity.Domain\ParkingApp.Identity.Domain.csproj" />
+    <ProjectReference Include="..\..\..\..\src\Modules\Identity\ParkingApp.Identity.Application\ParkingApp.Identity.Application.csproj" />
+    <ProjectReference Include="..\..\..\..\src\Modules\Identity\ParkingApp.Identity.Contracts\ParkingApp.Identity.Contracts.csproj" />
+    <ProjectReference Include="..\..\..\..\src\Modules\Identity\ParkingApp.Identity.Infrastructure\ParkingApp.Identity.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\..\..\src\ParkingApp.BuildingBlocks\ParkingApp.BuildingBlocks.csproj" />
+  </ItemGroup>
+</Project>

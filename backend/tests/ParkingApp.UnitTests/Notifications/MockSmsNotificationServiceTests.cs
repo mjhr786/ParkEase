@@ -1,7 +1,8 @@
 using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using Moq;
-using ParkingApp.Notifications.Services;
+using ParkingApp.Notifications.Application.Services;
+using ParkingApp.Notifications.Infrastructure.Services;
 using System.Threading;
 using System.Threading.Tasks;
 using Xunit;
@@ -68,3 +69,9 @@ public class MockSmsNotificationServiceTests
         result.MessageId.Should().StartWith("SMS-");
     }
 }
+
+
+
+
+
+

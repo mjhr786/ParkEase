@@ -12,9 +12,14 @@ using Microsoft.AspNetCore.Mvc;
 using Moq;
 using ParkingApp.API.Controllers;
 using ParkingApp.Application.CQRS;
-using ParkingApp.Application.CQRS.Commands.Parking;
-using ParkingApp.Application.CQRS.Queries.Parking;
+using ParkingApp.Marketplace.Application.Commands.Parking;
+using ParkingApp.Marketplace.Application.Queries.Parking;
 using ParkingApp.Application.DTOs;
+using ParkingApp.Identity.Application.DTOs;
+using ParkingApp.Marketplace.Contracts.DTOs;
+using ParkingApp.Messaging.Application.DTOs;
+using ParkingApp.Notifications.Application.DTOs;
+using ParkingApp.Corporate.Application.DTOs;
 using ParkingApp.BuildingBlocks.Common;
 using Xunit;
 
@@ -54,7 +59,7 @@ public class ParkingControllerTests
     {
         var id = Guid.NewGuid();
         _dispatcherMock.Setup(d => d.QueryAsync(It.Is<GetParkingByIdQuery>(q => q.ParkingId == id), It.IsAny<CancellationToken>()))
-            .Returns(Task.FromResult(new ApiResponse<ParkingSpaceDto>(true, "Success", new ParkingSpaceDto(id, Guid.NewGuid(), "Owner", "Title", "Desc", "Address", "City", "State", "Country", "12345", 0, 0, ParkingApp.Domain.Enums.ParkingType.Garage, 10, 10, 10m, 10m, 10m, 10m, TimeSpan.Zero, TimeSpan.Zero, true, new List<string>(), new List<ParkingApp.Domain.Enums.VehicleType>(), new List<string>(), true, true, 5.0, 10, null, DateTime.UtcNow, null), null)));
+            .Returns(Task.FromResult(new ApiResponse<ParkingSpaceDto>(true, "Success", new ParkingSpaceDto(id, Guid.NewGuid(), "Owner", "Title", "Desc", "Address", "City", "State", "Country", "12345", 0, 0, ParkingApp.Marketplace.Contracts.Enums.ParkingType.Garage, 10, 10, 10m, 10m, 10m, 10m, TimeSpan.Zero, TimeSpan.Zero, true, new List<string>(), new List<ParkingApp.BuildingBlocks.Enums.VehicleType>(), new List<string>(), true, true, 5.0, 10, null, DateTime.UtcNow, null), null)));
 
         var result = await _controller.GetById(id, CancellationToken.None);
 
@@ -104,14 +109,14 @@ public class ParkingControllerTests
     {
         var userId = Guid.NewGuid();
         SetupControllerUser(_controller, userId);
-        var dto = new CreateParkingSpaceDto("Title", "Desc", "Address", "City", "State", "Country", "12345", 0, 0, ParkingApp.Domain.Enums.ParkingType.Garage, 10, 10m, 10m, 10m, 10m, null, null, true, null, null, null, null);
+        var dto = new CreateParkingSpaceDto("Title", "Desc", "Address", "City", "State", "Country", "12345", 0, 0, ParkingApp.Marketplace.Contracts.Enums.ParkingType.Garage, 10, 10m, 10m, 10m, 10m, null, null, true, null, null, null, null);
         var id = Guid.NewGuid();
 
         _createValidatorMock.Setup(v => v.ValidateAsync(dto, It.IsAny<CancellationToken>()))
             .ReturnsAsync(new ValidationResult());
 
         _dispatcherMock.Setup(d => d.SendAsync(It.IsAny<CreateParkingCommand>(), It.IsAny<CancellationToken>()))
-            .Returns(Task.FromResult(new ApiResponse<ParkingSpaceDto>(true, "Success", new ParkingSpaceDto(id, Guid.NewGuid(), "Owner", "Title", "Desc", "Address", "City", "State", "Country", "12345", 0, 0, ParkingApp.Domain.Enums.ParkingType.Garage, 10, 10, 10m, 10m, 10m, 10m, TimeSpan.Zero, TimeSpan.Zero, true, new List<string>(), new List<ParkingApp.Domain.Enums.VehicleType>(), new List<string>(), true, true, 5.0, 10, null, DateTime.UtcNow, null), null)));
+            .Returns(Task.FromResult(new ApiResponse<ParkingSpaceDto>(true, "Success", new ParkingSpaceDto(id, Guid.NewGuid(), "Owner", "Title", "Desc", "Address", "City", "State", "Country", "12345", 0, 0, ParkingApp.Marketplace.Contracts.Enums.ParkingType.Garage, 10, 10, 10m, 10m, 10m, 10m, TimeSpan.Zero, TimeSpan.Zero, true, new List<string>(), new List<ParkingApp.BuildingBlocks.Enums.VehicleType>(), new List<string>(), true, true, 5.0, 10, null, DateTime.UtcNow, null), null)));
 
         var result = await _controller.Create(dto, CancellationToken.None);
 
@@ -128,7 +133,7 @@ public class ParkingControllerTests
         var dto = new UpdateParkingSpaceDto("Updated name", null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
 
          _dispatcherMock.Setup(d => d.SendAsync(It.Is<UpdateParkingCommand>(c => c.ParkingId == id && c.OwnerId == userId && c.Dto == dto), It.IsAny<CancellationToken>()))
-            .Returns(Task.FromResult(new ApiResponse<ParkingSpaceDto>(true, "Success", new ParkingSpaceDto(id, Guid.NewGuid(), "Owner", "Title", "Desc", "Address", "City", "State", "Country", "12345", 0, 0, ParkingApp.Domain.Enums.ParkingType.Garage, 10, 10, 10m, 10m, 10m, 10m, TimeSpan.Zero, TimeSpan.Zero, true, new List<string>(), new List<ParkingApp.Domain.Enums.VehicleType>(), new List<string>(), true, true, 5.0, 10, null, DateTime.UtcNow, null), null)));
+            .Returns(Task.FromResult(new ApiResponse<ParkingSpaceDto>(true, "Success", new ParkingSpaceDto(id, Guid.NewGuid(), "Owner", "Title", "Desc", "Address", "City", "State", "Country", "12345", 0, 0, ParkingApp.Marketplace.Contracts.Enums.ParkingType.Garage, 10, 10, 10m, 10m, 10m, 10m, TimeSpan.Zero, TimeSpan.Zero, true, new List<string>(), new List<ParkingApp.BuildingBlocks.Enums.VehicleType>(), new List<string>(), true, true, 5.0, 10, null, DateTime.UtcNow, null), null)));
 
         var result = await _controller.Update(id, dto, CancellationToken.None);
 
@@ -165,3 +170,8 @@ public class ParkingControllerTests
         result.Should().BeOfType<OkObjectResult>();
     }
 }
+
+
+
+
+

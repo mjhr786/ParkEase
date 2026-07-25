@@ -3,9 +3,14 @@ using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using ParkingApp.Application.CQRS;
-using ParkingApp.Application.CQRS.Commands.Auth;
-using ParkingApp.Application.CQRS.Commands.Users;
+using ParkingApp.Identity.Application.Commands.Auth;
+using ParkingApp.Identity.Application.Commands.Users;
 using ParkingApp.Application.DTOs;
+using ParkingApp.Identity.Application.DTOs;
+using ParkingApp.Marketplace.Contracts.DTOs;
+using ParkingApp.Messaging.Application.DTOs;
+using ParkingApp.Notifications.Application.DTOs;
+
 
 namespace ParkingApp.API.Controllers;
 

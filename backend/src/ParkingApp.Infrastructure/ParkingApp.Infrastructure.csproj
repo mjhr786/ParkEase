@@ -1,37 +1,42 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
-
+<Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup>
-    <ProjectReference Include="..\ParkingApp.Domain\ParkingApp.Domain.csproj" />
+    <!-- Host Domain dissolved: composite UoW lives in Infrastructure.Persistence -->
     <ProjectReference Include="..\ParkingApp.Application\ParkingApp.Application.csproj" />
     <ProjectReference Include="..\ParkingApp.BuildingBlocks\ParkingApp.BuildingBlocks.csproj" />
+    <ProjectReference Include="..\Modules\Messaging\ParkingApp.Messaging.Contracts\ParkingApp.Messaging.Contracts.csproj" />
+    <ProjectReference Include="..\Modules\Messaging\ParkingApp.Messaging.Domain\ParkingApp.Messaging.Domain.csproj" />
+    <ProjectReference Include="..\Modules\Messaging\ParkingApp.Messaging.Infrastructure\ParkingApp.Messaging.Infrastructure.csproj" />
+    <ProjectReference Include="..\Modules\Identity\ParkingApp.Identity.Infrastructure\ParkingApp.Identity.Infrastructure.csproj" />
+    <ProjectReference Include="..\Modules\Identity\ParkingApp.Identity.Domain\ParkingApp.Identity.Domain.csproj" />
+    <ProjectReference Include="..\Modules\Identity\ParkingApp.Identity.Contracts\ParkingApp.Identity.Contracts.csproj" />
+    <ProjectReference Include="..\Modules\Marketplace\ParkingApp.Marketplace.Contracts\ParkingApp.Marketplace.Contracts.csproj" />
+    <ProjectReference Include="..\Modules\Marketplace\ParkingApp.Marketplace.Domain\ParkingApp.Marketplace.Domain.csproj" />
+    <ProjectReference Include="..\Modules\Marketplace\ParkingApp.Marketplace.Application\ParkingApp.Marketplace.Application.csproj" />
+    <ProjectReference Include="..\Modules\Marketplace\ParkingApp.Marketplace.Infrastructure\ParkingApp.Marketplace.Infrastructure.csproj" />
+    <ProjectReference Include="..\Modules\Corporate\ParkingApp.Corporate.Domain\ParkingApp.Corporate.Domain.csproj" />
+    <ProjectReference Include="..\Modules\Corporate\ParkingApp.Corporate.Infrastructure\ParkingApp.Corporate.Infrastructure.csproj" />
+    <ProjectReference Include="..\Modules\Corporate\ParkingApp.Corporate.Contracts\ParkingApp.Corporate.Contracts.csproj" />
   </ItemGroup>
-
+  <ItemGroup>
+  </ItemGroup>
+  
   <ItemGroup>
     <PackageReference Include="Dapper" Version="2.1.66" />
-    <PackageReference Include="AWSSDK.Extensions.NETCore.Setup" Version="4.0.3.22" />
-    <PackageReference Include="AWSSDK.S3" Version="4.0.18.6" />
-    <PackageReference Include="BCrypt.Net-Next" Version="4.0.3" />
-    <PackageReference Include="Microsoft.AspNetCore.SignalR" Version="1.2.9" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="9.0.0">
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
     <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="9.0.0" />
-    <PackageReference Include="Microsoft.ML" Version="5.0.0" />
     <PackageReference Include="Microsoft.Extensions.Http" Version="10.0.3" />
     <PackageReference Include="NetTopologySuite" Version="2.5.0" />
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="9.0.4" />
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL.NetTopologySuite" Version="9.0.4" />
     <PackageReference Include="StackExchange.Redis" Version="2.10.14" />
-    <PackageReference Include="Stripe.net" Version="50.3.0" />
-    <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.0.0" />
     <PackageReference Include="Microsoft.Extensions.Caching.Memory" Version="9.0.1" />
   </ItemGroup>
-
   <PropertyGroup>
     <TargetFramework>net9.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
   </PropertyGroup>
-
 </Project>

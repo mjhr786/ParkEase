@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>ParkingApp.Corporate.Domain</RootNamespace>
+    <Description>Corporate module domain (companies, memberships, allocations, bookings, waitlist, invoices).</Description>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- P1.3: BuildingBlocks only + Marketplace.Contracts for BookingStatus (no host Domain) -->
+    <ProjectReference Include="..\..\..\ParkingApp.BuildingBlocks\ParkingApp.BuildingBlocks.csproj" />
+    <ProjectReference Include="..\..\Marketplace\ParkingApp.Marketplace.Contracts\ParkingApp.Marketplace.Contracts.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="ParkingApp.UnitTests" />
+    <InternalsVisibleTo Include="ParkingApp.Corporate.UnitTests" />
+    <InternalsVisibleTo Include="ParkingApp.Corporate.Application" />
+    <InternalsVisibleTo Include="ParkingApp.Corporate.Infrastructure" />
+    <InternalsVisibleTo Include="ParkingApp.Infrastructure" />
+  </ItemGroup>
+</Project>

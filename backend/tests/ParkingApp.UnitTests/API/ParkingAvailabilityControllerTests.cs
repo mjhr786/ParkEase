@@ -4,8 +4,13 @@ using Microsoft.AspNetCore.Mvc;
 using Moq;
 using ParkingApp.API.Controllers;
 using ParkingApp.Application.CQRS;
-using ParkingApp.Application.CQRS.Queries.ParkingAvailability;
+using ParkingApp.Marketplace.Application.Queries.ParkingAvailability;
 using ParkingApp.Application.DTOs;
+using ParkingApp.Identity.Application.DTOs;
+using ParkingApp.Marketplace.Contracts.DTOs;
+using ParkingApp.Messaging.Application.DTOs;
+using ParkingApp.Notifications.Application.DTOs;
+using ParkingApp.Corporate.Application.DTOs;
 
 namespace ParkingApp.UnitTests.API;
 
@@ -114,3 +119,8 @@ public class ParkingAvailabilityControllerTests
             });
     }
 }
+
+
+
+
+

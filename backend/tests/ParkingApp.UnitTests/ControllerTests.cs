@@ -3,17 +3,23 @@ using FluentAssertions;
 using Xunit;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Logging.Abstractions;
 using ParkingApp.API.Controllers;
 using ParkingApp.Application.CQRS;
 using ParkingApp.Application.DTOs;
-using ParkingApp.Application.CQRS.Commands.Auth;
-using ParkingApp.Application.CQRS.Commands.Users;
+using ParkingApp.Identity.Application.DTOs;
+using ParkingApp.Marketplace.Contracts.DTOs;
+using ParkingApp.Messaging.Application.DTOs;
+using ParkingApp.Notifications.Application.DTOs;
+using ParkingApp.Corporate.Application.DTOs;
+using ParkingApp.Identity.Application.Commands.Auth;
+using ParkingApp.Identity.Application.Commands.Users;
 using ParkingApp.Domain.Enums;
 using FluentValidation;
 using System.Security.Claims;
 using FluentValidation.Results;
-using ParkingApp.Application.CQRS.Commands.Chat;
-using ParkingApp.Application.CQRS.Queries.Chat;
+using ParkingApp.Messaging.Application.Commands.Chat;
+using ParkingApp.Messaging.Application.Queries.Chat;
 
 namespace ParkingApp.UnitTests;
 
@@ -53,7 +59,7 @@ public class ControllerTests
         // Arrange
         var controller = new AuthController(_mockDispatcher.Object, _mockRegisterValidator.Object, _mockLoginValidator.Object);
         var dto = new LoginDto("test@test.com", "Password123!");
-        var tokenDto = new TokenDto("access", "refresh", DateTime.UtcNow.AddHours(1), new UserDto(Guid.NewGuid(), "test@test.com", "John", "Doe", "123", UserRole.User, true, true, DateTime.UtcNow));
+        var tokenDto = new TokenDto("access", "refresh", DateTime.UtcNow.AddHours(1), new UserDto(Guid.NewGuid(), "test@test.com", "John", "Doe", "123", ParkingApp.Identity.Domain.Enums.UserRole.User, true, true, DateTime.UtcNow));
         var apiResponse = new ApiResponse<TokenDto>(true, "Success", tokenDto);
 
         _mockLoginValidator.Setup(v => v.ValidateAsync(dto, It.IsAny<CancellationToken>()))
@@ -85,7 +91,7 @@ public class ControllerTests
             HttpContext = new DefaultHttpContext { User = principal }
         };
 
-        var userDto = new UserDto(userId, "test@test.com", "John", "Doe", "123", UserRole.User, true, true, DateTime.UtcNow);
+        var userDto = new UserDto(userId, "test@test.com", "John", "Doe", "123", ParkingApp.Identity.Domain.Enums.UserRole.User, true, true, DateTime.UtcNow);
         var apiResponse = new ApiResponse<UserDto>(true, null, userDto);
 
         _mockDispatcher.Setup(d => d.QueryAsync(It.IsAny<GetCurrentUserQuery>(), It.IsAny<CancellationToken>()))
@@ -104,7 +110,7 @@ public class ControllerTests
     {
         // Arrange
         var userId = Guid.NewGuid();
-        var controller = new ChatController(_mockDispatcher.Object, new Mock<Microsoft.AspNetCore.SignalR.IHubContext<ParkingApp.Notifications.Hubs.ChatHub>>().Object);
+        var controller = new ChatController(_mockDispatcher.Object, new Mock<Microsoft.AspNetCore.SignalR.IHubContext<ParkingApp.Messaging.Infrastructure.Hubs.ChatHub>>().Object, NullLogger<ChatController>.Instance);
         var claims = new[] { new Claim(ClaimTypes.NameIdentifier, userId.ToString()) };
         controller.ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext { User = new ClaimsPrincipal(new ClaimsIdentity(claims, "Test")) } };
 
@@ -128,7 +134,7 @@ public class ControllerTests
         // Arrange
         var userId = Guid.NewGuid();
         var convId = Guid.NewGuid();
-        var controller = new ChatController(_mockDispatcher.Object, new Mock<Microsoft.AspNetCore.SignalR.IHubContext<ParkingApp.Notifications.Hubs.ChatHub>>().Object);
+        var controller = new ChatController(_mockDispatcher.Object, new Mock<Microsoft.AspNetCore.SignalR.IHubContext<ParkingApp.Messaging.Infrastructure.Hubs.ChatHub>>().Object, NullLogger<ChatController>.Instance);
         var claims = new[] { new Claim(ClaimTypes.NameIdentifier, userId.ToString()) };
         controller.ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext { User = new ClaimsPrincipal(new ClaimsIdentity(claims, "Test")) } };
 
@@ -154,24 +160,24 @@ public class ControllerTests
         var convId = Guid.NewGuid();
         var otherUserId = Guid.NewGuid();
         var dto = new SendMessageDto(Guid.NewGuid(), "Hello");
-        var chatMessageDto = new ChatMessageDto(Guid.NewGuid(), convId, userId, "Sender", "Hello", false, DateTime.UtcNow);
+        var chatMessageDto = new ChatMessageDto(Guid.NewGuid(), convId, userId, "Sender", "Hello", false, DateTime.UtcNow, otherUserId);
         var apiResponse = new ApiResponse<ChatMessageDto>(true, null, chatMessageDto);
 
-        var mockHubContext = new Mock<Microsoft.AspNetCore.SignalR.IHubContext<ParkingApp.Notifications.Hubs.ChatHub>>();
+        var mockHubContext = new Mock<Microsoft.AspNetCore.SignalR.IHubContext<ParkingApp.Messaging.Infrastructure.Hubs.ChatHub>>();
         var mockClients = new Mock<Microsoft.AspNetCore.SignalR.IHubClients>();
         var mockClientProxy = new Mock<Microsoft.AspNetCore.SignalR.IClientProxy>();
 
         mockHubContext.Setup(h => h.Clients).Returns(mockClients.Object);
         mockClients.Setup(c => c.Group(It.IsAny<string>())).Returns(mockClientProxy.Object);
+        mockClientProxy.Setup(c => c.SendCoreAsync(It.IsAny<string>(), It.IsAny<object[]>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
 
-        var controller = new ChatController(_mockDispatcher.Object, mockHubContext.Object);
+        var controller = new ChatController(_mockDispatcher.Object, mockHubContext.Object, NullLogger<ChatController>.Instance);
         var claims = new[] { new Claim(ClaimTypes.NameIdentifier, userId.ToString()) };
         controller.ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext { User = new ClaimsPrincipal(new ClaimsIdentity(claims, "Test")) } };
 
         _mockDispatcher.Setup(d => d.SendAsync(It.IsAny<SendMessageCommand>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(apiResponse);
-        _mockDispatcher.Setup(d => d.QueryAsync(It.IsAny<GetConversationsQuery>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new ApiResponse<ConversationListDto>(true, null, new ConversationListDto(new List<ConversationDto> { new ConversationDto(convId, Guid.NewGuid(), "Title", otherUserId, "Vendor Name", "preview", null, 0, DateTime.UtcNow) }, 1, 1, 20, 1)));
 
         // Act
         var result = await controller.SendMessage(dto, default);
@@ -179,7 +185,8 @@ public class ControllerTests
         // Assert
         var okResult = result.Should().BeOfType<OkObjectResult>().Subject;
         okResult.Value.Should().BeEquivalentTo(apiResponse);
-        mockClientProxy.Verify(c => c.SendCoreAsync("ReceiveMessage", new object[] { chatMessageDto }, It.IsAny<CancellationToken>()), Times.Exactly(2));
+        mockClientProxy.Verify(c => c.SendCoreAsync("ReceiveMessage", new object[] { chatMessageDto }, It.IsAny<CancellationToken>()), Times.Exactly(3));
+        _mockDispatcher.Verify(d => d.QueryAsync(It.IsAny<GetConversationsQuery>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
@@ -189,23 +196,23 @@ public class ControllerTests
         var userId = Guid.NewGuid();
         var convId = Guid.NewGuid();
         var otherUserId = Guid.NewGuid();
-        var apiResponse = new ApiResponse<bool>(true, null, true);
+        var apiResponse = new ApiResponse<MarkMessagesReadResult>(true, null, new MarkMessagesReadResult(true, otherUserId));
 
-        var mockHubContext = new Mock<Microsoft.AspNetCore.SignalR.IHubContext<ParkingApp.Notifications.Hubs.ChatHub>>();
+        var mockHubContext = new Mock<Microsoft.AspNetCore.SignalR.IHubContext<ParkingApp.Messaging.Infrastructure.Hubs.ChatHub>>();
         var mockClients = new Mock<Microsoft.AspNetCore.SignalR.IHubClients>();
         var mockClientProxy = new Mock<Microsoft.AspNetCore.SignalR.IClientProxy>();
 
         mockHubContext.Setup(h => h.Clients).Returns(mockClients.Object);
         mockClients.Setup(c => c.Group(It.IsAny<string>())).Returns(mockClientProxy.Object);
+        mockClientProxy.Setup(c => c.SendCoreAsync(It.IsAny<string>(), It.IsAny<object[]>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
 
-        var controller = new ChatController(_mockDispatcher.Object, mockHubContext.Object);
+        var controller = new ChatController(_mockDispatcher.Object, mockHubContext.Object, NullLogger<ChatController>.Instance);
         var claims = new[] { new Claim(ClaimTypes.NameIdentifier, userId.ToString()) };
         controller.ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext { User = new ClaimsPrincipal(new ClaimsIdentity(claims, "Test")) } };
 
         _mockDispatcher.Setup(d => d.SendAsync(It.IsAny<MarkMessagesReadCommand>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(apiResponse);
-        _mockDispatcher.Setup(d => d.QueryAsync(It.IsAny<GetConversationsQuery>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new ApiResponse<ConversationListDto>(true, null, new ConversationListDto(new List<ConversationDto> { new ConversationDto(convId, Guid.NewGuid(), "Title", otherUserId, "Vendor Name", "preview", null, 0, DateTime.UtcNow) }, 1, 1, 20, 1)));
 
         // Act
         var result = await controller.MarkAsRead(convId, default);
@@ -213,6 +220,15 @@ public class ControllerTests
         // Assert
         var okResult = result.Should().BeOfType<OkObjectResult>().Subject;
         okResult.Value.Should().BeEquivalentTo(apiResponse);
-        mockClientProxy.Verify(c => c.SendCoreAsync("MessagesRead", new object[] { convId }, It.IsAny<CancellationToken>()), Times.Once);
+        mockClientProxy.Verify(c => c.SendCoreAsync("MessagesRead", new object[] { convId }, It.IsAny<CancellationToken>()), Times.Exactly(2));
+        _mockDispatcher.Verify(d => d.QueryAsync(It.IsAny<GetConversationsQuery>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 }
+
+
+
+
+
+
+
+

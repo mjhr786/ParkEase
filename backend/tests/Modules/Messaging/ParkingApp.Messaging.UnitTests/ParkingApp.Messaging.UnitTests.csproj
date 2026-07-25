@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>ParkingApp.Messaging.UnitTests</RootNamespace>
+    <Description>Isolated unit tests for the Messaging module.</Description>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\..\src\Modules\Messaging\ParkingApp.Messaging.Domain\ParkingApp.Messaging.Domain.csproj" />
+    <ProjectReference Include="..\..\..\..\src\Modules\Messaging\ParkingApp.Messaging.Application\ParkingApp.Messaging.Application.csproj" />
+    <ProjectReference Include="..\..\..\..\src\Modules\Messaging\ParkingApp.Messaging.Contracts\ParkingApp.Messaging.Contracts.csproj" />
+    <ProjectReference Include="..\..\..\..\src\Modules\Messaging\ParkingApp.Messaging.Infrastructure\ParkingApp.Messaging.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\..\..\src\ParkingApp.BuildingBlocks\ParkingApp.BuildingBlocks.csproj" />
+  </ItemGroup>
+</Project>

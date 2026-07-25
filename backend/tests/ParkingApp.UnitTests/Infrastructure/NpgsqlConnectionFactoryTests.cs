@@ -22,3 +22,8 @@ public class NpgsqlConnectionFactoryTests
         ((NpgsqlConnection)connection).ConnectionString.Should().Contain("Host=localhost");
     }
 }
+
+
+
+
+

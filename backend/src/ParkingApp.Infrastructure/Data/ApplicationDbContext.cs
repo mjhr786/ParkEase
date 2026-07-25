@@ -1,24 +1,32 @@
 using Microsoft.EntityFrameworkCore;
-using NetTopologySuite.Geometries;
-using ParkingApp.Domain.Shared;
-using ParkingApp.Domain.Marketplace;
-using ParkingApp.Domain.Identity;
-using ParkingApp.Domain.Messaging;
-using ParkingApp.Domain.Corporate;
-using ParkingApp.Domain.Enums;
-using ParkingApp.Domain.ValueObjects;
+using ParkingApp.BuildingBlocks.Domain;
+using ParkingApp.Marketplace.Domain.Entities;
+using ParkingApp.Identity.Domain.Entities;
+using ParkingApp.Corporate.Domain;
 using ParkingApp.Application.Interfaces;
+using ParkingApp.Corporate.Contracts;
+
 using ParkingApp.Infrastructure.Outbox;
+using ParkingApp.Corporate.Infrastructure;
+using ParkingApp.Identity.Infrastructure.Persistence;
+using IdentityConfigs = ParkingApp.Identity.Infrastructure.Configurations;
+using ParkingApp.Messaging.Domain.Entities;
+using ParkingApp.Messaging.Infrastructure.Persistence;
+using MessagingConfigs = ParkingApp.Messaging.Infrastructure.Configurations;
+using MarketplaceConfigs = ParkingApp.Marketplace.Infrastructure.Configurations;
+using ParkingApp.Marketplace.Infrastructure.Persistence;
 
 namespace ParkingApp.Infrastructure.Data;
 
-public class ApplicationDbContext : DbContext
+/// <summary>
+/// Shared database context implementing module persistence facades (Identity, Messaging, Marketplace, ΓÇª).
+/// </summary>
+public class ApplicationDbContext : DbContext, ParkingApp.Identity.Infrastructure.Persistence.IIdentityDbContext, ParkingApp.Messaging.Infrastructure.Persistence.IMessagingDbContext, IMarketplaceDbContext, ICorporateDbContext
 {
     private readonly ICorporateTenantContext? _tenantContext;
 
     public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options, ICorporateTenantContext? tenantContext = null) : base(options)
     {
-
         _tenantContext = tenantContext;
     }
 
@@ -55,10 +63,10 @@ public class ApplicationDbContext : DbContext
     {
         base.OnModelCreating(modelBuilder);
 
-        // Domain events are pure domain infrastructure — never persisted.
+        // Domain events are pure domain infrastructure ΓÇö never persisted.
         // Ids are always client-generated (BaseEntity.Id = Guid.NewGuid()). ValueGeneratedOnAdd
         // (EF key convention) makes navigation-discovered children track as Modified/UPDATE
-        // instead of Added/INSERT → DbUpdateConcurrencyException ("expected 1 row, affected 0").
+        // instead of Added/INSERT ΓåÆ DbUpdateConcurrencyException ("expected 1 row, affected 0").
         foreach (var entityType in modelBuilder.Model.GetEntityTypes())
         {
             if (typeof(BaseEntity).IsAssignableFrom(entityType.ClrType))
@@ -70,720 +78,46 @@ public class ApplicationDbContext : DbContext
             }
         }
 
-        modelBuilder.Entity<OutboxMessage>(entity =>
-        {
-            entity.ToTable("OutboxMessages");
-            entity.HasKey(e => e.Id);
-            entity.Property(e => e.TypeName).HasMaxLength(512).IsRequired();
-            entity.Property(e => e.Payload).IsRequired();
-            entity.Property(e => e.IdempotencyKey).HasMaxLength(256).IsRequired();
-            entity.Property(e => e.LastError).HasMaxLength(2000);
-            entity.HasIndex(e => e.IdempotencyKey);
-            entity.HasIndex(e => new { e.Status, e.AvailableAfterUtc });
-            entity.HasIndex(e => e.CreatedAtUtc);
-        });
+        // Module-owned entity configurations + host Outbox configs
+        modelBuilder.ApplyConfigurationsFromAssembly(typeof(ApplicationDbContext).Assembly);
+        modelBuilder.ApplyConfigurationsFromAssembly(typeof(MessagingConfigs.ConversationConfiguration).Assembly);
+        modelBuilder.ApplyConfigurationsFromAssembly(typeof(IdentityConfigs.UserConfiguration).Assembly);
+        modelBuilder.ApplyConfigurationsFromAssembly(typeof(MarketplaceConfigs.ParkingSpaceConfiguration).Assembly);
+        // E1: Corporate EF ownership in Corporate.Infrastructure (public module entry type for assembly scan)
+        modelBuilder.ApplyConfigurationsFromAssembly(typeof(CorporateInfrastructureModule).Assembly);
 
-        // User configuration
-        modelBuilder.Entity<User>(entity =>
-        {
-            entity.HasKey(e => e.Id);
-            entity.HasIndex(e => e.Email).IsUnique();
-            // Email value object ↔ string column (no schema change)
-            entity.Property(e => e.Email)
-                .HasConversion(
-                    email => email.Value,
-                    value => new Email(value))
-                .HasMaxLength(255)
-                .IsRequired();
-            entity.Property(e => e.PasswordHash).HasMaxLength(255).IsRequired();
-            entity.Property(e => e.FirstName).HasMaxLength(100).IsRequired();
-            entity.Property(e => e.LastName).HasMaxLength(100).IsRequired();
-            entity.Property(e => e.PhoneNumber).HasMaxLength(20).IsRequired();
-            entity.Property(e => e.RefreshToken).HasMaxLength(500);
+        // Tenant filters need ApplicationDbContext.CurrentTenantId (not available in standalone configs).
+        ApplyCorporateTenantFilters(modelBuilder);
+    }
 
-            entity.HasMany(e => e.ParkingPasses)
-                .WithOne(e => e.User)
-                .HasForeignKey(e => e.UserId)
-                .OnDelete(DeleteBehavior.Restrict);
+    private void ApplyCorporateTenantFilters(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<UserCompanyMembership>()
+            .HasQueryFilter(e => !e.IsDeleted && (!CurrentTenantId.HasValue || e.CompanyId == CurrentTenantId.Value));
 
-            entity.HasQueryFilter(e => !e.IsDeleted);
-        });
+        modelBuilder.Entity<ParkingAllocation>()
+            .HasQueryFilter(e => !e.IsDeleted && (!CurrentTenantId.HasValue || e.CompanyId == CurrentTenantId.Value));
 
-        // Notification configuration
-        modelBuilder.Entity<Notification>(entity =>
-        {
-            entity.HasKey(e => e.Id);
-            entity.Property(e => e.Title).HasMaxLength(200).IsRequired();
-            entity.Property(e => e.Message).HasMaxLength(1000).IsRequired();
-            // Must map to User.Notifications — bare WithMany() previously created a shadow UserId1 FK/index.
-            entity.HasOne(e => e.User)
-                  .WithMany(u => u.Notifications)
-                  .HasForeignKey(e => e.UserId)
-                  .OnDelete(DeleteBehavior.Cascade);
-            entity.HasIndex(e => new { e.UserId, e.CreatedAt })
-                .HasDatabaseName("IX_Notifications_UserId_CreatedAt")
-                .HasFilter("\"IsDeleted\" = false");
-            entity.HasQueryFilter(e => !e.IsDeleted);
-        });
+        modelBuilder.Entity<CorporateBooking>()
+            .HasQueryFilter(e => !e.IsDeleted && (!CurrentTenantId.HasValue || e.CompanyId == CurrentTenantId.Value));
 
-        // Vehicle configuration
-        modelBuilder.Entity<Vehicle>(entity =>
-        {
-            entity.HasKey(e => e.Id);
-            entity.Property(e => e.LicensePlate).HasMaxLength(20).IsRequired();
-            entity.Property(e => e.Make).HasMaxLength(100).IsRequired();
-            entity.Property(e => e.Model).HasMaxLength(100).IsRequired();
-            entity.Property(e => e.Color).HasMaxLength(50).IsRequired();
-            entity.HasIndex(e => e.UserId);
-            entity.HasQueryFilter(e => !e.IsDeleted);
+        modelBuilder.Entity<FixedSlotAssignment>()
+            .HasQueryFilter(e => !e.IsDeleted && (!CurrentTenantId.HasValue || e.CompanyId == CurrentTenantId.Value));
 
-            entity.HasOne(e => e.User)
-                  .WithMany(u => u.Vehicles)
-                  .HasForeignKey(e => e.UserId)
-                  .OnDelete(DeleteBehavior.Cascade);
-        });
+        modelBuilder.Entity<EmployeeInvitation>()
+            .HasQueryFilter(e => !e.IsDeleted && (!CurrentTenantId.HasValue || e.CompanyId == CurrentTenantId.Value));
 
-        // ParkingSpace configuration
-        modelBuilder.Entity<ParkingSpace>(entity =>
-        {
-            entity.HasKey(e => e.Id);
-            entity.Property(e => e.Title).HasMaxLength(200).IsRequired();
-            entity.Property(e => e.Description).HasMaxLength(2000).IsRequired();
-            entity.Property(e => e.Address).HasMaxLength(500).IsRequired();
-            entity.Property(e => e.City).HasMaxLength(100).IsRequired();
-            entity.Property(e => e.City).HasMaxLength(100).IsRequired();
-            entity.Property(e => e.State).HasMaxLength(100).IsRequired();
-            entity.HasIndex(e => e.State); // Added index for State
-            entity.Property(e => e.Country).HasMaxLength(100).IsRequired();
-            entity.Property(e => e.Country).HasMaxLength(100).IsRequired();
-            entity.Property(e => e.PostalCode).HasMaxLength(20).IsRequired();
-            entity.Property(e => e.ZoneCode).HasMaxLength(64);
-            entity.Property(e => e.HourlyRate).HasPrecision(18, 2);
-            entity.Property(e => e.DailyRate).HasPrecision(18, 2);
-            entity.Property(e => e.WeeklyRate).HasPrecision(18, 2);
-            entity.Property(e => e.MonthlyRate).HasPrecision(18, 2);
-            entity.Property(e => e.Amenities).HasMaxLength(1000);
-            entity.Property(e => e.AllowedVehicleTypes).HasMaxLength(500);
-            entity.Property(e => e.ImageUrls).HasMaxLength(4000);
-            entity.Property(e => e.SpecialInstructions).HasMaxLength(2000);
-            entity.Property(e => e.OwnershipType).HasConversion<int>();
-            entity.HasIndex(e => e.City);
-            entity.HasIndex(e => e.ZoneCode);
-            entity.HasIndex(e => e.CompanyOwnerId);
-            entity.HasIndex(e => e.OwnershipType);
-            entity.HasIndex(e => new { e.Latitude, e.Longitude });
-            // Marketplace browse/list: public active inventory (excludes corporate-only)
-            entity.HasIndex(e => new { e.City, e.CreatedAt })
-                .HasDatabaseName("IX_ParkingSpaces_PublicActive")
-                .HasFilter("\"IsActive\" = true AND \"IsDeleted\" = false AND \"IsCorporateOnly\" = false");
-            
-            // PostGIS spatial column configuration
-            entity.Property(e => e.Location)
-                .HasColumnType("geography (point)");
-            entity.HasIndex(e => e.Location)
-                .HasMethod("gist"); // GiST index for spatial queries
-            
-            entity.HasQueryFilter(e => !e.IsDeleted);
-            
-            entity.HasOne(e => e.Owner)
-                .WithMany(u => u.ParkingSpaces)
-                .HasForeignKey(e => e.OwnerId)
-                .OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<CompanyUsage>()
+            .HasQueryFilter(e => !e.IsDeleted && (!CurrentTenantId.HasValue || e.CompanyId == CurrentTenantId.Value));
 
-            entity.HasOne(e => e.CompanyOwner)
-                .WithMany()
-                .HasForeignKey(e => e.CompanyOwnerId)
-                .OnDelete(DeleteBehavior.Restrict);
-        });
+        modelBuilder.Entity<CorporateWaitlistEntry>()
+            .HasQueryFilter(e => !e.IsDeleted && (!CurrentTenantId.HasValue || e.CompanyId == CurrentTenantId.Value));
 
-        // ParkingAvailability configuration
-        modelBuilder.Entity<ParkingAvailability>(entity =>
-        {
-            entity.HasKey(e => e.Id);
-            entity.HasIndex(e => new { e.ParkingSpaceId, e.Date });
-            entity.HasQueryFilter(e => !e.IsDeleted);
-            
-            entity.HasOne(e => e.ParkingSpace)
-                .WithMany(p => p.Availabilities)
-                .HasForeignKey(e => e.ParkingSpaceId)
-                .OnDelete(DeleteBehavior.Cascade);
-        });
+        modelBuilder.Entity<CorporateInvoice>()
+            .HasQueryFilter(e => !e.IsDeleted && (!CurrentTenantId.HasValue || e.CompanyId == CurrentTenantId.Value));
 
-        // Booking configuration
-        modelBuilder.Entity<Booking>(entity =>
-        {
-            entity.HasKey(e => e.Id);
-            entity.Property(e => e.BookingReference).HasMaxLength(50);
-            entity.Property(e => e.QRCode).HasMaxLength(2000);
-            entity.Property(e => e.VehicleNumber).HasMaxLength(20);
-            entity.Property(e => e.VehicleModel).HasMaxLength(100);
-            entity.Property(e => e.VehicleColor).HasMaxLength(50);
-            entity.Property(e => e.DiscountCode).HasMaxLength(50);
-            entity.Property(e => e.CancellationReason).HasMaxLength(500);
-            entity.Property(e => e.BaseAmount).HasPrecision(18, 2);
-            entity.Property(e => e.TaxAmount).HasPrecision(18, 2);
-            entity.Property(e => e.ServiceFee).HasPrecision(18, 2);
-            entity.Property(e => e.DiscountAmount).HasPrecision(18, 2);
-            entity.Property(e => e.TotalAmount).HasPrecision(18, 2);
-            entity.Property(e => e.RefundAmount).HasPrecision(18, 2);
-            entity.HasIndex(e => e.BookingReference).IsUnique();
-            entity.HasIndex(e => e.UserId);
-            entity.HasIndex(e => e.ParkingSpaceId);
-            entity.HasIndex(e => e.ParkingPassId);
-            entity.HasIndex(e => new { e.StartDateTime, e.EndDateTime });
-            // Overlap / capacity: active bookings by space and time window
-            // Status: Cancelled=4, Expired=5, Rejected=7
-            entity.HasIndex(e => new { e.ParkingSpaceId, e.StartDateTime, e.EndDateTime })
-                .HasDatabaseName("IX_Bookings_Space_ActiveWindow")
-                .HasFilter("\"IsDeleted\" = false AND \"Status\" NOT IN (4, 5, 7)");
-            // Vendor inbox: pending initial + extension requests
-            // Status: Pending=0, PendingExtension=8
-            entity.HasIndex(e => new { e.ParkingSpaceId, e.CreatedAt })
-                .HasDatabaseName("IX_Bookings_Pending_Space")
-                .HasFilter("\"IsDeleted\" = false AND \"Status\" IN (0, 8)");
-            entity.HasQueryFilter(e => !e.IsDeleted);
-            
-            entity.HasOne(e => e.User)
-                .WithMany(u => u.Bookings)
-                .HasForeignKey(e => e.UserId)
-                .OnDelete(DeleteBehavior.Restrict);
-            
-            entity.HasOne(e => e.ParkingSpace)
-                .WithMany(p => p.Bookings)
-                .HasForeignKey(e => e.ParkingSpaceId)
-                .OnDelete(DeleteBehavior.Restrict);
-
-            entity.HasOne(e => e.ParkingPass)
-                .WithMany(p => p.Bookings)
-                .HasForeignKey(e => e.ParkingPassId)
-                .OnDelete(DeleteBehavior.SetNull);
-        });
-
-        modelBuilder.Entity<ParkingPass>(entity =>
-        {
-            entity.HasKey(e => e.Id);
-            entity.Property(e => e.ParkingZoneCode).HasMaxLength(64);
-            entity.Property(e => e.CorporateBatchReference).HasMaxLength(100);
-            entity.Property(e => e.DiscountPercentage).HasPrecision(5, 2);
-            entity.HasIndex(e => new { e.UserId, e.ParkingSpaceId });
-            entity.HasIndex(e => new { e.UserId, e.ParkingZoneCode });
-            entity.HasIndex(e => e.AllocatedByUserId);
-            entity.HasIndex(e => new { e.CreatedAt, e.UserId });
-            entity.HasQueryFilter(e => !e.IsDeleted);
-
-            entity.Property(e => e.CoverageType)
-                .HasConversion<int>()
-                .IsRequired();
-
-            entity.OwnsOne(e => e.PassType, owned =>
-            {
-                owned.Property(p => p.Kind)
-                    .HasColumnName("PassType")
-                    .HasConversion<int>()
-                    .IsRequired();
-            });
-
-            entity.OwnsOne(e => e.Duration, owned =>
-            {
-                owned.Property(d => d.StartDateUtc)
-                    .HasColumnName("StartDateUtc")
-                    .HasColumnType("timestamp with time zone")
-                    .IsRequired();
-                owned.Property(d => d.EndDateUtc)
-                    .HasColumnName("EndDateUtc")
-                    .HasColumnType("timestamp with time zone")
-                    .IsRequired();
-            });
-
-            entity.OwnsOne(e => e.UsagePolicy, owned =>
-            {
-                owned.Property(p => p.Mode)
-                    .HasColumnName("UsageMode")
-                    .HasConversion<int>()
-                    .IsRequired();
-                owned.Property(p => p.DailyHourLimit)
-                    .HasColumnName("DailyHourLimit");
-            });
-
-            entity.Navigation(e => e.PassType).IsRequired();
-            entity.Navigation(e => e.Duration).IsRequired();
-            entity.Navigation(e => e.UsagePolicy).IsRequired();
-
-            entity.HasOne(e => e.User)
-                .WithMany(u => u.ParkingPasses)
-                .HasForeignKey(e => e.UserId)
-                .OnDelete(DeleteBehavior.Restrict);
-
-            entity.HasOne(e => e.AllocatedByUser)
-                .WithMany()
-                .HasForeignKey(e => e.AllocatedByUserId)
-                .OnDelete(DeleteBehavior.Restrict);
-
-            entity.HasOne(e => e.ParkingSpace)
-                .WithMany(p => p.ParkingPasses)
-                .HasForeignKey(e => e.ParkingSpaceId)
-                .OnDelete(DeleteBehavior.SetNull);
-        });
-
-        // Payment configuration
-        modelBuilder.Entity<Payment>(entity =>
-        {
-            entity.HasKey(e => e.Id);
-            // Money VO mapped onto existing Amount + Currency columns (no migration)
-            entity.OwnsOne(e => e.Charge, money =>
-            {
-                money.Property(m => m.Amount)
-                    .HasColumnName("Amount")
-                    .HasPrecision(18, 2)
-                    .IsRequired();
-                money.Property(m => m.Currency)
-                    .HasColumnName("Currency")
-                    .HasMaxLength(3)
-                    .IsRequired();
-            });
-            entity.Navigation(e => e.Charge).IsRequired();
-            entity.Ignore(e => e.Amount);
-            entity.Ignore(e => e.Currency);
-            entity.Property(e => e.TransactionId).HasMaxLength(100);
-            entity.Property(e => e.PaymentGatewayReference).HasMaxLength(200);
-            entity.Property(e => e.PaymentGateway).HasMaxLength(50);
-            entity.Property(e => e.RefundAmount).HasPrecision(18, 2);
-            entity.Property(e => e.RefundReason).HasMaxLength(500);
-            entity.Property(e => e.RefundTransactionId).HasMaxLength(100);
-            entity.Property(e => e.ReceiptUrl).HasMaxLength(500);
-            entity.Property(e => e.InvoiceNumber).HasMaxLength(50);
-            entity.Property(e => e.FailureReason).HasMaxLength(500);
-            entity.Property(e => e.Metadata).HasMaxLength(4000);
-            entity.HasIndex(e => e.TransactionId);
-            entity.HasIndex(e => e.BookingId);
-            entity.HasQueryFilter(e => !e.IsDeleted);
-            
-            entity.HasOne(e => e.Booking)
-                .WithOne(b => b.Payment)
-                .HasForeignKey<Payment>(e => e.BookingId)
-                .OnDelete(DeleteBehavior.Restrict);
-            
-            entity.HasOne(e => e.User)
-                .WithMany()
-                .HasForeignKey(e => e.UserId)
-                .OnDelete(DeleteBehavior.Restrict);
-        });
-
-        // Review configuration
-        modelBuilder.Entity<Review>(entity =>
-        {
-            entity.HasKey(e => e.Id);
-            entity.Property(e => e.Title).HasMaxLength(200);
-            entity.Property(e => e.Comment).HasMaxLength(2000);
-            entity.Property(e => e.OwnerResponse).HasMaxLength(1000);
-            entity.HasIndex(e => e.ParkingSpaceId);
-            entity.HasIndex(e => e.UserId);
-            entity.HasQueryFilter(e => !e.IsDeleted);
-            
-            entity.HasOne(e => e.User)
-                .WithMany(u => u.Reviews)
-                .HasForeignKey(e => e.UserId)
-                .OnDelete(DeleteBehavior.Restrict);
-            
-            entity.HasOne(e => e.ParkingSpace)
-                .WithMany(p => p.Reviews)
-                .HasForeignKey(e => e.ParkingSpaceId)
-                .OnDelete(DeleteBehavior.Cascade);
-            
-            entity.HasOne(e => e.Booking)
-                .WithMany()
-                .HasForeignKey(e => e.BookingId)
-                .OnDelete(DeleteBehavior.SetNull);
-        });
-
-        // Conversation configuration
-        modelBuilder.Entity<Conversation>(entity =>
-        {
-            entity.HasKey(e => e.Id);
-            entity.Property(e => e.LastMessagePreview).HasMaxLength(100);
-            entity.HasIndex(e => new { e.ParkingSpaceId, e.UserId }).IsUnique();
-            entity.HasIndex(e => e.UserId);
-            entity.HasIndex(e => e.VendorId);
-            entity.HasIndex(e => e.LastMessageAt);
-            entity.HasQueryFilter(e => !e.IsDeleted);
-
-            entity.HasOne(e => e.User)
-                .WithMany()
-                .HasForeignKey(e => e.UserId)
-                .OnDelete(DeleteBehavior.Restrict);
-
-            entity.HasOne(e => e.Vendor)
-                .WithMany()
-                .HasForeignKey(e => e.VendorId)
-                .OnDelete(DeleteBehavior.Restrict);
-
-            entity.HasOne(e => e.ParkingSpace)
-                .WithMany()
-                .HasForeignKey(e => e.ParkingSpaceId)
-                .OnDelete(DeleteBehavior.Cascade);
-        });
-
-        // ChatMessage configuration
-        modelBuilder.Entity<ChatMessage>(entity =>
-        {
-            entity.HasKey(e => e.Id);
-            entity.Property(e => e.Content).HasMaxLength(2000).IsRequired();
-            entity.HasIndex(e => e.ConversationId);
-            entity.HasIndex(e => e.SenderId);
-            entity.HasIndex(e => new { e.ConversationId, e.CreatedAt });
-            entity.HasQueryFilter(e => !e.IsDeleted);
-
-            entity.HasOne(e => e.Conversation)
-                .WithMany(c => c.Messages)
-                .HasForeignKey(e => e.ConversationId)
-                .OnDelete(DeleteBehavior.Cascade);
-
-            entity.HasOne(e => e.Sender)
-                .WithMany()
-                .HasForeignKey(e => e.SenderId)
-                .OnDelete(DeleteBehavior.Restrict);
-        });
-        // Favorite configuration
-        modelBuilder.Entity<Favorite>(entity =>
-        {
-            entity.HasKey(e => e.Id);
-            entity.HasIndex(e => new { e.UserId, e.ParkingSpaceId }).IsUnique();
-            entity.HasQueryFilter(e => !e.IsDeleted);
-
-            entity.HasOne(e => e.User)
-                .WithMany(u => u.Favorites)
-                .HasForeignKey(e => e.UserId)
-                .OnDelete(DeleteBehavior.Restrict);
-
-            entity.HasOne(e => e.ParkingSpace)
-                .WithMany(p => p.FavoritedBy)
-                .HasForeignKey(e => e.ParkingSpaceId)
-                .OnDelete(DeleteBehavior.Cascade);
-        });
-
-        // DeviceToken configuration
-        modelBuilder.Entity<DeviceToken>(entity =>
-        {
-            entity.HasKey(e => e.Id);
-            entity.Property(e => e.DeviceId).HasMaxLength(500).IsRequired();
-            entity.Property(e => e.Platform).HasMaxLength(20).IsRequired();
-            entity.Property(e => e.FcmToken).HasMaxLength(1000).IsRequired();
-            entity.Property(e => e.AppVersion).HasMaxLength(50);
-            // One token row per (user, device) pair
-            entity.HasIndex(e => new { e.UserId, e.DeviceId }).IsUnique();
-            entity.HasIndex(e => e.FcmToken);
-            entity.HasQueryFilter(e => !e.IsDeleted);
-
-            entity.HasOne(e => e.User)
-                .WithMany(u => u.DeviceTokens)
-                .HasForeignKey(e => e.UserId)
-                .OnDelete(DeleteBehavior.Cascade);
-        });
-
-        // ══════════════════════════════════════════════════════
-        // CORPORATE MODULE CONFIGURATIONS
-        // ══════════════════════════════════════════════════════
-
-        // Company
-        modelBuilder.Entity<Company>(entity =>
-        {
-            entity.HasKey(e => e.Id);
-            entity.Property(e => e.Name).HasMaxLength(200).IsRequired();
-            entity.Property(e => e.RegistrationNumber).HasMaxLength(100).IsRequired();
-            entity.Property(e => e.ContactEmail).HasMaxLength(255).IsRequired();
-            entity.Property(e => e.ContactPhone).HasMaxLength(20).IsRequired();
-            entity.Property(e => e.BillingAddress).HasMaxLength(500).IsRequired();
-
-            entity.HasIndex(e => e.RegistrationNumber).IsUnique();
-            entity.HasIndex(e => e.CreatedByUserId);
-
-            entity.HasOne(e => e.CreatedByUser)
-                .WithMany()
-                .HasForeignKey(e => e.CreatedByUserId)
-                .OnDelete(DeleteBehavior.Restrict);
-
-            entity.HasQueryFilter(e => !e.IsDeleted);
-        });
-
-        // UserCompanyMembership
-        modelBuilder.Entity<UserCompanyMembership>(entity =>
-        {
-            entity.HasKey(e => e.Id);
-            entity.Property(e => e.EmployeeCode).HasMaxLength(50);
-            entity.Property(e => e.Priority).HasDefaultValue(1);
-
-            entity.HasIndex(e => new { e.CompanyId, e.UserId }).IsUnique();
-            entity.HasIndex(e => new { e.CompanyId, e.IsActive });
-            entity.HasIndex(e => new { e.CompanyId, e.Role, e.IsActive });
-            entity.HasIndex(e => new { e.CompanyId, e.Role, e.CreatedAt });
-            entity.HasIndex(e => e.UserId);
-
-            entity.HasOne(e => e.Company)
-                .WithMany(c => c.Memberships)
-                .HasForeignKey(e => e.CompanyId)
-                .OnDelete(DeleteBehavior.Restrict);
-
-            entity.HasOne(e => e.User)
-                .WithMany()
-                .HasForeignKey(e => e.UserId)
-                .OnDelete(DeleteBehavior.Restrict);
-
-            entity.HasQueryFilter(e => !e.IsDeleted && (!CurrentTenantId.HasValue || e.CompanyId == CurrentTenantId.Value));
-        });
-
-        // ParkingAllocation
-        modelBuilder.Entity<ParkingAllocation>(entity =>
-        {
-            entity.HasKey(e => e.Id);
-            entity.Property(e => e.MonthlyRate).HasPrecision(18, 2);
-            // Defaults live in the domain; avoid ValueGeneratedOnAdd (HasDefaultValue implies it),
-            // which confuses change tracking for client-set values on insert.
-            entity.Property(e => e.SourceType).HasConversion<int>();
-            entity.Property(e => e.LeaseReference).HasMaxLength(100);
-
-            // Owned: Quota
-            entity.OwnsOne(e => e.Quota, q =>
-            {
-                q.Property(p => p.TotalSlots).HasColumnName("TotalSlots").IsRequired();
-                q.Property(p => p.FixedSlots).HasColumnName("FixedSlots").IsRequired();
-                q.Property(p => p.SharedSlots).HasColumnName("SharedSlots").IsRequired();
-            });
-
-            // Owned: BookingPolicy
-            entity.OwnsOne(e => e.BookingPolicy, bp =>
-            {
-                bp.Property(p => p.MaxBookingsPerEmployeePerDay).HasColumnName("MaxBookingsPerDay");
-                bp.Property(p => p.MaxBookingsPerEmployeePerWeek).HasColumnName("MaxBookingsPerWeek");
-                bp.Property(p => p.PriorityThreshold).HasColumnName("PriorityThreshold");
-                bp.Property(p => p.AllowedStartTime).HasColumnName("AllowedStartTime");
-                bp.Property(p => p.AllowedEndTime).HasColumnName("AllowedEndTime");
-                bp.Property(p => p.AllowWeekends).HasColumnName("AllowWeekends");
-            });
-
-            entity.Property(e => e.RejectionReason).HasMaxLength(500);
-
-            entity.HasIndex(e => new { e.CompanyId, e.ParkingSpaceId });
-            entity.HasIndex(e => new { e.CompanyId, e.Status });
-            entity.HasIndex(e => new { e.CompanyId, e.SourceType, e.Status });
-            entity.HasIndex(e => new { e.CompanyId, e.Status, e.CreatedAt });
-            entity.HasIndex(e => e.Status);
-            entity.HasIndex(e => e.VendorId);
-
-            entity.HasOne(e => e.Company)
-                .WithMany(c => c.Allocations)
-                .HasForeignKey(e => e.CompanyId)
-                .OnDelete(DeleteBehavior.Restrict);
-
-            entity.HasOne(e => e.ParkingSpace)
-                .WithMany()
-                .HasForeignKey(e => e.ParkingSpaceId)
-                .OnDelete(DeleteBehavior.Restrict);
-
-            entity.HasOne(e => e.ApprovedByUser)
-                .WithMany()
-                .HasForeignKey(e => e.ApprovedByUserId)
-                .OnDelete(DeleteBehavior.Restrict);
-
-            entity.HasQueryFilter(e => !e.IsDeleted && (!CurrentTenantId.HasValue || e.CompanyId == CurrentTenantId.Value));
-        });
-
-        // CorporateBooking
-        modelBuilder.Entity<CorporateBooking>(entity =>
-        {
-            entity.HasKey(e => e.Id);
-            entity.Property(e => e.VisitorName).HasMaxLength(200);
-            entity.Property(e => e.VisitorLicensePlate).HasMaxLength(20);
-
-            // Owned: AccessPolicy (nullable)
-            entity.OwnsOne(e => e.AccessPolicy, ap =>
-            {
-                ap.Property(p => p.AllowedVehiclePlate).HasColumnName("AccessVehiclePlate").HasMaxLength(20);
-                ap.Property(p => p.AccessStartUtc).HasColumnName("AccessStartUtc");
-                ap.Property(p => p.AccessExpiryUtc).HasColumnName("AccessExpiryUtc");
-                ap.Property(p => p.QrCodeToken).HasColumnName("AccessQrToken").HasMaxLength(500);
-            });
-
-            entity.HasIndex(e => new { e.CompanyId, e.CreatedAt });
-            entity.HasIndex(e => new { e.CompanyId, e.MembershipId, e.CreatedAt });
-            entity.HasIndex(e => new { e.CompanyId, e.AllocationId, e.SlotType });
-            entity.HasIndex(e => e.MembershipId);
-            entity.HasIndex(e => e.AllocationId);
-            entity.HasIndex(e => e.BookingId).IsUnique();
-
-            entity.HasOne(e => e.Company)
-                .WithMany(c => c.CorporateBookings)
-                .HasForeignKey(e => e.CompanyId)
-                .OnDelete(DeleteBehavior.Restrict);
-
-            entity.HasOne(e => e.Membership)
-                .WithMany()
-                .HasForeignKey(e => e.MembershipId)
-                .OnDelete(DeleteBehavior.Restrict);
-
-            entity.HasOne(e => e.Allocation)
-                .WithMany(a => a.CorporateBookings)
-                .HasForeignKey(e => e.AllocationId)
-                .OnDelete(DeleteBehavior.Restrict);
-
-            entity.HasOne(e => e.Booking)
-                .WithMany()
-                .HasForeignKey(e => e.BookingId)
-                .OnDelete(DeleteBehavior.Restrict);
-
-            entity.HasQueryFilter(e => !e.IsDeleted && (!CurrentTenantId.HasValue || e.CompanyId == CurrentTenantId.Value));
-        });
-
-        // FixedSlotAssignment
-        modelBuilder.Entity<FixedSlotAssignment>(entity =>
-        {
-            entity.HasKey(e => e.Id);
-
-            entity.HasIndex(e => new { e.CompanyId, e.AllocationId, e.SlotNumber }).IsUnique();
-            entity.HasIndex(e => new { e.CompanyId, e.MembershipId });
-
-            entity.HasOne(e => e.Allocation)
-                .WithMany(a => a.FixedAssignments)
-                .HasForeignKey(e => e.AllocationId)
-                .OnDelete(DeleteBehavior.Restrict);
-
-            entity.HasOne(e => e.Company)
-                .WithMany()
-                .HasForeignKey(e => e.CompanyId)
-                .OnDelete(DeleteBehavior.Restrict);
-
-            entity.HasOne(e => e.Membership)
-                .WithMany()
-                .HasForeignKey(e => e.MembershipId)
-                .OnDelete(DeleteBehavior.Restrict);
-
-            entity.HasQueryFilter(e => !e.IsDeleted && (!CurrentTenantId.HasValue || e.CompanyId == CurrentTenantId.Value));
-        });
-
-        // EmployeeInvitation
-        modelBuilder.Entity<EmployeeInvitation>(entity =>
-        {
-            entity.HasKey(e => e.Id);
-            entity.Property(e => e.Email).HasMaxLength(255).IsRequired();
-            entity.Property(e => e.InvitationToken).HasMaxLength(500).IsRequired();
-
-            entity.HasIndex(e => new { e.CompanyId, e.Email });
-            entity.HasIndex(e => e.InvitationToken).IsUnique();
-
-            entity.HasOne(e => e.Company)
-                .WithMany(c => c.Invitations)
-                .HasForeignKey(e => e.CompanyId)
-                .OnDelete(DeleteBehavior.Restrict);
-
-            entity.HasOne(e => e.InvitedByUser)
-                .WithMany()
-                .HasForeignKey(e => e.InvitedByUserId)
-                .OnDelete(DeleteBehavior.Restrict);
-
-            entity.HasQueryFilter(e => !e.IsDeleted && (!CurrentTenantId.HasValue || e.CompanyId == CurrentTenantId.Value));
-        });
-
-        // CompanyUsage
-        modelBuilder.Entity<CompanyUsage>(entity =>
-        {
-            entity.HasKey(e => e.Id);
-            entity.Property(e => e.TotalHoursUsed).HasPrecision(10, 2);
-
-            entity.HasIndex(e => new { e.CompanyId, e.AllocationId, e.UsageDate }).IsUnique();
-            entity.HasIndex(e => new { e.CompanyId, e.UsageDate });
-
-            entity.HasOne(e => e.Company)
-                .WithMany(c => c.Usages)
-                .HasForeignKey(e => e.CompanyId)
-                .OnDelete(DeleteBehavior.Restrict);
-
-            entity.HasOne(e => e.Allocation)
-                .WithMany()
-                .HasForeignKey(e => e.AllocationId)
-                .OnDelete(DeleteBehavior.Restrict);
-
-            entity.HasQueryFilter(e => !e.IsDeleted && (!CurrentTenantId.HasValue || e.CompanyId == CurrentTenantId.Value));
-        });
-
-        // CorporateWaitlistEntry
-        modelBuilder.Entity<CorporateWaitlistEntry>(entity =>
-        {
-            entity.HasKey(e => e.Id);
-            entity.Property(e => e.VehicleNumber).HasMaxLength(20);
-            entity.Property(e => e.VisitorName).HasMaxLength(200);
-            entity.Property(e => e.VisitorLicensePlate).HasMaxLength(20);
-
-            entity.HasIndex(e => new { e.CompanyId, e.AllocationId, e.Status, e.PriorityAtRequest, e.CreatedAt });
-            entity.HasIndex(e => new { e.CompanyId, e.MembershipId, e.Status });
-            entity.HasIndex(e => new { e.CompanyId, e.AllocationId, e.RequestedStartDateTime, e.RequestedEndDateTime });
-
-            entity.HasOne(e => e.Company)
-                .WithMany(c => c.WaitlistEntries)
-                .HasForeignKey(e => e.CompanyId)
-                .OnDelete(DeleteBehavior.Restrict);
-
-            entity.HasOne(e => e.Membership)
-                .WithMany()
-                .HasForeignKey(e => e.MembershipId)
-                .OnDelete(DeleteBehavior.Restrict);
-
-            entity.HasOne(e => e.Allocation)
-                .WithMany()
-                .HasForeignKey(e => e.AllocationId)
-                .OnDelete(DeleteBehavior.Restrict);
-
-            entity.HasOne(e => e.PromotedBooking)
-                .WithMany()
-                .HasForeignKey(e => e.PromotedBookingId)
-                .OnDelete(DeleteBehavior.Restrict);
-
-            entity.HasQueryFilter(e => !e.IsDeleted && (!CurrentTenantId.HasValue || e.CompanyId == CurrentTenantId.Value));
-        });
-
-        // CorporateInvoice
-        modelBuilder.Entity<CorporateInvoice>(entity =>
-        {
-            entity.HasKey(e => e.Id);
-            entity.Property(e => e.InvoiceNumber).HasMaxLength(40).IsRequired();
-            entity.Property(e => e.Currency).HasMaxLength(3).IsRequired();
-            entity.Property(e => e.Subtotal).HasPrecision(18, 2);
-            entity.Property(e => e.TaxAmount).HasPrecision(18, 2);
-            entity.Property(e => e.TotalAmount).HasPrecision(18, 2);
-            entity.Property(e => e.PaymentReference).HasMaxLength(200);
-            entity.Property(e => e.PaymentNotes).HasMaxLength(1000);
-            entity.Property(e => e.VoidReason).HasMaxLength(500);
-
-            entity.HasIndex(e => new { e.CompanyId, e.InvoiceNumber }).IsUnique();
-            entity.HasIndex(e => new { e.CompanyId, e.Status, e.IssuedAt });
-            entity.HasIndex(e => new { e.CompanyId, e.PeriodStart, e.PeriodEnd });
-
-            entity.HasOne(e => e.Company)
-                .WithMany()
-                .HasForeignKey(e => e.CompanyId)
-                .OnDelete(DeleteBehavior.Restrict);
-
-            entity.HasMany(e => e.LineItems)
-                .WithOne(l => l.Invoice)
-                .HasForeignKey(l => l.InvoiceId)
-                .OnDelete(DeleteBehavior.Cascade);
-
-            entity.HasQueryFilter(e => !e.IsDeleted && (!CurrentTenantId.HasValue || e.CompanyId == CurrentTenantId.Value));
-        });
-
-        // CorporateInvoiceLineItem
-        modelBuilder.Entity<CorporateInvoiceLineItem>(entity =>
-        {
-            entity.HasKey(e => e.Id);
-            entity.Property(e => e.Description).HasMaxLength(500).IsRequired();
-            entity.Property(e => e.Quantity).HasPrecision(18, 4);
-            entity.Property(e => e.UnitAmount).HasPrecision(18, 2);
-            entity.Property(e => e.Amount).HasPrecision(18, 2);
-
-            entity.HasIndex(e => e.InvoiceId);
-            entity.HasIndex(e => e.AllocationId);
-            entity.HasIndex(e => e.BookingId);
-
-            entity.HasQueryFilter(e => !e.IsDeleted);
-        });
+        modelBuilder.Entity<CorporateInvoiceLineItem>()
+            .HasQueryFilter(e => !e.IsDeleted);
     }
 
     public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
@@ -800,7 +134,6 @@ public class ApplicationDbContext : DbContext
                     break;
             }
         }
-
         return base.SaveChangesAsync(cancellationToken);
     }
 }

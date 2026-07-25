@@ -1,12 +1,14 @@
+using System.Diagnostics;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.SignalR;
 using ParkingApp.Application.CQRS;
-using ParkingApp.Application.CQRS.Commands.Chat;
-using ParkingApp.Application.CQRS.Queries.Chat;
+using ParkingApp.Messaging.Application.Commands.Chat;
+using ParkingApp.Messaging.Application.Queries.Chat;
 using ParkingApp.Application.DTOs;
-using ParkingApp.Notifications.Hubs;
+using ParkingApp.Messaging.Application.DTOs;
+using ParkingApp.Messaging.Infrastructure.Hubs;
 
 namespace ParkingApp.API.Controllers;
 
@@ -18,11 +20,16 @@ public class ChatController : ControllerBase
 {
     private readonly IDispatcher _dispatcher;
     private readonly IHubContext<ChatHub> _chatHubContext;
+    private readonly ILogger<ChatController> _logger;
 
-    public ChatController(IDispatcher dispatcher, IHubContext<ChatHub> chatHubContext)
+    public ChatController(
+        IDispatcher dispatcher,
+        IHubContext<ChatHub> chatHubContext,
+        ILogger<ChatController> logger)
     {
         _dispatcher = dispatcher;
         _chatHubContext = chatHubContext;
+        _logger = logger;
     }
 
     /// <summary>
@@ -36,8 +43,15 @@ public class ChatController : ControllerBase
         var userId = GetUserId();
         if (userId == null) return Unauthorized();
 
+        var sw = Stopwatch.StartNew();
         var result = await _dispatcher.QueryAsync(
             new GetConversationsQuery(userId.Value, page, pageSize), cancellationToken);
+        sw.Stop();
+        _logger.LogInformation(
+            "Chat.GetConversations user={UserId} page={Page} pageSize={PageSize} elapsedMs={ElapsedMs:0.0} count={Count}",
+            userId, page, pageSize, sw.Elapsed.TotalMilliseconds,
+            result.Data?.Conversations?.Count ?? 0);
+
         return Ok(result);
     }
 
@@ -52,8 +66,13 @@ public class ChatController : ControllerBase
         var userId = GetUserId();
         if (userId == null) return Unauthorized();
 
+        var sw = Stopwatch.StartNew();
         var result = await _dispatcher.QueryAsync(
             new GetMessagesQuery(userId.Value, conversationId, page, pageSize), cancellationToken);
+        sw.Stop();
+        _logger.LogInformation(
+            "Chat.GetMessages user={UserId} conversation={ConversationId} elapsedMs={ElapsedMs:0.0} count={Count}",
+            userId, conversationId, sw.Elapsed.TotalMilliseconds, result.Data?.Count ?? 0);
 
         if (!result.Success)
             return result.Message == "Unauthorized" ? Forbid() : NotFound(result);
@@ -73,39 +92,29 @@ public class ChatController : ControllerBase
 
         try
         {
+            var sw = Stopwatch.StartNew();
             var result = await _dispatcher.SendAsync(
                 new SendMessageCommand(userId.Value, dto), cancellationToken);
 
             if (!result.Success)
                 return BadRequest(result);
 
-            // Push real-time message to both participants via SignalR
             if (result.Data != null)
             {
-                // Send to the sender's group (for multi-device sync)
-                await _chatHubContext.Clients
-                    .Group(ChatHub.GetUserGroupName(userId.Value))
-                    .SendAsync("ReceiveMessage", result.Data, cancellationToken);
-
-                // Determine and notify the other participant
-                var getConversations = await _dispatcher.QueryAsync(
-                    new GetConversationsQuery(userId.Value, 1, 100), cancellationToken);
-
-                var conv = getConversations.Data?.Conversations
-                    .FirstOrDefault(c => c.Id == result.Data.ConversationId);
-
-                if (conv != null)
-                {
-                    await _chatHubContext.Clients
-                        .Group(ChatHub.GetUserGroupName(conv.OtherParticipantId))
-                        .SendAsync("ReceiveMessage", result.Data, cancellationToken);
-                }
+                await ChatHub.BroadcastReceiveMessageAsync(
+                    _chatHubContext, userId.Value, result.Data, cancellationToken);
             }
+
+            sw.Stop();
+            _logger.LogInformation(
+                "Chat.SendMessage user={UserId} conversation={ConversationId} elapsedMs={ElapsedMs:0.0} success={Success}",
+                userId, result.Data?.ConversationId, sw.Elapsed.TotalMilliseconds, result.Success);
 
             return Ok(result);
         }
         catch (Exception ex)
         {
+            _logger.LogError(ex, "Chat.SendMessage failed for user {UserId}", userId);
             return StatusCode(500, new ApiResponse<ChatMessageDto>(false, $"Internal error: {ex.Message}", null));
         }
     }
@@ -114,31 +123,35 @@ public class ChatController : ControllerBase
     /// Mark all messages in a conversation as read for the current user.
     /// </summary>
     [HttpPost("conversations/{conversationId:guid}/read")]
-    [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<MarkMessagesReadResult>), StatusCodes.Status200OK)]
     public async Task<IActionResult> MarkAsRead(Guid conversationId, CancellationToken cancellationToken = default)
     {
         var userId = GetUserId();
         if (userId == null) return Unauthorized();
 
+        var sw = Stopwatch.StartNew();
         var result = await _dispatcher.SendAsync(
             new MarkMessagesReadCommand(userId.Value, conversationId), cancellationToken);
 
         if (!result.Success)
             return result.Message == "Unauthorized" ? Forbid() : BadRequest(result);
 
-        // Notify the OTHER participant that their messages were read
-        var getConversations = await _dispatcher.QueryAsync(
-            new GetConversationsQuery(userId.Value, 1, 100), cancellationToken);
-
-        var conv = getConversations.Data?.Conversations
-            .FirstOrDefault(c => c.Id == conversationId);
-
-        if (conv != null)
+        // Notify the other participant (user group) + anyone viewing the conversation
+        if (result.Data is { OtherParticipantId: var otherId } && otherId != userId.Value)
         {
-            await _chatHubContext.Clients
-                .Group(ChatHub.GetUserGroupName(conv.OtherParticipantId))
-                .SendAsync("MessagesRead", conversationId, cancellationToken);
+            await Task.WhenAll(
+                _chatHubContext.Clients
+                    .Group(ChatHub.GetUserGroupName(otherId))
+                    .SendAsync("MessagesRead", conversationId, cancellationToken),
+                _chatHubContext.Clients
+                    .Group(ChatHub.GetConversationGroupName(conversationId))
+                    .SendAsync("MessagesRead", conversationId, cancellationToken));
         }
+
+        sw.Stop();
+        _logger.LogInformation(
+            "Chat.MarkAsRead user={UserId} conversation={ConversationId} elapsedMs={ElapsedMs:0.0}",
+            userId, conversationId, sw.Elapsed.TotalMilliseconds);
 
         return Ok(result);
     }
@@ -153,18 +166,9 @@ public class ChatController : ControllerBase
         var userId = GetUserId();
         if (userId == null) return Unauthorized();
 
-        try
-        {
-            var count = await _dispatcher.QueryAsync(
-                new GetConversationsQuery(userId.Value, 1, 100), cancellationToken);
-
-            var totalUnread = count.Data?.Conversations?.Sum(c => c.UnreadCount) ?? 0;
-            return Ok(new ApiResponse<int>(true, null, totalUnread));
-        }
-        catch
-        {
-            return Ok(new ApiResponse<int>(true, null, 0));
-        }
+        var result = await _dispatcher.QueryAsync(
+            new GetUnreadMessageCountQuery(userId.Value), cancellationToken);
+        return Ok(result);
     }
 
     private Guid? GetUserId()

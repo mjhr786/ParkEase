@@ -1,12 +1,16 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk.Web">
-
   <ItemGroup>
     <ProjectReference Include="..\ParkingApp.Application\ParkingApp.Application.csproj" />
     <ProjectReference Include="..\ParkingApp.Infrastructure\ParkingApp.Infrastructure.csproj" />
     <ProjectReference Include="..\ParkingApp.BuildingBlocks\ParkingApp.BuildingBlocks.csproj" />
-    <ProjectReference Include="..\ParkingApp.Notifications\ParkingApp.Notifications.csproj" />
+    <ProjectReference Include="..\Modules\Notifications\ParkingApp.Notifications.Infrastructure\ParkingApp.Notifications.Infrastructure.csproj" />
+    <ProjectReference Include="..\Modules\Messaging\ParkingApp.Messaging.Application\ParkingApp.Messaging.Application.csproj" />
+    <ProjectReference Include="..\Modules\Identity\ParkingApp.Identity.Application\ParkingApp.Identity.Application.csproj" />
+    <ProjectReference Include="..\Modules\Identity\ParkingApp.Identity.Contracts\ParkingApp.Identity.Contracts.csproj" />
+    <ProjectReference Include="..\Modules\Marketplace\ParkingApp.Marketplace.Application\ParkingApp.Marketplace.Application.csproj" />
+    <ProjectReference Include="..\Modules\Marketplace\ParkingApp.Marketplace.Infrastructure\ParkingApp.Marketplace.Infrastructure.csproj" />
+    <ProjectReference Include="..\Modules\Corporate\ParkingApp.Corporate.Application\ParkingApp.Corporate.Application.csproj" />
   </ItemGroup>
-
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="9.0.0" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="9.0.0">
@@ -19,12 +23,35 @@
     <PackageReference Include="Serilog.Sinks.File" Version="7.0.0" />
     <PackageReference Include="SkiaSharp" Version="3.119.2" />
   </ItemGroup>
-
   <PropertyGroup>
     <TargetFramework>net9.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UserSecretsId>3171e604-9434-46e3-b839-7067beddea1d</UserSecretsId>
+    <!-- Framework-dependent deploy (host provides ASP.NET runtime). Override with self-contained true if needed. -->
+    <SelfContained>false</SelfContained>
+    <!-- Keep managed PDBs out of publish; native package PDBs are removed in RemoveSymbolsFromPublish. -->
+    <CopyOutputSymbolsToPublishDirectory>false</CopyOutputSymbolsToPublishDirectory>
+    <CopyDebugSymbolFilesFromPackages>false</CopyDebugSymbolFilesFromPackages>
   </PropertyGroup>
 
+  <!-- Smaller Release publish output for free-tier disk limits (FileZilla / MonsterASP). -->
+  <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+    <DebugType>none</DebugType>
+    <DebugSymbols>false</DebugSymbols>
+  </PropertyGroup>
+
+  <!--
+    SkiaSharp and other native packages still ship pdb/dbg/dwarf under runtimes/.
+    Strip them after publish so framework-dependent free-tier deploys stay small.
+  -->
+  <Target Name="RemoveSymbolsFromPublish" AfterTargets="Publish">
+    <ItemGroup>
+      <_SymbolFilesToDelete Include="$(PublishDir)**\*.pdb" />
+      <_SymbolFilesToDelete Include="$(PublishDir)**\*.dbg" />
+      <_SymbolFilesToDelete Include="$(PublishDir)**\*.dwarf" />
+    </ItemGroup>
+    <Delete Files="@(_SymbolFilesToDelete)" TreatErrorsAsWarnings="true" />
+    <Message Importance="high" Text="RemoveSymbolsFromPublish: deleted symbol files from $(PublishDir)" Condition="'@(_SymbolFilesToDelete)' != ''" />
+  </Target>
 </Project>

@@ -1,4 +1,4 @@
-using ParkingApp.Application.Interfaces;
+﻿using ParkingApp.Corporate.Contracts;
 
 namespace ParkingApp.API.Middleware;
 

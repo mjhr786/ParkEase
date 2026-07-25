@@ -1,3 +1,5 @@
+using ParkingApp.Notifications.Application.Queries.Notifications;
+using ParkingApp.Notifications.Application.Commands.Notifications;
 using Moq;
 using FluentAssertions;
 using Xunit;
@@ -6,9 +8,14 @@ using Microsoft.AspNetCore.Http;
 using System.Security.Claims;
 using ParkingApp.API.Controllers;
 using ParkingApp.Application.CQRS;
-using ParkingApp.Application.CQRS.Commands.Notifications;
-using ParkingApp.Application.CQRS.Queries.Notifications;
+using ParkingApp.Notifications.Application.Commands;
+using ParkingApp.Notifications.Application.Queries;
 using ParkingApp.Application.DTOs;
+using ParkingApp.Identity.Application.DTOs;
+using ParkingApp.Marketplace.Contracts.DTOs;
+using ParkingApp.Messaging.Application.DTOs;
+using ParkingApp.Notifications.Application.DTOs;
+using ParkingApp.Corporate.Application.DTOs;
 
 namespace ParkingApp.UnitTests.API;
 
@@ -130,3 +137,10 @@ public class NotificationsControllerTests
         badRequest.Value.Should().Be("Not found");
     }
 }
+
+
+
+
+
+
+

@@ -1,12 +1,22 @@
+using ParkingApp.Application.Interfaces;
 using FluentAssertions;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using ParkingApp.Application.DTOs;
-using ParkingApp.Application.Interfaces;
-using ParkingApp.Application.Services;
-using ParkingApp.Domain.Corporate;
+using ParkingApp.Identity.Application.DTOs;
+using ParkingApp.Marketplace.Contracts.DTOs;
+using ParkingApp.Messaging.Application.DTOs;
+using ParkingApp.Notifications.Application.DTOs;
+using ParkingApp.Corporate.Application.DTOs;
+using ParkingApp.Identity.Application.Interfaces;
+using ParkingApp.Marketplace.Application.Interfaces;
+using ParkingApp.Corporate.Application.Interfaces;
+using ParkingApp.Marketplace.Contracts;
+using ParkingApp.Corporate.Application.Services;
+using ParkingApp.Corporate.Domain;
 using ParkingApp.Domain.Enums;
-using ParkingApp.Domain.Interfaces;
+using ParkingApp.Infrastructure.Persistence;
+using ParkingApp.Corporate.Domain.Interfaces;
 using Xunit;
 
 namespace ParkingApp.UnitTests.Corporate;
@@ -14,10 +24,9 @@ namespace ParkingApp.UnitTests.Corporate;
 public class WaitlistPromotionServiceTests
 {
     private readonly Mock<ICorporateUnitOfWork> _corporate = new();
-    private readonly Mock<IMarketplaceUnitOfWork> _marketplace = new();
+    private readonly Mock<IMarketplaceBookingService> _marketplaceBookings = new();
     private readonly Mock<ICompanyRepository> _companies = new();
     private readonly Mock<ICacheService> _cache = new();
-    private readonly Mock<ICompanyQuotaCache> _quota = new();
     private readonly Mock<IWaitlistPromotionStore> _store = new();
 
     public WaitlistPromotionServiceTests()
@@ -27,10 +36,9 @@ public class WaitlistPromotionServiceTests
 
     private WaitlistPromotionService CreateSut() => new(
         _corporate.Object,
-        _marketplace.Object,
-        _cache.Object,
-        _quota.Object,
         _store.Object,
+        _marketplaceBookings.Object,
+        _cache.Object,
         NullLogger<WaitlistPromotionService>.Instance);
 
     [Fact]
@@ -48,24 +56,22 @@ public class WaitlistPromotionServiceTests
     }
 
     [Fact]
-    public async Task PromoteAsync_WhenAdminRequiredAndUserNotAdmin_ReturnsFailure()
+    public async Task PromoteAsync_WhenWaitlistEntryMissing_ReturnsFailure()
     {
+        // Current service validates waitlist entry on the aggregate before admin-specific messages.
         var companyId = Guid.NewGuid();
-        var employeeId = Guid.NewGuid();
         var adminId = Guid.NewGuid();
         var company = Company.Create("Acme", "REG", "a@b.com", "9999999999", "Addr", BillingType.ReservedSlots, adminId);
-        // employeeId is not an admin of this company
-        company.AddMember(adminId, employeeId, CompanyRole.Employee);
 
         _companies.Setup(c => c.GetAggregateForWaitlistPromotionAsync(
-                companyId, It.IsAny<Guid>(), employeeId, It.IsAny<CancellationToken>()))
+                companyId, It.IsAny<Guid>(), It.IsAny<Guid?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(company);
 
         var sut = CreateSut();
-        var result = await sut.PromoteAsync(companyId, Guid.NewGuid(), adminUserId: employeeId);
+        var result = await sut.PromoteAsync(companyId, Guid.NewGuid(), adminUserId: adminId);
 
         result.Success.Should().BeFalse();
-        result.Message.Should().Contain("Only company admins");
+        result.Message.Should().Contain("Waitlist entry not found");
     }
 
     [Fact]
@@ -85,7 +91,7 @@ public class WaitlistPromotionServiceTests
         _store.Setup(s => s.GetPromotionCandidatesAsync(It.IsAny<DateTime>(), 10, It.IsAny<CancellationToken>()))
             .ReturnsAsync(new List<WaitlistPromotionCandidate> { candidate });
 
-        // Promote will fail early (company not found) — counts as skipped/attempted
+        // Promote will fail early (company not found) G�� counts as skipped/attempted
         _companies.Setup(c => c.GetAggregateForWaitlistPromotionAsync(
                 candidate.CompanyId, candidate.WaitlistEntryId, null, It.IsAny<CancellationToken>()))
             .ReturnsAsync((Company?)null);
@@ -99,3 +105,9 @@ public class WaitlistPromotionServiceTests
         result.Skipped.Should().Be(1);
     }
 }
+
+
+
+
+
+

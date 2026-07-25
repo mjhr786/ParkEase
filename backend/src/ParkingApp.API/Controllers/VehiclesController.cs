@@ -2,9 +2,14 @@ using ParkingApp.Application.CQRS;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
-using ParkingApp.Application.CQRS.Commands.Vehicles;
-using ParkingApp.Application.CQRS.Queries.Vehicles;
+using ParkingApp.Identity.Application.Commands.Vehicles;
+using ParkingApp.Identity.Application.Queries.Vehicles;
 using ParkingApp.Application.DTOs;
+using ParkingApp.Identity.Application.DTOs;
+using ParkingApp.Marketplace.Contracts.DTOs;
+using ParkingApp.Messaging.Application.DTOs;
+using ParkingApp.Notifications.Application.DTOs;
+
 
 namespace ParkingApp.API.Controllers;
 

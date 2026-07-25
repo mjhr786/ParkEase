@@ -1,0 +1,181 @@
+using Microsoft.EntityFrameworkCore;
+using ParkingApp.Marketplace.Domain.Entities;
+using ParkingApp.Marketplace.Contracts.Enums;
+using ParkingApp.Marketplace.Domain.Interfaces;
+using ParkingApp.Marketplace.Infrastructure.Persistence;
+using Microsoft.EntityFrameworkCore;
+
+namespace ParkingApp.Marketplace.Infrastructure.Repositories;
+
+internal sealed class ParkingPassRepository : MarketplaceRepository<ParkingPass>, IParkingPassRepository
+{
+    public ParkingPassRepository(IMarketplaceDbContext context) : base((DbContext)context)
+    {
+    }
+
+    public override async Task<ParkingPass?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        return await _dbSet
+            
+            .Include(p => p.ParkingSpace)
+            .FirstOrDefaultAsync(p => p.Id == id, cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<ParkingPass>> GetActiveByUserIdAsync(Guid userId, DateTime utcNow, CancellationToken cancellationToken = default)
+    {
+        return await _dbSet
+            .AsNoTracking()
+            
+            .Include(p => p.ParkingSpace)
+            .Where(p =>
+                p.UserId == userId &&
+                p.Duration.StartDateUtc <= utcNow &&
+                p.Duration.EndDateUtc >= utcNow)
+            .OrderBy(p => p.Duration.EndDateUtc)
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<ParkingPass>> GetByUserIdAsync(Guid userId, CancellationToken cancellationToken = default)
+    {
+        return await _dbSet
+            .AsNoTracking()
+            
+            .Include(p => p.ParkingSpace)
+            .Where(p => p.UserId == userId)
+            .OrderByDescending(p => p.CreatedAt)
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<ParkingPass>> GetCandidatePassesForBookingAsync(
+        Guid userId,
+        Guid parkingSpaceId,
+        string? parkingZoneCode,
+        DateTime bookingStartUtc,
+        DateTime bookingEndUtc,
+        CancellationToken cancellationToken = default)
+    {
+        var normalizedZoneCode = string.IsNullOrWhiteSpace(parkingZoneCode)
+            ? null
+            : parkingZoneCode.Trim().ToUpperInvariant();
+
+        return await _dbSet
+            
+            .Include(p => p.ParkingSpace)
+            .Where(p =>
+                p.UserId == userId &&
+                p.Duration.StartDateUtc <= bookingStartUtc &&
+                p.Duration.EndDateUtc >= bookingEndUtc &&
+                ((p.CoverageType == PassCoverageType.ParkingSpace && p.ParkingSpaceId == parkingSpaceId) ||
+                 (p.CoverageType == PassCoverageType.ParkingZone && normalizedZoneCode != null && p.ParkingZoneCode == normalizedZoneCode)))
+            .OrderBy(p => p.CoverageType == PassCoverageType.ParkingSpace ? 0 : 1)
+            .ThenByDescending(p => p.DiscountPercentage)
+            .ThenBy(p => p.Duration.EndDateUtc)
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyDictionary<DateOnly, decimal>> GetBookedHoursByDayAsync(
+        Guid parkingPassId,
+        Guid userId,
+        DateTime bookingStartUtc,
+        DateTime bookingEndUtc,
+        Guid? excludeBookingId = null,
+        CancellationToken cancellationToken = default)
+    {
+        var multi = await GetBookedHoursByDayForPassesAsync(
+            new[] { parkingPassId },
+            userId,
+            bookingStartUtc,
+            bookingEndUtc,
+            excludeBookingId,
+            cancellationToken);
+
+        return multi.TryGetValue(parkingPassId, out var hours)
+            ? hours
+            : new Dictionary<DateOnly, decimal>();
+    }
+
+    public async Task<IReadOnlyDictionary<Guid, IReadOnlyDictionary<DateOnly, decimal>>> GetBookedHoursByDayForPassesAsync(
+        IReadOnlyCollection<Guid> parkingPassIds,
+        Guid userId,
+        DateTime bookingStartUtc,
+        DateTime bookingEndUtc,
+        Guid? excludeBookingId = null,
+        CancellationToken cancellationToken = default)
+    {
+        if (parkingPassIds == null || parkingPassIds.Count == 0)
+        {
+            return new Dictionary<Guid, IReadOnlyDictionary<DateOnly, decimal>>();
+        }
+
+        var passIdList = parkingPassIds.Distinct().ToList();
+        var query = _context.Set<Booking>()
+            .AsNoTracking()
+            .Where(b =>
+                b.UserId == userId &&
+                b.ParkingPassId != null &&
+                passIdList.Contains(b.ParkingPassId.Value) &&
+                b.Status != BookingStatus.Cancelled &&
+                b.Status != BookingStatus.Rejected &&
+                b.Status != BookingStatus.Expired &&
+                b.StartDateTime < bookingEndUtc &&
+                b.EndDateTime > bookingStartUtc);
+
+        if (excludeBookingId.HasValue)
+        {
+            query = query.Where(b => b.Id != excludeBookingId.Value);
+        }
+
+        var bookings = await query
+            .Select(b => new { b.ParkingPassId, b.StartDateTime, b.EndDateTime })
+            .ToListAsync(cancellationToken);
+
+        var result = passIdList.ToDictionary(
+            id => id,
+            _ => (IReadOnlyDictionary<DateOnly, decimal>)new Dictionary<DateOnly, decimal>());
+
+        foreach (var booking in bookings)
+        {
+            if (!booking.ParkingPassId.HasValue)
+                continue;
+
+            var hoursByDay = (Dictionary<DateOnly, decimal>)result[booking.ParkingPassId.Value];
+            foreach (var hoursForDay in SplitHoursByDay(booking.StartDateTime, booking.EndDateTime))
+            {
+                if (hoursByDay.TryGetValue(hoursForDay.Key, out var currentHours))
+                    hoursByDay[hoursForDay.Key] = currentHours + hoursForDay.Value;
+                else
+                    hoursByDay[hoursForDay.Key] = hoursForDay.Value;
+            }
+        }
+
+        return result;
+    }
+
+    private static IReadOnlyDictionary<DateOnly, decimal> SplitHoursByDay(DateTime startUtc, DateTime endUtc)
+    {
+        var hoursByDay = new Dictionary<DateOnly, decimal>();
+        var cursor = startUtc;
+
+        while (cursor < endUtc)
+        {
+            var nextBoundary = cursor.Date.AddDays(1);
+            var segmentEnd = nextBoundary < endUtc ? nextBoundary : endUtc;
+            var day = DateOnly.FromDateTime(cursor);
+            var hours = Math.Round((decimal)(segmentEnd - cursor).TotalHours, 2, MidpointRounding.AwayFromZero);
+
+            if (hoursByDay.TryGetValue(day, out var currentHours))
+            {
+                hoursByDay[day] = currentHours + hours;
+            }
+            else
+            {
+                hoursByDay[day] = hours;
+            }
+
+            cursor = segmentEnd;
+        }
+
+        return hoursByDay;
+    }
+}
+

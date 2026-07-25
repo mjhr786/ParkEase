@@ -4,15 +4,23 @@ using System.Threading.Tasks;
 using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using Moq;
-using ParkingApp.Application.CQRS.Commands.Auth;
+using ParkingApp.Identity.Application.Commands.Auth;
 using ParkingApp.Application.DTOs;
-using ParkingApp.Application.Interfaces;
-using ParkingApp.Domain.Shared;
-using ParkingApp.Domain.Marketplace;
-using ParkingApp.Domain.Identity;
-using ParkingApp.Domain.Messaging;
-using ParkingApp.Domain.Corporate;
-using ParkingApp.Domain.Interfaces;
+using ParkingApp.Identity.Application.DTOs;
+using ParkingApp.Marketplace.Contracts.DTOs;
+using ParkingApp.Messaging.Application.DTOs;
+using ParkingApp.Notifications.Application.DTOs;
+using ParkingApp.Corporate.Application.DTOs;
+using ParkingApp.Identity.Application.Interfaces;
+using ParkingApp.Marketplace.Application.Interfaces;
+using ParkingApp.Corporate.Application.Interfaces;
+using ParkingApp.BuildingBlocks.Domain;
+using ParkingApp.Marketplace.Domain.Entities;
+using ParkingApp.Identity.Domain.Entities;
+using ParkingApp.Messaging.Domain.Entities;
+using ParkingApp.Corporate.Domain;
+using ParkingApp.Infrastructure.Persistence;
+using ParkingApp.Identity.Domain.Interfaces;
 using Xunit;
 
 namespace ParkingApp.UnitTests.CQRS.Commands;
@@ -108,7 +116,7 @@ public class AuthCommandsTests
             _mockTokenService.Object,
             _mockPasswordHasher.Object,
             _mockLoginLogger.Object);
-        var user = new User { PasswordHash = "hash:RealPass" };
+        var user = new User { Id = Guid.NewGuid(), Email = "test@example.com", PasswordHash = "hash", FirstName = "Test", LastName = "User", PhoneNumber = "1", IsActive = true };
         _mockUserRepo.Setup(r => r.GetByEmailAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(user);
 
         var res = await handler.HandleAsync(new LoginCommand(new LoginDto("test@test.com", "WrongPass")));
@@ -124,7 +132,7 @@ public class AuthCommandsTests
             _mockTokenService.Object,
             _mockPasswordHasher.Object,
             _mockLoginLogger.Object);
-        var user = new User { PasswordHash = "hash:Pass123", IsActive = true };
+        var user = new User { Id = Guid.NewGuid(), Email = "test@example.com", PasswordHash = "hash:Pass123", FirstName = "Test", LastName = "User", PhoneNumber = "1", IsActive = true };
         _mockUserRepo.Setup(r => r.GetByEmailAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(user);
         _mockTokenService.Setup(t => t.GenerateAccessToken(It.IsAny<User>())).Returns("token");
         _mockTokenService.Setup(t => t.GenerateRefreshToken()).Returns("refresh");
@@ -169,7 +177,7 @@ public class AuthCommandsTests
     public async Task LogoutHandler_ShouldSucceed()
     {
         var handler = new LogoutHandler(_mockUow.Object, _mockLogoutLogger.Object);
-        var user = new User { RefreshToken = "token" };
+        var user = new User { Id = Guid.NewGuid(), Email = "test@example.com", PasswordHash = "hash", FirstName = "Test", LastName = "User", PhoneNumber = "1", IsActive = true };
         _mockUserRepo.Setup(r => r.GetByIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>())).ReturnsAsync(user);
 
         var res = await handler.HandleAsync(new LogoutCommand(Guid.NewGuid()));
@@ -186,7 +194,7 @@ public class AuthCommandsTests
             _mockUow.Object,
             _mockPasswordHasher.Object,
             _mockChangePasswordLogger.Object);
-        var user = new User { PasswordHash = "hash:RealPass" };
+        var user = new User { Id = Guid.NewGuid(), Email = "test@example.com", PasswordHash = "hash", FirstName = "Test", LastName = "User", PhoneNumber = "1", IsActive = true };
         _mockUserRepo.Setup(r => r.GetByIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>())).ReturnsAsync(user);
 
         var res = await handler.HandleAsync(new ChangePasswordCommand(Guid.NewGuid(), new ChangePasswordDto("WrongPass", "NewPass")));
@@ -202,7 +210,7 @@ public class AuthCommandsTests
             _mockUow.Object,
             _mockPasswordHasher.Object,
             _mockChangePasswordLogger.Object);
-        var user = new User { PasswordHash = "hash:Pass123" };
+        var user = new User { Id = Guid.NewGuid(), Email = "test@example.com", PasswordHash = "hash:Pass123", FirstName = "Test", LastName = "User", PhoneNumber = "1", IsActive = true };
         _mockUserRepo.Setup(r => r.GetByIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>())).ReturnsAsync(user);
 
         var res = await handler.HandleAsync(new ChangePasswordCommand(Guid.NewGuid(), new ChangePasswordDto("Pass123", "NewPass123")));
@@ -212,3 +220,8 @@ public class AuthCommandsTests
         _mockUow.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
     }
 }
+
+
+
+
+

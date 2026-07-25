@@ -40,3 +40,8 @@ public class SecurityHeadersMiddlewareTests
         headers["Permissions-Policy"].ToString().Should().Be("geolocation=(), microphone=(), camera=()");
     }
 }
+
+
+
+
+

@@ -1,7 +1,12 @@
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using ParkingApp.Application.DTOs;
-using ParkingApp.Domain.Events.Bookings;
+using ParkingApp.Identity.Application.DTOs;
+using ParkingApp.Marketplace.Contracts.DTOs;
+using ParkingApp.Messaging.Application.DTOs;
+using ParkingApp.Notifications.Application.DTOs;
+using ParkingApp.Corporate.Application.DTOs;
+using ParkingApp.Marketplace.Domain.Events;
 using ParkingApp.Infrastructure.Data;
 using ParkingApp.Infrastructure.Outbox;
 using Xunit;
@@ -101,3 +106,8 @@ public class OutboxAdminStoreTests
         db.OutboxMessages.Count(m => m.Status == OutboxStatus.Pending).Should().Be(3);
     }
 }
+
+
+
+
+

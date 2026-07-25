@@ -85,18 +85,7 @@ const CountdownTimer = ({ endDateTime }) => {
     );
 };
 
-const REFRESH_TRIGGERS = [
-    'booking.requested',
-    'booking.approved',
-    'booking.rejected',
-    'booking.cancelled',
-    'payment.completed',
-    'booking.checkin',
-    'booking.checkout',
-    'extension.requested',
-    'extension.approved',
-    'extension.rejected',
-];
+const REFRESH_TRIGGERS = ['booking.requested', 'booking.approved', 'booking.rejected', 'payment.completed', 'booking.cancelled', 'extension.requested', 'extension.approved', 'extension.rejected'];
 
 export default function Dashboard() {
     const { user } = useAuth();
@@ -296,3 +285,4 @@ export default function Dashboard() {
         </div>
     );
 }
+

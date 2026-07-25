@@ -1,6 +1,7 @@
 using FluentAssertions;
 using Xunit;
-using ParkingApp.Domain.ValueObjects;
+using ParkingApp.BuildingBlocks.ValueObjects;
+using ParkingApp.BuildingBlocks.ValueObjects;
 using System;
 
 namespace ParkingApp.UnitTests.Domain;
@@ -63,3 +64,8 @@ public class EmailTests
         email.ToString().Should().Be("test@example.com");
     }
 }
+
+
+
+
+

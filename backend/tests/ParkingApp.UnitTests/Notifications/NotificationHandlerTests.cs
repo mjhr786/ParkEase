@@ -1,143 +1,91 @@
+using ParkingApp.Notifications.Application.Queries.Notifications;
+using ParkingApp.Notifications.Application.Commands.Notifications;
 using Moq;
 using FluentAssertions;
 using Xunit;
-using ParkingApp.Application.CQRS.Commands.Notifications;
-using ParkingApp.Application.CQRS.Queries.Notifications;
-using ParkingApp.Domain.Shared;
-using ParkingApp.Domain.Marketplace;
-using ParkingApp.Domain.Identity;
-using ParkingApp.Domain.Messaging;
-using ParkingApp.Domain.Corporate;
-using ParkingApp.Domain.Interfaces;
-using ParkingApp.Domain.Enums;
+using ParkingApp.Messaging.Contracts;
+using ParkingApp.Messaging.Contracts.Enums;
 
 namespace ParkingApp.UnitTests.Notifications;
 
 public class NotificationHandlerTests
 {
-    private readonly Mock<IUnitOfWork> _mockUnitOfWork;
-    private readonly Mock<INotificationRepository> _mockNotificationRepository;
-
-    public NotificationHandlerTests()
-    {
-        _mockUnitOfWork = new Mock<IUnitOfWork>();
-        _mockNotificationRepository = new Mock<INotificationRepository>();
-
-        _mockUnitOfWork.Setup(u => u.Notifications).Returns(_mockNotificationRepository.Object);
-    }
+    private readonly Mock<INotificationInbox> _inbox = new();
 
     [Fact]
-    public async Task MarkNotificationAsReadCommandHandler_WhenNotificationExistsAndBelongsToUser_ShouldMarkAsRead()
+    public async Task MarkNotificationAsReadCommandHandler_WhenFound_ShouldSucceed()
     {
-        // Arrange
         var userId = Guid.NewGuid();
         var notificationId = Guid.NewGuid();
-        var notification = new Notification { Id = notificationId, UserId = userId, IsRead = false };
+        _inbox.Setup(i => i.MarkAsReadAsync(notificationId, userId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
 
-        _mockNotificationRepository.Setup(r => r.GetByIdAsync(notificationId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(notification);
+        var handler = new MarkNotificationAsReadCommandHandler(_inbox.Object);
+        var result = await handler.HandleAsync(new MarkNotificationAsReadCommand(notificationId, userId));
 
-        var handler = new MarkNotificationAsReadCommandHandler(_mockUnitOfWork.Object);
-        var command = new MarkNotificationAsReadCommand(notificationId, userId);
-
-        // Act
-        var result = await handler.HandleAsync(command);
-
-        // Assert
         result.Success.Should().BeTrue();
-        notification.IsRead.Should().BeTrue();
-        notification.ReadAt.Should().NotBeNull();
-        _mockNotificationRepository.Verify(r => r.Update(notification), Times.Once);
-        _mockUnitOfWork.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
+        _inbox.Verify(i => i.MarkAsReadAsync(notificationId, userId, It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
-    public async Task MarkNotificationAsReadCommandHandler_WhenNotificationNotFound_ShouldReturnFailure()
+    public async Task MarkNotificationAsReadCommandHandler_WhenNotFound_ShouldReturnFailure()
     {
-        // Arrange
         var userId = Guid.NewGuid();
         var notificationId = Guid.NewGuid();
+        _inbox.Setup(i => i.MarkAsReadAsync(notificationId, userId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(false);
 
-        _mockNotificationRepository.Setup(r => r.GetByIdAsync(notificationId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync((Notification?)null);
+        var handler = new MarkNotificationAsReadCommandHandler(_inbox.Object);
+        var result = await handler.HandleAsync(new MarkNotificationAsReadCommand(notificationId, userId));
 
-        var handler = new MarkNotificationAsReadCommandHandler(_mockUnitOfWork.Object);
-        var command = new MarkNotificationAsReadCommand(notificationId, userId);
-
-        // Act
-        var result = await handler.HandleAsync(command);
-
-        // Assert
         result.Success.Should().BeFalse();
         result.Message.Should().Be("Notification not found");
-        _mockNotificationRepository.Verify(r => r.Update(It.IsAny<Notification>()), Times.Never);
     }
 
     [Fact]
-    public async Task MarkAllNotificationsAsReadCommandHandler_ShouldCallRepositoryAndSaveChanges()
+    public async Task MarkAllNotificationsAsReadCommandHandler_ShouldCallInbox()
     {
-        // Arrange
         var userId = Guid.NewGuid();
-        var handler = new MarkAllNotificationsAsReadCommandHandler(_mockUnitOfWork.Object);
-        var command = new MarkAllNotificationsAsReadCommand(userId);
+        var handler = new MarkAllNotificationsAsReadCommandHandler(_inbox.Object);
 
-        // Act
-        var result = await handler.HandleAsync(command);
+        var result = await handler.HandleAsync(new MarkAllNotificationsAsReadCommand(userId));
 
-        // Assert
         result.Success.Should().BeTrue();
-        _mockNotificationRepository.Verify(r => r.MarkAllAsReadAsync(userId, It.IsAny<CancellationToken>()), Times.Once);
-        _mockUnitOfWork.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
+        _inbox.Verify(i => i.MarkAllAsReadAsync(userId, It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
-    public async Task DeleteNotificationCommandHandler_WhenNotificationExists_ShouldDelete()
+    public async Task DeleteNotificationCommandHandler_WhenFound_ShouldSucceed()
     {
-        // Arrange
         var userId = Guid.NewGuid();
         var notificationId = Guid.NewGuid();
-        var notification = new Notification { Id = notificationId, UserId = userId };
+        _inbox.Setup(i => i.DeleteAsync(notificationId, userId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
 
-        _mockNotificationRepository.Setup(r => r.GetByIdAsync(notificationId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(notification);
+        var handler = new DeleteNotificationCommandHandler(_inbox.Object);
+        var result = await handler.HandleAsync(new DeleteNotificationCommand(notificationId, userId));
 
-        var handler = new DeleteNotificationCommandHandler(_mockUnitOfWork.Object);
-        var command = new DeleteNotificationCommand(notificationId, userId);
-
-        // Act
-        var result = await handler.HandleAsync(command);
-
-        // Assert
         result.Success.Should().BeTrue();
-        _mockNotificationRepository.Verify(r => r.Remove(notification), Times.Once);
-        _mockUnitOfWork.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
+        _inbox.Verify(i => i.DeleteAsync(notificationId, userId, It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
     public async Task GetMyNotificationsQueryHandler_ShouldReturnPagedResults()
     {
-        // Arrange
         var userId = Guid.NewGuid();
-        var notifications = new List<Notification>
+        var records = new List<NotificationRecord>
         {
-            new Notification { Id = Guid.NewGuid(), UserId = userId, Type = NotificationType.SystemAlert, Title = "T1", Message = "M1", IsRead = false },
-            new Notification { Id = Guid.NewGuid(), UserId = userId, Type = NotificationType.SystemAlert, Title = "T2", Message = "M2", IsRead = true }
+            new(Guid.NewGuid(), userId, NotificationType.SystemAlert, "T1", "M1", null, false, DateTime.UtcNow),
+            new(Guid.NewGuid(), userId, NotificationType.SystemAlert, "T2", "M2", null, true, DateTime.UtcNow)
         };
 
-        _mockNotificationRepository.Setup(r => r.GetPagedAsync(userId, 1, 20, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(notifications);
-        _mockNotificationRepository.Setup(r => r.GetTotalCountAsync(userId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(2);
-        _mockNotificationRepository.Setup(r => r.GetUnreadCountAsync(userId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(1);
+        _inbox.Setup(i => i.GetPagedAsync(userId, 1, 20, It.IsAny<CancellationToken>())).ReturnsAsync(records);
+        _inbox.Setup(i => i.GetTotalCountAsync(userId, It.IsAny<CancellationToken>())).ReturnsAsync(2);
+        _inbox.Setup(i => i.GetUnreadCountAsync(userId, It.IsAny<CancellationToken>())).ReturnsAsync(1);
 
-        var handler = new GetMyNotificationsQueryHandler(_mockUnitOfWork.Object);
-        var query = new GetMyNotificationsQuery(userId, 1, 20);
+        var handler = new GetMyNotificationsQueryHandler(_inbox.Object);
+        var result = await handler.HandleAsync(new GetMyNotificationsQuery(userId, 1, 20));
 
-        // Act
-        var result = await handler.HandleAsync(query);
-
-        // Assert
         result.Success.Should().BeTrue();
         result.Data.Should().NotBeNull();
         result.Data!.UnreadCount.Should().Be(1);

@@ -2,10 +2,17 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using ParkingApp.Application.CQRS;
-using ParkingApp.Application.CQRS.Commands.Bookings;
-using ParkingApp.Application.CQRS.Queries.Bookings;
+using ParkingApp.Marketplace.Application.Commands.Bookings;
+using ParkingApp.Marketplace.Application.Queries.Bookings;
 using ParkingApp.Application.DTOs;
+using ParkingApp.Identity.Application.DTOs;
+using ParkingApp.Marketplace.Contracts.DTOs;
+using ParkingApp.Messaging.Application.DTOs;
+using ParkingApp.Notifications.Application.DTOs;
+
 using ParkingApp.Domain.Enums;
+using ParkingApp.Marketplace.Contracts.Enums;
+using ParkingApp.BuildingBlocks.Enums;
 
 namespace ParkingApp.API.Controllers;
 
@@ -352,3 +359,4 @@ public class BookingsController : ControllerBase
 /// DTO for rejecting a booking
 /// </summary>
 public record RejectBookingDto(string? Reason);
+

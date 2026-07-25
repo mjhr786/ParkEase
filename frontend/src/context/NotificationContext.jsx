@@ -88,6 +88,24 @@ export function NotificationProvider({ children }) {
         };
     }, []);
 
+    /**
+     * Manually trigger refresh subscribers (e.g. after the current user approves/rejects).
+     * SignalR only notifies the other party, so local actions must refresh the vendor badge/count.
+     * @param {string|string[]} notificationTypes - Type(s) that matching subscribers listen for
+     */
+    const triggerRefresh = useCallback((notificationTypes) => {
+        const types = Array.isArray(notificationTypes) ? notificationTypes : [notificationTypes];
+        refreshCallbacksRef.current.forEach((subscription, subscriberId) => {
+            if (types.some((t) => subscription.types.includes(t))) {
+                try {
+                    subscription.callback({ type: types[0], manual: true, source: subscriberId });
+                } catch (err) {
+                    console.error(`Error in refresh callback for ${subscriberId}:`, err);
+                }
+            }
+        });
+    }, []);
+
     // Ref to track processed notifications for deduplication
     const processedRef = useRef(new Set());
 
@@ -185,7 +203,8 @@ export function NotificationProvider({ children }) {
                 connectionError,
                 markAsRead,
                 clearAll,
-                subscribeToRefresh
+                subscribeToRefresh,
+                triggerRefresh
             }}
         >
             {children}

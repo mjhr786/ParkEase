@@ -2,17 +2,26 @@ using FluentAssertions;
 using Moq;
 using ParkingApp.Application.CQRS.Queries.Corporate;
 using ParkingApp.Application.DTOs;
-using ParkingApp.Application.Interfaces;
-using ParkingApp.Domain.Corporate;
+using ParkingApp.Identity.Application.DTOs;
+using ParkingApp.Marketplace.Contracts.DTOs;
+using ParkingApp.Messaging.Application.DTOs;
+using ParkingApp.Notifications.Application.DTOs;
+using ParkingApp.Corporate.Application.DTOs;
+using ParkingApp.Identity.Application.Interfaces;
+using ParkingApp.Marketplace.Application.Interfaces;
+using ParkingApp.Corporate.Application.Interfaces;
+using ParkingApp.Corporate.Domain;
 using ParkingApp.Domain.Enums;
-using ParkingApp.Domain.Interfaces;
+using ParkingApp.Marketplace.Contracts.Enums;
+using ParkingApp.Infrastructure.Persistence;
+using ParkingApp.Corporate.Domain.Interfaces;
 using Xunit;
 
 namespace ParkingApp.UnitTests.Corporate;
 
 public class CompanyQueryHandlerTests
 {
-    private readonly Mock<IUnitOfWork> _uow = new();
+    private readonly Mock<ICorporateUnitOfWork> _uow = new();
     private readonly Mock<ICompanyRepository> _companies = new();
     private readonly Mock<ICompanyReadStore> _readStore = new();
 
@@ -222,3 +231,8 @@ public class CompanyQueryHandlerTests
         captured.ToUtc.Should().Be(to);
     }
 }
+
+
+
+
+

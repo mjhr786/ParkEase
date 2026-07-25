@@ -5,7 +5,8 @@ using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Moq;
 using Moq.Protected;
-using ParkingApp.Infrastructure.Services;
+using ParkingApp.Marketplace.Infrastructure.Services;
+using ParkingApp.Identity.Infrastructure.Services;
 using Xunit;
 
 namespace ParkingApp.UnitTests.Infrastructure;
@@ -175,4 +176,36 @@ public class OSRMServiceTests
         Assert.Equal(2, results[1].Duration);
     }
 
+    [Fact]
+    public void GetBatchHaversine_DoesNotCallHttp_AndReturnsPositiveDistance()
+    {
+        var handlerMock = new Mock<HttpMessageHandler>(MockBehavior.Strict);
+        var httpClient = new HttpClient(handlerMock.Object)
+        {
+            BaseAddress = new Uri("https://router.project-osrm.org/")
+        };
+        var service = new OSRMService(httpClient, _loggerMock.Object);
+
+        var destinations = new List<(double Lat, double Lng)>
+        {
+            (12.9750, 77.5950)
+        };
+
+        var results = service.GetBatchHaversine(12.9716, 77.5946, destinations);
+
+        Assert.Single(results);
+        Assert.True(results[0].Distance > 0);
+        Assert.True(results[0].Duration > 0);
+        handlerMock.Protected().Verify(
+            "SendAsync",
+            Times.Never(),
+            ItExpr.IsAny<HttpRequestMessage>(),
+            ItExpr.IsAny<CancellationToken>());
+    }
+
 }
+
+
+
+
+

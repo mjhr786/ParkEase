@@ -27,16 +27,7 @@ const ALLOC_STATUS = {
     3: { label: 'Expired', color: '#94a3b8' },
 };
 
-const REFRESH_TRIGGERS = [
-    'booking.requested',
-    'payment.completed',
-    'booking.cancelled',
-    'booking.checkin',
-    'booking.checkout',
-    'extension.requested',
-    'extension.approved',
-    'extension.rejected',
-];
+const REFRESH_TRIGGERS = ['booking.requested', 'payment.completed', 'booking.cancelled', 'booking.checkin', 'booking.checkout', 'extension.requested', 'extension.approved', 'extension.rejected'];
 
 const formatMoney = (value) => {
     const n = Number(value);
@@ -55,30 +46,42 @@ export default function VendorBookings() {
     const [showRejectModal, setShowRejectModal] = useState(null);
     const [rejectingAllocation, setRejectingAllocation] = useState(false);
 
-    const { subscribeToRefresh } = useNotificationContext();
+    const { subscribeToRefresh, triggerRefresh } = useNotificationContext();
 
     const showBookings = filter !== 'allocations';
     const showAllocations = filter === 'allocations' || filter === '';
+
+    /** Keep header Vendor Inbox badge in sync after local approve/reject (SignalR notifies the other party only). */
+    const refreshPendingBadge = useCallback((eventType) => {
+        triggerRefresh?.(eventType);
+    }, [triggerRefresh]);
+
+    const extractBookings = (response) => {
+        if (!response?.success || !response.data) return [];
+        return Array.isArray(response.data)
+            ? response.data
+            : (response.data.bookings || response.data.items || []);
+    };
 
     const fetchData = useCallback(async () => {
         setLoading(true);
         try {
             if (showBookings) {
-                const params = (filter && filter !== 'requests' && filter !== '') ? { status: filter } : {};
-                const response = await api.getVendorBookings(params);
-                if (response.success && response.data) {
-                    const bookingsData = Array.isArray(response.data)
-                        ? response.data
-                        : (response.data.bookings || response.data.items || []);
-                    if (filter === 'requests') {
-                        setBookings(bookingsData.filter((b) => b.status === 0 || b.status === 8));
-                    } else if (filter === '') {
-                        setBookings(bookingsData);
-                    } else {
-                        setBookings(bookingsData);
-                    }
+                if (filter === 'requests') {
+                    // Pending (0) + extension pending (8) — server-side so list matches badge count
+                    const [pendingRes, extensionRes] = await Promise.all([
+                        api.getVendorBookings({ status: 0, pageSize: 50 }),
+                        api.getVendorBookings({ status: 8, pageSize: 50 }),
+                    ]);
+                    const merged = [...extractBookings(pendingRes), ...extractBookings(extensionRes)];
+                    const byId = new Map(merged.map((b) => [b.id, b]));
+                    setBookings([...byId.values()].filter((b) => b.status === 0 || b.status === 8));
                 } else {
-                    setBookings([]);
+                    const params = (filter && filter !== '')
+                        ? { status: filter, pageSize: 50 }
+                        : { pageSize: 50 };
+                    const response = await api.getVendorBookings(params);
+                    setBookings(extractBookings(response));
                 }
             } else {
                 setBookings([]);
@@ -134,6 +137,7 @@ export default function VendorBookings() {
             const response = await api.approveBooking(id);
             if (response.success) {
                 showToast.success('Booking approved successfully!');
+                refreshPendingBadge('booking.approved');
                 fetchData();
             } else {
                 showToast.error(response.message || 'Failed to approve booking');
@@ -152,6 +156,7 @@ export default function VendorBookings() {
                 showToast.success('Booking rejected');
                 setShowRejectModal(null);
                 setRejectReason('');
+                refreshPendingBadge('booking.rejected');
                 fetchData();
             } else {
                 showToast.error(response.message || 'Failed to reject booking');
@@ -168,6 +173,7 @@ export default function VendorBookings() {
             const response = await api.approveExtension(id);
             if (response.success) {
                 showToast.success('Extension approved successfully!');
+                refreshPendingBadge('extension.approved');
                 fetchData();
             } else {
                 showToast.error(response.message || 'Failed to approve extension');
@@ -186,6 +192,7 @@ export default function VendorBookings() {
             const response = await api.rejectExtension(id, reason || 'Rejected by owner');
             if (response.success) {
                 showToast.success('Extension rejected');
+                refreshPendingBadge('extension.rejected');
                 fetchData();
             } else {
                 showToast.error(response.message || 'Failed to reject extension');
@@ -588,3 +595,4 @@ export default function VendorBookings() {
         </div>
     );
 }
+

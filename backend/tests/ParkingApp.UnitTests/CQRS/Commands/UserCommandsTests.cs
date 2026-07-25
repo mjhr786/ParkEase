@@ -1,3 +1,4 @@
+using ParkingApp.Application.Interfaces;
 using System;
 using System.Collections.Generic;
 using System.Linq.Expressions;
@@ -6,57 +7,52 @@ using System.Threading.Tasks;
 using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using Moq;
-using ParkingApp.Application.CQRS.Commands.Users;
+using ParkingApp.Identity.Application.Commands.Users;
 using ParkingApp.Application.DTOs;
-using ParkingApp.Application.Interfaces;
-using ParkingApp.Domain.Shared;
-using ParkingApp.Domain.Marketplace;
-using ParkingApp.Domain.Identity;
-using ParkingApp.Domain.Messaging;
-using ParkingApp.Domain.Corporate;
-using ParkingApp.Domain.Interfaces;
+using ParkingApp.Identity.Application.DTOs;
+using ParkingApp.Marketplace.Contracts.DTOs;
+using ParkingApp.Messaging.Application.DTOs;
+using ParkingApp.Notifications.Application.DTOs;
+using ParkingApp.Corporate.Application.DTOs;
+using ParkingApp.Identity.Application.Interfaces;
+using ParkingApp.Marketplace.Application.Interfaces;
+using ParkingApp.Corporate.Application.Interfaces;
+using ParkingApp.BuildingBlocks.Domain;
+using ParkingApp.Marketplace.Domain.Entities;
+using ParkingApp.Identity.Domain.Entities;
+using ParkingApp.Messaging.Domain.Entities;
+using ParkingApp.Corporate.Domain;
+using ParkingApp.Identity.Domain.Interfaces;
+using ParkingApp.Marketplace.Contracts;
+using ParkingApp.Messaging.Contracts;
 using Xunit;
 
 namespace ParkingApp.UnitTests.CQRS.Commands;
 
 public class UserCommandsTests
 {
-    private readonly Mock<IUnitOfWork> _mockUow;
+    private readonly Mock<IIdentityUnitOfWork> _mockUow;
     private readonly Mock<IUserRepository> _mockUserRepo;
-    private readonly Mock<IBookingRepository> _mockBookingRepo;
-    private readonly Mock<IPaymentRepository> _mockPaymentRepo;
-    private readonly Mock<IReviewRepository> _mockReviewRepo;
-    private readonly Mock<IFavoriteRepository> _mockFavoriteRepo;
-    private readonly Mock<INotificationRepository> _mockNotificationRepo;
     private readonly Mock<IVehicleRepository> _mockVehicleRepo;
-    private readonly Mock<IConversationRepository> _mockConversationRepo;
-    private readonly Mock<IChatMessageRepository> _mockChatMessageRepo;
+    private readonly Mock<IDeviceTokenRepository> _mockDeviceTokenRepo;
+    private readonly Mock<IMarketplaceUserDataCleanup> _mockMarketplaceCleanup;
+    private readonly Mock<IMessagingUserDataCleanup> _mockMessagingCleanup;
     private readonly Mock<ICacheService> _mockCache;
     private readonly Mock<ILogger<UpdateUserHandler>> _mockUpdateLogger;
     private readonly Mock<ILogger<DeleteUserHandler>> _mockDeleteLogger;
 
     public UserCommandsTests()
     {
-        _mockUow = new Mock<IUnitOfWork>();
+        _mockUow = new Mock<IIdentityUnitOfWork>();
         _mockUserRepo = new Mock<IUserRepository>();
-        _mockBookingRepo = new Mock<IBookingRepository>();
-        _mockPaymentRepo = new Mock<IPaymentRepository>();
-        _mockReviewRepo = new Mock<IReviewRepository>();
-        _mockFavoriteRepo = new Mock<IFavoriteRepository>();
-        _mockNotificationRepo = new Mock<INotificationRepository>();
         _mockVehicleRepo = new Mock<IVehicleRepository>();
-        _mockConversationRepo = new Mock<IConversationRepository>();
-        _mockChatMessageRepo = new Mock<IChatMessageRepository>();
+        _mockDeviceTokenRepo = new Mock<IDeviceTokenRepository>();
+        _mockMarketplaceCleanup = new Mock<IMarketplaceUserDataCleanup>();
+        _mockMessagingCleanup = new Mock<IMessagingUserDataCleanup>();
 
         _mockUow.Setup(u => u.Users).Returns(_mockUserRepo.Object);
-        _mockUow.Setup(u => u.Bookings).Returns(_mockBookingRepo.Object);
-        _mockUow.Setup(u => u.Payments).Returns(_mockPaymentRepo.Object);
-        _mockUow.Setup(u => u.Reviews).Returns(_mockReviewRepo.Object);
-        _mockUow.Setup(u => u.Favorites).Returns(_mockFavoriteRepo.Object);
-        _mockUow.Setup(u => u.Notifications).Returns(_mockNotificationRepo.Object);
         _mockUow.Setup(u => u.Vehicles).Returns(_mockVehicleRepo.Object);
-        _mockUow.Setup(u => u.Conversations).Returns(_mockConversationRepo.Object);
-        _mockUow.Setup(u => u.ChatMessages).Returns(_mockChatMessageRepo.Object);
+        _mockUow.Setup(u => u.DeviceTokens).Returns(_mockDeviceTokenRepo.Object);
 
         _mockCache = new Mock<ICacheService>();
         _mockUpdateLogger = new Mock<ILogger<UpdateUserHandler>>();
@@ -69,7 +65,7 @@ public class UserCommandsTests
     {
         var handler = new GetCurrentUserHandler(_mockUow.Object, _mockCache.Object);
         var userId = Guid.NewGuid();
-        var dto = new UserDto(userId, "t", "r", "F", "L", ParkingApp.Domain.Enums.UserRole.User, true, true, DateTime.UtcNow);
+        var dto = new UserDto(userId, "t", "r", "F", "L", ParkingApp.Identity.Domain.Enums.UserRole.User, true, true, DateTime.UtcNow);
         _mockCache.Setup(c => c.GetAsync<UserDto>($"user:{userId}", It.IsAny<CancellationToken>())).ReturnsAsync(dto);
 
         var res = await handler.HandleAsync(new GetCurrentUserQuery(userId));
@@ -84,7 +80,7 @@ public class UserCommandsTests
     {
         var handler = new GetCurrentUserHandler(_mockUow.Object, _mockCache.Object);
         var userId = Guid.NewGuid();
-        var user = new User { Id = userId, FirstName = "Test" };
+        var user = new User { Id = userId, Email = "test@example.com", PasswordHash = "hash", FirstName = "Test", LastName = "User", PhoneNumber = "1", IsActive = true };
         _mockCache.Setup(c => c.GetAsync<UserDto>($"user:{userId}", It.IsAny<CancellationToken>())).ReturnsAsync((UserDto)null);
         _mockUserRepo.Setup(r => r.GetByIdAsync(userId, It.IsAny<CancellationToken>())).ReturnsAsync(user);
 
@@ -113,7 +109,7 @@ public class UserCommandsTests
     {
         var handler = new UpdateUserHandler(_mockUow.Object, _mockCache.Object, _mockUpdateLogger.Object);
         var userId = Guid.NewGuid();
-        var user = new User { Id = userId };
+        var user = new User { Id = Guid.NewGuid(), Email = "test@example.com", PasswordHash = "hash", FirstName = "Test", LastName = "User", PhoneNumber = "1", IsActive = true };
         _mockUserRepo.Setup(r => r.GetByIdAsync(userId, It.IsAny<CancellationToken>())).ReturnsAsync(user);
 
         var res = await handler.HandleAsync(new UpdateUserCommand(userId, new UpdateUserDto("F", "L", "555")));
@@ -128,7 +124,12 @@ public class UserCommandsTests
     [Fact]
     public async Task DeleteUserHandler_ShouldFail_WhenUserNotFound()
     {
-        var handler = new DeleteUserHandler(_mockUow.Object, _mockCache.Object, _mockDeleteLogger.Object);
+        var handler = new DeleteUserHandler(
+            _mockUow.Object,
+            _mockMarketplaceCleanup.Object,
+            _mockMessagingCleanup.Object,
+            _mockCache.Object,
+            _mockDeleteLogger.Object);
         _mockUserRepo.Setup(r => r.GetByIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>())).ReturnsAsync((User)null);
 
         var res = await handler.HandleAsync(new DeleteUserCommand(Guid.NewGuid()));
@@ -139,28 +140,26 @@ public class UserCommandsTests
     [Fact]
     public async Task DeleteUserHandler_ShouldHardDeleteUserAndRelatedEntities()
     {
-        var handler = new DeleteUserHandler(_mockUow.Object, _mockCache.Object, _mockDeleteLogger.Object);
+        var handler = new DeleteUserHandler(
+            _mockUow.Object,
+            _mockMarketplaceCleanup.Object,
+            _mockMessagingCleanup.Object,
+            _mockCache.Object,
+            _mockDeleteLogger.Object);
         var userId = Guid.NewGuid();
-        var user = new User { Id = userId };
+        var user = new User { Id = Guid.NewGuid(), Email = "test@example.com", PasswordHash = "hash", FirstName = "Test", LastName = "User", PhoneNumber = "1", IsActive = true };
         _mockUserRepo.Setup(r => r.GetByIdAsync(userId, It.IsAny<CancellationToken>())).ReturnsAsync(user);
 
-        // Setup empty related entities
-        _mockBookingRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<Booking, bool>>>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new List<Booking>());
-        _mockReviewRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<Review, bool>>>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new List<Review>());
-        _mockFavoriteRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<Favorite, bool>>>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new List<Favorite>());
-        _mockNotificationRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<Notification, bool>>>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new List<Notification>());
         _mockVehicleRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<Vehicle, bool>>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new List<Vehicle>());
-        _mockConversationRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<Conversation, bool>>>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new List<Conversation>());
+        _mockDeviceTokenRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<DeviceToken, bool>>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<DeviceToken>());
 
         var res = await handler.HandleAsync(new DeleteUserCommand(userId));
 
         res.Success.Should().BeTrue();
+        _mockMarketplaceCleanup.Verify(c => c.StageDeleteForUserAsync(userId, It.IsAny<CancellationToken>()), Times.Once);
+        _mockMessagingCleanup.Verify(c => c.StageDeleteForUserAsync(userId, It.IsAny<CancellationToken>()), Times.Once);
         _mockUserRepo.Verify(r => r.HardDelete(user), Times.Once);
         _mockUow.Verify(u => u.BeginTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
         _mockUow.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
@@ -168,3 +167,9 @@ public class UserCommandsTests
         _mockCache.Verify(c => c.RemoveAsync($"user:{userId}", It.IsAny<CancellationToken>()), Times.Once);
     }
 }
+
+
+
+
+
+

@@ -2,13 +2,24 @@ using System;
 using System.Collections.Generic;
 using FluentAssertions;
 using ParkingApp.Application.DTOs;
-using ParkingApp.Application.Mappings;
-using ParkingApp.Domain.Shared;
-using ParkingApp.Domain.Marketplace;
-using ParkingApp.Domain.Identity;
-using ParkingApp.Domain.Messaging;
-using ParkingApp.Domain.Corporate;
+using ParkingApp.Identity.Application.DTOs;
+using ParkingApp.Marketplace.Contracts.DTOs;
+using ParkingApp.Messaging.Application.DTOs;
+using ParkingApp.Notifications.Application.DTOs;
+using ParkingApp.Corporate.Application.DTOs;
+using ParkingApp.Marketplace.Application.Mappings;
+using ParkingApp.Marketplace.Application.Mappings;
+using ParkingApp.Identity.Application.Mappings;
+using ParkingApp.Messaging.Application.Mappings;
+using ParkingApp.BuildingBlocks.Domain;
+using ParkingApp.Marketplace.Domain.Entities;
+using ParkingApp.Identity.Domain.Entities;
+using ParkingApp.Messaging.Domain.Entities;
+using ParkingApp.Corporate.Domain;
 using ParkingApp.Domain.Enums;
+using ParkingApp.Marketplace.Contracts.Enums;
+using ParkingApp.BuildingBlocks.Enums;
+using ParkingApp.Identity.Domain.Enums;
 using Xunit;
 
 namespace ParkingApp.UnitTests.Mappings;
@@ -18,15 +29,7 @@ public class MappingExtensionsTests
     [Fact]
     public void UserMapping_ShouldMapCorrectly()
     {
-        var user = new User
-        {
-            Id = Guid.NewGuid(),
-            Email = "test@test.com",
-            FirstName = "First",
-            LastName = "Last",
-            Role = UserRole.User,
-            PhoneNumber = "123"
-        };
+        var user = new User { Id = Guid.NewGuid(), Email = "test@example.com", PasswordHash = "hash", FirstName = "Test", LastName = "User", PhoneNumber = "1", IsActive = true };
 
         var dto = user.ToDto();
 
@@ -154,13 +157,16 @@ public class MappingExtensionsTests
         var message = new ChatMessage
         {
             Id = Guid.NewGuid(),
-            Content = "Hello"
+            Content = "Hello",
+            SenderId = Guid.NewGuid()
         };
 
-        var dto = message.ToDto();
+        var dto = message.ToDto("Ada Lovelace");
 
         dto.Id.Should().Be(message.Id);
         dto.Content.Should().Be(message.Content);
+        dto.SenderName.Should().Be("Ada Lovelace");
+        dto.SenderId.Should().Be(message.SenderId);
     }
 
     [Fact]
@@ -171,15 +177,24 @@ public class MappingExtensionsTests
             Id = Guid.NewGuid(),
             UserId = Guid.NewGuid(),
             VendorId = Guid.NewGuid(),
-            User = new User { Id = Guid.NewGuid(), FirstName = "User" },
-            Vendor = new User { Id = Guid.NewGuid(), FirstName = "Vendor" }
+            ParkingSpaceId = Guid.NewGuid()
         };
 
-        var dtoAsUser = conversation.ToDto(conversation.UserId, 1);
-        var dtoAsVendor = conversation.ToDto(conversation.VendorId, 0);
+        var dtoAsUser = conversation.ToDto(conversation.UserId, 1, "Vendor Name", "Lot A");
+        var dtoAsVendor = conversation.ToDto(conversation.VendorId, 0, "User Name", "Lot A");
 
         dtoAsUser.Id.Should().Be(conversation.Id);
         dtoAsUser.UnreadCount.Should().Be(1);
+        dtoAsUser.OtherParticipantId.Should().Be(conversation.VendorId);
+        dtoAsUser.OtherParticipantName.Should().Be("Vendor Name");
+        dtoAsUser.ParkingSpaceTitle.Should().Be("Lot A");
         dtoAsVendor.UnreadCount.Should().Be(0);
+        dtoAsVendor.OtherParticipantId.Should().Be(conversation.UserId);
+        dtoAsVendor.OtherParticipantName.Should().Be("User Name");
     }
 }
+
+
+
+
+

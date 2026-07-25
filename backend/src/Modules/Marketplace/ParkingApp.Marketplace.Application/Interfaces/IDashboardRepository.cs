@@ -1,0 +1,17 @@
+using ParkingApp.Application.DTOs;
+using ParkingApp.Marketplace.Contracts.DTOs;
+
+using ParkingApp.Marketplace.Application.Queries.Dashboard;
+
+namespace ParkingApp.Marketplace.Application.Interfaces;
+
+public interface IDashboardRepository
+{
+    Task<VendorAggregateRow> GetVendorAggregatesAsync(Guid vendorId, DateTime startOfMonth, DateTime startOfWeek, CancellationToken ct = default);
+    Task<List<DashboardChartDataDto>> GetChartDataAsync(Guid vendorId, CancellationToken ct = default);
+    Task<List<BookingDto>> GetRecentVendorBookingsAsync(Guid vendorId, CancellationToken ct = default);
+
+    Task<MemberAggregateRow> GetMemberAggregatesAsync(Guid memberId, CancellationToken ct = default);
+    Task<List<BookingDto>> GetUpcomingMemberBookingsAsync(Guid memberId, DateTime now, CancellationToken ct = default);
+    Task<List<BookingDto>> GetRecentMemberBookingsAsync(Guid memberId, CancellationToken ct = default);
+}

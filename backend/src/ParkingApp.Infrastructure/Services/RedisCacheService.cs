@@ -1,4 +1,4 @@
-using System.Collections.Concurrent;
+﻿using System.Collections.Concurrent;
 using System.IO.Compression;
 using System.Text;
 using System.Text.Json;
@@ -6,6 +6,7 @@ using System.Text.Json.Serialization;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using ParkingApp.Application.Interfaces;
+
 using ParkingApp.Infrastructure.Caching;
 using StackExchange.Redis;
 
@@ -60,7 +61,7 @@ public sealed class RedisCacheService : ICacheService
     /// <summary>In-process stampede locks for GetOrSet (per logical key).</summary>
     private readonly ConcurrentDictionary<string, SemaphoreSlim> _getOrSetGates = new();
 
-    /// <summary>Per-instance lock ownership tokens (physical redis key → token).</summary>
+    /// <summary>Per-instance lock ownership tokens (physical redis key ΓåÆ token).</summary>
     private readonly ConcurrentDictionary<string, string> _lockTokens = new();
 
     public RedisCacheService(
@@ -177,7 +178,7 @@ public sealed class RedisCacheService : ICacheService
                 return;
             }
 
-            // Fallback: SCAN + batched DEL (never KEYS — expensive on Upstash).
+            // Fallback: SCAN + batched DEL (never KEYS ΓÇö expensive on Upstash).
             await ScanAndDeleteAsync(pattern, cancellationToken).ConfigureAwait(false);
             _logger.LogDebug("Cache invalidated by SCAN pattern: {Pattern}", pattern);
         }
@@ -247,7 +248,7 @@ public sealed class RedisCacheService : ICacheService
         {
             var redisKey = LockKey(key);
             var token = Guid.NewGuid().ToString("N");
-            // SET key token NX EX seconds — atomic, single round-trip.
+            // SET key token NX EX seconds ΓÇö atomic, single round-trip.
             // Explicit flags overload keeps Moq/test surfaces stable across SE.Redis versions.
             var acquired = await _database.StringSetAsync(
                 redisKey,
@@ -275,7 +276,7 @@ public sealed class RedisCacheService : ICacheService
             var redisKey = LockKey(key);
             if (!_lockTokens.TryRemove(redisKey, out var token))
             {
-                // Token lost (process recycle) — do not DEL blindly (would steal another owner's lock).
+                // Token lost (process recycle) ΓÇö do not DEL blindly (would steal another owner's lock).
                 return;
             }
 
@@ -289,7 +290,7 @@ public sealed class RedisCacheService : ICacheService
         }
     }
 
-    // ── Key resolution (versioned namespaces) ───────────────────────────────
+    // ΓöÇΓöÇ Key resolution (versioned namespaces) ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 
     private async Task<RedisKey> ResolvePhysicalKeyAsync(string logicalKey)
     {
@@ -308,7 +309,7 @@ public sealed class RedisCacheService : ICacheService
     private string LockKey(string key) => $"{_instancePrefix}lock:{key}";
 
     /// <summary>
-    /// Always read version from Redis — never process-local cache.
+    /// Always read version from Redis ΓÇö never process-local cache.
     /// Local caching caused up to multi-second stale search/map after another instance invalidated.
     /// </summary>
     private async Task<long> GetNamespaceVersionAsync(string ns)
@@ -352,7 +353,7 @@ public sealed class RedisCacheService : ICacheService
         return true;
     }
 
-    // ── SCAN fallback (rare paths only) ─────────────────────────────────────
+    // ΓöÇΓöÇ SCAN fallback (rare paths only) ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 
     private async Task ScanAndDeleteAsync(string pattern, CancellationToken cancellationToken)
     {
@@ -396,7 +397,7 @@ public sealed class RedisCacheService : ICacheService
         }
     }
 
-    // ── Serialization / compression ─────────────────────────────────────────
+    // ΓöÇΓöÇ Serialization / compression ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 
     private TimeSpan NormalizeTtl(TimeSpan? expiry)
     {
@@ -440,11 +441,11 @@ public sealed class RedisCacheService : ICacheService
             }
             catch (InvalidDataException)
             {
-                // Fall through — treat as unframed.
+                // Fall through ΓÇö treat as unframed.
             }
             catch (Exception)
             {
-                // Fall through — treat as unframed.
+                // Fall through ΓÇö treat as unframed.
             }
         }
 
