@@ -448,6 +448,9 @@ RecoveredFiles/
 # Local scripts and text artifacts
 *.bat
 *.ps1
+# CI + documented test helpers (must be committed; see unit-tests.yml)
+!backend/tests/assert-corporate-coverage.ps1
+!backend/tests/run-coverage.ps1
 *.txt
 *.patch
 

@@ -60,7 +60,11 @@ jobs:
             --collect:"XPlat Code Coverage" `
             --settings tests/coverlet.runsettings `
             --results-directory $corpResults
-          ./tests/assert-corporate-coverage.ps1 -ResultsDirectory $corpResults
+          $assert = Join-Path $PWD "tests/assert-corporate-coverage.ps1"
+          if (-not (Test-Path -LiteralPath $assert)) {
+            throw "Missing $assert (is *.ps1 gitignored without a negation?). Corporate floors cannot run."
+          }
+          & $assert -ResultsDirectory $corpResults
 
       - name: Upload test results
         if: always()
