@@ -167,6 +167,37 @@ class CorporateService {
         const response = await apiClient.post(ENDPOINTS.CORPORATE.WAITLIST_PROMOTE(companyId, waitlistEntryId));
         return response.data;
     };
+
+    // 16.5 Corporate Invoices
+    generateInvoices = async (companyId, periodData) => {
+        const response = await apiClient.post(ENDPOINTS.CORPORATE.INVOICES(companyId), periodData);
+        return response.data;
+    };
+
+    getInvoices = async (companyId, params) => {
+        const response = await apiClient.get(ENDPOINTS.CORPORATE.INVOICES(companyId), { params });
+        return response.data;
+    };
+
+    getInvoiceDetails = async (companyId, invoiceId) => {
+        const response = await apiClient.get(ENDPOINTS.CORPORATE.INVOICE_BY_ID(companyId, invoiceId));
+        return response.data;
+    };
+
+    issueInvoice = async (companyId, invoiceId) => {
+        const response = await apiClient.post(ENDPOINTS.CORPORATE.INVOICE_ISSUE(companyId, invoiceId));
+        return response.data;
+    };
+
+    markInvoicePaid = async (companyId, invoiceId, paymentData) => {
+        const response = await apiClient.post(ENDPOINTS.CORPORATE.INVOICE_MARK_PAID(companyId, invoiceId), paymentData);
+        return response.data;
+    };
+
+    voidInvoice = async (companyId, invoiceId, reasonData) => {
+        const response = await apiClient.post(ENDPOINTS.CORPORATE.INVOICE_VOID(companyId, invoiceId), reasonData);
+        return response.data;
+    };
 }
 
 export const corporateService = new CorporateService();

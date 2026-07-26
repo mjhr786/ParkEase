@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useCallback } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform, Image } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform, Image, Keyboard } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../hooks/useAuth';
@@ -17,8 +17,10 @@ const LoginScreen = ({ navigation }) => {
     const { login, loading, error, dismissError } = useAuth();
     const [formData, setFormData] = useState({ email: '', password: '' });
     const [errors, setErrors] = useState({});
+    const passwordRef = React.useRef(null);
 
     const handleLogin = useCallback(async () => {
+        Keyboard.dismiss();
         dismissError();
         const validation = validateForm(formData, loginRules);
         if (!validation.isValid) {
@@ -74,6 +76,12 @@ const LoginScreen = ({ navigation }) => {
                         autoCapitalize="none"
                         leftIcon="mail-outline"
                         error={errors.email}
+                        textContentType="username"
+                        autoComplete="email"
+                        importantForAutofill="yes"
+                        returnKeyType="next"
+                        onSubmitEditing={() => passwordRef.current?.focus()}
+                        blurOnSubmit={false}
                     />
 
                     <Input
@@ -84,6 +92,12 @@ const LoginScreen = ({ navigation }) => {
                         secureTextEntry
                         leftIcon="lock-closed-outline"
                         error={errors.password}
+                        textContentType="password"
+                        autoComplete="password"
+                        importantForAutofill="yes"
+                        returnKeyType="go"
+                        ref={passwordRef}
+                        onSubmitEditing={handleLogin}
                     />
 
                     <Button

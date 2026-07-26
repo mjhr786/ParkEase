@@ -108,6 +108,118 @@ export const rejectBookingThunk = createAsyncThunk(
     }
 );
 
+// Valet Lifecycle
+export const requestValetThunk = createAsyncThunk(
+    'booking/requestValet',
+    async ({ id, data }, { rejectWithValue }) => {
+        try {
+            const response = await apiClient.post(ENDPOINTS.BOOKINGS.VALET_REQUEST(id), data);
+            return response.data.data;
+        } catch (error) {
+            return rejectWithValue(getErrorMessage(error));
+        }
+    }
+);
+
+export const cancelValetThunk = createAsyncThunk(
+    'booking/cancelValet',
+    async (id, { rejectWithValue }) => {
+        try {
+            const response = await apiClient.post(ENDPOINTS.BOOKINGS.VALET_CANCEL(id));
+            return response.data.data;
+        } catch (error) {
+            return rejectWithValue(getErrorMessage(error));
+        }
+    }
+);
+
+export const acknowledgeValetThunk = createAsyncThunk(
+    'booking/acknowledgeValet',
+    async (id, { rejectWithValue }) => {
+        try {
+            const response = await apiClient.post(ENDPOINTS.BOOKINGS.VALET_ACKNOWLEDGE(id));
+            return response.data.data;
+        } catch (error) {
+            return rejectWithValue(getErrorMessage(error));
+        }
+    }
+);
+
+export const readyValetThunk = createAsyncThunk(
+    'booking/readyValet',
+    async (id, { rejectWithValue }) => {
+        try {
+            const response = await apiClient.post(ENDPOINTS.BOOKINGS.VALET_READY(id));
+            return response.data.data;
+        } catch (error) {
+            return rejectWithValue(getErrorMessage(error));
+        }
+    }
+);
+
+export const completeValetThunk = createAsyncThunk(
+    'booking/completeValet',
+    async (id, { rejectWithValue }) => {
+        try {
+            const response = await apiClient.post(ENDPOINTS.BOOKINGS.VALET_COMPLETE(id));
+            return response.data.data;
+        } catch (error) {
+            return rejectWithValue(getErrorMessage(error));
+        }
+    }
+);
+
+// Bay Assignment
+export const assignBayThunk = createAsyncThunk(
+    'booking/assignBay',
+    async ({ id, data }, { rejectWithValue }) => {
+        try {
+            const response = await apiClient.post(ENDPOINTS.BOOKINGS.BAY_ASSIGNMENT(id), data);
+            return response.data.data;
+        } catch (error) {
+            return rejectWithValue(getErrorMessage(error));
+        }
+    }
+);
+
+// Access Pass
+export const getAccessPassThunk = createAsyncThunk(
+    'booking/getAccessPass',
+    async (id, { rejectWithValue }) => {
+        try {
+            const response = await apiClient.get(ENDPOINTS.BOOKINGS.ACCESS_PASS(id));
+            return response.data.data || response.data;
+        } catch (error) {
+            return rejectWithValue(getErrorMessage(error));
+        }
+    }
+);
+
+export const verifyAccessPassThunk = createAsyncThunk(
+    'booking/verifyAccessPass',
+    async (token, { rejectWithValue }) => {
+        try {
+            const response = await apiClient.post(ENDPOINTS.BOOKINGS.ACCESS_PASS_VERIFY, { token });
+            return response.data.data || response.data;
+        } catch (error) {
+            return rejectWithValue(getErrorMessage(error));
+        }
+    }
+);
+
+// EV Session
+export const getEvSessionThunk = createAsyncThunk(
+    'booking/getEvSession',
+    async (id, { rejectWithValue }) => {
+        try {
+            const response = await apiClient.get(ENDPOINTS.BOOKINGS.EV_SESSION(id));
+            return response.data.data || response.data;
+        } catch (error) {
+            return rejectWithValue(getErrorMessage(error));
+        }
+    }
+);
+
 const initialState = {
     myBookings: [],
     myBookingsLoading: false,
@@ -217,7 +329,31 @@ const bookingSlice = createSlice({
                     const idx = state.vendorBookings.findIndex((b) => b.id === action.payload.id);
                     if (idx !== -1) state.vendorBookings[idx] = action.payload;
                 }
-            });
+            })
+            // Valet & Bay Assignment updates (common helper to update state)
+            .addMatcher(
+                (action) => [
+                    requestValetThunk.fulfilled.type,
+                    cancelValetThunk.fulfilled.type,
+                    acknowledgeValetThunk.fulfilled.type,
+                    readyValetThunk.fulfilled.type,
+                    completeValetThunk.fulfilled.type,
+                    assignBayThunk.fulfilled.type,
+                ].includes(action.type),
+                (state, action) => {
+                    if (action.payload) {
+                        const updatedBooking = action.payload;
+                        if (state.selectedBooking?.id === updatedBooking.id) {
+                            state.selectedBooking = updatedBooking;
+                        }
+                        const myIdx = state.myBookings.findIndex(b => b.id === updatedBooking.id);
+                        if (myIdx !== -1) state.myBookings[myIdx] = updatedBooking;
+                        
+                        const vendorIdx = state.vendorBookings.findIndex(b => b.id === updatedBooking.id);
+                        if (vendorIdx !== -1) state.vendorBookings[vendorIdx] = updatedBooking;
+                    }
+                }
+            );
     },
 });
 

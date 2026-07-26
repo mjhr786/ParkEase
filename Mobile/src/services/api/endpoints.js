@@ -49,6 +49,15 @@ export const ENDPOINTS = {
         EXTEND: (id) => `/bookings/${id}/extend`,
         APPROVE_EXTENSION: (id) => `/bookings/${id}/approve-extension`,
         REJECT_EXTENSION: (id) => `/bookings/${id}/reject-extension`,
+        VALET_REQUEST: (id) => `/bookings/${id}/valet/request`,
+        VALET_CANCEL: (id) => `/bookings/${id}/valet/cancel`,
+        VALET_ACKNOWLEDGE: (id) => `/bookings/${id}/valet/acknowledge`,
+        VALET_READY: (id) => `/bookings/${id}/valet/ready`,
+        VALET_COMPLETE: (id) => `/bookings/${id}/valet/complete`,
+        BAY_ASSIGNMENT: (id) => `/bookings/${id}/bay-assignment`,
+        EV_SESSION: (id) => `/bookings/${id}/ev-session`,
+        ACCESS_PASS: (id) => `/bookings/${id}/access-pass`,
+        ACCESS_PASS_VERIFY: '/bookings/access-pass/verify',
     },
 
     // Payments
@@ -132,6 +141,46 @@ export const ENDPOINTS = {
         GET: (parkingSpaceId) => `/files/parking/${parkingSpaceId}`,
     },
 
+    // Ancillary Services
+    ANCILLARY_SERVICES: {
+        BASE: '/ancillary-services',
+        BY_PARKING: (parkingSpaceId) => `/ancillary-services/by-parking/${parkingSpaceId}`,
+        MY: '/ancillary-services/my',
+        BY_ID: (id) => `/ancillary-services/${id}`,
+        DEACTIVATE: (id) => `/ancillary-services/${id}/deactivate`,
+    },
+
+    // Event Packages
+    EVENT_PACKAGES: {
+        BASE: '/event-packages',
+        ON_SALE: '/event-packages/on-sale',
+        VENUES_ON_SALE: '/event-packages/venues/on-sale',
+        BY_VENUE_EVENT: (venueEventId) => `/event-packages/by-venue-event/${venueEventId}`,
+        BY_PARKING: (parkingSpaceId) => `/event-packages/by-parking/${parkingSpaceId}`,
+        MY: '/event-packages/my',
+        MY_ANALYTICS: '/event-packages/my/analytics',
+        BY_ID: (id) => `/event-packages/${id}`,
+        ANALYTICS: (id) => `/event-packages/${id}/analytics`,
+        DEACTIVATE: (id) => `/event-packages/${id}/deactivate`,
+        PURCHASE: (id) => `/event-packages/${id}/purchase`,
+    },
+
+    // IoT (EV & LPR Simulator)
+    IOT: {
+        OCPP_SIMULATE: '/iot/ocpp/simulate',
+        LPR_SIMULATE: '/iot/lpr-events/simulate',
+    },
+
+    // LPR Settings
+    LPR: {
+        CAMERA_KEYS: (parkingSpaceId) => `/parking/${parkingSpaceId}/lpr/camera-keys`,
+        CAMERA_KEY_TOGGLE: (parkingSpaceId, keyId) => `/parking/${parkingSpaceId}/lpr/camera-keys/${keyId}/enabled`,
+        CAMERA_KEY_DELETE: (parkingSpaceId, keyId) => `/parking/${parkingSpaceId}/lpr/camera-keys/${keyId}`,
+        PLATE_RULES: (parkingSpaceId) => `/parking/${parkingSpaceId}/lpr/plate-rules`,
+        PLATE_RULE_TOGGLE: (parkingSpaceId, ruleId) => `/parking/${parkingSpaceId}/lpr/plate-rules/${ruleId}/enabled`,
+        PLATE_RULE_DELETE: (parkingSpaceId, ruleId) => `/parking/${parkingSpaceId}/lpr/plate-rules/${ruleId}`,
+    },
+
     // Corporate Module
     CORPORATE: {
         // 16.1 Companies
@@ -173,6 +222,14 @@ export const ENDPOINTS = {
         WAITLIST: (companyId) => `/v1/corporate/companies/${companyId}/waitlist`,
         WAITLIST_BY_ID: (companyId, waitlistEntryId) => `/v1/corporate/companies/${companyId}/waitlist/${waitlistEntryId}`,
         WAITLIST_PROMOTE: (companyId, waitlistEntryId) => `/v1/corporate/companies/${companyId}/waitlist/${waitlistEntryId}/promote`,
+
+        // 16.5 Corporate invoices
+        INVOICES: (companyId) => `/v1/corporate/companies/${companyId}/invoices`,
+        INVOICE_BY_ID: (companyId, invoiceId) => `/v1/corporate/companies/${companyId}/invoices/${invoiceId}`,
+        INVOICE_ISSUE: (companyId, invoiceId) => `/v1/corporate/companies/${companyId}/invoices/${invoiceId}/issue`,
+        INVOICE_MARK_PAID: (companyId, invoiceId) => `/v1/corporate/companies/${companyId}/invoices/${invoiceId}/mark-paid`,
+        INVOICE_VOID: (companyId, invoiceId) => `/v1/corporate/companies/${companyId}/invoices/${invoiceId}/void`,
+        INVOICE_EXPORT: (companyId, invoiceId) => `/v1/corporate/companies/${companyId}/invoices/${invoiceId}/export`,
     },
 };
 

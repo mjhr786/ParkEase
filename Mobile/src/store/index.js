@@ -8,14 +8,17 @@ import parkingReducer from './slices/parkingSlice';
 import bookingReducer from './slices/bookingSlice';
 import dashboardReducer from './slices/dashboardSlice';
 import reviewReducer from './slices/reviewSlice';
-import chatReducer from './slices/chatSlice';
-import notificationReducer from './slices/notificationSlice';
-import vehicleReducer from './slices/vehicleSlice';
 import favoriteReducer from './slices/favoriteSlice';
+import notificationReducer from './slices/notificationSlice';
+import chatReducer from './slices/chatSlice';
+
 import paymentReducer from './slices/paymentSlice';
 import passReducer from './slices/passSlice';
 import uiReducer from './slices/uiSlice';
 import corporateReducer from './slices/corporateSlice';
+import ancillaryReducer from './slices/ancillarySlice';
+import eventPackageReducer from './slices/eventPackageSlice';
+import iotReducer from './slices/iotSlice';
 
 export const store = configureStore({
     reducer: {
@@ -24,14 +27,17 @@ export const store = configureStore({
         booking: bookingReducer,
         dashboard: dashboardReducer,
         review: reviewReducer,
-        chat: chatReducer,
-        notification: notificationReducer,
-        vehicle: vehicleReducer,
         favorite: favoriteReducer,
+        notification: notificationReducer,
+        chat: chatReducer,
+
         payment: paymentReducer,
         pass: passReducer,
         ui: uiReducer,
         corporate: corporateReducer,
+        ancillary: ancillaryReducer,
+        eventPackage: eventPackageReducer,
+        iot: iotReducer,
     },
     middleware: (getDefaultMiddleware) =>
         getDefaultMiddleware({

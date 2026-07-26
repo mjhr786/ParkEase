@@ -7,6 +7,7 @@ import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors } from '../styles/globalStyles';
 
 // Screens
@@ -65,7 +66,9 @@ const MessagesStack = () => (
     </Stack.Navigator>
 );
 
-const VendorTabNavigator = () => (
+const VendorTabNavigator = () => {
+    const insets = useSafeAreaInsets();
+    return (
     <Tab.Navigator
         screenOptions={({ route }) => ({
             headerShown: false,
@@ -84,9 +87,9 @@ const VendorTabNavigator = () => (
             tabBarStyle: {
                 backgroundColor: colors.surface,
                 borderTopColor: colors.borderLight,
-                paddingBottom: 6,
+                paddingBottom: Math.max(insets.bottom, 6),
                 paddingTop: 6,
-                height: 60,
+                height: 60 + Math.max(insets.bottom, 0),
             },
             tabBarLabelStyle: {
                 fontSize: 11,
@@ -100,6 +103,7 @@ const VendorTabNavigator = () => (
         <Tab.Screen name="MessagesTab" component={MessagesStack} options={{ tabBarLabel: 'Messages' }} />
         <Tab.Screen name="ProfileTab" component={ProfileStack} options={{ tabBarLabel: 'Profile' }} />
     </Tab.Navigator>
-);
+    );
+};
 
 export default VendorTabNavigator;

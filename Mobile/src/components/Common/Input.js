@@ -8,7 +8,7 @@ import { View, Text, TextInput, TouchableOpacity, StyleSheet } from 'react-nativ
 import { Ionicons } from '@expo/vector-icons';
 import { colors, spacing, typography, shadows } from '../../styles/globalStyles';
 
-const Input = ({
+const Input = React.forwardRef(({
     label,
     value,
     onChangeText,
@@ -24,7 +24,7 @@ const Input = ({
     style,
     inputStyle,
     ...props
-}) => {
+}, ref) => {
     const [focused, setFocused] = useState(false);
     const [showPassword, setShowPassword] = useState(false);
 
@@ -49,6 +49,7 @@ const Input = ({
                     />
                 )}
                 <TextInput
+                    ref={ref}
                     value={value}
                     onChangeText={onChangeText}
                     placeholder={placeholder}
@@ -81,7 +82,7 @@ const Input = ({
             {error && <Text style={styles.errorText}>{error}</Text>}
         </View>
     );
-};
+});
 
 const styles = StyleSheet.create({
     container: {

@@ -26,12 +26,87 @@ export const fetchCompanyDetails = createAsyncThunk(
     }
 );
 
+// Invoices
+export const getInvoicesThunk = createAsyncThunk(
+    'corporate/getInvoices',
+    async ({ companyId, params }, { rejectWithValue }) => {
+        try {
+            const response = await corporateService.getInvoices(companyId, params);
+            return response.data || response;
+        } catch (error) {
+            return rejectWithValue(error.response?.data?.message || 'Failed to fetch invoices');
+        }
+    }
+);
+
+export const getInvoiceDetailsThunk = createAsyncThunk(
+    'corporate/getInvoiceDetails',
+    async ({ companyId, invoiceId }, { rejectWithValue }) => {
+        try {
+            const response = await corporateService.getInvoiceDetails(companyId, invoiceId);
+            return response.data || response;
+        } catch (error) {
+            return rejectWithValue(error.response?.data?.message || 'Failed to fetch invoice details');
+        }
+    }
+);
+
+export const generateInvoicesThunk = createAsyncThunk(
+    'corporate/generateInvoices',
+    async ({ companyId, periodData }, { rejectWithValue }) => {
+        try {
+            const response = await corporateService.generateInvoices(companyId, periodData);
+            return response.data || response;
+        } catch (error) {
+            return rejectWithValue(error.response?.data?.message || 'Failed to generate invoices');
+        }
+    }
+);
+
+export const issueInvoiceThunk = createAsyncThunk(
+    'corporate/issueInvoice',
+    async ({ companyId, invoiceId }, { rejectWithValue }) => {
+        try {
+            const response = await corporateService.issueInvoice(companyId, invoiceId);
+            return response.data || response;
+        } catch (error) {
+            return rejectWithValue(error.response?.data?.message || 'Failed to issue invoice');
+        }
+    }
+);
+
+export const markInvoicePaidThunk = createAsyncThunk(
+    'corporate/markInvoicePaid',
+    async ({ companyId, invoiceId, paymentData }, { rejectWithValue }) => {
+        try {
+            const response = await corporateService.markInvoicePaid(companyId, invoiceId, paymentData);
+            return response.data || response;
+        } catch (error) {
+            return rejectWithValue(error.response?.data?.message || 'Failed to mark invoice as paid');
+        }
+    }
+);
+
+export const voidInvoiceThunk = createAsyncThunk(
+    'corporate/voidInvoice',
+    async ({ companyId, invoiceId, reasonData }, { rejectWithValue }) => {
+        try {
+            const response = await corporateService.voidInvoice(companyId, invoiceId, reasonData);
+            return response.data || response;
+        } catch (error) {
+            return rejectWithValue(error.response?.data?.message || 'Failed to void invoice');
+        }
+    }
+);
+
 const initialState = {
     myCompanies: [],
     activeCompanyId: null,
     activeCompanyDetails: null,
     isLoading: false,
     error: null,
+    invoices: [],
+    selectedInvoice: null,
 };
 
 const corporateSlice = createSlice({
@@ -80,7 +155,33 @@ const corporateSlice = createSlice({
             .addCase(fetchCompanyDetails.rejected, (state, action) => {
                 state.isLoading = false;
                 state.error = action.payload;
-            });
+            })
+            // Invoices
+            .addCase(getInvoicesThunk.fulfilled, (state, action) => {
+                state.invoices = action.payload?.items || action.payload || [];
+            })
+            .addCase(getInvoiceDetailsThunk.fulfilled, (state, action) => {
+                state.selectedInvoice = action.payload;
+            })
+            .addMatcher(
+                (action) => [
+                    issueInvoiceThunk.fulfilled.type,
+                    markInvoicePaidThunk.fulfilled.type,
+                    voidInvoiceThunk.fulfilled.type,
+                ].includes(action.type),
+                (state, action) => {
+                    if (action.payload) {
+                        const updated = action.payload;
+                        if (state.selectedInvoice?.id === updated.id) {
+                            state.selectedInvoice = updated;
+                        }
+                        const idx = state.invoices.findIndex(i => i.id === updated.id);
+                        if (idx !== -1) {
+                            state.invoices[idx] = updated;
+                        }
+                    }
+                }
+            );
     },
 });
 

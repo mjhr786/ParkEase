@@ -3,7 +3,7 @@
 **Purpose:** Match web app functionality on mobile using the same backend APIs.  
 **Audience:** Mobile developers  
 **Source of truth:** ASP.NET Core controllers under `backend/src/ParkingApp.API/Controllers`  
-**Last updated:** 2026-07-12
+**Last updated:** 2026-07-26
 
 ---
 
@@ -12,12 +12,13 @@
 | Item | Value |
 |------|--------|
 | API prefix | `/api` |
-| Content type | `application/json` (except file upload & CSV export) |
+| Content type | `application/json` (except file upload, CSV export, Apple Wallet pass) |
 | Auth scheme | JWT Bearer |
 | Local base URL (dev) | `http://localhost:5129/api` |
 | Health check | `GET /health` (no `/api` prefix) |
 | Uploads (static) | `{host}/uploads/...` |
 | SignalR hubs | `{host}/hubs/notifications`, `{host}/hubs/chat` |
+| IoT auth | Header `X-Api-Key` (facility camera keys; not JWT) |
 
 ### Authentication header
 
@@ -25,7 +26,7 @@
 Authorization: Bearer <accessToken>
 ```
 
-User id is taken from the JWT claim `NameIdentifier` — **never send `userId` in the body**.
+User id is taken from the JWT claim `NameIdentifier` (or `sub`) — **never send `userId` in the body**.
 
 ### Token refresh (web pattern)
 
@@ -60,7 +61,9 @@ Most endpoints return:
 - **Vehicles** endpoints often return the raw DTO / array (or `204 No Content` on delete), not always `ApiResponse`
 - **File upload** responses use `{ success, message, data }` shape (slightly custom)
 - **CSV exports** return `text/csv` file download
+- `GET /api/bookings/{id}/access-pass/apple.pkpass` → binary `application/vnd.apple.pkpass`
 - Some notification mark/delete endpoints return empty `200 OK` body
+- Device token register success → `{ "success": true }`
 
 JSON property names are **camelCase**.
 
@@ -106,6 +109,15 @@ Corporate company roles (`Employee` / `Admin`) are **per company**, not global J
 ### ParkingType
 | 0 Open | 1 Covered | 2 Garage | 3 Street | 4 Underground |
 
+### ListingCategory
+| Value | Name | Meaning |
+|------:|------|---------|
+| 0 | Commercial | Garage / lot / commercial facility |
+| 1 | Residential | Driveway / home spot (P2P) |
+
+### ParkingSpaceOwnershipType
+| 0 IndividualVendor | 1 CompanyOwned |
+
 ### VehicleType
 | 0 Car | 1 Motorcycle | 2 SUV | 3 Truck | 4 Van | 5 Electric |
 
@@ -130,11 +142,45 @@ Corporate company roles (`Employee` / `Admin`) are **per company**, not global J
 ### CorporateSlotType
 | 0 Fixed | 1 Shared |
 
+### CorporateInvoiceStatus
+| 0 Draft | 1 Issued | 2 Paid | 3 Void |
+
+### CorporateInvoiceLineType
+| 0 ReservedCapacity | 1 Usage |
+
 ### PassTypeKind
 | 0 Monthly | 1 Weekly | 2 Corporate |
 
+### PassCoverageType
+| 0 ParkingSpace | 1 ParkingZone |
+
 ### PassUsageMode
 | 0 UnlimitedEntries | 1 LimitedHoursPerDay |
+
+### ValetStatus
+| Value | Name | Meaning |
+|------:|------|---------|
+| 0 | None | No valet activity |
+| 1 | Requested | Guest requested retrieval |
+| 2 | InProgress | Staff retrieving vehicle |
+| 3 | Ready | Vehicle ready for pickup |
+| 4 | Completed | Handoff done |
+| 5 | Cancelled | Request cancelled |
+
+### EvPricingMode
+| Value | Name | Meaning |
+|------:|------|---------|
+| 0 | Hourly | Fee locked at booking (hours × hourly rate) |
+| 1 | PerKwh | Settled when OCPP session stops (kWh × rate) |
+
+### EvChargingSessionStatus
+| 0 Pending | 1 Charging | 2 Completed | 3 Failed |
+
+### LprDirection
+| 1 Entry | 2 Exit |
+
+### LprPlateRuleType
+| 1 Allow | 2 Deny |
 
 ### NotificationType
 | 0 BookingRequest | 1 BookingConfirmed | 2 BookingRejected | 3 PaymentReceived | 4 NewMessage | 5 SystemAlert |
@@ -227,6 +273,8 @@ Corporate company roles (`Employee` / `Admin`) are **per company**, not global J
 
 All fields optional.
 
+> **Note:** Mobile `endpoints.js` may list `GOOGLE_LOGIN` / `device-tokens/deregister` — those are **not** implemented on the API today. Prefer email/password auth and `POST /api/device-tokens/register` only.
+
 ---
 
 ## 4. Parking (marketplace / vendor listings)
@@ -265,6 +313,25 @@ All fields optional.
 | `sortDescending` | bool | default false |
 | `page` | int | default 1 |
 | `pageSize` | int | default 20 |
+| `hasEvCharging` | bool? | Filter EV-capable lots |
+| `isResidential` | bool? | `true` = residential only; `false` = commercial only |
+| `listingCategory` | ListingCategory? | Prefer over `isResidential` when available |
+
+### `ParkingSpaceDto` highlights (response)
+
+Beyond classic rates/location fields, listings now expose:
+
+| Field | Notes |
+|-------|--------|
+| `isLprEnabled` | Ticketless LPR gate support |
+| `isDynamicPricingEnabled`, `dynamicMinMultiplier`, `dynamicMaxMultiplier`, `peakHourMultiplier`, `weekendMultiplier` | Dynamic pricing knobs |
+| `effectiveHourlyRate`, `dynamicPricingApplied`, `dynamicMultiplier` | Search-time effective “from” price |
+| `hasEvCharging`, `evChargerCount`, `evChargingRatePerHour`, `evIdleRatePerHour`, `evIdleGraceMinutes`, `evPricingMode`, `evRatePerKwh` | EV charging config |
+| `listingCategory`, `instantBook`, `timeZoneId` | P2P / instant book |
+| `isBayGuidanceEnabled`, `isValetEnabled`, `defaultFacilityLevel`, `defaultFacilityZone`, `indoorGuidanceNotes` | Indoor bay + valet |
+| `zoneCode`, `companyOwnerId`, `ownershipType`, `isCorporateOnly` | Corporate / zone context |
+
+Map pins (`ParkingMapDto`) also include `listingCategory`, `instantBook`, `effectiveHourlyRate`, `dynamicPricingApplied`.
 
 ### `POST /api/parking` body (`CreateParkingSpaceDto`)
 
@@ -292,7 +359,28 @@ All fields optional.
   "allowedVehicleTypes": [0, 2],
   "imageUrls": [],
   "specialInstructions": "...",
-  "zoneCode": null
+  "zoneCode": null,
+  "isLprEnabled": false,
+  "isDynamicPricingEnabled": false,
+  "dynamicMinMultiplier": 0.8,
+  "dynamicMaxMultiplier": 1.75,
+  "peakHourMultiplier": 1.25,
+  "weekendMultiplier": 1.15,
+  "hasEvCharging": true,
+  "evChargerCount": 4,
+  "evChargingRatePerHour": 30,
+  "evIdleRatePerHour": 10,
+  "evIdleGraceMinutes": 15,
+  "evPricingMode": 0,
+  "evRatePerKwh": 18,
+  "listingCategory": 0,
+  "instantBook": false,
+  "timeZoneId": "Asia/Kolkata",
+  "isBayGuidanceEnabled": true,
+  "isValetEnabled": false,
+  "defaultFacilityLevel": "B2",
+  "defaultFacilityZone": "Blue",
+  "indoorGuidanceNotes": "Enter ramp 2, follow blue signs"
 }
 ```
 
@@ -319,7 +407,7 @@ All fields optional.
 ## 6. Bookings (consumer + vendor)
 
 Base route: `/api/bookings`  
-Class-level: **JWT required** (except calculate-price).
+Class-level: **JWT required** (except `calculate-price`).
 
 | Method | Path | Auth notes | Description |
 |--------|------|------------|-------------|
@@ -329,7 +417,12 @@ Class-level: **JWT required** (except calculate-price).
 | GET | `/api/bookings/vendor-bookings` | JWT (User,Admin) | Host’s booking inbox |
 | GET | `/api/bookings/pending-count` | JWT (User,Admin) | Pending request badge |
 | GET | `/api/bookings/parking-space/{parkingSpaceId}` | JWT (User,Admin) | Bookings for one space |
-| POST | `/api/bookings/calculate-price` | **Public** | Price quote |
+| GET | `/api/bookings/{id}/access-pass` | JWT | Digital access pass (QR + wallet flags) |
+| GET | `/api/bookings/{id}/access-pass/apple.pkpass` | JWT | Apple Wallet binary package |
+| GET | `/api/bookings/{id}/access-pass/google-wallet` | JWT | Google Wallet save URL |
+| POST | `/api/bookings/access-pass/verify` | JWT | Verify scanned access-pass token |
+| GET | `/api/bookings/{id}/ev-session` | JWT | Active/last EV charge session |
+| POST | `/api/bookings/calculate-price` | **Public** | Price quote (EV + add-ons) |
 | POST | `/api/bookings` | JWT | Create booking |
 | PUT | `/api/bookings/{id}` | JWT | Update booking |
 | POST | `/api/bookings/{id}/cancel` | JWT | Cancel |
@@ -337,6 +430,12 @@ Class-level: **JWT required** (except calculate-price).
 | POST | `/api/bookings/{id}/reject` | JWT (User,Admin) | Vendor reject |
 | POST | `/api/bookings/{id}/check-in` | JWT | Check-in |
 | POST | `/api/bookings/{id}/check-out` | JWT | Check-out |
+| POST | `/api/bookings/{id}/valet/request` | JWT | Guest: request vehicle retrieval |
+| POST | `/api/bookings/{id}/valet/cancel` | JWT | Guest: cancel valet request |
+| POST | `/api/bookings/{id}/valet/acknowledge` | JWT (User,Admin) | Vendor: start retrieval |
+| POST | `/api/bookings/{id}/valet/ready` | JWT (User,Admin) | Vendor: vehicle ready |
+| POST | `/api/bookings/{id}/valet/complete` | JWT (User,Admin) | Vendor: complete handoff |
+| POST | `/api/bookings/{id}/bay-assignment` | JWT (User,Admin) | Assign indoor bay/level/zone |
 | POST | `/api/bookings/{id}/extend` | JWT | Request extension |
 | POST | `/api/bookings/{id}/approve-extension` | JWT (User,Admin) | Approve extension |
 | POST | `/api/bookings/{id}/reject-extension` | JWT (User,Admin) | Reject extension |
@@ -363,9 +462,18 @@ Class-level: **JWT required** (except calculate-price).
   "startDateTime": "2026-07-12T10:00:00Z",
   "endDateTime": "2026-07-12T14:00:00Z",
   "pricingType": 0,
-  "discountCode": null
+  "discountCode": null,
+  "includeEvCharging": true,
+  "ancillaryServiceIds": ["guid-add-on-1"]
 }
 ```
+
+`PriceBreakdownDto` may include:
+
+- Pass discount fields (`parkingPassId`, `isPassApplied`, …)
+- Dynamic pricing (`dynamicPricingApplied`, `dynamicMultiplier`, `dynamicPricingFactors`)
+- EV (`includeEvCharging`, `evChargingFeeAmount`, `evPricingMode`, `evRatePerKwh`)
+- Add-ons (`ancillarySubtotal`, `ancillaryLines[]`)
 
 ### `POST /api/bookings`
 
@@ -380,7 +488,9 @@ Class-level: **JWT required** (except calculate-price).
   "vehicleNumber": "MH12AB1234",
   "vehicleModel": "Swift",
   "vehicleColor": "White",
-  "discountCode": null
+  "discountCode": null,
+  "includeEvCharging": true,
+  "ancillaryServiceIds": ["guid-add-on-1"]
 }
 ```
 
@@ -407,19 +517,114 @@ Reject/reject-extension: `reason` optional.
 ### Extend
 
 ```json
-{ "newEndDateTime": "2026-07-12T18:00:00Z" }
+{
+  "newEndDateTime": "2026-07-12T18:00:00Z",
+  "pricingType": 0
+}
 ```
+
+`pricingType` optional; when omitted, original booking pricing type is used.
+
+### Digital access pass (QR + wallets)
+
+**GET** `/api/bookings/{id}/access-pass` → `BookingAccessPassDto`:
+
+```json
+{
+  "bookingId": "guid",
+  "bookingReference": "PK-...",
+  "accessToken": "opaque-token",
+  "parkingSpaceTitle": "...",
+  "parkingSpaceAddress": "...",
+  "startDateTime": "...",
+  "endDateTime": "...",
+  "status": 1,
+  "isValidNow": true,
+  "vehicleNumber": "MH12AB1234",
+  "qrImageUrl": "https://...",
+  "payload": "...",
+  "appleWalletAvailable": true,
+  "googleWalletAvailable": true,
+  "appleWalletDownloadPath": "/api/bookings/{id}/access-pass/apple.pkpass",
+  "googleWalletLinkPath": "/api/bookings/{id}/access-pass/google-wallet",
+  "walletStatusMessage": null,
+  "appleWalletIsSigned": true
+}
+```
+
+**GET** `/api/bookings/{id}/access-pass/apple.pkpass` → file download (`application/vnd.apple.pkpass`).
+
+**GET** `/api/bookings/{id}/access-pass/google-wallet` → `{ saveUrl, isConfigured, message }`.
+
+**POST** `/api/bookings/access-pass/verify`:
+
+```json
+{ "token": "scanned-access-token" }
+```
+
+Returns `AccessPassVerifyResultDto` (`accessGranted`, `decision`, denial codes, booking summary). Unauthorized scanners get **403**.
+
+### Valet lifecycle
+
+**Guest request**
+
+```json
+{ "notes": "Blue hatchback near pillar C", "leadMinutes": 10 }
+```
+
+`leadMinutes` optional (1–120). Flow: `request` → vendor `acknowledge` → `ready` → `complete`. Guest may `cancel` while open.
+
+### Bay assignment (vendor)
+
+```json
+{
+  "facilityLevel": "B2",
+  "facilityZone": "Blue",
+  "bayLabel": "B2-42",
+  "slotNumber": 42
+}
+```
+
+All fields optional; used when `isBayGuidanceEnabled` on the facility.
+
+### BookingDto highlights (response)
+
+| Field group | Fields |
+|-------------|--------|
+| Extension | `pendingExtensionEndDateTime`, `pendingExtensionAmount`, `hasPendingExtension` |
+| Pass | `parkingPassId`, `parkingPassType`, `isPassApplied` |
+| Overstay | `overstayFeeAmount`, `overstayBillableMinutes`, `overstayFeeOutstanding`, … |
+| QR | `qrCode` |
+| EV | `includeEvCharging`, `evChargingFeeAmount`, `evIdleFeeAmount`, `evEnergyDeliveredKwh`, `evSessionStatus`, `evOcppTransactionId`, `evPricingMode`, `evRatePerKwh` |
+| Event package | `eventParkingPackageId` |
+| Indoor / valet | `facilityLevel`, `facilityZone`, `bayLabel`, `valetStatus`, `valetRequestedAt`, `valetTargetReadyAt`, `valetReadyAt`, `valetNotes`, `isValetEnabled`, `isBayGuidanceEnabled`, `indoorGuidanceNotes` |
+| Add-ons | `ancillarySubtotal`, `ancillaryLines[]` |
+
+### Instant book
+
+When the facility has `instantBook: true` (common for residential P2P; optional for commercial):
+
+- Create skips vendor approve/reject.
+- If total is zero (e.g. pass-covered) → status **Confirmed**.
+- Otherwise → ready for payment (**AwaitingPayment** / payment flow) without a pending request.
+
+Always read `status` from the create response rather than assuming Pending.
 
 ### Typical booking flow (match web)
 
-1. Search / open parking detail  
-2. `calculate-price`  
-3. `POST /bookings`  
-4. Vendor: `approve` or `reject`  
-5. Member: payment (`/payments/create-order` + `verify`)  
-6. Member: `check-in` → later `check-out`  
-7. Optional: `extend` → vendor `approve-extension` / `reject-extension` → pay if needed  
-8. Optional: `cancel` with reason  
+1. Search / open parking detail (note EV / bay / valet / dynamic price / `instantBook` flags)  
+2. Optionally load add-ons: `GET /api/ancillary-services/by-parking/{id}`  
+3. `calculate-price` (with `includeEvCharging` / `ancillaryServiceIds` as needed)  
+4. `POST /bookings`  
+5. If **not** instant book: vendor `approve` or `reject`  
+6. Member: payment (`/payments/create-order` + `verify`)  
+7. Member: show **access pass** QR / wallet  
+8. Member: `check-in` → later `check-out` (or LPR auto check-in/out at gate)  
+9. If `overstayFeeOutstanding > 0`: `create-order` with `payOverstayFee: true` + `verify`  
+10. Optional: EV session via station / simulator; guest views `ev-session`  
+11. Optional: valet request / bay guidance  
+12. Optional: `extend` → vendor `approve-extension` / `reject-extension` → pay if needed  
+13. Optional: `cancel` with reason  
 
 ---
 
@@ -437,13 +642,31 @@ Reject/reject-extension: `reason` optional.
 
 ### Create order
 
-Body is a **raw GUID JSON string** (not an object):
+Supports **two body shapes**:
+
+**1. Legacy — raw GUID JSON string** (main booking payment):
 
 ```json
 "3fa85f64-5717-4562-b3fc-2c963f66afa6"
 ```
 
 Web: `JSON.stringify(bookingId)`.
+
+**2. Object — booking payment and/or overstay fee:**
+
+```json
+{
+  "bookingId": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+  "payOverstayFee": true
+}
+```
+
+| Field | Notes |
+|-------|--------|
+| `bookingId` | Required |
+| `payOverstayFee` | Optional. When `true`, order is for outstanding overstay. When omitted, server may still treat as overstay if `overstayFeeOutstanding > 0` and booking is Confirmed / InProgress / Completed |
+
+**Overstay fee flow (mobile):** after check-out (or late stay), booking may expose `overstayFeeOutstanding` / `overstayFeeAmount`. Call `create-order` with `payOverstayFee: true`, then `verify` as usual.
 
 ### Verify payment
 
@@ -543,7 +766,7 @@ Toggle response `data` is `bool` (favorited state after toggle).
 }
 ```
 
-**Mobile note:** These endpoints return raw vehicle objects/arrays (not always `ApiResponse`). Handle both if the client is generic.
+**Mobile note:** These endpoints return raw vehicle objects/arrays (not always `ApiResponse`). Handle both if the client is generic. License plates feed LPR matching — keep them accurate.
 
 ---
 
@@ -570,9 +793,268 @@ Toggle response `data` is `bool` (favorited state after toggle).
 }
 ```
 
+Coverage is inferred: set `parkingSpaceId` for a single space, or `parkingZoneCode` for a zone (`PassCoverageType`).
+
+**GET `/api/passes/my`** → `ActiveParkingPassesDto`:
+
+```json
+{
+  "hasActivePass": true,
+  "activePasses": [ /* ParkingPassDto[] */ ]
+}
+```
+
+### Assign corporate batch (Admin only)
+
+```json
+{
+  "employeeUserIds": ["guid", "guid"],
+  "startDateUtc": "2026-07-01T00:00:00Z",
+  "endDateUtc": "2026-07-31T23:59:59Z",
+  "parkingSpaceId": null,
+  "parkingZoneCode": "ZONE-A",
+  "usageMode": 0,
+  "dailyHourLimit": null,
+  "discountPercentage": 15,
+  "corporateBatchReference": "Q3-BATCH-01"
+}
+```
+
+Returns `CorporatePassAssignmentResultDto` (`corporateBatchReference`, `createdCount`, `passes`).
+
 ---
 
-## 12. Chat
+## 12. Ancillary services (add-ons)
+
+Base route: `/api/ancillary-services`
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| GET | `/api/ancillary-services/by-parking/{parkingSpaceId}` | Public | Catalog for a space (`activeOnly` default true) |
+| GET | `/api/ancillary-services/my` | JWT | Vendor catalog (includes inactive) |
+| POST | `/api/ancillary-services` | JWT | Create add-on |
+| PUT | `/api/ancillary-services/{id}` | JWT | Update add-on |
+| POST | `/api/ancillary-services/{id}/deactivate` | JWT | Soft-deactivate |
+
+### Create
+
+```json
+{
+  "parkingSpaceId": "guid",
+  "name": "Car wash",
+  "price": 199,
+  "description": "Exterior wash",
+  "durationMinutes": 30,
+  "sortOrder": 0,
+  "isActive": true
+}
+```
+
+### Update
+
+```json
+{
+  "name": "Premium wash",
+  "price": 249,
+  "description": "...",
+  "durationMinutes": 45,
+  "isActive": true,
+  "sortOrder": 1
+}
+```
+
+All update fields optional.
+
+**Guest flow:** load catalog → pass selected ids as `ancillaryServiceIds` on `calculate-price` and `POST /bookings`. Lines appear on booking as `ancillaryLines` (snapshot name, unit price, quantity, line total).
+
+---
+
+## 13. Event parking packages
+
+Base route: `/api/event-packages`
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| GET | `/api/event-packages/on-sale` | Public | Packages currently on sale (`take` default 50) |
+| GET | `/api/event-packages/venues/on-sale` | Public | On-sale packages grouped by venue event |
+| GET | `/api/event-packages/by-venue-event/{venueEventId}` | Public | Zones for one venue event (`activeOnly`) |
+| GET | `/api/event-packages/by-parking/{parkingSpaceId}` | Public | Packages for a parking space |
+| GET | `/api/event-packages/{id}` | Public | Package detail |
+| GET | `/api/event-packages/my` | JWT | Vendor’s packages |
+| GET | `/api/event-packages/my/analytics` | JWT | Vendor sell-through by venue |
+| GET | `/api/event-packages/{id}/analytics` | JWT | Package analytics |
+| POST | `/api/event-packages` | JWT | Create package / zone |
+| PUT | `/api/event-packages/{id}` | JWT | Update |
+| POST | `/api/event-packages/{id}/deactivate` | JWT | Deactivate |
+| POST | `/api/event-packages/{id}/purchase` | JWT | Purchase → booking |
+
+### Create package
+
+```json
+{
+  "parkingSpaceId": "guid",
+  "title": "Stadium Zone A",
+  "eventStartUtc": "2026-08-01T17:00:00Z",
+  "eventEndUtc": "2026-08-01T23:00:00Z",
+  "packagePrice": 500,
+  "totalSpots": 80,
+  "description": "Pre-paid match parking",
+  "eventName": "Derby Final",
+  "venueName": "City Stadium",
+  "salesStartUtc": "2026-07-01T00:00:00Z",
+  "salesEndUtc": "2026-08-01T16:00:00Z",
+  "venueEventId": null,
+  "zoneName": "Zone A",
+  "earlyEntryMinutes": 60,
+  "lateExitMinutes": 30
+}
+```
+
+Reuse `venueEventId` to attach another lot/zone to the same event.
+
+### Purchase
+
+```json
+{
+  "vehicleType": 0,
+  "vehicleNumber": "MH12AB1234",
+  "vehicleModel": "Swift",
+  "vehicleColor": "White"
+}
+```
+
+Returns a normal `BookingDto` (with `eventParkingPackageId` set). Then pay via Payments as usual.
+
+---
+
+## 14. EV charging (session + OCPP IoT)
+
+### Guest / vendor read
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| GET | `/api/bookings/{id}/ev-session` | JWT | Session for booking (guest, owner, or Admin) |
+
+### IoT / station webhooks (`X-Api-Key`)
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| POST | `/api/iot/ocpp/start-transaction` | `X-Api-Key` | Start charge session |
+| POST | `/api/iot/ocpp/meter-values` | `X-Api-Key` | Mid-session meter kWh |
+| POST | `/api/iot/ocpp/stop-transaction` | `X-Api-Key` | Stop + settle PerKwh energy fee |
+| POST | `/api/iot/ocpp/simulate` | JWT | Vendor/Admin demo: start→meter→stop |
+
+**Start**
+
+```json
+{
+  "bookingId": "guid",
+  "stationId": "ST-1",
+  "connectorId": 1,
+  "meterStartKwh": 0
+}
+```
+
+**Meter values**
+
+```json
+{
+  "ocppTransactionId": "...",
+  "meterKwh": 12.4
+}
+```
+
+**Stop**
+
+```json
+{
+  "ocppTransactionId": "...",
+  "meterStopKwh": 18.2
+}
+```
+
+**Simulate (mobile vendor tooling / QA)**
+
+```json
+{
+  "bookingId": "guid",
+  "energyKwh": 15.5,
+  "stationId": "SIM-1",
+  "connectorId": 1
+}
+```
+
+Booking must have been created with `includeEvCharging: true` (and facility `hasEvCharging`). Hourly mode locks fee at booking create; PerKwh settles on stop.
+
+---
+
+## 15. LPR (license plate recognition)
+
+### Facility registry (vendor JWT)
+
+Base: `/api/parking/{parkingSpaceId}/lpr`
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `.../camera-keys` | List camera API keys (secret never re-shown) |
+| POST | `.../camera-keys` | Create key → returns plaintext `secret` **once** |
+| PUT | `.../camera-keys/{cameraKeyId}/enabled` | Enable/disable `{ "isEnabled": true }` |
+| DELETE | `.../camera-keys/{cameraKeyId}` | Delete key |
+| GET | `.../plate-rules` | Allow/deny plate rules |
+| POST | `.../plate-rules` | Create rule |
+| PUT | `.../plate-rules/{ruleId}/enabled` | Enable/disable |
+| DELETE | `.../plate-rules/{ruleId}` | Delete rule |
+
+**Create camera key**
+
+```json
+{ "name": "Gate A entry cam", "keyId": null }
+```
+
+**Create plate rule**
+
+```json
+{
+  "licensePlate": "MH12AB1234",
+  "ruleType": 1,
+  "note": "VIP fleet"
+}
+```
+
+`ruleType`: `1` Allow, `2` Deny. When any **Allow** rules exist for a facility, LPR is restricted to those plates (deny always blocks).
+
+### IoT webhook + simulator
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| POST | `/api/iot/lpr-events` | `X-Api-Key` | Camera event (business denial → **200** with `accessGranted: false`) |
+| POST | `/api/iot/lpr-events/simulate` | JWT | Vendor/Admin simulator |
+
+```json
+{
+  "licensePlate": "MH12AB1234",
+  "parkingSpaceId": "guid",
+  "direction": "Entry",
+  "occurredAtUtc": "2026-07-26T10:00:00Z",
+  "confidence": 0.97,
+  "imageUrl": null,
+  "imageBase64": null
+}
+```
+
+`direction`: `"Entry"` or `"Exit"` (maps to enum 1/2).
+
+**Result** (`LprAccessResultDto`): `accessGranted`, `decision`, `denialReasonCode`, `denialMessage`, matched `bookingId` / `bookingReference`, normalized plate, etc.
+
+Common denial codes: `InvalidPlate`, `NoMatchingBooking`, `OutsideCheckInWindow`, `LprDisabled`, `PlateDenied`, `PlateNotAllowlisted`, `LowConfidence`, `ReplayRejected`, `NotFacilityOwner`, …
+
+Facility must have `isLprEnabled: true`. Guest plate should match booking `vehicleNumber`.
+
+**Mobile relevance:** vendor settings for camera keys / plate rules; optional simulate screen for QA. Consumer apps mainly ensure plate is stored correctly and surface LPR-enabled badges on listings.
+
+---
+
+## 16. Chat
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
@@ -602,17 +1084,21 @@ Pass `conversationId` when continuing an existing thread; omit/null to create.
 ### Real-time (SignalR)
 
 - Hub: `/hubs/chat` (JWT required)  
+- On connect: client is auto-joined to personal group `user_{userId}`  
 - Server → client events:
   - `ReceiveMessage` — `ChatMessageDto`
   - `MessagesRead` — `conversationId`
   - `Error` — string  
-- Client → server: `SendMessage(parkingSpaceId, content, conversationId?)`
+- Client → server:
+  - `JoinConversation(conversationId)` — join thread group after server participant check (call when opening a thread)
+  - `LeaveConversation(conversationId)` — leave when navigating away
+  - `SendMessage(parkingSpaceId, content, conversationId?)` — optional; REST `POST /api/chat/send` is the primary path used by web
 
 Connect with access token (query or header per SignalR client config).
 
 ---
 
-## 13. Notifications (in-app history)
+## 17. Notifications (in-app history)
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
@@ -624,11 +1110,40 @@ Connect with access token (query or header per SignalR client config).
 
 Query: `page` (default 1), `pageSize` (default 20).
 
+**GET list `data` shape** (`NotificationListDto`):
+
+```json
+{
+  "notifications": {
+    "items": [
+      {
+        "id": "guid",
+        "type": 0,
+        "title": "...",
+        "message": "...",
+        "data": "optional-json-string",
+        "isRead": false,
+        "createdAt": "..."
+      }
+    ],
+    "totalCount": 42,
+    "pageNumber": 1,
+    "pageSize": 20,
+    "totalPages": 3,
+    "hasPreviousPage": false,
+    "hasNextPage": true
+  },
+  "unreadCount": 5
+}
+```
+
+Mark-read / mark-all / delete / clear-all return empty **200 OK** on success (not always a full `ApiResponse` body).
+
 ### Real-time
 
 - Hub: `/hubs/notifications` (JWT)  
 - User is auto-joined to group `user_{userId}`  
-- Client can call `AcknowledgeNotification(notificationId)`
+- Client can call `AcknowledgeNotification(notificationId)` (ack only; does not mark read in DB — use REST `PUT .../read` for that)
 
 ### Device tokens (push / FCM)
 
@@ -645,11 +1160,11 @@ Query: `page` (default 1), `pageSize` (default 20).
 }
 ```
 
-Call after login, on app launch, and on FCM token refresh. Same `deviceId` updates the token (no duplicates).
+Call after login, on app launch, and on FCM token refresh. Same `deviceId` updates the token (no duplicates). There is **no** deregister endpoint on the API today.
 
 ---
 
-## 14. Files (parking media)
+## 18. Files (parking media)
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
@@ -671,25 +1186,46 @@ Call after login, on app launch, and on FCM token refresh. Same `deviceId` updat
 2. PUT file to returned `uploadUrl`  
 3. `confirm-upload` with `{ "fileUrls": ["publicUrl", ...] }`
 
+Presign success body:
+
+```json
+{
+  "success": true,
+  "data": {
+    "uploadUrl": "https://...",
+    "publicUrl": "https://...",
+    "key": "..."
+  }
+}
+```
+
+### Local upload thumbnails (dev only)
+
+If media is served from `{host}/uploads/...` and runtime resize is enabled, optional query: `?w=320&h=240` (JPG/PNG/WEBP). Production R2/public CDN URLs bypass this middleware — do not rely on resize in production.
+
 ---
 
-## 15. Dashboards (marketplace)
+## 19. Dashboards (marketplace)
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
 | GET | `/api/dashboard/vendor` | JWT (User,Admin) | Host stats |
 | GET | `/api/dashboard/member` | JWT | Member stats |
 
+**Vendor `data` highlights:** totals (spaces, bookings by state), earnings (total / monthly / weekly), rating, `recentBookings`, `chartData[{ label, earnings, bookings }]`.
+
+**Member `data` highlights:** booking counts, `totalSpent`, `upcomingBookings`, `recentBookings`.
+
 ---
 
-## 16. Corporate module
+## 20. Corporate module
 
 Base route: **`/api/v1/corporate`**  
 All endpoints: **JWT required**.
 
 Web stores active company in `activeCompanyId` and puts `companyId` **in the URL path** (not only headers). Optional header `X-Company-Id` is used by the frontend for some legacy cases — prefer path params.
 
-### 16.1 Companies
+### 20.1 Companies
 
 | Method | Path | Description |
 |--------|------|-------------|
@@ -713,7 +1249,7 @@ Web stores active company in `activeCompanyId` and puts `companyId` **in the URL
 }
 ```
 
-### 16.2 Members & invitations
+### 20.2 Members & invitations
 
 | Method | Path | Description |
 |--------|------|-------------|
@@ -761,7 +1297,7 @@ Web stores active company in `activeCompanyId` and puts `companyId` **in the URL
 }
 ```
 
-### 16.3 Allocations & company parking
+### 20.3 Allocations & company parking
 
 | Method | Path | Description |
 |--------|------|-------------|
@@ -827,7 +1363,7 @@ Web stores active company in `activeCompanyId` and puts `companyId` **in the URL
 }
 ```
 
-### 16.4 Corporate bookings & waitlist
+### 20.4 Corporate bookings & waitlist
 
 | Method | Path | Description |
 |--------|------|-------------|
@@ -875,9 +1411,49 @@ Web stores active company in `activeCompanyId` and puts `companyId` **in the URL
 
 Reservation result may include either a booking, a waitlist entry, and/or a fraud assessment (`CorporateReservationResultDto`).
 
+### 20.5 Corporate invoices
+
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `.../companies/{companyId}/invoices` | Generate draft invoice for period |
+| GET | `.../companies/{companyId}/invoices` | List (`status`, `page`, `pageSize`) |
+| GET | `.../companies/{companyId}/invoices/{invoiceId}` | Invoice detail + lines |
+| POST | `.../companies/{companyId}/invoices/{invoiceId}/issue` | Issue draft |
+| POST | `.../companies/{companyId}/invoices/{invoiceId}/mark-paid` | Mark paid |
+| POST | `.../companies/{companyId}/invoices/{invoiceId}/void` | Void |
+| GET | `.../companies/{companyId}/invoices/{invoiceId}/export` | CSV export |
+
+**Generate**
+
+```json
+{
+  "periodStart": "2026-07-01",
+  "periodEnd": "2026-07-31"
+}
+```
+
+(`DateOnly` — `yyyy-MM-dd`)
+
+**Mark paid**
+
+```json
+{
+  "paymentReference": "NEFT-123",
+  "paymentNotes": "July settlement"
+}
+```
+
+**Void**
+
+```json
+{ "reason": "Duplicate period" }
+```
+
+Lifecycle: **Draft → Issued → Paid** (or **Void** from draft/issued).
+
 ---
 
-## 17. Admin outbox (platform Admin only)
+## 21. Admin outbox (platform Admin only)
 
 | Method | Path | Description |
 |--------|------|-------------|
@@ -891,7 +1467,7 @@ Usually **not** needed in mobile consumer apps.
 
 ---
 
-## 18. Health
+## 22. Health
 
 | Method | Path | Auth |
 |--------|------|------|
@@ -903,7 +1479,7 @@ Usually **not** needed in mobile consumer apps.
 
 ---
 
-## 19. Feature map: web ↔ mobile parity checklist
+## 23. Feature map: web ↔ mobile parity checklist
 
 Use this to implement screens in the same order as the web app.
 
@@ -913,13 +1489,19 @@ Use this to implement screens in the same order as the web app.
 |----------------|-----------|
 | Register / login / logout / refresh | Auth |
 | Profile + change password | Users + Auth |
-| Search parking + map | `parking/search`, `parking/map` |
-| Parking detail + forecast | `parking/{id}`, `parking-availability/.../forecast` |
+| Search parking + map (EV / residential filters) | `parking/search`, `parking/map` |
+| Parking detail + forecast + effective dynamic rate | `parking/{id}`, `parking-availability/.../forecast` |
 | Favorites | Favorites |
-| Vehicles | Vehicles |
-| Price calc + book | Bookings |
-| Pay | Payments |
+| Vehicles (plate for LPR) | Vehicles |
+| Add-on catalog + price calc + book | Ancillary + Bookings |
+| Event package browse + purchase | Event packages |
+| Pay (booking + overstay fee) | Payments (`create-order` ± `payOverstayFee`) |
 | My bookings, cancel, check-in/out, extend | Bookings |
+| Instant book (no vendor approve) | Listing `instantBook` + create booking status |
+| Digital access pass QR + Apple/Google Wallet | `bookings/{id}/access-pass*` |
+| EV session status | `bookings/{id}/ev-session` |
+| Valet request / cancel | `bookings/{id}/valet/*` |
+| Indoor bay guidance (read from booking) | BookingDto facility fields |
 | Reviews | Reviews |
 | Chat | Chat + `/hubs/chat` |
 | In-app notifications | Notifications + `/hubs/notifications` |
@@ -931,14 +1513,20 @@ Use this to implement screens in the same order as the web app.
 
 | Web capability | Endpoints |
 |----------------|-----------|
-| My listings CRUD + toggle | Parking |
+| My listings CRUD + toggle (EV, LPR, dynamic, bay, valet, category) | Parking |
 | Image upload | Files |
+| Ancillary services catalog CRUD | Ancillary services |
+| Event packages + analytics | Event packages |
 | Vendor bookings approve/reject | Bookings |
 | Extension approve/reject | Bookings |
+| Bay assignment + valet staff flow | Bookings bay/valet |
 | Pending badge | `bookings/pending-count` |
 | Vendor dashboard | `dashboard/vendor` |
 | Owner review reply | Reviews owner-response |
 | Availability forecasts for listings | `parking-availability/my-listings` |
+| LPR camera keys + plate rules | `parking/{id}/lpr/*` |
+| LPR / EV simulators (QA) | `iot/lpr-events/simulate`, `iot/ocpp/simulate` |
+| Access-pass scan verify | `bookings/access-pass/verify` |
 | Corporate lease requests | Corporate vendor allocations |
 
 ### Corporate
@@ -953,24 +1541,34 @@ Use this to implement screens in the same order as the web app.
 | Employee / visitor book | Bookings employee/visitor |
 | Waitlist manage | Waitlist |
 | Corporate booking list + cancel + export | Bookings |
+| Invoices generate / issue / pay / void / export | Invoices |
+
+### IoT / facility hardware (usually not mobile-consumer)
+
+| Capability | Endpoints |
+|------------|-----------|
+| LPR camera webhook | `POST /api/iot/lpr-events` + `X-Api-Key` |
+| OCPP charge start/meter/stop | `POST /api/iot/ocpp/*` + `X-Api-Key` |
 
 ---
 
-## 20. Error handling tips
+## 24. Error handling tips
 
 | HTTP | Typical meaning |
 |-----:|-----------------|
 | 400 | Validation / business rule (`success: false`, `errors` or `message`) |
-| 401 | Missing/invalid JWT or bad login |
+| 401 | Missing/invalid JWT, bad login, or missing/invalid `X-Api-Key` |
 | 403 | Not owner / not authorized for resource |
 | 404 | Not found |
 | 500 | Server error |
 
 Always check both HTTP status and `success` flag when present.
 
+**LPR note:** business denials on `POST /api/iot/lpr-events` intentionally return **HTTP 200** with `data.accessGranted: false` so cameras can act without treating denial as transport failure.
+
 ---
 
-## 21. Quick path index (all routes)
+## 25. Quick path index (all routes)
 
 ### Public / mixed
 
@@ -988,6 +1586,16 @@ GET    /api/payments/stripe-config
 GET    /api/reviews/{id}
 GET    /api/reviews/parking-space/{parkingSpaceId}
 GET    /api/files/parking/{parkingSpaceId}
+GET    /api/ancillary-services/by-parking/{parkingSpaceId}
+GET    /api/event-packages/on-sale
+GET    /api/event-packages/venues/on-sale
+GET    /api/event-packages/by-venue-event/{venueEventId}
+GET    /api/event-packages/by-parking/{parkingSpaceId}
+GET    /api/event-packages/{id}
+POST   /api/iot/lpr-events                  (X-Api-Key)
+POST   /api/iot/ocpp/start-transaction      (X-Api-Key)
+POST   /api/iot/ocpp/meter-values           (X-Api-Key)
+POST   /api/iot/ocpp/stop-transaction       (X-Api-Key)
 ```
 
 ### Auth required (selected)
@@ -999,15 +1607,26 @@ GET|PUT|DELETE /api/users/me
 
 GET|POST /api/parking ...
 GET|POST|PUT|DELETE /api/bookings ...
+  + /access-pass, /access-pass/apple.pkpass, /access-pass/google-wallet
+  + POST /access-pass/verify
+  + /ev-session
+  + /valet/request|cancel|acknowledge|ready|complete
+  + /bay-assignment
 GET|POST /api/payments ...
 GET|POST /api/favorites ...
 GET|POST|PUT|DELETE /api/vehicles ...
 GET|POST /api/passes ...
+GET|POST|PUT /api/ancillary-services ...
+GET|POST|PUT /api/event-packages ...
+GET|POST|PUT|DELETE /api/parking/{id}/lpr/camera-keys|plate-rules ...
+POST   /api/iot/lpr-events/simulate
+POST   /api/iot/ocpp/simulate
 GET|POST /api/chat ...
 GET|PUT|DELETE /api/notifications ...
 POST   /api/device-tokens/register
 GET    /api/dashboard/vendor|member
 *      /api/v1/corporate/**
+       including .../invoices/**
 *      /api/files/parking/** (write)
 *      /api/admin/outbox/** (Admin)
 ```
@@ -1021,14 +1640,33 @@ GET    /api/dashboard/vendor|member
 
 ---
 
-## 22. Related docs
+## 26. Related docs
 
 | Doc | Purpose |
 |-----|---------|
-| `backend/mobile_dev_handoff.md` | FCM device token registration deep-dive |
+| `backend/mobile_dev_handoff.md` | FCM device token registration deep-dive (if present) |
 | `docs/corporate-parking-flow.md` | Corporate product flow |
+| `docs/Implementation Plan Digital Access Pass QR.md` | Access pass design |
+| `docs/Implementation Plan Wallet Access Pass.md` | Apple / Google Wallet |
+| `docs/Implementation Plan EV Charging.md` (+ Phase 2) | EV pricing + OCPP |
+| `docs/Implementation Plan Ancillary Services.md` | Add-ons |
+| `docs/Implementation Plan Event Parking Packages.md` (+ Phase 2) | Event packages |
+| `docs/Implementation Plan Indoor Bay Navigation and Valet.md` | Bay + valet |
+| `docs/Implementation Plan License Plate Recognition (LPR) and Automated Access.md` | LPR |
+| `docs/Implementation Plan Dynamic Pricing.md` (+ Phase 2) | Dynamic pricing |
+| `docs/Implementation Plan P2P Driveway Rentals.md` | Residential listings |
+| `docs/Implementation Plan Session Reminders.md` | Pre-end reminders (background job — **no dedicated REST API**) |
+| `docs/lpr-ops-runbook.md` | LPR ops |
 | Frontend `src/services/api.js` | Web client usage (source of parity) |
 | Frontend `src/services/corporateService.js` | Corporate web client |
+
+### Audit note (2026-07-26)
+
+Full controller inventory under `ParkingApp.API/Controllers` was re-checked against this document:
+
+- **No missing HTTP routes** relative to controllers (auth, parking, bookings, payments, reviews, dashboard, vehicles, favorites, passes, chat, notifications, device-tokens, files, ancillary, event-packages, LPR registry, IoT LPR/OCPP, corporate, admin outbox, health, SignalR hubs).
+- Gaps closed in this pass were **contract/detail** items (overstay `payOverstayFee`, pass coverage/corporate assign, chat join/leave, notification list shape, instant book, dashboard/file payload notes).
+- Session reminders and similar background workers have **no mobile REST surface**.
 
 If an endpoint is missing from this document but exists in controllers, treat the controller as authoritative and update this file.
 )

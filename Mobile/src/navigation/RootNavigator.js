@@ -11,8 +11,7 @@ import { useAuth } from '../hooks/useAuth';
 import { restoreSessionThunk } from '../store/slices/authSlice';
 import LoadingScreen from '../components/Common/LoadingScreen';
 import AuthNavigator from './AuthNavigator';
-import MemberTabNavigator from './MemberTabNavigator';
-import VendorTabNavigator from './VendorTabNavigator';
+import AppTabNavigator from './AppTabNavigator';
 
 const Stack = createNativeStackNavigator();
 
@@ -24,7 +23,7 @@ const RootNavigator = () => {
         dispatch(restoreSessionThunk());
     }, [dispatch]);
 
-    if (!isSessionChecked || loading) {
+    if (!isSessionChecked) {
         return <LoadingScreen message="Starting ParkEase..." />;
     }
 
@@ -32,11 +31,7 @@ const RootNavigator = () => {
         <NavigationContainer>
             <Stack.Navigator screenOptions={{ headerShown: false }}>
                 {isAuthenticated ? (
-                    isVendor ? (
-                        <Stack.Screen name="VendorApp" component={VendorTabNavigator} />
-                    ) : (
-                        <Stack.Screen name="MemberApp" component={MemberTabNavigator} />
-                    )
+                    <Stack.Screen name="App" component={AppTabNavigator} />
                 ) : (
                     <Stack.Screen name="Auth" component={AuthNavigator} />
                 )}

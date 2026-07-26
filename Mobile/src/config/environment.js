@@ -1,9 +1,8 @@
 /**
  * Environment Configuration
- * Centralized config for API URLs and app settings
  */
 
-const API_BASE = 'https://parkeaseapp.azurewebsites.net';
+const API_BASE = 'https://parkeaseapp.runasp.net';
 
 export const environment = {
   isDevelopment: __DEV__,

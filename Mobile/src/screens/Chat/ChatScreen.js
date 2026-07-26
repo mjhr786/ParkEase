@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../../styles/globalStyles';
-import { useAuth } from '../../contexts/AuthContext';
+import { useAuth } from '../../hooks/useAuth';
 import chatService from '../../services/chat/chatService';
 
 const ChatScreen = ({ route, navigation }) => {

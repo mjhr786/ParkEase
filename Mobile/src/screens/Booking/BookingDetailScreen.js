@@ -7,7 +7,10 @@ import React, { useEffect, useCallback } from 'react';
 import { View, Text, ScrollView, Alert, TouchableOpacity, StyleSheet } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { Ionicons } from '@expo/vector-icons';
-import { getBookingDetailThunk, cancelBookingThunk } from '../../store/slices/bookingSlice';
+import { 
+    getBookingDetailThunk, cancelBookingThunk, 
+    requestValetThunk, cancelValetThunk, acknowledgeValetThunk, readyValetThunk, completeValetThunk, assignBayThunk 
+} from '../../store/slices/bookingSlice';
 import ScreenLayout from '../../components/Layouts/ScreenLayout';
 import Card from '../../components/Common/Card';
 import Badge from '../../components/Common/Badge';
@@ -51,6 +54,20 @@ const BookingDetailScreen = ({ navigation, route }) => {
         );
     }, [dispatch, bookingId]);
 
+    const handleValetAction = (actionType) => {
+        switch(actionType) {
+            case 'request': dispatch(requestValetThunk({ id: bookingId, data: {} })); break;
+            case 'cancel': dispatch(cancelValetThunk(bookingId)); break;
+            case 'acknowledge': dispatch(acknowledgeValetThunk(bookingId)); break;
+            case 'ready': dispatch(readyValetThunk(bookingId)); break;
+            case 'complete': dispatch(completeValetThunk(bookingId)); break;
+        }
+    };
+
+    const handleAssignBay = () => {
+        dispatch(assignBayThunk({ id: bookingId, data: { bayNumber: 'A1-001' } })); // Mock bay for now
+    };
+
     if (detailLoading || !booking) return <LoadingScreen />;
 
     const canCancel = [BookingStatus.Pending, BookingStatus.Confirmed, BookingStatus.AwaitingPayment].includes(booking.status);
@@ -91,6 +108,12 @@ const BookingDetailScreen = ({ navigation, route }) => {
                         <InfoRow icon="calendar-outline" label="End" value={formatDateTime(booking.endDateTime)} />
                         <InfoRow icon="pricetag-outline" label="Pricing" value={PricingTypeLabels[booking.pricingType]} />
                         <InfoRow icon="car-outline" label="Vehicle" value={VehicleTypeLabels[booking.vehicleType] || 'N/A'} />
+                        {booking.assignedBay && (
+                            <InfoRow icon="grid-outline" label="Assigned Bay" value={booking.assignedBay} />
+                        )}
+                        {booking.valetStatus && (
+                            <InfoRow icon="key-outline" label="Valet Status" value={booking.valetStatus} />
+                        )}
                     </Card>
 
                     {/* Payment */}
@@ -107,6 +130,30 @@ const BookingDetailScreen = ({ navigation, route }) => {
                         {canCancel && (
                             <Button title="Cancel Booking" onPress={handleCancel} variant="danger" loading={actionLoading} icon={<Ionicons name="close-circle" size={20} color={colors.white} />} />
                         )}
+                        
+                        {/* Member Valet Actions */}
+                        {!booking.valetStatus && (
+                            <Button title="Request Valet" onPress={() => handleValetAction('request')} variant="primary" loading={actionLoading} />
+                        )}
+                        {booking.valetStatus === 'Requested' && (
+                            <Button title="Cancel Valet Request" onPress={() => handleValetAction('cancel')} variant="secondary" loading={actionLoading} />
+                        )}
+                        
+                        {/* Vendor Valet & Bay Actions (Normally checking role) */}
+                        {booking.valetStatus === 'Requested' && (
+                            <Button title="Acknowledge Valet (Vendor)" onPress={() => handleValetAction('acknowledge')} variant="outline" loading={actionLoading} />
+                        )}
+                        {booking.valetStatus === 'Acknowledged' && (
+                            <Button title="Mark Valet Ready (Vendor)" onPress={() => handleValetAction('ready')} variant="outline" loading={actionLoading} />
+                        )}
+                        {booking.valetStatus === 'Ready' && (
+                            <Button title="Complete Valet (Vendor)" onPress={() => handleValetAction('complete')} variant="outline" loading={actionLoading} />
+                        )}
+                        
+                        {!booking.assignedBay && (
+                            <Button title="Assign Bay (Vendor)" onPress={handleAssignBay} variant="outline" loading={actionLoading} />
+                        )}
+
                         {booking.status === BookingStatus.Completed && (
                             <Button
                                 title="Write Review"

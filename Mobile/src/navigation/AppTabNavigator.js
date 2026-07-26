@@ -19,8 +19,9 @@ import { getUnreadCountThunk } from '../store/slices/chatSlice';
 import { getMemberDashboardThunk, getVendorDashboardThunk } from '../store/slices/dashboardSlice';
 import NotificationService from '../services/notifications/NotificationService';
 
-// Screens
-import UnifiedDashboardScreen from '../screens/Home/UnifiedDashboardScreen';
+import MemberDashboardScreen from '../screens/Member/MemberDashboardScreen';
+import VendorDashboardScreen from '../screens/Vendor/VendorDashboardScreen';
+import { useAuth } from '../hooks/useAuth';
 import SearchScreen from '../screens/Search/SearchScreen';
 import ParkingDetailScreen from '../screens/Search/ParkingDetailScreen';
 import BookingScreen from '../screens/Booking/BookingScreen';
@@ -63,10 +64,16 @@ const NOTIFICATION_ROUTE_TAB_MAP = {
     Profile: 'ProfileTab',
 };
 
+const DynamicDashboardScreen = (props) => {
+    const { isVendor } = useAuth();
+    if (isVendor) return <VendorDashboardScreen {...props} />;
+    return <MemberDashboardScreen {...props} />;
+};
+
 // ── Home Stack ──
 const HomeStack = () => (
     <Stack.Navigator screenOptions={stackOptions}>
-        <Stack.Screen name="Dashboard" component={UnifiedDashboardScreen} />
+        <Stack.Screen name="Dashboard" component={DynamicDashboardScreen} />
         <Stack.Screen name="ParkingDetail" component={ParkingDetailScreen} />
         <Stack.Screen name="BookParking" component={BookingScreen} />
         <Stack.Screen name="BookingDetail" component={BookingDetailScreen} />
