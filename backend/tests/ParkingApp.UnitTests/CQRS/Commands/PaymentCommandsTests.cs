@@ -174,7 +174,14 @@ public class PaymentCommandsTests
     public async Task ProcessRefundHandler_ShouldSucceed()
     {
         var handler = new ProcessRefundHandler(_mockUow.Object, _mockPaymentService.Object, _mockRefundLogger.Object);
-        var payment = new Payment { UserId = Guid.NewGuid(), Status = PaymentStatus.Completed, Amount = 100 };
+        // TransactionId is required — handler rejects refunds without a gateway transaction id
+        var payment = new Payment
+        {
+            UserId = Guid.NewGuid(),
+            Status = PaymentStatus.Completed,
+            Amount = 100,
+            TransactionId = "txn_test_123"
+        };
         _mockPaymentRepo.Setup(r => r.GetByIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>())).ReturnsAsync(payment);
         
         _mockPaymentService.Setup(p => p.ProcessRefundAsync(It.IsAny<RefundRequest>(), It.IsAny<CancellationToken>())).ReturnsAsync(new RefundResult { Success = true, RefundedAmount = 50 });
@@ -184,6 +191,22 @@ public class PaymentCommandsTests
         res.Success.Should().BeTrue();
         payment.Status.Should().Be(PaymentStatus.PartialRefund);
         _mockUow.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task ProcessRefundHandler_ShouldFail_WhenPaymentHasNoTransactionId()
+    {
+        var handler = new ProcessRefundHandler(_mockUow.Object, _mockPaymentService.Object, _mockRefundLogger.Object);
+        var payment = new Payment { UserId = Guid.NewGuid(), Status = PaymentStatus.Completed, Amount = 100 };
+        _mockPaymentRepo.Setup(r => r.GetByIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>())).ReturnsAsync(payment);
+
+        var res = await handler.HandleAsync(new ProcessRefundCommand(payment.UserId, new RefundRequestDto(Guid.NewGuid(), 50, "R")));
+
+        res.Success.Should().BeFalse();
+        res.Message.Should().Contain("gateway transaction id");
+        _mockPaymentService.Verify(
+            p => p.ProcessRefundAsync(It.IsAny<RefundRequest>(), It.IsAny<CancellationToken>()),
+            Times.Never);
     }
 }
 
