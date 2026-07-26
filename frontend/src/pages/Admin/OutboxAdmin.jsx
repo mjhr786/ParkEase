@@ -13,10 +13,10 @@ const STATUS_OPTIONS = [
 ];
 
 const STATUS_META = {
-  0: { label: 'Pending', color: '#fbbf24', bg: 'rgba(251,191,36,0.15)' },
-  1: { label: 'Processing', color: '#60a5fa', bg: 'rgba(96,165,250,0.15)' },
-  2: { label: 'Processed', color: '#34d399', bg: 'rgba(52,211,153,0.15)' },
-  3: { label: 'Failed', color: '#f87171', bg: 'rgba(248,113,113,0.15)' },
+  0: { label: 'Pending', color: 'var(--color-warning)', bg: 'rgba(251,191,36,0.15)' },
+  1: { label: 'Processing', color: 'var(--color-accent-light)', bg: 'rgba(96,165,250,0.15)' },
+  2: { label: 'Processed', color: 'var(--color-success)', bg: 'rgba(52,211,153,0.15)' },
+  3: { label: 'Failed', color: 'var(--color-error)', bg: 'rgba(248,113,113,0.15)' },
 };
 
 function StatusBadge({ status }) {
@@ -39,22 +39,22 @@ function StatusBadge({ status }) {
 
 function SummaryCard({ label, value, tone }) {
   const colors = {
-    pending: '#fbbf24',
-    processing: '#60a5fa',
-    processed: '#34d399',
-    failed: '#f87171',
-    total: '#a78bfa',
+    pending: 'var(--color-warning)',
+    processing: 'var(--color-accent-light)',
+    processed: 'var(--color-success)',
+    failed: 'var(--color-error)',
+    total: 'var(--color-secondary)',
   };
   const color = colors[tone] || colors.total;
   return (
     <div style={{
       flex: '1 1 120px',
-      background: '#1e293b',
+      background: 'var(--color-surface)',
       borderRadius: '12px',
       padding: '1rem 1.25rem',
-      border: '1px solid rgba(255,255,255,0.06)',
+      border: '1px solid var(--color-border)',
     }}>
-      <div style={{ color: '#94a3b8', fontSize: '0.8rem', marginBottom: '0.35rem' }}>{label}</div>
+      <div style={{ color: 'var(--color-text-secondary)', fontSize: '0.8rem', marginBottom: '0.35rem' }}>{label}</div>
       <div style={{ color, fontSize: '1.75rem', fontWeight: 700 }}>{value}</div>
     </div>
   );
@@ -186,8 +186,8 @@ export default function OutboxAdmin() {
     <div className="container" style={{ padding: '2rem 1rem 4rem', maxWidth: '1200px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem', flexWrap: 'wrap', marginBottom: '1.5rem' }}>
         <div>
-          <h1 style={{ color: 'white', margin: 0, fontSize: '1.6rem' }}>Outbox Admin</h1>
-          <p style={{ color: '#94a3b8', margin: '0.4rem 0 0', fontSize: '0.9rem' }}>
+          <h1 style={{ color: 'var(--color-text-primary)', margin: 0, fontSize: '1.6rem' }}>Outbox Admin</h1>
+          <p style={{ color: 'var(--color-text-secondary)', margin: '0.4rem 0 0', fontSize: '0.9rem' }}>
             Failed and pending domain-event side effects (email, push, cache).
           </p>
         </div>
@@ -252,22 +252,22 @@ export default function OutboxAdmin() {
       </div>
 
       <div style={{
-        background: '#1e293b',
+        background: 'var(--color-surface)',
         borderRadius: '12px',
-        border: '1px solid rgba(255,255,255,0.06)',
+        border: '1px solid var(--color-border)',
         overflow: 'hidden',
       }}>
         {loading ? (
           <div style={{ padding: '3rem', textAlign: 'center' }}><div className="spinner" /></div>
         ) : items.length === 0 ? (
-          <div style={{ padding: '2.5rem', textAlign: 'center', color: '#94a3b8' }}>
+          <div style={{ padding: '2.5rem', textAlign: 'center', color: 'var(--color-text-secondary)' }}>
             No outbox messages match this filter.
           </div>
         ) : (
           <div style={{ overflowX: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
               <thead>
-                <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.08)', color: '#94a3b8', textAlign: 'left' }}>
+                <tr style={{ borderBottom: '1px solid var(--color-border)', color: 'var(--color-text-secondary)', textAlign: 'left' }}>
                   <th style={thStyle}>Type</th>
                   <th style={thStyle}>Status</th>
                   <th style={thStyle}>Attempts</th>
@@ -278,20 +278,20 @@ export default function OutboxAdmin() {
               </thead>
               <tbody>
                 {items.map((row) => (
-                  <tr key={row.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                  <tr key={row.id} style={{ borderBottom: '1px solid var(--color-border)' }}>
                     <td style={tdStyle}>
-                      <div style={{ color: '#e2e8f0', fontWeight: 600 }}>{row.shortTypeName}</div>
-                      <div style={{ color: '#64748b', fontSize: '0.75rem', maxWidth: '220px', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      <div style={{ color: 'var(--color-text-primary)', fontWeight: 600 }}>{row.shortTypeName}</div>
+                      <div style={{ color: 'var(--color-text-muted)', fontSize: '0.75rem', maxWidth: '220px', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                         {row.idempotencyKey}
                       </div>
                     </td>
                     <td style={tdStyle}><StatusBadge status={row.status} /></td>
-                    <td style={tdStyle}><span style={{ color: '#cbd5e1' }}>{row.attemptCount}</span></td>
+                    <td style={tdStyle}><span style={{ color: 'var(--color-text-secondary)' }}>{row.attemptCount}</span></td>
                     <td style={tdStyle}>
-                      <span style={{ color: '#94a3b8' }}>{new Date(row.createdAtUtc).toLocaleString()}</span>
+                      <span style={{ color: 'var(--color-text-secondary)' }}>{new Date(row.createdAtUtc).toLocaleString()}</span>
                     </td>
                     <td style={tdStyle}>
-                      <span style={{ color: row.lastError ? '#f87171' : '#64748b', maxWidth: '240px', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={row.lastError || ''}>
+                      <span style={{ color: row.lastError ? 'var(--color-error)' : 'var(--color-text-muted)', maxWidth: '240px', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={row.lastError || ''}>
                         {row.lastError || '—'}
                       </span>
                     </td>
@@ -324,7 +324,7 @@ export default function OutboxAdmin() {
       {totalPages > 1 && (
         <div style={{ display: 'flex', justifyContent: 'center', gap: '0.75rem', marginTop: '1.25rem', alignItems: 'center' }}>
           <button type="button" className="btn btn-secondary" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>Prev</button>
-          <span style={{ color: '#94a3b8', fontSize: '0.9rem' }}>Page {page} / {totalPages}</span>
+          <span style={{ color: 'var(--color-text-secondary)', fontSize: '0.9rem' }}>Page {page} / {totalPages}</span>
           <button type="button" className="btn btn-secondary" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>Next</button>
         </div>
       )}
@@ -340,28 +340,28 @@ export default function OutboxAdmin() {
         >
           <div
             style={{
-              background: '#0f172a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '14px',
+              background: 'var(--color-bg-primary)', border: '1px solid var(--color-border)', borderRadius: '14px',
               maxWidth: '640px', width: '100%', maxHeight: '85vh', overflow: 'auto', padding: '1.5rem',
             }}
             onClick={(e) => e.stopPropagation()}
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-              <h2 style={{ margin: 0, color: 'white', fontSize: '1.15rem' }}>{selected.shortTypeName}</h2>
+              <h2 style={{ margin: 0, color: 'var(--color-text-primary)', fontSize: '1.15rem' }}>{selected.shortTypeName}</h2>
               <button type="button" className="btn btn-secondary" onClick={() => setSelected(null)}>Close</button>
             </div>
-            <div style={{ display: 'grid', gap: '0.65rem', color: '#cbd5e1', fontSize: '0.875rem' }}>
-              <div><strong style={{ color: '#94a3b8' }}>Id:</strong> {selected.id}</div>
-              <div><strong style={{ color: '#94a3b8' }}>Status:</strong> <StatusBadge status={selected.status} /></div>
-              <div><strong style={{ color: '#94a3b8' }}>Idempotency:</strong> {selected.idempotencyKey}</div>
-              <div><strong style={{ color: '#94a3b8' }}>Attempts:</strong> {selected.attemptCount}</div>
+            <div style={{ display: 'grid', gap: '0.65rem', color: 'var(--color-text-secondary)', fontSize: '0.875rem' }}>
+              <div><strong style={{ color: 'var(--color-text-secondary)' }}>Id:</strong> {selected.id}</div>
+              <div><strong style={{ color: 'var(--color-text-secondary)' }}>Status:</strong> <StatusBadge status={selected.status} /></div>
+              <div><strong style={{ color: 'var(--color-text-secondary)' }}>Idempotency:</strong> {selected.idempotencyKey}</div>
+              <div><strong style={{ color: 'var(--color-text-secondary)' }}>Attempts:</strong> {selected.attemptCount}</div>
               {selected.lastError && (
-                <div><strong style={{ color: '#94a3b8' }}>Error:</strong> <span style={{ color: '#f87171' }}>{selected.lastError}</span></div>
+                <div><strong style={{ color: 'var(--color-text-secondary)' }}>Error:</strong> <span style={{ color: 'var(--color-error)' }}>{selected.lastError}</span></div>
               )}
               <div>
-                <strong style={{ color: '#94a3b8' }}>Payload:</strong>
+                <strong style={{ color: 'var(--color-text-secondary)' }}>Payload:</strong>
                 <pre style={{
-                  marginTop: '0.5rem', background: '#1e293b', padding: '0.85rem', borderRadius: '8px',
-                  overflow: 'auto', fontSize: '0.78rem', color: '#e2e8f0',
+                  marginTop: '0.5rem', background: 'var(--color-surface)', padding: '0.85rem', borderRadius: '8px',
+                  overflow: 'auto', fontSize: '0.78rem', color: 'var(--color-text-primary)',
                 }}>
                   {formatJson(selected.payloadPreview)}
                 </pre>
@@ -384,10 +384,10 @@ function formatJson(text) {
 }
 
 const selectStyle = {
-  background: '#1e293b',
-  border: '1px solid rgba(255,255,255,0.1)',
+  background: 'var(--color-surface)',
+  border: '1px solid var(--color-border)',
   borderRadius: '8px',
-  color: '#e2e8f0',
+  color: 'var(--color-text-primary)',
   padding: '0.5rem 0.75rem',
   fontSize: '0.875rem',
 };

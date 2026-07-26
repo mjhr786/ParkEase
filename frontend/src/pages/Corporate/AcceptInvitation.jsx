@@ -53,32 +53,32 @@ const AcceptInvitation = () => {
 
     return (
         <div className="container" style={{ minHeight: '60vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <div style={{ background: '#1e293b', border: '1px solid rgba(255,255,255,0.05)', borderRadius: '16px', padding: '3rem', width: '100%', maxWidth: '500px', textAlign: 'center' }}>
+            <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '16px', padding: '3rem', width: '100%', maxWidth: '500px', textAlign: 'center' }}>
                 
                 {status === 'processing' && (
                     <>
                         <div className="spinner" style={{ margin: '0 auto 1.5rem auto' }}></div>
-                        <h2 style={{ color: 'white', marginBottom: '1rem' }}>Processing Invitation...</h2>
-                        <p style={{ color: '#94a3b8' }}>Please wait while we link your account to the corporate tenant.</p>
+                        <h2 style={{ color: 'var(--color-text-primary)', marginBottom: '1rem' }}>Processing Invitation...</h2>
+                        <p style={{ color: 'var(--color-text-secondary)' }}>Please wait while we link your account to the corporate tenant.</p>
                     </>
                 )}
 
                 {status === 'success' && (
                     <>
                         <div style={{ fontSize: '4rem', marginBottom: '1rem' }}>🎉</div>
-                        <h2 style={{ color: '#10b981', marginBottom: '1rem' }}>Welcome Aboard!</h2>
-                        <p style={{ color: '#cbd5e1', marginBottom: '2rem' }}>
+                        <h2 style={{ color: 'var(--color-success)', marginBottom: '1rem' }}>Welcome Aboard!</h2>
+                        <p style={{ color: 'var(--color-text-secondary)', marginBottom: '2rem' }}>
                             Your corporate invitation has been accepted. You will be taken to the corporate dashboard shortly.
                         </p>
-                        <p style={{ color: '#64748b', fontSize: '0.85rem' }}>Redirecting to dashboard...</p>
+                        <p style={{ color: 'var(--color-text-muted)', fontSize: '0.85rem' }}>Redirecting to dashboard...</p>
                     </>
                 )}
 
                 {status === 'error' && (
                     <>
                         <div style={{ fontSize: '4rem', marginBottom: '1rem' }}>❌</div>
-                        <h2 style={{ color: '#ef4444', marginBottom: '1rem' }}>Invitation Failed</h2>
-                        <p style={{ color: '#cbd5e1', marginBottom: '2rem' }}>{errorMessage}</p>
+                        <h2 style={{ color: 'var(--color-error)', marginBottom: '1rem' }}>Invitation Failed</h2>
+                        <p style={{ color: 'var(--color-text-secondary)', marginBottom: '2rem' }}>{errorMessage}</p>
                         <button 
                             className="btn btn-primary"
                             onClick={() => navigate('/dashboard')}

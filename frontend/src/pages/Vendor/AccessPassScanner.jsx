@@ -81,48 +81,48 @@ export default function AccessPassScanner() {
             background: result.accessGranted ? 'rgba(16,185,129,0.08)' : 'rgba(239,68,68,0.08)',
           }}
         >
-          <h3 className="card-title" style={{ color: result.accessGranted ? '#10b981' : '#f87171' }}>
+          <h3 className="card-title" style={{ color: result.accessGranted ? 'var(--color-success)' : 'var(--color-error)' }}>
             {result.accessGranted ? '✅ Access granted' : '⛔ Access denied'}
           </h3>
           {result.denialMessage && (
-            <p style={{ color: '#fca5a5', marginTop: 0 }}>{result.denialMessage}</p>
+            <p style={{ color: 'var(--color-error)', marginTop: 0 }}>{result.denialMessage}</p>
           )}
           <dl style={{ display: 'grid', gridTemplateColumns: '120px 1fr', gap: '0.35rem 0.75rem', fontSize: '0.9rem', margin: 0 }}>
-            <dt style={{ color: '#94a3b8' }}>Decision</dt>
+            <dt style={{ color: 'var(--color-text-secondary)' }}>Decision</dt>
             <dd style={{ margin: 0 }}>{result.decision}</dd>
             {result.denialReasonCode && (
               <>
-                <dt style={{ color: '#94a3b8' }}>Reason</dt>
+                <dt style={{ color: 'var(--color-text-secondary)' }}>Reason</dt>
                 <dd style={{ margin: 0 }}>{result.denialReasonCode}</dd>
               </>
             )}
             {result.bookingReference && (
               <>
-                <dt style={{ color: '#94a3b8' }}>Reference</dt>
+                <dt style={{ color: 'var(--color-text-secondary)' }}>Reference</dt>
                 <dd style={{ margin: 0 }}>{result.bookingReference}</dd>
               </>
             )}
             {result.parkingSpaceTitle && (
               <>
-                <dt style={{ color: '#94a3b8' }}>Facility</dt>
+                <dt style={{ color: 'var(--color-text-secondary)' }}>Facility</dt>
                 <dd style={{ margin: 0 }}>{result.parkingSpaceTitle}</dd>
               </>
             )}
             {result.status != null && (
               <>
-                <dt style={{ color: '#94a3b8' }}>Status</dt>
+                <dt style={{ color: 'var(--color-text-secondary)' }}>Status</dt>
                 <dd style={{ margin: 0 }}>{STATUS_LABELS[result.status] ?? result.status}</dd>
               </>
             )}
             {result.vehicleNumber && (
               <>
-                <dt style={{ color: '#94a3b8' }}>Plate</dt>
+                <dt style={{ color: 'var(--color-text-secondary)' }}>Plate</dt>
                 <dd style={{ margin: 0 }}>{result.vehicleNumber}</dd>
               </>
             )}
             {result.startDateTime && (
               <>
-                <dt style={{ color: '#94a3b8' }}>Window</dt>
+                <dt style={{ color: 'var(--color-text-secondary)' }}>Window</dt>
                 <dd style={{ margin: 0 }}>
                   {new Date(result.startDateTime).toLocaleString()} →{' '}
                   {result.endDateTime ? new Date(result.endDateTime).toLocaleString() : '—'}

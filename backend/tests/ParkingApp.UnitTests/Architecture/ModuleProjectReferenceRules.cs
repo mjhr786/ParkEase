@@ -32,6 +32,28 @@ public class ModuleProjectReferenceRules
                 "ParkingApp.Identity.Contracts",
                 "ParkingApp.Marketplace.Contracts",
                 "ParkingApp.Messaging.Contracts",
+                "ParkingApp.Admin.Contracts",
+            },
+            ["ParkingApp.Admin.Domain"] = new(StringComparer.Ordinal)
+            {
+                "ParkingApp.BuildingBlocks",
+            },
+            ["ParkingApp.Admin.Contracts"] = new(StringComparer.Ordinal)
+            {
+                "ParkingApp.BuildingBlocks",
+            },
+            ["ParkingApp.Admin.Application"] = new(StringComparer.Ordinal)
+            {
+                "ParkingApp.BuildingBlocks",
+                "ParkingApp.Admin.Domain",
+                "ParkingApp.Admin.Contracts",
+            },
+            ["ParkingApp.Admin.Infrastructure"] = new(StringComparer.Ordinal)
+            {
+                "ParkingApp.BuildingBlocks",
+                "ParkingApp.Admin.Domain",
+                "ParkingApp.Admin.Contracts",
+                "ParkingApp.Admin.Application",
             },
             ["ParkingApp.Identity.Infrastructure"] = new(StringComparer.Ordinal)
             {
@@ -57,6 +79,7 @@ public class ModuleProjectReferenceRules
                 "ParkingApp.Marketplace.Contracts",
                 "ParkingApp.Identity.Contracts",
                 "ParkingApp.Messaging.Contracts",
+                "ParkingApp.Admin.Contracts",
             },
             ["ParkingApp.Marketplace.Infrastructure"] = new(StringComparer.Ordinal)
             {
@@ -162,6 +185,11 @@ public class ModuleProjectReferenceRules
         ("Modules/Notifications/ParkingApp.Notifications.Contracts/ParkingApp.Notifications.Contracts.csproj", "ParkingApp.Notifications.Contracts"),
         ("Modules/Notifications/ParkingApp.Notifications.Application/ParkingApp.Notifications.Application.csproj", "ParkingApp.Notifications.Application"),
         ("Modules/Notifications/ParkingApp.Notifications.Infrastructure/ParkingApp.Notifications.Infrastructure.csproj", "ParkingApp.Notifications.Infrastructure"),
+
+        ("Modules/Admin/ParkingApp.Admin.Domain/ParkingApp.Admin.Domain.csproj", "ParkingApp.Admin.Domain"),
+        ("Modules/Admin/ParkingApp.Admin.Contracts/ParkingApp.Admin.Contracts.csproj", "ParkingApp.Admin.Contracts"),
+        ("Modules/Admin/ParkingApp.Admin.Application/ParkingApp.Admin.Application.csproj", "ParkingApp.Admin.Application"),
+        ("Modules/Admin/ParkingApp.Admin.Infrastructure/ParkingApp.Admin.Infrastructure.csproj", "ParkingApp.Admin.Infrastructure"),
     };
 
     public static IEnumerable<object[]> ModuleProjectData() =>

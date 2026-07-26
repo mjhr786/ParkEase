@@ -12,6 +12,7 @@
     <ProjectReference Include="..\ParkingApp.Marketplace.Contracts\ParkingApp.Marketplace.Contracts.csproj" />
     <ProjectReference Include="..\..\Identity\ParkingApp.Identity.Contracts\ParkingApp.Identity.Contracts.csproj" />
     <ProjectReference Include="..\..\Messaging\ParkingApp.Messaging.Contracts\ParkingApp.Messaging.Contracts.csproj" />
+    <ProjectReference Include="..\..\Admin\ParkingApp.Admin.Contracts\ParkingApp.Admin.Contracts.csproj" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="FluentValidation" Version="12.1.1" />

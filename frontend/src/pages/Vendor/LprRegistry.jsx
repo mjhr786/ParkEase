@@ -154,24 +154,24 @@ export default function LprRegistry() {
   };
 
   const card = {
-    background: '#1e293b',
+    background: 'var(--color-surface)',
     borderRadius: 12,
     padding: '1.25rem 1.5rem',
-    border: '1px solid rgba(255,255,255,0.06)',
+    border: '1px solid var(--color-border)',
     marginBottom: '1.25rem',
   };
 
   return (
     <div className="container" style={{ maxWidth: 900, padding: '2rem 1rem 4rem' }}>
       <div style={{ marginBottom: '0.5rem' }}>
-        <Link to="/my/listings" style={{ color: '#94a3b8', fontSize: '0.9rem' }}>← My Listings</Link>
+        <Link to="/my/listings" style={{ color: 'var(--color-text-secondary)', fontSize: '0.9rem' }}>← My Listings</Link>
       </div>
       <h1 style={{ marginBottom: 4 }}>LPR facility registry</h1>
       <p style={{ color: 'var(--color-text-muted)', marginBottom: '1.5rem', fontSize: '0.95rem' }}>
         Manage camera API keys and plate allow/deny lists for this parking space.
         Copy secrets immediately after creation — they are not shown again.
       </p>
-      <p style={{ color: '#64748b', fontSize: '0.8rem', marginBottom: '1.5rem', wordBreak: 'break-all' }}>
+      <p style={{ color: 'var(--color-text-muted)', fontSize: '0.8rem', marginBottom: '1.5rem', wordBreak: 'break-all' }}>
         Facility ID: {parkingSpaceId}
       </p>
 
@@ -181,14 +181,14 @@ export default function LprRegistry() {
           borderColor: 'rgba(251,191,36,0.5)',
           background: 'rgba(251,191,36,0.08)',
         }}>
-          <strong style={{ color: '#fbbf24' }}>Save this API secret now</strong>
+          <strong style={{ color: 'var(--color-warning)' }}>Save this API secret now</strong>
           <pre style={{
             marginTop: 8,
             padding: 12,
-            background: '#0f172a',
+            background: 'var(--color-bg-primary)',
             borderRadius: 8,
             overflow: 'auto',
-            color: '#e2e8f0',
+            color: 'var(--color-text-primary)',
           }}>{createdSecret}</pre>
           <button
             type="button"
@@ -226,7 +226,7 @@ export default function LprRegistry() {
             </form>
 
             {keys.length === 0 ? (
-              <p style={{ color: '#94a3b8' }}>No camera keys yet. Create one for your LPR gate.</p>
+              <p style={{ color: 'var(--color-text-secondary)' }}>No camera keys yet. Create one for your LPR gate.</p>
             ) : (
               <div style={{ display: 'grid', gap: 8 }}>
                 {keys.map((k) => (
@@ -237,12 +237,12 @@ export default function LprRegistry() {
                     alignItems: 'center',
                     justifyContent: 'space-between',
                     padding: '10px 12px',
-                    background: '#0f172a',
+                    background: 'var(--color-bg-primary)',
                     borderRadius: 8,
                   }}>
                     <div>
                       <div style={{ fontWeight: 600 }}>{k.name}</div>
-                      <div style={{ fontSize: '0.8rem', color: '#94a3b8' }}>
+                      <div style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>
                         {k.keyId} · prefix {k.secretPrefix}… · {k.isEnabled ? 'Enabled' : 'Disabled'}
                       </div>
                     </div>
@@ -260,7 +260,7 @@ export default function LprRegistry() {
 
           <section style={card}>
             <h2 style={{ fontSize: '1.1rem', marginBottom: '0.5rem' }}>Plate allow / deny lists</h2>
-            <p style={{ color: '#94a3b8', fontSize: '0.85rem', marginBottom: '1rem' }}>
+            <p style={{ color: 'var(--color-text-secondary)', fontSize: '0.85rem', marginBottom: '1rem' }}>
               <strong>Deny</strong> always blocks the plate. If any <strong>Allow</strong> rules exist, only those plates may use LPR (and still need a booking).
             </p>
             <form onSubmit={createRule} style={{ display: 'grid', gap: 10, marginBottom: 16 }}>
@@ -285,7 +285,7 @@ export default function LprRegistry() {
             </form>
 
             {rules.length === 0 ? (
-              <p style={{ color: '#94a3b8' }}>No plate rules. All booked plates can use LPR when enabled.</p>
+              <p style={{ color: 'var(--color-text-secondary)' }}>No plate rules. All booked plates can use LPR when enabled.</p>
             ) : (
               <div style={{ display: 'grid', gap: 8 }}>
                 {rules.map((r) => (
@@ -296,7 +296,7 @@ export default function LprRegistry() {
                     alignItems: 'center',
                     justifyContent: 'space-between',
                     padding: '10px 12px',
-                    background: '#0f172a',
+                    background: 'var(--color-bg-primary)',
                     borderRadius: 8,
                   }}>
                     <div>
@@ -307,14 +307,14 @@ export default function LprRegistry() {
                         borderRadius: 999,
                         fontSize: '0.75rem',
                         fontWeight: 600,
-                        color: r.ruleType === 2 ? '#f87171' : '#34d399',
+                        color: r.ruleType === 2 ? 'var(--color-error)' : 'var(--color-success)',
                         background: r.ruleType === 2 ? 'rgba(248,113,113,0.15)' : 'rgba(52,211,153,0.15)',
                       }}>
                         {r.ruleType === 2 ? 'Deny' : 'Allow'}
                       </span>
                       <strong>{r.licensePlateNormalized}</strong>
-                      {r.note && <span style={{ color: '#94a3b8', marginLeft: 8 }}>{r.note}</span>}
-                      <div style={{ fontSize: '0.8rem', color: '#64748b' }}>
+                      {r.note && <span style={{ color: 'var(--color-text-secondary)', marginLeft: 8 }}>{r.note}</span>}
+                      <div style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>
                         {r.isEnabled ? 'Enabled' : 'Disabled'}
                       </div>
                     </div>

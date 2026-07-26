@@ -14,7 +14,7 @@ const toastStyles = {
     closeBtn: {
         background: 'transparent',
         border: 'none',
-        color: '#94a3b8',
+        color: 'var(--color-text-muted)',
         cursor: 'pointer',
         fontSize: '20px',
         padding: '0 4px',

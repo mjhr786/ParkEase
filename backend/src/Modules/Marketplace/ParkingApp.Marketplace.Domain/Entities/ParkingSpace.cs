@@ -779,6 +779,13 @@ public class ParkingSpace : BaseEntity
         UpdatedAt = DateTime.UtcNow;
     }
 
+    public void Unverify()
+    {
+        if (!IsVerified) return;
+        IsVerified = false;
+        UpdatedAt = DateTime.UtcNow;
+    }
+
     /// <summary>
     /// Soft-retire the lot (inactive + deleted flag) and raise deleted event for side effects.
     /// </summary>

@@ -16,6 +16,8 @@
     <ProjectReference Include="..\Modules\Corporate\ParkingApp.Corporate.Domain\ParkingApp.Corporate.Domain.csproj" />
     <ProjectReference Include="..\Modules\Corporate\ParkingApp.Corporate.Infrastructure\ParkingApp.Corporate.Infrastructure.csproj" />
     <ProjectReference Include="..\Modules\Corporate\ParkingApp.Corporate.Contracts\ParkingApp.Corporate.Contracts.csproj" />
+    <ProjectReference Include="..\Modules\Admin\ParkingApp.Admin.Domain\ParkingApp.Admin.Domain.csproj" />
+    <ProjectReference Include="..\Modules\Admin\ParkingApp.Admin.Infrastructure\ParkingApp.Admin.Infrastructure.csproj" />
   </ItemGroup>
   <ItemGroup>
   </ItemGroup>

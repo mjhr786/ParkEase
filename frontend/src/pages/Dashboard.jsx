@@ -4,6 +4,7 @@ import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, R
 import { useAuth } from '../contexts/AuthContext';
 import { useNotificationContext } from '../context/NotificationContext';
 import api from '../services/api';
+import { useThemeColors } from '../hooks/useThemeColors';
 
 const BOOKING_STATUS = [
     'Pending',              // 0
@@ -89,6 +90,7 @@ const REFRESH_TRIGGERS = ['booking.requested', 'booking.approved', 'booking.reje
 
 export default function Dashboard() {
     const { user } = useAuth();
+    const chartColors = useThemeColors();
     const [vendorStats, setVendorStats] = useState(null);
     const [memberStats, setMemberStats] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -177,15 +179,15 @@ export default function Dashboard() {
                                     <AreaChart data={vendorStats.chartData} margin={{ top: 10, right: 10, left: 10, bottom: 0 }}>
                                         <defs>
                                             <linearGradient id="colorEarnings" x1="0" y1="0" x2="0" y2="1">
-                                                <stop offset="5%" stopColor="var(--color-primary)" stopOpacity={0.8} />
-                                                <stop offset="95%" stopColor="var(--color-primary)" stopOpacity={0} />
+                                                <stop offset="5%" stopColor={chartColors.primary} stopOpacity={0.8} />
+                                                <stop offset="95%" stopColor={chartColors.primary} stopOpacity={0} />
                                             </linearGradient>
                                         </defs>
-                                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--color-border)" />
-                                        <XAxis dataKey="label" axisLine={false} tickLine={false} stroke="var(--color-text-secondary)" fontSize={12} />
-                                        <YAxis axisLine={false} tickLine={false} stroke="var(--color-text-secondary)" fontSize={12} tickFormatter={val => `₹${val}`} />
-                                        <Tooltip contentStyle={{ backgroundColor: 'var(--color-surface)', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-border)' }} itemStyle={{ color: 'var(--color-primary)', fontWeight: 'bold' }} formatter={(value) => [`₹${value}`, 'Earnings']} />
-                                        <Area type="monotone" dataKey="earnings" stroke="var(--color-primary)" fillOpacity={1} fill="url(#colorEarnings)" />
+                                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={chartColors.border} />
+                                        <XAxis dataKey="label" axisLine={false} tickLine={false} stroke={chartColors.textSecondary} fontSize={12} />
+                                        <YAxis axisLine={false} tickLine={false} stroke={chartColors.textSecondary} fontSize={12} tickFormatter={val => `₹${val}`} />
+                                        <Tooltip contentStyle={{ backgroundColor: chartColors.surface, borderRadius: 'var(--radius-md)', border: `1px solid ${chartColors.border}`, color: chartColors.textPrimary }} itemStyle={{ color: chartColors.primary, fontWeight: 'bold' }} formatter={(value) => [`₹${value}`, 'Earnings']} />
+                                        <Area type="monotone" dataKey="earnings" stroke={chartColors.primary} fillOpacity={1} fill="url(#colorEarnings)" />
                                     </AreaChart>
                                 </ResponsiveContainer>
                             </div>
@@ -195,11 +197,11 @@ export default function Dashboard() {
                             <div style={{ height: '250px', width: '100%', minHeight: '0' }}>
                                 <ResponsiveContainer width="100%" height="100%" minHeight={1}>
                                     <BarChart data={vendorStats.chartData} margin={{ top: 10, right: 10, left: 10, bottom: 0 }}>
-                                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--color-border)" />
-                                        <XAxis dataKey="label" axisLine={false} tickLine={false} stroke="var(--color-text-secondary)" fontSize={12} />
-                                        <YAxis axisLine={false} tickLine={false} stroke="var(--color-text-secondary)" fontSize={12} allowDecimals={false} />
-                                        <Tooltip contentStyle={{ backgroundColor: 'var(--color-surface)', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-border)' }} itemStyle={{ color: 'var(--color-secondary)', fontWeight: 'bold' }} formatter={(value) => [value, 'Bookings']} />
-                                        <Bar dataKey="volume" fill="var(--color-secondary)" radius={[4, 4, 0, 0]} barSize={30} />
+                                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={chartColors.border} />
+                                        <XAxis dataKey="label" axisLine={false} tickLine={false} stroke={chartColors.textSecondary} fontSize={12} />
+                                        <YAxis axisLine={false} tickLine={false} stroke={chartColors.textSecondary} fontSize={12} allowDecimals={false} />
+                                        <Tooltip contentStyle={{ backgroundColor: chartColors.surface, borderRadius: 'var(--radius-md)', border: `1px solid ${chartColors.border}`, color: chartColors.textPrimary }} itemStyle={{ color: chartColors.secondary, fontWeight: 'bold' }} formatter={(value) => [value, 'Bookings']} />
+                                        <Bar dataKey="volume" fill={chartColors.secondary} radius={[4, 4, 0, 0]} barSize={30} />
                                     </BarChart>
                                 </ResponsiveContainer>
                             </div>

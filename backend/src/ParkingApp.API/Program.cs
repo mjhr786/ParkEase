@@ -17,6 +17,7 @@ using ParkingApp.Corporate.Application;
 using ParkingApp.Identity.Application;
 using ParkingApp.Marketplace.Application;
 using ParkingApp.Messaging.Application;
+using ParkingApp.Admin.Application;
 using Serilog;
 using Serilog.Events;
 using ParkingApp.Marketplace.Infrastructure;
@@ -87,6 +88,7 @@ try
     builder.Services.AddIdentityApplication();
     builder.Services.AddMarketplaceApplication(builder.Configuration);
     builder.Services.AddMessagingApplication();
+    builder.Services.AddAdminApplication();
 
     // Add Controllers
     builder.Services.AddControllers();
@@ -232,7 +234,7 @@ try
     using (var scope = app.Services.CreateScope())
     {
         var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-        // context.Database.Migrate(); // Temporarily disabled to bypass lock
+        context.Database.Migrate();
     }
 
     // Configure middleware pipeline

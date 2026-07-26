@@ -88,10 +88,10 @@ export default function EventPackagesBrowse() {
                       {venue.eventName || 'Event parking'}
                     </h2>
                     {venue.venueName && (
-                      <div style={{ color: '#94a3b8', marginTop: '0.25rem' }}>{venue.venueName}</div>
+                      <div style={{ color: 'var(--color-text-secondary)', marginTop: '0.25rem' }}>{venue.venueName}</div>
                     )}
                   </div>
-                  <div style={{ textAlign: 'right', fontSize: '0.9rem', color: '#94a3b8' }}>
+                  <div style={{ textAlign: 'right', fontSize: '0.9rem', color: 'var(--color-text-secondary)' }}>
                     <div>
                       {venue.zoneCount > 1
                         ? `₹${Number(venue.minPackagePrice).toFixed(0)}–${Number(venue.maxPackagePrice).toFixed(0)}`
@@ -116,11 +116,11 @@ export default function EventPackagesBrowse() {
                     >
                       <div className="flex-between">
                         <strong>{pkg.zoneName || pkg.title}</strong>
-                        <span className="parking-tag" style={{ background: 'rgba(99,102,241,0.2)', color: '#a5b4fc' }}>
+                        <span className="parking-tag" style={{ background: 'rgba(99,102,241,0.2)', color: 'var(--color-accent-light)' }}>
                           ₹{Number(pkg.packagePrice).toFixed(0)}
                         </span>
                       </div>
-                      <div style={{ marginTop: '0.5rem', fontSize: '0.85rem', color: '#94a3b8' }}>
+                      <div style={{ marginTop: '0.5rem', fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>
                         <div>📍 {pkg.parkingSpaceTitle}{pkg.parkingSpaceCity ? `, ${pkg.parkingSpaceCity}` : ''}</div>
                         <div>
                           Access:{' '}
@@ -137,7 +137,7 @@ export default function EventPackagesBrowse() {
                         <div>🎫 {pkg.availableSpots} left of {pkg.totalSpots}</div>
                       </div>
                       {pkg.description && (
-                        <p style={{ fontSize: '0.8rem', color: '#94a3b8', marginTop: '0.5rem' }}>{pkg.description}</p>
+                        <p style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)', marginTop: '0.5rem' }}>{pkg.description}</p>
                       )}
                       <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.75rem', flexWrap: 'wrap' }}>
                         <button

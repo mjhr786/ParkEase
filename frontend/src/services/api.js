@@ -748,6 +748,142 @@ class ApiService {
     return this.request(`/vehicles/${id}`, { method: 'DELETE' });
   }
 
+  // Platform Admin — dashboard / users / audit
+  async getAdminDashboard() {
+    return this.request('/admin/dashboard');
+  }
+
+  async getAdminUsers({ search, isActive, page = 1, pageSize = 25 } = {}) {
+    const params = new URLSearchParams();
+    if (search) params.set('search', search);
+    if (isActive !== undefined && isActive !== null && isActive !== '') {
+      params.set('isActive', String(isActive));
+    }
+    params.set('page', String(page));
+    params.set('pageSize', String(pageSize));
+    return this.request(`/admin/users?${params.toString()}`);
+  }
+
+  async getAdminUser(id) {
+    return this.request(`/admin/users/${id}`);
+  }
+
+  async activateAdminUser(id, reason) {
+    return this.request(`/admin/users/${id}/activate`, {
+      method: 'POST',
+      body: JSON.stringify({ reason }),
+    });
+  }
+
+  async deactivateAdminUser(id, reason) {
+    return this.request(`/admin/users/${id}/deactivate`, {
+      method: 'POST',
+      body: JSON.stringify({ reason }),
+    });
+  }
+
+  async getAdminAuditLogs({ action, resourceType, actorUserId, page = 1, pageSize = 25 } = {}) {
+    const params = new URLSearchParams();
+    if (action) params.set('action', action);
+    if (resourceType) params.set('resourceType', resourceType);
+    if (actorUserId) params.set('actorUserId', actorUserId);
+    params.set('page', String(page));
+    params.set('pageSize', String(pageSize));
+    return this.request(`/admin/audit?${params.toString()}`);
+  }
+
+  // Platform Admin — listings moderation
+  async getAdminListings({ search, isActive, isVerified, page = 1, pageSize = 25 } = {}) {
+    const params = new URLSearchParams();
+    if (search) params.set('search', search);
+    if (isActive !== undefined && isActive !== null && isActive !== '') params.set('isActive', String(isActive));
+    if (isVerified !== undefined && isVerified !== null && isVerified !== '') params.set('isVerified', String(isVerified));
+    params.set('page', String(page));
+    params.set('pageSize', String(pageSize));
+    return this.request(`/admin/listings?${params.toString()}`);
+  }
+
+  async getAdminListing(id) {
+    return this.request(`/admin/listings/${id}`);
+  }
+
+  async activateAdminListing(id, reason) {
+    return this.request(`/admin/listings/${id}/activate`, {
+      method: 'POST',
+      body: JSON.stringify({ reason }),
+    });
+  }
+
+  async deactivateAdminListing(id, reason) {
+    return this.request(`/admin/listings/${id}/deactivate`, {
+      method: 'POST',
+      body: JSON.stringify({ reason }),
+    });
+  }
+
+  async verifyAdminListing(id, reason) {
+    return this.request(`/admin/listings/${id}/verify`, {
+      method: 'POST',
+      body: JSON.stringify({ reason }),
+    });
+  }
+
+  async unverifyAdminListing(id, reason) {
+    return this.request(`/admin/listings/${id}/unverify`, {
+      method: 'POST',
+      body: JSON.stringify({ reason }),
+    });
+  }
+
+  // Platform Admin — bookings
+  async getAdminBookings({ search, status, userId, parkingSpaceId, page = 1, pageSize = 25 } = {}) {
+    const params = new URLSearchParams();
+    if (search) params.set('search', search);
+    if (status !== undefined && status !== null && status !== '') params.set('status', String(status));
+    if (userId) params.set('userId', userId);
+    if (parkingSpaceId) params.set('parkingSpaceId', parkingSpaceId);
+    params.set('page', String(page));
+    params.set('pageSize', String(pageSize));
+    return this.request(`/admin/bookings?${params.toString()}`);
+  }
+
+  async getAdminBooking(id) {
+    return this.request(`/admin/bookings/${id}`);
+  }
+
+  async cancelAdminBooking(id, reason) {
+    return this.request(`/admin/bookings/${id}/cancel`, {
+      method: 'POST',
+      body: JSON.stringify({ reason }),
+    });
+  }
+
+  // Platform Admin — payments
+  async getAdminPayments({ search, status, userId, bookingId, page = 1, pageSize = 25 } = {}) {
+    const params = new URLSearchParams();
+    if (search) params.set('search', search);
+    if (status !== undefined && status !== null && status !== '') params.set('status', String(status));
+    if (userId) params.set('userId', userId);
+    if (bookingId) params.set('bookingId', bookingId);
+    params.set('page', String(page));
+    params.set('pageSize', String(pageSize));
+    return this.request(`/admin/payments?${params.toString()}`);
+  }
+
+  async getAdminPayment(id) {
+    return this.request(`/admin/payments/${id}`);
+  }
+
+  async refundAdminPayment(id, reason, amount) {
+    return this.request(`/admin/payments/${id}/refund`, {
+      method: 'POST',
+      body: JSON.stringify({
+        reason,
+        amount: amount == null || amount === '' ? null : amount,
+      }),
+    });
+  }
+
   // Admin — transactional outbox
   async getOutboxMessages({ status, type, page = 1, pageSize = 50 } = {}) {
     const params = new URLSearchParams();

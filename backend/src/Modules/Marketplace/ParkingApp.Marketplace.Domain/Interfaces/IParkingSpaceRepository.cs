@@ -31,6 +31,15 @@ public interface IParkingSpaceRepository : IRepository<ParkingSpace>
     Task<IEnumerable<ParkingSpace>> GetByOwnerIdAsync(Guid ownerId, CancellationToken cancellationToken = default);
     Task<bool> ExistsWithZoneCodeAsync(string zoneCode, CancellationToken cancellationToken = default);
 
+    /// <summary>Platform-admin listing search (includes inactive; soft-deleted still filtered by EF).</summary>
+    Task<(IReadOnlyList<ParkingSpace> Items, int TotalCount)> SearchForAdminAsync(
+        string? search,
+        bool? isActive,
+        bool? isVerified,
+        int page,
+        int pageSize,
+        CancellationToken cancellationToken = default);
+
     Task<IEnumerable<ParkingMapModel>> GetMapCoordinatesAsync(
         string? state = null,
         string? city = null,
@@ -96,6 +105,16 @@ public interface IBookingRepository : IRepository<Booking>
     Task<IReadOnlyList<Booking>> GetByEventPackageIdsAsync(
         IEnumerable<Guid> eventPackageIds,
         CancellationToken cancellationToken = default);
+
+    /// <summary>Platform-admin booking search (reference, plate, user/space ids, status).</summary>
+    Task<(IReadOnlyList<Booking> Items, int TotalCount)> SearchForAdminAsync(
+        string? search,
+        BookingStatus? status,
+        Guid? userId,
+        Guid? parkingSpaceId,
+        int page,
+        int pageSize,
+        CancellationToken cancellationToken = default);
 }
 
 public interface ILprAccessAttemptRepository : IRepository<LprAccessAttempt>
@@ -130,6 +149,16 @@ public interface IPaymentRepository : IRepository<Payment>
     Task<Payment?> GetByBookingIdAsync(Guid bookingId, CancellationToken cancellationToken = default);
     Task<IEnumerable<Payment>> GetByUserIdAsync(Guid userId, CancellationToken cancellationToken = default);
     Task<Payment?> GetByTransactionIdAsync(string transactionId, CancellationToken cancellationToken = default);
+
+    /// <summary>Platform-admin payment search (transaction id, booking/user ids, status).</summary>
+    Task<(IReadOnlyList<Payment> Items, int TotalCount)> SearchForAdminAsync(
+        string? search,
+        PaymentStatus? status,
+        Guid? userId,
+        Guid? bookingId,
+        int page,
+        int pageSize,
+        CancellationToken cancellationToken = default);
 }
 
 public interface IReviewRepository : IRepository<Review>

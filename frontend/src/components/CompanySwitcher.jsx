@@ -120,9 +120,9 @@ const CompanySwitcher = () => {
                     alignItems: 'center',
                     gap: '8px',
                     padding: '8px 16px',
-                    background: isCorporateMode ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)' : 'rgba(255, 255, 255, 0.1)',
-                    color: 'white',
-                    border: '1px solid rgba(255,255,255,0.2)',
+                    background: isCorporateMode ? 'linear-gradient(135deg, var(--color-success) 0%, color-mix(in srgb, var(--color-success) 80%, black) 100%)' : 'var(--color-bg-glass)',
+                    color: isCorporateMode ? 'white' : 'var(--color-text-primary)',
+                    border: '1px solid var(--control-border)',
                     borderRadius: '8px',
                     cursor: 'pointer',
                     fontSize: '0.9rem',
@@ -146,16 +146,16 @@ const CompanySwitcher = () => {
                     top: '100%',
                     right: 0,
                     marginTop: '8px',
-                    background: '#1e293b',
-                    border: '1px solid rgba(255,255,255,0.1)',
+                    background: 'var(--dropdown-bg)',
+                    border: '1px solid var(--dropdown-border)',
                     borderRadius: '8px',
-                    boxShadow: '0 10px 25px rgba(0,0,0,0.5)',
+                    boxShadow: 'var(--shadow-dropdown)',
                     minWidth: '220px',
                     zIndex: 9999,
                     overflow: 'hidden'
                 }}>
-                    <div style={{ padding: '8px', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
-                        <span style={{ fontSize: '0.8rem', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Switch Account Context</span>
+                    <div style={{ padding: '8px', borderBottom: '1px solid var(--dropdown-border)' }}>
+                        <span style={{ fontSize: '0.8rem', color: 'var(--dropdown-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Switch Account Context</span>
                     </div>
                     
                     <button
@@ -165,9 +165,9 @@ const CompanySwitcher = () => {
                             alignItems: 'center',
                             width: '100%',
                             padding: '12px 16px',
-                            background: !isCorporateMode ? 'rgba(255,255,255,0.05)' : 'transparent',
+                            background: !isCorporateMode ? 'var(--dropdown-item-hover-bg)' : 'transparent',
                             border: 'none',
-                            color: 'white',
+                            color: 'var(--color-text-primary)',
                             textAlign: 'left',
                             cursor: 'pointer',
                             fontSize: '0.9rem'
@@ -177,7 +177,7 @@ const CompanySwitcher = () => {
                     </button>
 
                     {loading ? (
-                        <div style={{ padding: '12px', textAlign: 'center', color: '#94a3b8', fontSize: '0.8rem' }}>Loading...</div>
+                        <div style={{ padding: '12px', textAlign: 'center', color: 'var(--dropdown-muted)', fontSize: '0.8rem' }}>Loading...</div>
                     ) : (
                         myCompanies.map((company) => (
                             <button
@@ -190,11 +190,11 @@ const CompanySwitcher = () => {
                                     padding: '12px 16px',
                                     background: activeCompanyId === company.id ? 'rgba(16, 185, 129, 0.1)' : 'transparent',
                                     border: 'none',
-                                    color: activeCompanyId === company.id ? '#10b981' : 'white',
+                                    color: activeCompanyId === company.id ? 'var(--color-success)' : 'var(--color-text-primary)',
                                     textAlign: 'left',
                                     cursor: 'pointer',
                                     fontSize: '0.9rem',
-                                    borderTop: '1px solid rgba(255,255,255,0.05)'
+                                    borderTop: '1px solid var(--dropdown-border)'
                                 }}
                             >
                                 <span style={{ marginRight: '8px' }}>🏢</span> {company.name || 'Corporate Account'}
@@ -203,7 +203,7 @@ const CompanySwitcher = () => {
                     )}
                     
                     {!loading && myCompanies.length === 0 && (
-                        <div style={{ padding: '12px 16px', color: '#94a3b8', fontSize: '0.85rem', fontStyle: 'italic', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+                        <div style={{ padding: '12px 16px', color: 'var(--dropdown-muted)', fontSize: '0.85rem', fontStyle: 'italic', borderTop: '1px solid var(--dropdown-border)' }}>
                             No corporate accounts found.
                         </div>
                     )}
@@ -215,13 +215,13 @@ const CompanySwitcher = () => {
                             alignItems: 'center',
                             width: '100%',
                             padding: '12px 16px',
-                            background: 'rgba(99, 102, 241, 0.1)',
+                            background: 'var(--color-primary-alpha)',
                             border: 'none',
-                            color: '#818cf8',
+                            color: 'var(--color-accent-light)',
                             textAlign: 'left',
                             cursor: 'pointer',
                             fontSize: '0.9rem',
-                            borderTop: '1px solid rgba(255,255,255,0.05)'
+                            borderTop: '1px solid var(--dropdown-border)'
                         }}
                     >
                         <span style={{ marginRight: '8px', fontSize: '1.2rem' }}>+</span> Create Corporate Account
@@ -234,7 +234,7 @@ const CompanySwitcher = () => {
                 <div style={{
                     position: 'fixed',
                     top: 0, left: 0, right: 0, bottom: 0,
-                    background: 'rgba(15, 23, 42, 0.8)',
+                    background: 'var(--overlay-bg)',
                     backdropFilter: 'blur(4px)',
                     display: 'flex',
                     alignItems: 'flex-start',
@@ -246,16 +246,16 @@ const CompanySwitcher = () => {
                     onClick={(e) => { if (e.target === e.currentTarget) setShowCreateModal(false); }}
                 >
                     <div style={{
-                        background: '#1e293b',
-                        border: '1px solid rgba(255,255,255,0.1)',
+                        background: 'var(--dropdown-bg)',
+                        border: '1px solid var(--dropdown-border)',
                         borderRadius: '12px',
                         padding: '24px',
                         width: '100%',
                         maxWidth: '500px',
-                        boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
+                        boxShadow: 'var(--shadow-dropdown)',
                         margin: 'auto 0'
                     }}>
-                        <h2 style={{ margin: '0 0 16px 0', fontSize: '1.25rem', color: 'white' }}>Create Corporate Account</h2>
+                        <h2 style={{ margin: '0 0 16px 0', fontSize: '1.25rem', color: 'var(--color-text-primary)' }}>Create Corporate Account</h2>
                         
                         <form onSubmit={handleCreateCompany}>
                             <div className="grid grid-2" style={{ gap: '12px', marginBottom: '12px' }}>

@@ -484,7 +484,7 @@ export default function Chat() {
                                                         <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                                                             <span>{formatMessageTime(msg.createdAt)}</span>
                                                             <span style={{
-                                                                color: msg.isRead ? '#3b82f6' : 'inherit',
+                                                                color: msg.isRead ? 'var(--color-primary)' : 'inherit',
                                                                 fontSize: '0.9rem',
                                                                 marginLeft: '2px'
                                                             }}>
@@ -535,7 +535,7 @@ export default function Chat() {
                                 {composeError && (
                                     <div style={{
                                         padding: '0.75rem 1rem', marginBottom: '1rem', borderRadius: '8px',
-                                        background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', fontSize: '0.85rem'
+                                        background: 'color-mix(in srgb, var(--color-error) 12%, transparent)', color: 'var(--color-error)', fontSize: '0.85rem'
                                     }}>
                                         {composeError}
                                     </div>

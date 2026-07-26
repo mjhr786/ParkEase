@@ -58,10 +58,10 @@ export default function EvChargeSimulator() {
   };
 
   const card = {
-    background: '#1e293b',
+    background: 'var(--color-surface)',
     borderRadius: '12px',
     padding: '1.25rem 1.5rem',
-    border: '1px solid rgba(255,255,255,0.06)',
+    border: '1px solid var(--color-border)',
   };
 
   return (
@@ -114,15 +114,15 @@ export default function EvChargeSimulator() {
         <div style={{ ...card, marginTop: '1.25rem' }}>
           <h3 style={{ marginTop: 0 }}>Result</h3>
           <dl style={{ display: 'grid', gridTemplateColumns: '140px 1fr', gap: '0.35rem 0.75rem', margin: 0 }}>
-            <dt style={{ color: '#94a3b8' }}>Status</dt>
+            <dt style={{ color: 'var(--color-text-secondary)' }}>Status</dt>
             <dd style={{ margin: 0 }}>{result.status}</dd>
-            <dt style={{ color: '#94a3b8' }}>Transaction</dt>
+            <dt style={{ color: 'var(--color-text-secondary)' }}>Transaction</dt>
             <dd style={{ margin: 0, wordBreak: 'break-all' }}>{result.ocppTransactionId}</dd>
-            <dt style={{ color: '#94a3b8' }}>Energy</dt>
+            <dt style={{ color: 'var(--color-text-secondary)' }}>Energy</dt>
             <dd style={{ margin: 0 }}>{result.energyDeliveredKwh} kWh</dd>
-            <dt style={{ color: '#94a3b8' }}>Rate</dt>
+            <dt style={{ color: 'var(--color-text-secondary)' }}>Rate</dt>
             <dd style={{ margin: 0 }}>₹{result.ratePerKwh}/kWh</dd>
-            <dt style={{ color: '#94a3b8' }}>Energy fee</dt>
+            <dt style={{ color: 'var(--color-text-secondary)' }}>Energy fee</dt>
             <dd style={{ margin: 0 }}>₹{result.energyFeeAmount}</dd>
           </dl>
         </div>

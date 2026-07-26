@@ -579,7 +579,7 @@ export default function ParkingDetails() {
             <div className="container">
                 {bookingSuccess && (
                     <div className={`alert ${bookingSuccess.isPending ? 'alert-warning' : 'alert-success'} mb-2`}
-                        style={bookingSuccess.isPending ? { background: 'rgba(245, 158, 11, 0.15)', borderColor: '#f59e0b' } : {}}>
+                        style={bookingSuccess.isPending ? { background: 'rgba(245, 158, 11, 0.15)', borderColor: 'var(--color-warning)' } : {}}>
                         <strong>{bookingSuccess.message}</strong><br />
                         Booking Reference: <strong>{bookingSuccess.reference}</strong>
                         {bookingSuccess.isPending && (
@@ -717,7 +717,7 @@ export default function ParkingDetails() {
                                 <h3 className="card-title">Amenities</h3>
                                 <div className="flex gap-1 mt-1" style={{ flexWrap: 'wrap' }}>
                                     {parking.hasEvCharging && (
-                                        <span className="parking-tag" style={{ background: 'rgba(16,185,129,0.2)', color: '#6ee7b7' }}>
+                                        <span className="parking-tag" style={{ background: 'rgba(16,185,129,0.2)', color: 'var(--color-success)' }}>
                                             🔌 EV Charging
                                             {Number(parking.evChargerCount) > 0 ? ` · ${parking.evChargerCount} bay(s)` : ''}
                                             {Number(parking.evPricingMode) === 1
@@ -730,7 +730,7 @@ export default function ParkingDetails() {
                                     ))}
                                 </div>
                                 {parking.hasEvCharging && Number(parking.evIdleRatePerHour) > 0 && (
-                                    <p style={{ margin: '0.75rem 0 0', fontSize: '0.85rem', color: '#94a3b8' }}>
+                                    <p style={{ margin: '0.75rem 0 0', fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>
                                         Idle fee after session end + {parking.evIdleGraceMinutes ?? 15} min grace: ₹{parking.evIdleRatePerHour}/hr
                                     </p>
                                 )}
@@ -759,7 +759,7 @@ export default function ParkingDetails() {
                                                 <strong>{pkg.zoneName ? `${pkg.zoneName} · ` : ''}{pkg.title}</strong>
                                                 <span>₹{Number(pkg.packagePrice).toFixed(0)}</span>
                                             </div>
-                                            <div style={{ fontSize: '0.85rem', color: '#94a3b8', marginTop: '0.25rem' }}>
+                                            <div style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)', marginTop: '0.25rem' }}>
                                                 Access:{' '}
                                                 {new Date(pkg.accessStartUtc || pkg.eventStartUtc).toLocaleString()}
                                                 {' → '}
@@ -872,7 +872,7 @@ export default function ParkingDetails() {
                         ) : (
                             <div className="booking-summary">
                                 {corporateAllocation ? (
-                                    <div style={{ background: 'rgba(16, 185, 129, 0.1)', border: '1px solid #10b981', padding: '15px', borderRadius: '8px', marginBottom: '1rem', color: '#10b981' }}>
+                                    <div style={{ background: 'rgba(16, 185, 129, 0.1)', border: '1px solid #10b981', padding: '15px', borderRadius: '8px', marginBottom: '1rem', color: 'var(--color-success)' }}>
                                         <strong>🏢 Corporate Booking Available</strong>
                                         <p style={{ margin: '5px 0 0', fontSize: '0.9rem' }}>
                                             Your company has an active allocation here. Costs are covered by {activeCompanyId ? 'your employer' : 'your company'}!
@@ -883,8 +883,8 @@ export default function ParkingDetails() {
                                         <h3 style={{ marginBottom: '1rem' }}>Book This Space</h3>
                                         {isCorporateMode && activeCompanyId && (
                                             <div style={{ background: 'rgba(139, 92, 246, 0.1)', border: '1px solid rgba(139, 92, 246, 0.45)', padding: '15px', borderRadius: '8px', marginBottom: '1rem' }}>
-                                                <strong style={{ color: '#c4b5fd' }}>No corporate allocation at this parking space</strong>
-                                                <p style={{ margin: '5px 0 12px', fontSize: '0.9rem', color: '#cbd5e1' }}>
+                                                <strong style={{ color: 'var(--color-secondary)' }}>No corporate allocation at this parking space</strong>
+                                                <p style={{ margin: '5px 0 12px', fontSize: '0.9rem', color: 'var(--color-text-secondary)' }}>
                                                     Request slots for your company and the parking owner can approve them from vendor bookings.
                                                 </p>
                                                 <button
@@ -956,8 +956,8 @@ export default function ParkingDetails() {
                                                 }}>
                                                     <span style={{ fontSize: '1.4rem' }}>🅿️</span>
                                                     <div>
-                                                        <div style={{ fontWeight: 700, color: '#818cf8' }}>Slot {booking.slotNumber} Selected</div>
-                                                        <div style={{ fontSize: '0.8rem', color: '#a0a0b0' }}>Click below to change</div>
+                                                        <div style={{ fontWeight: 700, color: 'var(--color-accent-light)' }}>Slot {booking.slotNumber} Selected</div>
+                                                        <div style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>Click below to change</div>
                                                     </div>
                                                 </div>
                                             )}
@@ -970,7 +970,7 @@ export default function ParkingDetails() {
                                                     background: 'var(--color-bg-tertiary)',
                                                     border: '1px dashed rgba(99,102,241,0.5)',
                                                     borderRadius: 'var(--radius-md)',
-                                                    color: booking.slotNumber ? '#818cf8' : 'var(--color-text-muted)',
+                                                    color: booking.slotNumber ? 'var(--color-accent-light)' : 'var(--color-text-muted)',
                                                     fontWeight: 600,
                                                     cursor: 'pointer',
                                                     display: 'flex',
@@ -1027,9 +1027,9 @@ export default function ParkingDetails() {
                                                     type="checkbox" 
                                                     checked={isVisitor}
                                                     onChange={e => setIsVisitor(e.target.checked)}
-                                                    style={{ width: '18px', height: '18px', accentColor: '#10b981' }}
+                                                    style={{ width: '18px', height: '18px', accentColor: 'var(--color-success)' }}
                                                 />
-                                                <strong style={{ color: 'white' }}>This is for a Visitor</strong>
+                                                <strong style={{ color: 'var(--color-text-primary)' }}>This is for a Visitor</strong>
                                             </label>
                                         </div>
                                     )}
@@ -1181,7 +1181,7 @@ export default function ParkingDetails() {
                                                                     ₹{svc.price}
                                                                 </span>
                                                                 {svc.durationMinutes ? (
-                                                                    <span style={{ marginLeft: '0.35rem', fontSize: '0.8rem', color: '#9ca3af' }}>
+                                                                    <span style={{ marginLeft: '0.35rem', fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>
                                                                         · ~{svc.durationMinutes} min
                                                                     </span>
                                                                 ) : null}
@@ -1218,7 +1218,7 @@ export default function ParkingDetails() {
                                                 <span>₹{priceBreakdown.baseAmount}</span>
                                             </div>
                                             {priceBreakdown.includeEvCharging && Number(priceBreakdown.evPricingMode) === 1 && (
-                                                <div className="price-row" style={{ color: '#6ee7b7', fontSize: '0.9rem' }}>
+                                                <div className="price-row" style={{ color: 'var(--color-success)', fontSize: '0.9rem' }}>
                                                     <span>EV energy (after charge)</span>
                                                     <span>
                                                         {Number(priceBreakdown.evRatePerKwh) > 0
@@ -1228,7 +1228,7 @@ export default function ParkingDetails() {
                                                 </div>
                                             )}
                                             {priceBreakdown.includeEvCharging && Number(priceBreakdown.evPricingMode) !== 1 && Number(priceBreakdown.evChargingFeeAmount) > 0 && (
-                                                <div className="price-row" style={{ color: '#6ee7b7', fontSize: '0.9rem' }}>
+                                                <div className="price-row" style={{ color: 'var(--color-success)', fontSize: '0.9rem' }}>
                                                     <span>EV charging (in base)</span>
                                                     <span>₹{priceBreakdown.evChargingFeeAmount}</span>
                                                 </div>
@@ -1239,14 +1239,14 @@ export default function ParkingDetails() {
                                                         <div
                                                             key={line.id || `${line.snapshotName}-${idx}`}
                                                             className="price-row"
-                                                            style={{ color: '#f9a8d4', fontSize: '0.9rem' }}
+                                                            style={{ color: 'var(--color-secondary)', fontSize: '0.9rem' }}
                                                         >
                                                             <span>{line.snapshotName}{line.quantity > 1 ? ` ×${line.quantity}` : ''}</span>
                                                             <span>₹{line.lineTotal ?? line.unitPrice}</span>
                                                         </div>
                                                     ))}
                                                     {(priceBreakdown.ancillaryLines || []).length === 0 && (
-                                                        <div className="price-row" style={{ color: '#f9a8d4', fontSize: '0.9rem' }}>
+                                                        <div className="price-row" style={{ color: 'var(--color-secondary)', fontSize: '0.9rem' }}>
                                                             <span>Add-ons (in base)</span>
                                                             <span>₹{priceBreakdown.ancillarySubtotal}</span>
                                                         </div>
@@ -1254,7 +1254,7 @@ export default function ParkingDetails() {
                                                 </>
                                             )}
                                             {priceBreakdown.dynamicPricingApplied && (
-                                                <div className="price-row" style={{ color: '#fbbf24', fontSize: '0.9rem' }}>
+                                                <div className="price-row" style={{ color: 'var(--color-warning)', fontSize: '0.9rem' }}>
                                                     <span>
                                                         Dynamic pricing ×{Number(priceBreakdown.dynamicMultiplier || 1).toFixed(2)}
                                                     </span>
@@ -1280,7 +1280,7 @@ export default function ParkingDetails() {
                                                 <span>₹{priceBreakdown.totalAmount}</span>
                                             </div>
                                             {priceBreakdown.dynamicPricingApplied && priceBreakdown.dynamicPricingFactors && (
-                                                <p style={{ margin: '0.5rem 0 0', fontSize: '0.8rem', color: '#9ca3af' }}>
+                                                <p style={{ margin: '0.5rem 0 0', fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>
                                                     {priceBreakdown.dynamicPricingFactors}
                                                 </p>
                                             )}
@@ -1293,7 +1293,7 @@ export default function ParkingDetails() {
                                         type="submit"
                                         className="btn btn-primary btn-full mt-2"
                                         disabled={bookingLoading || (!priceBreakdown && !corporateAllocation) || (corporateAllocation && (!booking.startDateTime || !booking.endDateTime))}
-                                        style={corporateAllocation ? { background: '#10b981', borderColor: '#10b981' } : {}}
+                                        style={corporateAllocation ? { background: 'var(--color-success)', borderColor: 'var(--color-success)' } : {}}
                                     >
                                         {bookingLoading ? 'Submitting Request...' : corporateAllocation ? 'Confirm Corporate Booking' : 'Request Booking'}
                                     </button>

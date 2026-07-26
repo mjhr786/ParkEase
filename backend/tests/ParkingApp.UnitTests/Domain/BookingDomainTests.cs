@@ -63,6 +63,26 @@ public class BookingDomainTests
     }
 
     [Fact]
+    public void Cancel_ClearsPendingExtensionFields()
+    {
+        var booking = new Booking
+        {
+            Status = BookingStatus.PendingExtension,
+            PendingExtensionEndDateTime = DateTime.UtcNow.AddHours(2),
+            PendingExtensionAmount = 25m,
+            PreExtensionStatus = BookingStatus.InProgress
+        };
+
+        booking.Cancel("admin support");
+
+        booking.Status.Should().Be(BookingStatus.Cancelled);
+        booking.PendingExtensionEndDateTime.Should().BeNull();
+        booking.PendingExtensionAmount.Should().BeNull();
+        booking.PreExtensionStatus.Should().BeNull();
+        booking.HasPendingExtension.Should().BeFalse();
+    }
+
+    [Fact]
     public void CheckIn_WhenWithinOneHourOfStartTime_ShouldSetStatusToInProgress()
     {
         // Arrange

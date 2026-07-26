@@ -3,6 +3,7 @@ import { render, screen, waitFor, cleanup } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import CorporateDashboard from './CorporateDashboard';
+import { ThemeProvider } from '../../contexts/ThemeContext';
 
 const mockNavigate = vi.fn();
 const mockGetDashboard = vi.fn();
@@ -77,9 +78,11 @@ const sampleStats = {
 
 function renderDashboard() {
   return render(
-    <MemoryRouter>
-      <CorporateDashboard />
-    </MemoryRouter>
+    <ThemeProvider>
+      <MemoryRouter>
+        <CorporateDashboard />
+      </MemoryRouter>
+    </ThemeProvider>
   );
 }
 

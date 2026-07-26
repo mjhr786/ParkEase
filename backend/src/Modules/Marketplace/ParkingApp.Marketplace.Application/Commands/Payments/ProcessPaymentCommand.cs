@@ -389,8 +389,16 @@ internal sealed class ProcessRefundHandler : ICommandHandler<ProcessRefundComman
         if (payment == null) return new ApiResponse<RefundResultDto>(false, "Payment not found", null);
         if (payment.UserId != command.UserId) return new ApiResponse<RefundResultDto>(false, "Unauthorized", null);
         if (payment.Status != PaymentStatus.Completed) return new ApiResponse<RefundResultDto>(false, "Cannot refund a non-completed payment", null);
+        if (string.IsNullOrWhiteSpace(payment.TransactionId))
+            return new ApiResponse<RefundResultDto>(false, "Payment has no gateway transaction id to refund", null);
 
-        var refundRequest = new RefundRequest { PaymentId = command.Dto.PaymentId, Amount = command.Dto.Amount, Reason = command.Dto.Reason };
+        var refundRequest = new RefundRequest
+        {
+            PaymentId = command.Dto.PaymentId,
+            Amount = command.Dto.Amount,
+            Reason = command.Dto.Reason,
+            GatewayTransactionId = payment.TransactionId
+        };
 
         _logger.LogInformation("Processing refund for payment {PaymentId}, amount {Amount}", command.Dto.PaymentId, command.Dto.Amount);
         var result = await _paymentService.ProcessRefundAsync(refundRequest, cancellationToken);

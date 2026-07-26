@@ -8,7 +8,7 @@ export default function Login() {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [loading, setLoading] = useState(false);
-    const { login } = useAuth();
+    const { login, isAdmin } = useAuth();
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
     const returnUrl = safeReturnUrl(searchParams.get('returnUrl'));
@@ -20,7 +20,18 @@ export default function Login() {
         const result = await login(email, password);
 
         if (result.success) {
-            navigate(returnUrl || '/dashboard');
+            // Prefer explicit returnUrl; otherwise platform admins land in admin shell (not consumer dashboard).
+            if (returnUrl) {
+                navigate(returnUrl);
+            } else {
+                const stored = localStorage.getItem('user');
+                let admin = false;
+                try {
+                    const u = stored ? JSON.parse(stored) : null;
+                    admin = u?.role === 0 || u?.role === 'Admin';
+                } catch { /* ignore */ }
+                navigate(admin || isAdmin ? '/admin' : '/dashboard');
+            }
         } else {
             showToast.error(result.message || 'Login failed');
         }

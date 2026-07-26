@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>ParkingApp.Admin.Contracts</RootNamespace>
+    <Description>Admin module public contracts (audit staging for domain modules).</Description>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\ParkingApp.BuildingBlocks\ParkingApp.BuildingBlocks.csproj" />
+  </ItemGroup>
+</Project>

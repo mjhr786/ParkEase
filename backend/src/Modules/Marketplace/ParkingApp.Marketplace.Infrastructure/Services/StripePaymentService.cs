@@ -160,9 +160,19 @@ internal sealed class StripePaymentService : IPaymentService
     {
         try
         {
+            var paymentIntentId = request.GatewayTransactionId?.Trim();
+            if (string.IsNullOrWhiteSpace(paymentIntentId))
+            {
+                return new RefundResult
+                {
+                    Success = false,
+                    ErrorMessage = "Missing gateway transaction id (Stripe PaymentIntent) for refund"
+                };
+            }
+
             var options = new RefundCreateOptions
             {
-                PaymentIntent = request.PaymentId.ToString(),
+                PaymentIntent = paymentIntentId,
                 Amount = (long)(request.Amount * 100),
                 Reason = "requested_by_customer"
             };
@@ -179,7 +189,8 @@ internal sealed class StripePaymentService : IPaymentService
         }
         catch (StripeException ex)
         {
-            _logger.LogError(ex, "Stripe refund failed for payment {PaymentId}", request.PaymentId);
+            _logger.LogError(ex, "Stripe refund failed for payment {PaymentId} (PI={PaymentIntent})",
+                request.PaymentId, request.GatewayTransactionId);
             return new RefundResult
             {
                 Success = false,
@@ -188,7 +199,8 @@ internal sealed class StripePaymentService : IPaymentService
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.LogError(ex, "Stripe refund failed for payment {PaymentId}", request.PaymentId);
+            _logger.LogError(ex, "Stripe refund failed for payment {PaymentId} (PI={PaymentIntent})",
+                request.PaymentId, request.GatewayTransactionId);
             return new RefundResult
             {
                 Success = false,

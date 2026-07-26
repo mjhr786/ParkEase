@@ -2,6 +2,11 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, waitFor, cleanup } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import StripeCheckout from './StripeCheckout';
+import { ThemeProvider } from '../contexts/ThemeContext';
+
+function renderWithTheme(ui) {
+  return render(<ThemeProvider>{ui}</ThemeProvider>);
+}
 
 const mockConfirmPayment = vi.fn();
 const mockSubmit = vi.fn();
@@ -48,19 +53,19 @@ describe('StripeCheckout', () => {
   });
 
   it('renders nothing without clientSecret or publishableKey', () => {
-    const { container: a } = render(
+    const { container: a } = renderWithTheme(
       <StripeCheckout clientSecret={null} publishableKey="pk" onSuccess={onSuccess} onCancel={onCancel} />
     );
     expect(a).toBeEmptyDOMElement();
 
-    const { container: b } = render(
+    const { container: b } = renderWithTheme(
       <StripeCheckout clientSecret="cs" publishableKey={null} onSuccess={onSuccess} onCancel={onCancel} />
     );
     expect(b).toBeEmptyDOMElement();
   });
 
   it('renders payment form when secrets are present', () => {
-    render(
+    renderWithTheme(
       <StripeCheckout
         clientSecret="cs_test"
         publishableKey="pk_test"
@@ -76,7 +81,7 @@ describe('StripeCheckout', () => {
 
   it('calls onCancel when Cancel is clicked', async () => {
     const user = userEvent.setup();
-    render(
+    renderWithTheme(
       <StripeCheckout
         clientSecret="cs_test"
         publishableKey="pk_test"
@@ -90,7 +95,7 @@ describe('StripeCheckout', () => {
 
   it('calls onSuccess when payment succeeds', async () => {
     const user = userEvent.setup();
-    render(
+    renderWithTheme(
       <StripeCheckout
         clientSecret="cs_test"
         publishableKey="pk_test"
@@ -112,7 +117,7 @@ describe('StripeCheckout', () => {
     const user = userEvent.setup();
     mockSubmit.mockResolvedValue({ error: { message: 'Card incomplete' } });
 
-    render(
+    renderWithTheme(
       <StripeCheckout
         clientSecret="cs_test"
         publishableKey="pk_test"
@@ -135,7 +140,7 @@ describe('StripeCheckout', () => {
       error: { message: 'Card declined' },
     });
 
-    render(
+    renderWithTheme(
       <StripeCheckout
         clientSecret="cs_test"
         publishableKey="pk_test"
@@ -158,7 +163,7 @@ describe('StripeCheckout', () => {
       paymentIntent: { id: 'pi_pending', status: 'requires_action' },
     });
 
-    render(
+    renderWithTheme(
       <StripeCheckout
         clientSecret="cs_test"
         publishableKey="pk_test"

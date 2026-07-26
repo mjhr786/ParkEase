@@ -25,6 +25,38 @@ internal class UserRepository : IdentityRepository<User>, IUserRepository
 
     public async Task<User?> GetByRefreshTokenAsync(string refreshToken, CancellationToken cancellationToken = default) =>
         await _dbSet.FirstOrDefaultAsync(u => u.RefreshToken == refreshToken, cancellationToken);
+
+    public async Task<(IReadOnlyList<User> Items, int TotalCount)> SearchForAdminAsync(
+        string? search,
+        bool? isActive,
+        int page,
+        int pageSize,
+        CancellationToken cancellationToken = default)
+    {
+        var query = _dbSet.AsQueryable();
+
+        if (isActive.HasValue)
+            query = query.Where(u => u.IsActive == isActive.Value);
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var term = search.Trim().ToLower();
+            query = query.Where(u =>
+                u.FirstName.ToLower().Contains(term)
+                || u.LastName.ToLower().Contains(term)
+                || u.PhoneNumber.ToLower().Contains(term)
+                || EF.Property<string>(u, nameof(User.Email)).ToLower().Contains(term));
+        }
+
+        var total = await query.CountAsync(cancellationToken);
+        var items = await query
+            .OrderByDescending(u => u.CreatedAt)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync(cancellationToken);
+
+        return (items, total);
+    }
 }
 
 internal class VehicleRepository : IdentityRepository<Vehicle>, IVehicleRepository

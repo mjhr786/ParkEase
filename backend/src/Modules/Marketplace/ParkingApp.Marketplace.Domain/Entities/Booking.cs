@@ -432,6 +432,10 @@ public class Booking : BaseEntity
         Status = BookingStatus.Cancelled;
         CancellationReason = reason;
         CancelledAt = DateTime.UtcNow;
+        // Drop stale extension state so cancelled bookings cannot be extended/paid.
+        PendingExtensionEndDateTime = null;
+        PendingExtensionAmount = null;
+        PreExtensionStatus = null;
         AddDomainEvent(new BookingCancelledEvent(Id, UserId, ParkingSpaceId, BookingReference, reason));
     }
 

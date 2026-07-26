@@ -3,8 +3,10 @@ import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { ChatProvider, useChatContext } from './contexts/ChatContext';
 import { NotificationProvider, useNotificationContext } from './context/NotificationContext';
 import { CompanyProvider, useCompany } from './contexts/CompanyContext';
+import { useTheme } from './contexts/ThemeContext';
 import NotificationDropdown from './components/NotificationDropdown';
 import CompanySwitcher from './components/CompanySwitcher';
+import ThemeToggle from './components/ThemeToggle';
 import toast, { Toaster } from 'react-hot-toast';
 import React, { Suspense } from 'react';
 import './index.css';
@@ -36,6 +38,18 @@ const AcceptInvitation = React.lazy(() => import('./pages/Corporate/AcceptInvita
 const OutboxAdmin = React.lazy(() => import('./pages/Admin/OutboxAdmin'));
 const LprSimulator = React.lazy(() => import('./pages/Admin/LprSimulator'));
 const EvChargeSimulator = React.lazy(() => import('./pages/Admin/EvChargeSimulator'));
+const AdminLayout = React.lazy(() => import('./pages/Admin/AdminLayout'));
+const AdminDashboard = React.lazy(() => import('./pages/Admin/AdminDashboard'));
+const AdminUsers = React.lazy(() => import('./pages/Admin/AdminUsers'));
+const AdminUserDetail = React.lazy(() => import('./pages/Admin/AdminUserDetail'));
+const AdminListings = React.lazy(() => import('./pages/Admin/AdminListings'));
+const AdminListingDetail = React.lazy(() => import('./pages/Admin/AdminListingDetail'));
+const AdminBookings = React.lazy(() => import('./pages/Admin/AdminBookings'));
+const AdminBookingDetail = React.lazy(() => import('./pages/Admin/AdminBookingDetail'));
+const AdminPayments = React.lazy(() => import('./pages/Admin/AdminPayments'));
+const AdminPaymentDetail = React.lazy(() => import('./pages/Admin/AdminPaymentDetail'));
+const AdminAuditLog = React.lazy(() => import('./pages/Admin/AdminAuditLog'));
+const AdminRoute = React.lazy(() => import('./components/AdminRoute'));
 const LprRegistry = React.lazy(() => import('./pages/Vendor/LprRegistry'));
 const AccessPassScanner = React.lazy(() => import('./pages/Vendor/AccessPassScanner'));
 const EventPackagesVendor = React.lazy(() => import('./pages/Vendor/EventPackages'));
@@ -167,6 +181,8 @@ function Header() {
           <Link to="/search" className="nav-link">Find Parking</Link>
           <Link to="/events" className="nav-link">Events</Link>
 
+          <ThemeToggle />
+
           {isAuthenticated ? (
             <>
               {/* Messages with badge (same red style as conversation unread chips) */}
@@ -176,8 +192,8 @@ function Header() {
                   <span
                     aria-label={`${unreadCount} unread messages`}
                     style={{
-                      background: '#ef4444',
-                      color: 'white',
+                      background: 'var(--color-danger)',
+                      color: 'var(--color-text-on-accent)',
                       borderRadius: '999px',
                       padding: '0 6px',
                       fontSize: '0.7rem',
@@ -188,7 +204,7 @@ function Header() {
                       alignItems: 'center',
                       justifyContent: 'center',
                       lineHeight: 1,
-                      boxShadow: '0 0 0 2px rgba(10,10,15,0.85)',
+                      boxShadow: '0 0 0 2px var(--badge-ring)',
                     }}
                   >
                     {Number(unreadCount) > 99 ? '99+' : Number(unreadCount)}
@@ -212,16 +228,16 @@ function Header() {
                     alignItems: 'center',
                     gap: '8px',
                     background: 'transparent',
-                    border: '2px solid rgba(255,255,255,0.15)',
+                    border: '2px solid var(--control-border)',
                     borderRadius: '999px',
                     padding: '4px 12px 4px 4px',
                     cursor: 'pointer',
                     color: 'inherit',
                     transition: 'border-color 0.2s, background 0.2s',
                   }}
-                  onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(99,102,241,0.6)'}
+                  onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--color-accent)'; }}
                   onMouseLeave={e => {
-                    if (!profileOpen) e.currentTarget.style.borderColor = 'rgba(255,255,255,0.15)';
+                    if (!profileOpen) e.currentTarget.style.borderColor = 'var(--control-border)';
                   }}
                 >
                   {/* Avatar circle */}
@@ -229,13 +245,13 @@ function Header() {
                     width: '30px',
                     height: '30px',
                     borderRadius: '50%',
-                    background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+                    background: 'var(--gradient-primary)',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
                     fontWeight: '700',
                     fontSize: '0.75rem',
-                    color: 'white',
+                    color: 'var(--color-text-on-accent)',
                     flexShrink: 0,
                   }}>
                     {initials || '?'}
@@ -255,27 +271,34 @@ function Header() {
                     position: 'absolute',
                     top: 'calc(100% + 10px)',
                     right: 0,
-                    background: '#1e293b',
-                    border: '1px solid rgba(255,255,255,0.08)',
+                    background: 'var(--dropdown-bg)',
+                    border: '1px solid var(--dropdown-border)',
                     borderRadius: '14px',
-                    boxShadow: '0 20px 50px rgba(0,0,0,0.5)',
+                    boxShadow: 'var(--shadow-dropdown)',
                     minWidth: '200px',
                     overflow: 'hidden',
                     zIndex: 8000,
                     animation: 'profileDropIn 0.18s ease-out',
                   }}>
                     {/* User info header */}
-                    <div style={{ padding: '1rem 1.25rem', borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
-                      <div style={{ fontWeight: '600', fontSize: '0.9rem', color: 'white' }}>
+                    <div style={{ padding: '1rem 1.25rem', borderBottom: '1px solid var(--dropdown-border)' }}>
+                      <div style={{ fontWeight: '600', fontSize: '0.9rem', color: 'var(--color-text-primary)' }}>
                         {user?.firstName} {user?.lastName}
                       </div>
-                      <div style={{ fontSize: '0.76rem', color: '#64748b', marginTop: '2px' }}>
-                        ParkEase User
+                      <div style={{ fontSize: '0.76rem', color: 'var(--dropdown-muted)', marginTop: '2px' }}>
+                        {isAdmin ? 'Platform Admin' : 'ParkEase User'}
                       </div>
                     </div>
 
-                    {/* Links */}
-                    {(isCorporateMode ? [
+                    {/* Links — platform admins get admin entry points only (not consumer/vendor menus) */}
+                    {(isAdmin ? [
+                      { to: '/admin', icon: '🛡️', label: 'Admin Panel' },
+                      { to: '/admin/users', icon: '👥', label: 'Manage Users' },
+                      { to: '/admin/audit', icon: '📝', label: 'Audit Log' },
+                      { to: '/admin/outbox', icon: '📬', label: 'Outbox' },
+                      { to: '/tools/lpr-simulator', icon: '📷', label: 'LPR Simulator' },
+                      { to: '/tools/ev-charge-simulator', icon: '⚡', label: 'EV Charge Simulator' },
+                    ] : isCorporateMode ? [
                       { to: '/corporate/dashboard', icon: '🏢', label: 'Corporate Dash' },
                       { to: '/corporate/parking-spaces', icon: '🏗️', label: 'Parking Inventory' },
                       { to: '/corporate/members', icon: '👥', label: 'Members' },
@@ -284,9 +307,8 @@ function Header() {
                       { to: '/corporate/invoices', icon: '🧾', label: 'Invoices' },
                       { to: '/corporate/settings', icon: '⚙️', label: 'Company Settings' },
                       { to: '/profile', icon: '👤', label: 'My Profile' },
-                      { to: '/admin/lpr-simulator', icon: '📷', label: 'LPR Simulator' },
-                      { to: '/admin/ev-charge-simulator', icon: '⚡', label: 'EV Charge Simulator' },
-                      ...(isAdmin ? [{ to: '/admin/outbox', icon: '📬', label: 'Outbox Admin' }] : []),
+                      { to: '/tools/lpr-simulator', icon: '📷', label: 'LPR Simulator' },
+                      { to: '/tools/ev-charge-simulator', icon: '⚡', label: 'EV Charge Simulator' },
                     ] : [
                       { to: '/dashboard', icon: '🏠', label: 'Dashboard' },
                       { to: '/bookings', icon: '📅', label: 'My Bookings' },
@@ -297,9 +319,8 @@ function Header() {
                       { to: '/my/event-packages', icon: '🎟️', label: 'Event packages' },
                       { to: '/my/requests', icon: '📋', label: 'Vendor Inbox', badge: pendingRequests > 0 ? pendingRequests : null },
                       { to: '/my/access-scan', icon: '📱', label: 'Scan access pass' },
-                      { to: '/admin/lpr-simulator', icon: '📷', label: 'LPR Simulator' },
-                      { to: '/admin/ev-charge-simulator', icon: '⚡', label: 'EV Charge Simulator' },
-                      ...(isAdmin ? [{ to: '/admin/outbox', icon: '📬', label: 'Outbox Admin' }] : []),
+                      { to: '/tools/lpr-simulator', icon: '📷', label: 'LPR Simulator' },
+                      { to: '/tools/ev-charge-simulator', icon: '⚡', label: 'EV Charge Simulator' },
                     ]).map(item => (
                       <Link
                         key={item.to}
@@ -310,21 +331,27 @@ function Header() {
                           alignItems: 'center',
                           gap: '10px',
                           padding: '0.65rem 1.25rem',
-                          color: '#cbd5e1',
+                          color: 'var(--dropdown-item)',
                           textDecoration: 'none',
                           fontSize: '0.875rem',
                           transition: 'background 0.15s, color 0.15s',
                         }}
-                        onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.06)'; e.currentTarget.style.color = 'white'; }}
-                        onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#cbd5e1'; }}
+                        onMouseEnter={e => {
+                          e.currentTarget.style.background = 'var(--dropdown-item-hover-bg)';
+                          e.currentTarget.style.color = 'var(--color-text-primary)';
+                        }}
+                        onMouseLeave={e => {
+                          e.currentTarget.style.background = 'transparent';
+                          e.currentTarget.style.color = 'var(--dropdown-item)';
+                        }}
                       >
                         <span style={{ fontSize: '1rem', width: '20px', textAlign: 'center' }}>{item.icon}</span>
                         {item.label}
                         {item.badge != null && (
                           <span style={{
                             marginLeft: 'auto',
-                            background: '#ef4444',
-                            color: 'white',
+                            background: 'var(--color-danger)',
+                            color: 'var(--color-text-on-accent)',
                             borderRadius: '10px',
                             padding: '2px 6px',
                             fontSize: '0.7rem',
@@ -337,7 +364,7 @@ function Header() {
                     ))}
 
                     {/* Divider + Logout */}
-                    <div style={{ borderTop: '1px solid rgba(255,255,255,0.07)', margin: '4px 0' }} />
+                    <div style={{ borderTop: '1px solid var(--dropdown-border)', margin: '4px 0' }} />
                     <button
                       onClick={handleLogout}
                       style={{
@@ -348,14 +375,14 @@ function Header() {
                         width: '100%',
                         background: 'transparent',
                         border: 'none',
-                        color: '#f87171',
+                        color: 'var(--color-error)',
                         fontSize: '0.875rem',
                         cursor: 'pointer',
                         textAlign: 'left',
                         transition: 'background 0.15s',
                       }}
-                      onMouseEnter={e => e.currentTarget.style.background = 'rgba(239,68,68,0.08)'}
-                      onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                      onMouseEnter={e => { e.currentTarget.style.background = 'var(--color-primary-alpha)'; }}
+                      onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
                     >
                       <span style={{ fontSize: '1rem', width: '20px', textAlign: 'center' }}>🚪</span>
                       Logout
@@ -409,9 +436,10 @@ function safeReturnPath(raw) {
 }
 
 function AppRoutes() {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, isAdmin } = useAuth();
   const [searchParams] = useSearchParams();
-  const authedHome = safeReturnPath(searchParams.get('returnUrl')) || '/dashboard';
+  const returnPath = safeReturnPath(searchParams.get('returnUrl'));
+  const authedHome = returnPath || (isAdmin ? '/admin' : '/dashboard');
 
   return (
     <Suspense fallback={<Loading />}>
@@ -572,16 +600,31 @@ function AppRoutes() {
             </ProtectedRoute>
           }
         />
+        {/* Platform admin console — separate shell, Admin-only */}
         <Route
-          path="/admin/outbox"
+          path="/admin"
           element={
-            <ProtectedRoute>
-              <OutboxAdmin />
-            </ProtectedRoute>
+            <AdminRoute>
+              <AdminLayout />
+            </AdminRoute>
           }
-        />
+        >
+          <Route index element={<AdminDashboard />} />
+          <Route path="users" element={<AdminUsers />} />
+          <Route path="users/:id" element={<AdminUserDetail />} />
+          <Route path="listings" element={<AdminListings />} />
+          <Route path="listings/:id" element={<AdminListingDetail />} />
+          <Route path="bookings" element={<AdminBookings />} />
+          <Route path="bookings/:id" element={<AdminBookingDetail />} />
+          <Route path="payments" element={<AdminPayments />} />
+          <Route path="payments/:id" element={<AdminPaymentDetail />} />
+          <Route path="audit" element={<AdminAuditLog />} />
+          <Route path="outbox" element={<OutboxAdmin />} />
+        </Route>
+
+        {/* Vendor / authenticated tools — NOT AdminRoute (must not break owners) */}
         <Route
-          path="/admin/lpr-simulator"
+          path="/tools/lpr-simulator"
           element={
             <ProtectedRoute>
               <LprSimulator />
@@ -589,13 +632,16 @@ function AppRoutes() {
           }
         />
         <Route
-          path="/admin/ev-charge-simulator"
+          path="/tools/ev-charge-simulator"
           element={
             <ProtectedRoute>
               <EvChargeSimulator />
             </ProtectedRoute>
           }
         />
+        {/* Legacy paths preserved */}
+        <Route path="/admin/lpr-simulator" element={<Navigate to="/tools/lpr-simulator" replace />} />
+        <Route path="/admin/ev-charge-simulator" element={<Navigate to="/tools/ev-charge-simulator" replace />} />
         <Route
           path="/my/listings/:parkingSpaceId/lpr"
           element={
@@ -628,6 +674,74 @@ function Footer() {
   );
 }
 
+function AppShell() {
+  const location = useLocation();
+  const isAdminConsole = location.pathname === '/admin' || location.pathname.startsWith('/admin/');
+  // Platform admin console uses its own layout (no consumer header/footer).
+  // Legacy /admin/lpr|ev simulators redirect to /tools/* so they never hit AdminLayout.
+
+  return (
+    <>
+      {!isAdminConsole && <Header />}
+      <main className={isAdminConsole ? undefined : 'main-content'} style={isAdminConsole ? { padding: 0, margin: 0 } : undefined}>
+        <AppRoutes />
+      </main>
+      {!isAdminConsole && <Footer />}
+    </>
+  );
+}
+
+function ThemedToaster() {
+  // Re-render when theme changes so toast styles pick up new CSS variables
+  useTheme();
+
+  return (
+    <Toaster
+      position="top-right"
+      reverseOrder={false}
+      gutter={12}
+      toastOptions={{
+        duration: 6000,
+        style: {
+          background: 'var(--toast-bg)',
+          color: 'var(--toast-color)',
+          border: '1px solid var(--toast-border)',
+          padding: '14px 16px',
+          borderRadius: '8px',
+          boxShadow: 'var(--shadow-lg)',
+          fontSize: '14px',
+          maxWidth: '420px',
+          cursor: 'pointer',
+        },
+        success: {
+          duration: 5000,
+          style: {
+            background: 'var(--toast-success-bg)',
+            border: '1px solid var(--toast-success-border)',
+            color: 'var(--toast-color)',
+          },
+          iconTheme: {
+            primary: 'var(--color-success)',
+            secondary: 'var(--color-text-on-accent)',
+          },
+        },
+        error: {
+          duration: 8000,
+          style: {
+            background: 'var(--toast-error-bg)',
+            border: '1px solid var(--toast-error-border)',
+            color: 'var(--toast-color)',
+          },
+          iconTheme: {
+            primary: 'var(--color-error)',
+            secondary: 'var(--color-text-on-accent)',
+          },
+        },
+      }}
+    />
+  );
+}
+
 function App() {
   return (
     <BrowserRouter>
@@ -635,51 +749,9 @@ function App() {
         <CompanyProvider>
           <NotificationProvider>
             <ChatProvider>
-              <Toaster
-                position="top-right"
-              reverseOrder={false}
-              gutter={12}
-              toastOptions={{
-                duration: 6000,
-                style: {
-                  background: '#1e293b',
-                  color: '#f1f5f9',
-                  border: '1px solid #334155',
-                  padding: '14px 16px',
-                  borderRadius: '8px',
-                  boxShadow: '0 10px 40px rgba(0,0,0,0.5)',
-                  fontSize: '14px',
-                  maxWidth: '420px',
-                  cursor: 'pointer',
-                },
-                success: {
-                  duration: 5000,
-                  style: {
-                    background: '#064e3b',
-                    border: '1px solid #10b981',
-                  },
-                  iconTheme: {
-                    primary: '#10b981',
-                    secondary: 'white',
-                  },
-                },
-                error: {
-                  duration: 8000,
-                  style: {
-                    background: '#450a0a',
-                    border: '1px solid #ef4444',
-                  },
-                  iconTheme: {
-                    primary: '#ef4444',
-                    secondary: 'white',
-                  },
-                },
-              }}
-            />
-            <Header />
-            <AppRoutes />
-            <Footer />
-          </ChatProvider>
+              <ThemedToaster />
+              <AppShell />
+            </ChatProvider>
           </NotificationProvider>
         </CompanyProvider>
       </AuthProvider>

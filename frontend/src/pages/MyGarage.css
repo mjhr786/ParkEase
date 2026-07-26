@@ -128,8 +128,8 @@
 }
 
 .badge-success {
-    background-color: rgba(40, 167, 69, 0.15);
-    color: #28a745;
+    background-color: color-mix(in srgb, var(--color-success) 15%, transparent);
+    color: var(--color-success);
 }
 
 .badge-secondary {

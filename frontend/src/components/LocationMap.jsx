@@ -2,6 +2,8 @@ import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import { useEffect, useMemo, useRef } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import { useTheme } from '../contexts/ThemeContext';
+import { getMapTileUrl, MAP_TILE_ATTRIBUTION } from '../utils/mapTiles';
 
 // Fix Leaflet default marker icons
 delete L.Icon.Default.prototype._getIconUrl;
@@ -39,6 +41,8 @@ function FitBounds({ spaces }) {
 
 export default function LocationMap({ parkingSpaces = [], singleLocation = null, height = '400px', highlightedId = null, onMarkerHover = null }) {
     const markerRefs = useRef({});
+    const { theme } = useTheme();
+    const tileUrl = getMapTileUrl(theme);
 
     // Auto-open popup for highlighted marker
     useEffect(() => {
@@ -71,8 +75,9 @@ export default function LocationMap({ parkingSpaces = [], singleLocation = null,
                     scrollWheelZoom={true}
                 >
                     <TileLayer
-                        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-                        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                        key={theme}
+                        attribution={MAP_TILE_ATTRIBUTION}
+                        url={tileUrl}
                     />
                     <Marker position={[lat, lng]}>
                         <Popup>
@@ -124,8 +129,9 @@ export default function LocationMap({ parkingSpaces = [], singleLocation = null,
                 scrollWheelZoom={true}
             >
                 <TileLayer
-                    attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-                    url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                    key={theme}
+                    attribution={MAP_TILE_ATTRIBUTION}
+                    url={tileUrl}
                 />
                 <FitBounds spaces={validSpaces} />
                 {validSpaces.map(parking => (

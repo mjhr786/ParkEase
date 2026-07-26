@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>ParkingApp.Admin.Infrastructure</RootNamespace>
+    <Description>Admin infrastructure (EF audit config, Dapper read store).</Description>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\ParkingApp.BuildingBlocks\ParkingApp.BuildingBlocks.csproj" />
+    <ProjectReference Include="..\ParkingApp.Admin.Domain\ParkingApp.Admin.Domain.csproj" />
+    <ProjectReference Include="..\ParkingApp.Admin.Contracts\ParkingApp.Admin.Contracts.csproj" />
+    <ProjectReference Include="..\ParkingApp.Admin.Application\ParkingApp.Admin.Application.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Dapper" Version="2.1.66" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="9.0.0" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" Version="9.0.0" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.2" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="ParkingApp.UnitTests" />
+    <InternalsVisibleTo Include="ParkingApp.Infrastructure" />
+  </ItemGroup>
+</Project>

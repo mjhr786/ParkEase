@@ -62,8 +62,8 @@ describe('icon and color maps', () => {
   it('resolves known and default types', () => {
     expect(iconForType('BookingConfirmed')).toBe('✅');
     expect(iconForType('Unknown')).toBe('🔔');
-    expect(colorForType('BookingRejected')).toBe('#ef4444');
-    expect(colorForType('nope')).toBe('#6b7280');
+    expect(colorForType('BookingRejected')).toBe('var(--color-error)');
+    expect(colorForType('nope')).toBe('var(--color-text-muted)');
   });
 });
 

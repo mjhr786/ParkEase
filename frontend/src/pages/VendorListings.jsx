@@ -257,7 +257,7 @@ export default function VendorListings() {
         return {
             background: isConfirmed ? 'rgba(16,185,129,0.2)' :
                 isInProgress ? 'rgba(234,179,8,0.2)' : 'rgba(107,114,128,0.2)',
-            color: isConfirmed ? '#10b981' : isInProgress ? '#eab308' : '#9ca3af'
+            color: isConfirmed ? 'var(--color-success)' : isInProgress ? 'var(--color-warning)' : 'var(--color-text-muted)'
         };
     };
 
@@ -609,7 +609,7 @@ export default function VendorListings() {
                                 </div>
                             </div>
                             {Number(form.listingCategory) === 1 && (
-                                <p style={{ fontSize: '0.8rem', color: '#94a3b8', marginTop: '0.5rem' }}>
+                                <p style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)', marginTop: '0.5rem' }}>
                                     Residential listings are limited to 10 spots. Guests book like a driveway rental (JustPark-style).
                                 </p>
                             )}
@@ -909,7 +909,7 @@ export default function VendorListings() {
                                                 onChange={(e) => setForm({ ...form, evIdleGraceMinutes: e.target.value })}
                                             />
                                         </div>
-                                        <p style={{ gridColumn: '1 / -1', margin: 0, fontSize: '0.85rem', color: '#9ca3af' }}>
+                                        <p style={{ gridColumn: '1 / -1', margin: 0, fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>
                                             {Number(form.evPricingMode) === 1
                                                 ? 'Energy fee is settled after the charge session (OCPP/simulator). Idle fee still applies after end + grace.'
                                                 : 'Hourly charging fee is added at booking. Idle fee applies after end + grace if the EV session overstays.'}
@@ -933,7 +933,7 @@ export default function VendorListings() {
                                                 <option value="America/Los_Angeles">America/Los_Angeles</option>
                                                 <option value="Asia/Singapore">Asia/Singapore</option>
                                             </select>
-                                            <p style={{ margin: '0.35rem 0 0', fontSize: '0.8rem', color: '#9ca3af' }}>
+                                            <p style={{ margin: '0.35rem 0 0', fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>
                                                 Peak windows 07:00–10:00 and 16:00–20:00 use this local clock.
                                             </p>
                                         </div>
@@ -985,7 +985,7 @@ export default function VendorListings() {
                                                 onChange={(e) => setForm({ ...form, weekendMultiplier: e.target.value })}
                                             />
                                         </div>
-                                        <p style={{ gridColumn: '1 / -1', margin: 0, fontSize: '0.85rem', color: '#9ca3af' }}>
+                                        <p style={{ gridColumn: '1 / -1', margin: 0, fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>
                                             Peak windows (UTC): 07:00–10:00 and 16:00–20:00. Occupancy surge/discount is automatic from available spots.
                                         </p>
                                     </div>
@@ -1021,37 +1021,37 @@ export default function VendorListings() {
                                     </span>
                                     {listing.isLprEnabled && (
                                         <span className="parking-tag"
-                                            style={{ background: 'rgba(99, 102, 241, 0.2)', color: '#a5b4fc' }}>
+                                            style={{ background: 'rgba(99, 102, 241, 0.2)', color: 'var(--color-accent-light)' }}>
                                             LPR
                                         </span>
                                     )}
                                     {listing.isDynamicPricingEnabled && (
                                         <span className="parking-tag"
-                                            style={{ background: 'rgba(245, 158, 11, 0.2)', color: '#fbbf24' }}>
+                                            style={{ background: 'rgba(245, 158, 11, 0.2)', color: 'var(--color-warning)' }}>
                                             Dynamic $
                                         </span>
                                     )}
                                     {listing.isBayGuidanceEnabled && (
-                                        <span className="badge" style={{ background: 'rgba(59,130,246,0.15)', color: '#60a5fa' }}>Bay guidance</span>
+                                        <span className="badge" style={{ background: 'rgba(59,130,246,0.15)', color: 'var(--color-accent-light)' }}>Bay guidance</span>
                                     )}
                                     {listing.isValetEnabled && (
-                                        <span className="badge" style={{ background: 'rgba(168,85,247,0.15)', color: '#c084fc' }}>Valet</span>
+                                        <span className="badge" style={{ background: 'rgba(168,85,247,0.15)', color: 'var(--color-secondary)' }}>Valet</span>
                                     )}
                                     {listing.hasEvCharging && (
                                         <span className="parking-tag"
-                                            style={{ background: 'rgba(16, 185, 129, 0.2)', color: '#6ee7b7' }}>
+                                            style={{ background: 'rgba(16, 185, 129, 0.2)', color: 'var(--color-success)' }}>
                                             🔌 EV
                                         </span>
                                     )}
                                     {(listing.listingCategory === 1 || listing.listingCategory === 'Residential') && (
                                         <span className="parking-tag"
-                                            style={{ background: 'rgba(236, 72, 153, 0.2)', color: '#f9a8d4' }}>
+                                            style={{ background: 'rgba(236, 72, 153, 0.2)', color: 'var(--color-secondary)' }}>
                                             🏠 Driveway
                                         </span>
                                     )}
                                     {listing.instantBook && (
                                         <span className="parking-tag"
-                                            style={{ background: 'rgba(34, 197, 94, 0.2)', color: '#86efac' }}>
+                                            style={{ background: 'rgba(34, 197, 94, 0.2)', color: 'var(--color-success)' }}>
                                             Instant book
                                         </span>
                                     )}
@@ -1066,13 +1066,13 @@ export default function VendorListings() {
                                     {listing.dynamicPricingApplied && listing.effectiveHourlyRate != null
                                         && Number(listing.effectiveHourlyRate) !== Number(listing.hourlyRate) ? (
                                         <>
-                                            <span style={{ fontSize: '0.75rem', color: '#94a3b8', marginRight: '0.35rem' }}>from</span>
+                                            <span style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)', marginRight: '0.35rem' }}>from</span>
                                             ₹{Number(listing.effectiveHourlyRate).toFixed(0)}
                                             <span>/hr</span>
                                             <span style={{
                                                 marginLeft: '0.4rem',
                                                 fontSize: '0.75rem',
-                                                color: '#94a3b8',
+                                                color: 'var(--color-text-secondary)',
                                                 textDecoration: 'line-through',
                                             }}>
                                                 ₹{listing.hourlyRate}
@@ -1115,7 +1115,7 @@ export default function VendorListings() {
                                                             alignItems: 'center',
                                                             gap: '0.5rem',
                                                             padding: '0.4rem 0',
-                                                            borderBottom: '1px solid rgba(255,255,255,0.06)',
+                                                            borderBottom: '1px solid var(--color-border)',
                                                             fontSize: '0.9rem',
                                                         }}>
                                                             <div>
@@ -1124,12 +1124,12 @@ export default function VendorListings() {
                                                                     ₹{svc.price}
                                                                 </span>
                                                                 {!svc.isActive && (
-                                                                    <span style={{ marginLeft: '0.4rem', fontSize: '0.75rem', color: '#9ca3af' }}>
+                                                                    <span style={{ marginLeft: '0.4rem', fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>
                                                                         (inactive)
                                                                     </span>
                                                                 )}
                                                                 {svc.durationMinutes ? (
-                                                                    <span style={{ marginLeft: '0.4rem', fontSize: '0.75rem', color: '#9ca3af' }}>
+                                                                    <span style={{ marginLeft: '0.4rem', fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>
                                                                         · {svc.durationMinutes} min
                                                                     </span>
                                                                 ) : null}
@@ -1272,7 +1272,7 @@ export default function VendorListings() {
                                                                     alignItems: 'center',
                                                                     gap: '0.2rem',
                                                                     background: 'rgba(99,102,241,0.15)',
-                                                                    color: '#818cf8',
+                                                                    color: 'var(--color-accent-light)',
                                                                     border: '1px solid rgba(99,102,241,0.35)',
                                                                     borderRadius: '5px',
                                                                     padding: '1px 6px',
@@ -1321,8 +1321,8 @@ export default function VendorListings() {
                                                             width: '18px',
                                                             height: '18px',
                                                             borderRadius: '50%',
-                                                            background: '#ef4444',
-                                                            color: 'white',
+                                                            background: 'var(--color-error)',
+                                                            color: 'var(--color-text-primary)',
                                                             border: 'none',
                                                             cursor: 'pointer',
                                                             fontSize: '12px',

@@ -15,13 +15,21 @@ using ParkingApp.Messaging.Infrastructure.Persistence;
 using MessagingConfigs = ParkingApp.Messaging.Infrastructure.Configurations;
 using MarketplaceConfigs = ParkingApp.Marketplace.Infrastructure.Configurations;
 using ParkingApp.Marketplace.Infrastructure.Persistence;
+using ParkingApp.Admin.Domain.Entities;
+using ParkingApp.Admin.Infrastructure.Persistence;
+using AdminConfigs = ParkingApp.Admin.Infrastructure.Configurations;
 
 namespace ParkingApp.Infrastructure.Data;
 
 /// <summary>
-/// Shared database context implementing module persistence facades (Identity, Messaging, Marketplace, ΓÇª).
+/// Shared database context implementing module persistence facades (Identity, Messaging, Marketplace, …).
 /// </summary>
-public class ApplicationDbContext : DbContext, ParkingApp.Identity.Infrastructure.Persistence.IIdentityDbContext, ParkingApp.Messaging.Infrastructure.Persistence.IMessagingDbContext, IMarketplaceDbContext, ICorporateDbContext
+public class ApplicationDbContext : DbContext,
+    ParkingApp.Identity.Infrastructure.Persistence.IIdentityDbContext,
+    ParkingApp.Messaging.Infrastructure.Persistence.IMessagingDbContext,
+    IMarketplaceDbContext,
+    ICorporateDbContext,
+    IAdminDbContext
 {
     private readonly ICorporateTenantContext? _tenantContext;
 
@@ -65,6 +73,7 @@ public class ApplicationDbContext : DbContext, ParkingApp.Identity.Infrastructur
     public DbSet<CorporateInvoice> CorporateInvoices => Set<CorporateInvoice>();
     public DbSet<CorporateInvoiceLineItem> CorporateInvoiceLineItems => Set<CorporateInvoiceLineItem>();
     public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
+    public DbSet<AdminActionLog> AdminActionLogs => Set<AdminActionLog>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -92,6 +101,7 @@ public class ApplicationDbContext : DbContext, ParkingApp.Identity.Infrastructur
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(MarketplaceConfigs.ParkingSpaceConfiguration).Assembly);
         // E1: Corporate EF ownership in Corporate.Infrastructure (public module entry type for assembly scan)
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(CorporateInfrastructureModule).Assembly);
+        modelBuilder.ApplyConfigurationsFromAssembly(typeof(AdminConfigs.AdminActionLogConfiguration).Assembly);
 
         // Tenant filters need ApplicationDbContext.CurrentTenantId (not available in standalone configs).
         ApplyCorporateTenantFilters(modelBuilder);

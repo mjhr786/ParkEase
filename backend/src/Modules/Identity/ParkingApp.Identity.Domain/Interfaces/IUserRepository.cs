@@ -7,6 +7,14 @@ public interface IUserRepository : IRepository<User>
 {
     Task<User?> GetByEmailAsync(string email, CancellationToken cancellationToken = default);
     Task<User?> GetByRefreshTokenAsync(string refreshToken, CancellationToken cancellationToken = default);
+
+    /// <summary>Platform admin user search with paging (Identity-owned).</summary>
+    Task<(IReadOnlyList<User> Items, int TotalCount)> SearchForAdminAsync(
+        string? search,
+        bool? isActive,
+        int page,
+        int pageSize,
+        CancellationToken cancellationToken = default);
 }
 
 public interface IVehicleRepository : IRepository<Vehicle>

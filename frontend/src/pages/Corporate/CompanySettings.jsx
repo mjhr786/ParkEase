@@ -10,10 +10,10 @@ const BILLING_TYPES = [
 ];
 
 const INVITE_STATUS = {
-  0: { label: 'Pending', color: '#fbbf24' },
-  1: { label: 'Accepted', color: '#10b981' },
-  2: { label: 'Expired', color: '#94a3b8' },
-  3: { label: 'Cancelled', color: '#f87171' },
+  0: { label: 'Pending', color: 'var(--color-warning)' },
+  1: { label: 'Accepted', color: 'var(--color-success)' },
+  2: { label: 'Expired', color: 'var(--color-text-secondary)' },
+  3: { label: 'Cancelled', color: 'var(--color-error)' },
 };
 
 const CompanySettings = () => {
@@ -139,11 +139,11 @@ const CompanySettings = () => {
   const pendingInvites = invitations.filter((i) => i.status === 0);
 
   return (
-    <div className="container" style={{ padding: '2rem 0', color: '#f1f5f9' }}>
-      <h1 style={{ margin: '0 0 0.35rem 0', color: 'white', display: 'flex', alignItems: 'center', gap: '10px' }}>
+    <div className="container" style={{ padding: '2rem 0', color: 'var(--color-text)' }}>
+      <h1 style={{ margin: '0 0 0.35rem 0', color: 'var(--color-text-primary)', display: 'flex', alignItems: 'center', gap: '10px' }}>
         <span style={{ fontSize: '2rem' }}>⚙️</span> Company Settings
       </h1>
-      <p style={{ color: '#94a3b8', marginBottom: '1.75rem' }}>
+      <p style={{ color: 'var(--color-text-secondary)', marginBottom: '1.75rem' }}>
         {companyDetails?.name || form.name} · Update profile, billing type, and manage pending invitations.
       </p>
 
@@ -151,79 +151,79 @@ const CompanySettings = () => {
         <form
           onSubmit={handleSave}
           style={{
-            background: '#1e293b',
+            background: 'var(--color-surface)',
             borderRadius: '12px',
             padding: '1.5rem',
-            border: '1px solid rgba(255,255,255,0.05)',
+            border: '1px solid var(--color-border)',
           }}
         >
-          <h2 style={{ color: 'white', fontSize: '1.1rem', margin: '0 0 1.25rem 0' }}>Profile</h2>
+          <h2 style={{ color: 'var(--color-text-primary)', fontSize: '1.1rem', margin: '0 0 1.25rem 0' }}>Profile</h2>
 
           <div className="form-group" style={{ marginBottom: '1rem' }}>
-            <label style={{ display: 'block', marginBottom: '6px', color: '#94a3b8', fontSize: '0.85rem' }}>Company name</label>
+            <label style={{ display: 'block', marginBottom: '6px', color: 'var(--color-text-secondary)', fontSize: '0.85rem' }}>Company name</label>
             <input
               required
               minLength={3}
               value={form.name}
               onChange={(e) => setForm({ ...form, name: e.target.value })}
-              style={{ width: '100%', padding: '10px', background: '#0f172a', border: '1px solid #334155', borderRadius: '6px', color: 'white' }}
+              style={{ width: '100%', padding: '10px', background: 'var(--color-bg-primary)', border: '1px solid var(--color-border)', borderRadius: '6px', color: 'var(--color-text-primary)' }}
             />
           </div>
 
           <div className="form-group" style={{ marginBottom: '1rem' }}>
-            <label style={{ display: 'block', marginBottom: '6px', color: '#94a3b8', fontSize: '0.85rem' }}>Registration number</label>
+            <label style={{ display: 'block', marginBottom: '6px', color: 'var(--color-text-secondary)', fontSize: '0.85rem' }}>Registration number</label>
             <input
               value={form.registrationNumber}
               disabled
-              style={{ width: '100%', padding: '10px', background: '#0f172a', border: '1px solid #334155', borderRadius: '6px', color: '#64748b' }}
+              style={{ width: '100%', padding: '10px', background: 'var(--color-bg-primary)', border: '1px solid var(--color-border)', borderRadius: '6px', color: 'var(--color-text-muted)' }}
             />
-            <small style={{ color: '#64748b' }}>Registration number cannot be changed after create.</small>
+            <small style={{ color: 'var(--color-text-muted)' }}>Registration number cannot be changed after create.</small>
           </div>
 
           <div className="form-group" style={{ marginBottom: '1rem' }}>
-            <label style={{ display: 'block', marginBottom: '6px', color: '#94a3b8', fontSize: '0.85rem' }}>Contact email</label>
+            <label style={{ display: 'block', marginBottom: '6px', color: 'var(--color-text-secondary)', fontSize: '0.85rem' }}>Contact email</label>
             <input
               type="email"
               required
               value={form.contactEmail}
               onChange={(e) => setForm({ ...form, contactEmail: e.target.value })}
-              style={{ width: '100%', padding: '10px', background: '#0f172a', border: '1px solid #334155', borderRadius: '6px', color: 'white' }}
+              style={{ width: '100%', padding: '10px', background: 'var(--color-bg-primary)', border: '1px solid var(--color-border)', borderRadius: '6px', color: 'var(--color-text-primary)' }}
             />
           </div>
 
           <div className="form-group" style={{ marginBottom: '1rem' }}>
-            <label style={{ display: 'block', marginBottom: '6px', color: '#94a3b8', fontSize: '0.85rem' }}>Contact phone</label>
+            <label style={{ display: 'block', marginBottom: '6px', color: 'var(--color-text-secondary)', fontSize: '0.85rem' }}>Contact phone</label>
             <input
               required
               value={form.contactPhone}
               onChange={(e) => setForm({ ...form, contactPhone: e.target.value })}
-              style={{ width: '100%', padding: '10px', background: '#0f172a', border: '1px solid #334155', borderRadius: '6px', color: 'white' }}
+              style={{ width: '100%', padding: '10px', background: 'var(--color-bg-primary)', border: '1px solid var(--color-border)', borderRadius: '6px', color: 'var(--color-text-primary)' }}
             />
           </div>
 
           <div className="form-group" style={{ marginBottom: '1rem' }}>
-            <label style={{ display: 'block', marginBottom: '6px', color: '#94a3b8', fontSize: '0.85rem' }}>Billing address</label>
+            <label style={{ display: 'block', marginBottom: '6px', color: 'var(--color-text-secondary)', fontSize: '0.85rem' }}>Billing address</label>
             <textarea
               required
               rows={3}
               value={form.billingAddress}
               onChange={(e) => setForm({ ...form, billingAddress: e.target.value })}
-              style={{ width: '100%', padding: '10px', background: '#0f172a', border: '1px solid #334155', borderRadius: '6px', color: 'white', resize: 'vertical' }}
+              style={{ width: '100%', padding: '10px', background: 'var(--color-bg-primary)', border: '1px solid var(--color-border)', borderRadius: '6px', color: 'var(--color-text-primary)', resize: 'vertical' }}
             />
           </div>
 
           <div className="form-group" style={{ marginBottom: '1.5rem' }}>
-            <label style={{ display: 'block', marginBottom: '6px', color: '#94a3b8', fontSize: '0.85rem' }}>Billing type</label>
+            <label style={{ display: 'block', marginBottom: '6px', color: 'var(--color-text-secondary)', fontSize: '0.85rem' }}>Billing type</label>
             <select
               value={form.billingType}
               onChange={(e) => setForm({ ...form, billingType: e.target.value })}
-              style={{ width: '100%', padding: '10px', background: '#0f172a', border: '1px solid #334155', borderRadius: '6px', color: 'white' }}
+              style={{ width: '100%', padding: '10px', background: 'var(--color-bg-primary)', border: '1px solid var(--color-border)', borderRadius: '6px', color: 'var(--color-text-primary)' }}
             >
               {BILLING_TYPES.map((b) => (
                 <option key={b.value} value={b.value}>{b.label}</option>
               ))}
             </select>
-            <small style={{ color: '#64748b', display: 'block', marginTop: '4px' }}>
+            <small style={{ color: 'var(--color-text-muted)', display: 'block', marginTop: '4px' }}>
               Reserved Slots bills prepaid vendor lease capacity; Usage Based bills booking amounts.
               Generate and settle period invoices under Corporate → Invoices.
             </small>
@@ -236,17 +236,17 @@ const CompanySettings = () => {
 
         <div
           style={{
-            background: '#1e293b',
+            background: 'var(--color-surface)',
             borderRadius: '12px',
             padding: '1.5rem',
-            border: '1px solid rgba(255,255,255,0.05)',
+            border: '1px solid var(--color-border)',
           }}
         >
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', gap: '0.75rem', flexWrap: 'wrap' }}>
-            <h2 style={{ color: 'white', fontSize: '1.1rem', margin: 0 }}>
+            <h2 style={{ color: 'var(--color-text-primary)', fontSize: '1.1rem', margin: 0 }}>
               Invitations
               {pendingInvites.length > 0 && (
-                <span style={{ marginLeft: '8px', fontSize: '0.8rem', color: '#fbbf24' }}>
+                <span style={{ marginLeft: '8px', fontSize: '0.8rem', color: 'var(--color-warning)' }}>
                   ({pendingInvites.length} pending)
                 </span>
               )}
@@ -259,7 +259,7 @@ const CompanySettings = () => {
           {loadingInvites ? (
             <div style={{ padding: '2rem', textAlign: 'center' }}><div className="spinner" /></div>
           ) : invitations.length === 0 ? (
-            <p style={{ color: '#94a3b8', margin: 0 }}>No invitations yet. Invite people from the Members page.</p>
+            <p style={{ color: 'var(--color-text-secondary)', margin: 0 }}>No invitations yet. Invite people from the Members page.</p>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
               {invitations.map((inv) => {
@@ -278,8 +278,8 @@ const CompanySettings = () => {
                     }}
                   >
                     <div>
-                      <div style={{ color: '#e2e8f0', fontWeight: 600 }}>{inv.email}</div>
-                      <div style={{ color: '#64748b', fontSize: '0.78rem' }}>
+                      <div style={{ color: 'var(--color-text-primary)', fontWeight: 600 }}>{inv.email}</div>
+                      <div style={{ color: 'var(--color-text-muted)', fontSize: '0.78rem' }}>
                         {inv.role === 0 ? 'Admin' : 'Employee'} · expires {new Date(inv.expiresAt).toLocaleDateString()}
                       </div>
                     </div>

@@ -190,13 +190,13 @@ const CompanyMembers = () => {
     if (!isCorporateMode) return null;
 
     return (
-        <div className="container" style={{ padding: '2rem 0', color: '#f1f5f9' }}>
+        <div className="container" style={{ padding: '2rem 0', color: 'var(--color-text)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem', flexWrap: 'wrap', gap: '1rem' }}>
                 <div>
-                    <h1 style={{ color: 'white', display: 'flex', alignItems: 'center', gap: '10px', margin: '0 0 0.35rem 0' }}>
+                    <h1 style={{ color: 'var(--color-text-primary)', display: 'flex', alignItems: 'center', gap: '10px', margin: '0 0 0.35rem 0' }}>
                         <span style={{ fontSize: '2rem' }}>👥</span> Company Members
                     </h1>
-                    <p style={{ color: '#94a3b8', margin: 0, fontSize: '0.9rem' }}>
+                    <p style={{ color: 'var(--color-text-secondary)', margin: 0, fontSize: '0.9rem' }}>
                         Manage roles and booking priority (1–10). Higher priority ranks first on the waitlist.
                     </p>
                 </div>
@@ -209,43 +209,43 @@ const CompanyMembers = () => {
                 </button>
             </div>
 
-            <div style={{ background: '#1e293b', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)', overflow: 'hidden' }}>
+            <div style={{ background: 'var(--color-surface)', borderRadius: '12px', border: '1px solid var(--color-border)', overflow: 'hidden' }}>
                 {loading ? (
                     <div style={{ padding: '3rem', textAlign: 'center' }}><div className="spinner" /></div>
                 ) : members.length > 0 ? (
                     <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
-                        <thead style={{ background: 'rgba(255,255,255,0.02)', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                        <thead style={{ background: 'rgba(255,255,255,0.02)', borderBottom: '1px solid var(--color-border)' }}>
                             <tr>
-                                <th style={{ padding: '1rem', color: '#94a3b8', fontWeight: '600', fontSize: '0.85rem', textTransform: 'uppercase' }}>Name</th>
-                                <th style={{ padding: '1rem', color: '#94a3b8', fontWeight: '600', fontSize: '0.85rem', textTransform: 'uppercase' }}>Email</th>
-                                <th style={{ padding: '1rem', color: '#94a3b8', fontWeight: '600', fontSize: '0.85rem', textTransform: 'uppercase' }}>Role</th>
-                                <th style={{ padding: '1rem', color: '#94a3b8', fontWeight: '600', fontSize: '0.85rem', textTransform: 'uppercase' }}>Priority</th>
-                                <th style={{ padding: '1rem', color: '#94a3b8', fontWeight: '600', fontSize: '0.85rem', textTransform: 'uppercase' }}>Status</th>
-                                <th style={{ padding: '1rem', color: '#94a3b8', fontWeight: '600', fontSize: '0.85rem', textTransform: 'uppercase', textAlign: 'right' }}>Actions</th>
+                                <th style={{ padding: '1rem', color: 'var(--color-text-secondary)', fontWeight: '600', fontSize: '0.85rem', textTransform: 'uppercase' }}>Name</th>
+                                <th style={{ padding: '1rem', color: 'var(--color-text-secondary)', fontWeight: '600', fontSize: '0.85rem', textTransform: 'uppercase' }}>Email</th>
+                                <th style={{ padding: '1rem', color: 'var(--color-text-secondary)', fontWeight: '600', fontSize: '0.85rem', textTransform: 'uppercase' }}>Role</th>
+                                <th style={{ padding: '1rem', color: 'var(--color-text-secondary)', fontWeight: '600', fontSize: '0.85rem', textTransform: 'uppercase' }}>Priority</th>
+                                <th style={{ padding: '1rem', color: 'var(--color-text-secondary)', fontWeight: '600', fontSize: '0.85rem', textTransform: 'uppercase' }}>Status</th>
+                                <th style={{ padding: '1rem', color: 'var(--color-text-secondary)', fontWeight: '600', fontSize: '0.85rem', textTransform: 'uppercase', textAlign: 'right' }}>Actions</th>
                             </tr>
                         </thead>
                         <tbody>
                             {members.map((member) => (
-                                <tr key={member.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                                <tr key={member.id} style={{ borderBottom: '1px solid var(--color-border)' }}>
                                     <td style={{ padding: '1rem' }}>
                                         <div style={{ fontWeight: '500' }}>{member.userName}</div>
-                                        {member.employeeCode && <div style={{ fontSize: '0.75rem', color: '#64748b' }}>Code: {member.employeeCode}</div>}
+                                        {member.employeeCode && <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>Code: {member.employeeCode}</div>}
                                     </td>
-                                    <td style={{ padding: '1rem', color: '#cbd5e1' }}>{member.userEmail}</td>
+                                    <td style={{ padding: '1rem', color: 'var(--color-text-secondary)' }}>{member.userEmail}</td>
                                     <td style={{ padding: '1rem' }}>
                                         <span style={{
                                             background: member.role === 0 ? 'rgba(56, 189, 248, 0.1)' : 'rgba(148, 163, 184, 0.1)',
-                                            color: member.role === 0 ? '#38bdf8' : '#94a3b8',
+                                            color: member.role === 0 ? 'var(--color-accent-light)' : 'var(--color-text-secondary)',
                                             padding: '4px 8px', borderRadius: '4px', fontSize: '0.8rem', fontWeight: '600'
                                         }}>
                                             {member.role === 0 ? 'Admin' : 'Employee'}
                                         </span>
                                     </td>
-                                    <td style={{ padding: '1rem', color: '#cbd5e1' }}>{member.priority}</td>
+                                    <td style={{ padding: '1rem', color: 'var(--color-text-secondary)' }}>{member.priority}</td>
                                     <td style={{ padding: '1rem' }}>
                                         <span style={{
                                             background: member.isActive ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)',
-                                            color: member.isActive ? '#10b981' : '#ef4444',
+                                            color: member.isActive ? 'var(--color-success)' : 'var(--color-error)',
                                             padding: '4px 8px', borderRadius: '4px', fontSize: '0.8rem', fontWeight: '600'
                                         }}>
                                             {member.isActive ? 'Active' : 'Inactive'}
@@ -259,7 +259,7 @@ const CompanyMembers = () => {
                                                 style={{
                                                     background: 'transparent',
                                                     border: '1px solid rgba(56,189,248,0.35)',
-                                                    color: '#38bdf8',
+                                                    color: 'var(--color-accent-light)',
                                                     padding: '6px 12px',
                                                     borderRadius: '6px',
                                                     cursor: 'pointer',
@@ -273,7 +273,7 @@ const CompanyMembers = () => {
                                                 style={{
                                                     background: 'transparent',
                                                     border: '1px solid rgba(239,68,68,0.3)',
-                                                    color: '#ef4444',
+                                                    color: 'var(--color-error)',
                                                     padding: '6px 12px',
                                                     borderRadius: '6px',
                                                     cursor: 'pointer',
@@ -288,7 +288,7 @@ const CompanyMembers = () => {
                         </tbody>
                     </table>
                 ) : (
-                    <div style={{ padding: '3rem', textAlign: 'center', color: '#94a3b8' }}>
+                    <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--color-text-secondary)' }}>
                         <p>No members found. Send some invites to get started!</p>
                     </div>
                 )}
@@ -297,21 +297,21 @@ const CompanyMembers = () => {
             {/* Add / Invite Modal */}
             {showInviteModal && (
                 <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.7)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
-                    <div style={{ background: '#1e293b', width: '100%', maxWidth: '460px', borderRadius: '12px', padding: '2rem', border: '1px solid rgba(255,255,255,0.1)' }}>
-                        <h2 style={{ marginBottom: '0.35rem', color: 'white' }}>Add or invite member</h2>
-                        <p style={{ color: '#94a3b8', fontSize: '0.85rem', marginBottom: '1.25rem' }}>
+                    <div style={{ background: 'var(--color-surface)', width: '100%', maxWidth: '460px', borderRadius: '12px', padding: '2rem', border: '1px solid var(--color-border)' }}>
+                        <h2 style={{ marginBottom: '0.35rem', color: 'var(--color-text-primary)' }}>Add or invite member</h2>
+                        <p style={{ color: 'var(--color-text-secondary)', fontSize: '0.85rem', marginBottom: '1.25rem' }}>
                             Existing ParkEase users are added immediately. New emails get an invitation link.
                         </p>
 
                         {lastInviteLink ? (
                             <div>
-                                <p style={{ color: '#6ee7b7', marginBottom: '0.75rem' }}>Invitation created. Share this link:</p>
+                                <p style={{ color: 'var(--color-success)', marginBottom: '0.75rem' }}>Invitation created. Share this link:</p>
                                 <div style={{
-                                    background: '#0f172a',
-                                    border: '1px solid #334155',
+                                    background: 'var(--color-bg-primary)',
+                                    border: '1px solid var(--color-border)',
                                     borderRadius: '8px',
                                     padding: '0.75rem',
-                                    color: '#cbd5e1',
+                                    color: 'var(--color-text-secondary)',
                                     fontSize: '0.8rem',
                                     wordBreak: 'break-all',
                                     marginBottom: '1rem',
@@ -335,11 +335,11 @@ const CompanyMembers = () => {
                         ) : (
                             <form onSubmit={handleInvite}>
                                 <div className="form-group" style={{ marginBottom: '1rem' }}>
-                                    <label style={{ display: 'block', marginBottom: '8px', color: '#cbd5e1' }}>Mode</label>
+                                    <label style={{ display: 'block', marginBottom: '8px', color: 'var(--color-text-secondary)' }}>Mode</label>
                                     <select
                                         value={inviteMode}
                                         onChange={(e) => setInviteMode(e.target.value)}
-                                        style={{ width: '100%', padding: '10px', background: '#0f172a', border: '1px solid #334155', borderRadius: '6px', color: 'white' }}
+                                        style={{ width: '100%', padding: '10px', background: 'var(--color-bg-primary)', border: '1px solid var(--color-border)', borderRadius: '6px', color: 'var(--color-text-primary)' }}
                                     >
                                         <option value="auto">Auto (add if user exists, else invite)</option>
                                         <option value="existing">Add existing ParkEase user only</option>
@@ -347,49 +347,49 @@ const CompanyMembers = () => {
                                     </select>
                                 </div>
                                 <div className="form-group" style={{ marginBottom: '1rem' }}>
-                                    <label style={{ display: 'block', marginBottom: '8px', color: '#cbd5e1' }}>Email Address</label>
+                                    <label style={{ display: 'block', marginBottom: '8px', color: 'var(--color-text-secondary)' }}>Email Address</label>
                                     <input
                                         type="email"
                                         required
                                         value={inviteEmail}
                                         onChange={(e) => setInviteEmail(e.target.value)}
-                                        style={{ width: '100%', padding: '10px', background: '#0f172a', border: '1px solid #334155', borderRadius: '6px', color: 'white' }}
+                                        style={{ width: '100%', padding: '10px', background: 'var(--color-bg-primary)', border: '1px solid var(--color-border)', borderRadius: '6px', color: 'var(--color-text-primary)' }}
                                         placeholder="employee@company.com"
                                     />
                                 </div>
                                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginBottom: '1rem' }}>
                                     <div className="form-group">
-                                        <label style={{ display: 'block', marginBottom: '8px', color: '#cbd5e1' }}>Role</label>
+                                        <label style={{ display: 'block', marginBottom: '8px', color: 'var(--color-text-secondary)' }}>Role</label>
                                         <select
                                             value={inviteRole}
                                             onChange={(e) => setInviteRole(e.target.value)}
-                                            style={{ width: '100%', padding: '10px', background: '#0f172a', border: '1px solid #334155', borderRadius: '6px', color: 'white' }}
+                                            style={{ width: '100%', padding: '10px', background: 'var(--color-bg-primary)', border: '1px solid var(--color-border)', borderRadius: '6px', color: 'var(--color-text-primary)' }}
                                         >
                                             <option value={1}>Employee</option>
                                             <option value={0}>Admin</option>
                                         </select>
                                     </div>
                                     <div className="form-group">
-                                        <label style={{ display: 'block', marginBottom: '8px', color: '#cbd5e1' }}>Priority</label>
+                                        <label style={{ display: 'block', marginBottom: '8px', color: 'var(--color-text-secondary)' }}>Priority</label>
                                         <input
                                             type="number"
                                             min={1}
                                             max={10}
                                             value={invitePriority}
                                             onChange={(e) => setInvitePriority(e.target.value)}
-                                            style={{ width: '100%', padding: '10px', background: '#0f172a', border: '1px solid #334155', borderRadius: '6px', color: 'white' }}
+                                            style={{ width: '100%', padding: '10px', background: 'var(--color-bg-primary)', border: '1px solid var(--color-border)', borderRadius: '6px', color: 'var(--color-text-primary)' }}
                                             disabled={inviteMode === 'invite'}
                                             title={inviteMode === 'invite' ? 'Priority is set when the invite is accepted (default 1)' : ''}
                                         />
                                     </div>
                                 </div>
                                 <div className="form-group" style={{ marginBottom: '1.5rem' }}>
-                                    <label style={{ display: 'block', marginBottom: '8px', color: '#cbd5e1' }}>Employee code (optional)</label>
+                                    <label style={{ display: 'block', marginBottom: '8px', color: 'var(--color-text-secondary)' }}>Employee code (optional)</label>
                                     <input
                                         type="text"
                                         value={inviteEmployeeCode}
                                         onChange={(e) => setInviteEmployeeCode(e.target.value)}
-                                        style={{ width: '100%', padding: '10px', background: '#0f172a', border: '1px solid #334155', borderRadius: '6px', color: 'white' }}
+                                        style={{ width: '100%', padding: '10px', background: 'var(--color-bg-primary)', border: '1px solid var(--color-border)', borderRadius: '6px', color: 'var(--color-text-primary)' }}
                                         disabled={inviteMode === 'invite'}
                                         placeholder="E-1001"
                                     />
@@ -415,25 +415,25 @@ const CompanyMembers = () => {
             {/* Edit member modal */}
             {editMember && (
                 <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.7)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <div style={{ background: '#1e293b', width: '100%', maxWidth: '440px', borderRadius: '12px', padding: '2rem', border: '1px solid rgba(255,255,255,0.1)' }}>
-                        <h2 style={{ marginBottom: '0.35rem', color: 'white' }}>Edit Member</h2>
-                        <p style={{ color: '#94a3b8', fontSize: '0.85rem', marginBottom: '1.5rem' }}>
+                    <div style={{ background: 'var(--color-surface)', width: '100%', maxWidth: '440px', borderRadius: '12px', padding: '2rem', border: '1px solid var(--color-border)' }}>
+                        <h2 style={{ marginBottom: '0.35rem', color: 'var(--color-text-primary)' }}>Edit Member</h2>
+                        <p style={{ color: 'var(--color-text-secondary)', fontSize: '0.85rem', marginBottom: '1.5rem' }}>
                             {editMember.userName} · {editMember.userEmail}
                         </p>
                         <form onSubmit={handleUpdateMember}>
                             <div className="form-group" style={{ marginBottom: '1rem' }}>
-                                <label style={{ display: 'block', marginBottom: '8px', color: '#cbd5e1' }}>Role</label>
+                                <label style={{ display: 'block', marginBottom: '8px', color: 'var(--color-text-secondary)' }}>Role</label>
                                 <select
                                     value={editMember.role}
                                     onChange={(e) => setEditMember({ ...editMember, role: e.target.value })}
-                                    style={{ width: '100%', padding: '10px', background: '#0f172a', border: '1px solid #334155', borderRadius: '6px', color: 'white' }}
+                                    style={{ width: '100%', padding: '10px', background: 'var(--color-bg-primary)', border: '1px solid var(--color-border)', borderRadius: '6px', color: 'var(--color-text-primary)' }}
                                 >
                                     <option value={1}>Employee</option>
                                     <option value={0}>Admin</option>
                                 </select>
                             </div>
                             <div className="form-group" style={{ marginBottom: '1rem' }}>
-                                <label style={{ display: 'block', marginBottom: '8px', color: '#cbd5e1' }}>Priority (1–10)</label>
+                                <label style={{ display: 'block', marginBottom: '8px', color: 'var(--color-text-secondary)' }}>Priority (1–10)</label>
                                 <input
                                     type="number"
                                     min={1}
@@ -441,21 +441,21 @@ const CompanyMembers = () => {
                                     required
                                     value={editMember.priority}
                                     onChange={(e) => setEditMember({ ...editMember, priority: e.target.value })}
-                                    style={{ width: '100%', padding: '10px', background: '#0f172a', border: '1px solid #334155', borderRadius: '6px', color: 'white' }}
+                                    style={{ width: '100%', padding: '10px', background: 'var(--color-bg-primary)', border: '1px solid var(--color-border)', borderRadius: '6px', color: 'var(--color-text-primary)' }}
                                 />
-                                <small style={{ color: '#64748b', display: 'block', marginTop: '4px' }}>
+                                <small style={{ color: 'var(--color-text-muted)', display: 'block', marginTop: '4px' }}>
                                     Higher priority is preferred for waitlist ordering and booking policy thresholds.
                                 </small>
                             </div>
                             <div className="form-group" style={{ marginBottom: '1.5rem' }}>
-                                <label style={{ display: 'block', marginBottom: '8px', color: '#cbd5e1' }}>Employee Code</label>
+                                <label style={{ display: 'block', marginBottom: '8px', color: 'var(--color-text-secondary)' }}>Employee Code</label>
                                 <input
                                     type="text"
                                     maxLength={50}
                                     value={editMember.employeeCode}
                                     onChange={(e) => setEditMember({ ...editMember, employeeCode: e.target.value })}
                                     placeholder="Optional"
-                                    style={{ width: '100%', padding: '10px', background: '#0f172a', border: '1px solid #334155', borderRadius: '6px', color: 'white' }}
+                                    style={{ width: '100%', padding: '10px', background: 'var(--color-bg-primary)', border: '1px solid var(--color-border)', borderRadius: '6px', color: 'var(--color-text-primary)' }}
                                 />
                             </div>
                             <div style={{ display: 'flex', gap: '1rem', justifyContent: 'flex-end' }}>

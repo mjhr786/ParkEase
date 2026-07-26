@@ -170,6 +170,42 @@ internal sealed class ParkingSpaceRepository : MarketplaceRepository<ParkingSpac
         return query;
     }
 
+    public async Task<(IReadOnlyList<ParkingSpace> Items, int TotalCount)> SearchForAdminAsync(
+        string? search,
+        bool? isActive,
+        bool? isVerified,
+        int page,
+        int pageSize,
+        CancellationToken cancellationToken = default)
+    {
+        var query = _dbSet.AsNoTracking().AsQueryable();
+
+        if (isActive.HasValue)
+            query = query.Where(p => p.IsActive == isActive.Value);
+        if (isVerified.HasValue)
+            query = query.Where(p => p.IsVerified == isVerified.Value);
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var term = search.Trim().ToLower();
+            query = query.Where(p =>
+                p.Title.ToLower().Contains(term)
+                || p.City.ToLower().Contains(term)
+                || p.State.ToLower().Contains(term)
+                || p.Address.ToLower().Contains(term)
+                || (p.ZoneCode != null && p.ZoneCode.ToLower().Contains(term)));
+        }
+
+        var total = await query.CountAsync(cancellationToken);
+        var items = await query
+            .OrderByDescending(p => p.CreatedAt)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync(cancellationToken);
+
+        return (items, total);
+    }
+
     public async Task<IEnumerable<ParkingSpace>> GetByOwnerIdAsync(Guid ownerId, CancellationToken cancellationToken = default)
     {
         return await _dbSet
@@ -510,6 +546,46 @@ internal sealed class BookingRepository : MarketplaceRepository<Booking>, IBooki
             .Where(b => b.EventParkingPackageId != null && ids.Contains(b.EventParkingPackageId.Value))
             .ToListAsync(cancellationToken);
     }
+
+    public async Task<(IReadOnlyList<Booking> Items, int TotalCount)> SearchForAdminAsync(
+        string? search,
+        BookingStatus? status,
+        Guid? userId,
+        Guid? parkingSpaceId,
+        int page,
+        int pageSize,
+        CancellationToken cancellationToken = default)
+    {
+        var query = _dbSet.AsNoTracking()
+            .Include(b => b.ParkingSpace)
+            .Include(b => b.Payment)
+            .AsQueryable();
+
+        if (status.HasValue)
+            query = query.Where(b => b.Status == status.Value);
+        if (userId.HasValue)
+            query = query.Where(b => b.UserId == userId.Value);
+        if (parkingSpaceId.HasValue)
+            query = query.Where(b => b.ParkingSpaceId == parkingSpaceId.Value);
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var term = search.Trim().ToLower();
+            query = query.Where(b =>
+                (b.BookingReference != null && b.BookingReference.ToLower().Contains(term))
+                || (b.VehicleNumber != null && b.VehicleNumber.ToLower().Contains(term))
+                || (b.ParkingSpace != null && b.ParkingSpace.Title.ToLower().Contains(term)));
+        }
+
+        var total = await query.CountAsync(cancellationToken);
+        var items = await query
+            .OrderByDescending(b => b.CreatedAt)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync(cancellationToken);
+
+        return (items, total);
+    }
 }
 
 internal sealed class LprAccessAttemptRepository : MarketplaceRepository<LprAccessAttempt>, ILprAccessAttemptRepository
@@ -745,6 +821,55 @@ internal sealed class PaymentRepository : MarketplaceRepository<Payment>, IPayme
     public async Task<Payment?> GetByTransactionIdAsync(string transactionId, CancellationToken cancellationToken = default)
     {
         return await _dbSet.FirstOrDefaultAsync(p => p.TransactionId == transactionId, cancellationToken);
+    }
+
+    public async Task<(IReadOnlyList<Payment> Items, int TotalCount)> SearchForAdminAsync(
+        string? search,
+        PaymentStatus? status,
+        Guid? userId,
+        Guid? bookingId,
+        int page,
+        int pageSize,
+        CancellationToken cancellationToken = default)
+    {
+        var query = _dbSet.AsNoTracking().AsQueryable();
+
+        if (status.HasValue)
+            query = query.Where(p => p.Status == status.Value);
+        if (userId.HasValue)
+            query = query.Where(p => p.UserId == userId.Value);
+        if (bookingId.HasValue)
+            query = query.Where(p => p.BookingId == bookingId.Value);
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var term = search.Trim();
+            var termLower = term.ToLower();
+            if (Guid.TryParse(term, out var id))
+            {
+                query = query.Where(p =>
+                    p.Id == id
+                    || p.BookingId == id
+                    || p.UserId == id
+                    || (p.TransactionId != null && p.TransactionId.ToLower().Contains(termLower))
+                    || (p.InvoiceNumber != null && p.InvoiceNumber.ToLower().Contains(termLower)));
+            }
+            else
+            {
+                query = query.Where(p =>
+                    (p.TransactionId != null && p.TransactionId.ToLower().Contains(termLower))
+                    || (p.InvoiceNumber != null && p.InvoiceNumber.ToLower().Contains(termLower)));
+            }
+        }
+
+        var total = await query.CountAsync(cancellationToken);
+        var items = await query
+            .OrderByDescending(p => p.CreatedAt)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync(cancellationToken);
+
+        return (items, total);
     }
 }
 

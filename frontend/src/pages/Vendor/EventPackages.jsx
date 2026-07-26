@@ -160,9 +160,9 @@ export default function EventPackages() {
                 >
                   <div className="flex-between">
                     <strong>{v.eventName || 'Event'}</strong>
-                    <span style={{ color: '#6ee7b7' }}>{v.sellThroughPercent}% sold</span>
+                    <span style={{ color: 'var(--color-success)' }}>{v.sellThroughPercent}% sold</span>
                   </div>
-                  <div style={{ fontSize: '0.85rem', color: '#94a3b8', marginTop: '0.35rem' }}>
+                  <div style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)', marginTop: '0.35rem' }}>
                     {v.venueName || 'Venue'} · {v.zoneCount} zone{v.zoneCount === 1 ? '' : 's'}
                   </div>
                   <div style={{ marginTop: '0.5rem', fontSize: '0.9rem' }}>
@@ -307,12 +307,12 @@ export default function EventPackages() {
                   </h3>
                   <span className="parking-tag" style={{
                     background: pkg.isOnSale ? 'rgba(16,185,129,0.2)' : 'rgba(107,114,128,0.2)',
-                    color: pkg.isOnSale ? '#6ee7b7' : '#9ca3af',
+                    color: pkg.isOnSale ? 'var(--color-success)' : 'var(--color-text-muted)',
                   }}>
                     {pkg.isOnSale ? 'On sale' : pkg.isActive ? 'Inactive/ended' : 'Off'}
                   </span>
                 </div>
-                <div style={{ color: '#94a3b8', fontSize: '0.9rem', marginTop: '0.35rem' }}>
+                <div style={{ color: 'var(--color-text-secondary)', fontSize: '0.9rem', marginTop: '0.35rem' }}>
                   {pkg.parkingSpaceTitle} · {pkg.eventName || 'Event'}
                 </div>
                 <div style={{ marginTop: '0.75rem', fontSize: '0.9rem' }}>
@@ -324,7 +324,7 @@ export default function EventPackages() {
                     {new Date(pkg.accessEndUtc || pkg.eventEndUtc).toLocaleString()}
                   </div>
                   <div>Price: ₹{Number(pkg.packagePrice).toFixed(2)} base · Sold {pkg.soldCount}/{pkg.totalSpots}</div>
-                  <div style={{ fontSize: '0.8rem', color: '#64748b', marginTop: '0.35rem' }}>
+                  <div style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)', marginTop: '0.35rem' }}>
                     Venue event: <code style={{ fontSize: '0.75rem' }}>{pkg.venueEventId}</code>
                   </div>
                 </div>

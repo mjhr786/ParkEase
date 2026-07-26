@@ -74,13 +74,13 @@ export default function ParkingSlotModal({
                 {/* Legend */}
                 <div style={styles.legend}>
                     <span style={styles.legendItem}>
-                        <span style={{ ...styles.legendDot, background: '#10b981' }} /> Available
+                        <span style={{ ...styles.legendDot, background: 'var(--color-success)' }} /> Available
                     </span>
                     <span style={styles.legendItem}>
-                        <span style={{ ...styles.legendDot, background: '#ef4444' }} /> Booked
+                        <span style={{ ...styles.legendDot, background: 'var(--color-error)' }} /> Booked
                     </span>
                     <span style={styles.legendItem}>
-                        <span style={{ ...styles.legendDot, background: '#6366f1', boxShadow: '0 0 8px #6366f1' }} /> Selected
+                        <span style={{ ...styles.legendDot, background: 'var(--color-primary)', boxShadow: '0 0 8px var(--color-primary)' }} /> Selected
                     </span>
                 </div>
 
@@ -183,21 +183,21 @@ function SlotCell({ slot, isSelected, onSelect }) {
     const isBooked = slot.blockedForSelection;
     const hasReservations = slot.reservations && slot.reservations.length > 0;
 
-    let bgColor = '#1a2e1a';
-    let borderColor = '#10b981';
-    let textColor = '#10b981';
+    let bgColor = 'color-mix(in srgb, var(--color-success) 18%, var(--color-bg-primary))';
+    let borderColor = 'var(--color-success)';
+    let textColor = 'var(--color-success)';
     let cursor = 'pointer';
 
     if (isBooked) {
-        bgColor = '#2e1a1a';
-        borderColor = '#ef4444';
-        textColor = '#ef4444';
+        bgColor = 'color-mix(in srgb, var(--color-error) 18%, var(--color-bg-primary))';
+        borderColor = 'var(--color-error)';
+        textColor = 'var(--color-error)';
         cursor = 'not-allowed';
     }
     if (isSelected) {
-        bgColor = 'rgba(99,102,241,0.25)';
-        borderColor = '#6366f1';
-        textColor = '#818cf8';
+        bgColor = 'var(--color-primary-alpha)';
+        borderColor = 'var(--color-primary)';
+        textColor = 'var(--color-accent-light)';
     }
 
     const handleMouseEnter = () => {
@@ -274,7 +274,7 @@ const styles = {
     overlay: {
         position: 'fixed',
         inset: 0,
-        background: 'rgba(0,0,0,0.75)',
+        background: 'var(--overlay-bg)',
         backdropFilter: 'blur(6px)',
         zIndex: 9999,
         display: 'flex',
@@ -284,15 +284,15 @@ const styles = {
         animation: 'fadeInOverlay 0.2s ease',
     },
     modal: {
-        background: 'linear-gradient(145deg, #12121a, #1a1a25)',
-        border: '1px solid rgba(255,255,255,0.1)',
+        background: 'var(--gradient-card)',
+        border: '1px solid var(--color-border)',
         borderRadius: '20px',
         width: '100%',
         maxWidth: '700px',
         maxHeight: '90vh',
         display: 'flex',
         flexDirection: 'column',
-        boxShadow: '0 25px 60px rgba(0,0,0,0.8)',
+        boxShadow: 'var(--shadow-lg)',
         overflow: 'hidden',
     },
     header: {
@@ -300,24 +300,24 @@ const styles = {
         justifyContent: 'space-between',
         alignItems: 'flex-start',
         padding: '1.5rem 1.5rem 1rem',
-        borderBottom: '1px solid rgba(255,255,255,0.08)',
+        borderBottom: '1px solid var(--color-border)',
         flexShrink: 0,
     },
     title: {
         fontSize: '1.3rem',
         fontWeight: 700,
-        color: '#fff',
+        color: 'var(--color-text-primary)',
         margin: 0,
     },
     subtitle: {
         fontSize: '0.85rem',
-        color: '#a0a0b0',
+        color: 'var(--color-text-secondary)',
         marginTop: '0.25rem',
     },
     closeBtn: {
-        background: 'rgba(255,255,255,0.08)',
-        border: '1px solid rgba(255,255,255,0.12)',
-        color: '#a0a0b0',
+        background: 'var(--color-bg-glass)',
+        border: '1px solid var(--control-border)',
+        color: 'var(--color-text-secondary)',
         width: '32px',
         height: '32px',
         borderRadius: '50%',
@@ -333,7 +333,7 @@ const styles = {
         display: 'flex',
         gap: '1.5rem',
         padding: '0.75rem 1.5rem',
-        background: 'rgba(255,255,255,0.03)',
+        background: 'var(--color-surface-elevated)',
         flexShrink: 0,
         flexWrap: 'wrap',
     },
@@ -342,7 +342,7 @@ const styles = {
         alignItems: 'center',
         gap: '0.5rem',
         fontSize: '0.8rem',
-        color: '#a0a0b0',
+        color: 'var(--color-text-secondary)',
     },
     legendDot: {
         width: '12px',
@@ -354,7 +354,7 @@ const styles = {
         overflowY: 'auto',
         flex: 1,
         padding: '1rem 1.5rem',
-        background: '#0d1a0d',
+        background: 'var(--color-bg-primary)',
     },
     entryRow: {
         display: 'flex',
@@ -365,18 +365,18 @@ const styles = {
     },
     entryArrow: {
         fontSize: '0.7rem',
-        color: '#f59e0b',
+        color: 'var(--color-warning)',
         fontWeight: 700,
         letterSpacing: '0.05em',
         padding: '0.2rem 0.5rem',
-        background: 'rgba(245, 158, 11, 0.1)',
+        background: 'color-mix(in srgb, var(--color-warning) 12%, transparent)',
         borderRadius: '4px',
-        border: '1px solid rgba(245,158,11,0.3)',
+        border: '1px solid color-mix(in srgb, var(--color-warning) 35%, transparent)',
     },
     road: {
         flex: 1,
         height: '2px',
-        background: 'repeating-linear-gradient(90deg, #f59e0b 0, #f59e0b 10px, transparent 10px, transparent 20px)',
+        background: 'repeating-linear-gradient(90deg, var(--color-warning) 0, var(--color-warning) 10px, transparent 10px, transparent 20px)',
         margin: '0 0.5rem',
     },
     slotsArea: {
@@ -397,7 +397,7 @@ const styles = {
     aisle: {
         width: '32px',
         flexShrink: 0,
-        background: '#1a1a0d',
+        background: 'var(--color-bg-tertiary)',
         borderRadius: '4px',
         display: 'flex',
         alignItems: 'center',
@@ -405,7 +405,7 @@ const styles = {
         position: 'relative',
     },
     aisleArrow: {
-        color: '#f59e0b',
+        color: 'var(--color-warning)',
         fontSize: '1rem',
         opacity: 0.6,
     },
@@ -448,31 +448,31 @@ const styles = {
         left: 0,
         right: 0,
         height: '2px',
-        background: 'rgba(255,255,255,0.06)',
+        background: 'var(--color-border)',
     },
     footer: {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
         padding: '1rem 1.5rem',
-        borderTop: '1px solid rgba(255,255,255,0.08)',
+        borderTop: '1px solid var(--color-border)',
         flexShrink: 0,
-        background: 'rgba(255,255,255,0.02)',
+        background: 'var(--color-surface-elevated)',
         gap: '1rem',
         flexWrap: 'wrap',
     },
     selectedInfo: {
-        color: '#10b981',
+        color: 'var(--color-success)',
         fontWeight: 600,
         fontSize: '0.95rem',
     },
     hintText: {
-        color: '#606070',
+        color: 'var(--color-text-muted)',
         fontSize: '0.85rem',
     },
     confirmBtn: {
-        background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
-        color: '#fff',
+        background: 'var(--gradient-primary)',
+        color: 'var(--color-text-on-accent)',
         border: 'none',
         borderRadius: '10px',
         padding: '0.65rem 1.5rem',
@@ -485,21 +485,21 @@ const styles = {
         top: 'calc(100% + 8px)',
         left: '50%',
         transform: 'translateX(-50%)',
-        background: 'rgba(15, 15, 25, 0.97)',
-        border: '1px solid rgba(255,255,255,0.12)',
+        background: 'var(--dropdown-bg)',
+        border: '1px solid var(--dropdown-border)',
         borderRadius: '10px',
         padding: '0.6rem 0.8rem',
         zIndex: 99999,
         minWidth: '200px',
         maxWidth: '260px',
         pointerEvents: 'none',
-        boxShadow: '0 8px 24px rgba(0,0,0,0.6)',
+        boxShadow: 'var(--shadow-md)',
         animation: 'fadeInTooltip 0.15s ease',
     },
     tooltipTitle: {
         fontSize: '0.75rem',
         fontWeight: 700,
-        color: '#a0a0c0',
+        color: 'var(--color-text-secondary)',
         textTransform: 'uppercase',
         letterSpacing: '0.07em',
         marginBottom: '0.4rem',
@@ -517,16 +517,16 @@ const styles = {
     },
     tooltipRange: {
         fontSize: '0.72rem',
-        color: '#e2e2f0',
+        color: 'var(--color-text)',
         lineHeight: 1.4,
     },
     tooltipArrow: {
-        color: '#6366f1',
+        color: 'var(--color-primary)',
         fontWeight: 600,
     },
     tooltipFree: {
         fontSize: '0.75rem',
-        color: '#10b981',
+        color: 'var(--color-success)',
         fontWeight: 600,
     },
     tooltipArrowEl: {
@@ -536,8 +536,8 @@ const styles = {
         transform: 'translateX(-50%) rotate(45deg)',
         width: '8px',
         height: '8px',
-        background: 'rgba(15,15,25,0.97)',
-        border: '1px solid rgba(255,255,255,0.12)',
+        background: 'var(--dropdown-bg)',
+        border: '1px solid var(--dropdown-border)',
         borderBottom: 'none',
         borderRight: 'none',
     },

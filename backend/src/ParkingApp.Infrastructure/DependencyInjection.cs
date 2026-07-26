@@ -18,6 +18,8 @@ using ParkingApp.Infrastructure.Modules;
 using ParkingApp.Infrastructure.Outbox;
 using ParkingApp.Infrastructure.Repositories;
 using ParkingApp.Infrastructure.Services;
+using ParkingApp.Admin.Infrastructure;
+using ParkingApp.Admin.Infrastructure.Persistence;
 using StackExchange.Redis;
 
 namespace ParkingApp.Infrastructure;
@@ -36,6 +38,7 @@ public static class DependencyInjection
         services.AddMarketplaceInfrastructure(configuration);
         services.AddCorporateInfrastructure(configuration);
         services.AddMessagingInfrastructure();
+        services.AddAdminInfrastructure();
 
         // Notification delivery contract adapter (implementation registered by AddNotificationsModule)
         services.AddScoped<INotificationSender, NotificationSender>();
@@ -80,6 +83,7 @@ public static class DependencyInjection
             sp => sp.GetRequiredService<UnitOfWork>());
         services.AddScoped<ICorporateDbContext>(sp => sp.GetRequiredService<ApplicationDbContext>());
         services.AddScoped<ICorporateUnitOfWork>(sp => sp.GetRequiredService<UnitOfWork>());
+        services.AddScoped<IAdminDbContext>(sp => sp.GetRequiredService<ApplicationDbContext>());
 
         // Email (IEmailService / Resend) registers in Notifications.Infrastructure.AddNotificationServices
 

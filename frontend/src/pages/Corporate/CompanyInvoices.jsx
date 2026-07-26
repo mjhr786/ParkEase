@@ -6,10 +6,10 @@ import corporateService from '../../services/corporateService';
 
 const INVOICE_STATUS = ['Draft', 'Issued', 'Paid', 'Void'];
 const STATUS_COLORS = {
-  0: '#f59e0b',
-  1: '#3b82f6',
-  2: '#10b981',
-  3: '#9ca3af',
+  0: 'var(--color-warning)',
+  1: 'var(--color-primary)',
+  2: 'var(--color-success)',
+  3: 'var(--color-text-muted)',
 };
 const BILLING_TYPES = {
   0: 'Reserved Slots',
@@ -30,9 +30,9 @@ const StatusBadge = ({ status }) => (
     fontSize: '0.78rem',
     fontWeight: 700,
     whiteSpace: 'nowrap',
-    background: `${STATUS_COLORS[status] || '#64748b'}22`,
-    color: STATUS_COLORS[status] || '#94a3b8',
-    border: `1px solid ${STATUS_COLORS[status] || '#64748b'}55`,
+    background: `${STATUS_COLORS[status] || 'var(--color-text-muted)'}22`,
+    color: STATUS_COLORS[status] || 'var(--color-text-secondary)',
+    border: `1px solid ${STATUS_COLORS[status] || 'var(--color-text-muted)'}55`,
   }}>
     {INVOICE_STATUS[status] ?? `Status ${status}`}
   </span>
@@ -239,39 +239,39 @@ const CompanyInvoices = () => {
     <div style={{ maxWidth: 1200, margin: '0 auto', padding: '1.5rem' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
         <div>
-          <h1 style={{ margin: 0, color: 'white', fontSize: '1.6rem' }}>Corporate Invoices</h1>
-          <p style={{ margin: '6px 0 0', color: '#94a3b8', fontSize: '0.9rem' }}>
+          <h1 style={{ margin: 0, color: 'var(--color-text-primary)', fontSize: '1.6rem' }}>Corporate Invoices</h1>
+          <p style={{ margin: '6px 0 0', color: 'var(--color-text-secondary)', fontSize: '0.9rem' }}>
             {companyDetails?.name || 'Company'} · Manual period billing · Offline mark paid
           </p>
         </div>
-        <Link to="/corporate/dashboard" style={{ color: '#94a3b8', fontSize: '0.9rem' }}>← Dashboard</Link>
+        <Link to="/corporate/dashboard" style={{ color: 'var(--color-text-secondary)', fontSize: '0.9rem' }}>← Dashboard</Link>
       </div>
 
       <div style={{
-        background: '#1e293b',
+        background: 'var(--color-surface)',
         borderRadius: 12,
         padding: '1.25rem',
-        border: '1px solid rgba(255,255,255,0.06)',
+        border: '1px solid var(--color-border)',
         marginBottom: '1.5rem',
       }}>
-        <h2 style={{ margin: '0 0 1rem', color: 'white', fontSize: '1.05rem' }}>Generate draft invoice</h2>
+        <h2 style={{ margin: '0 0 1rem', color: 'var(--color-text-primary)', fontSize: '1.05rem' }}>Generate draft invoice</h2>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem', alignItems: 'flex-end' }}>
           <div>
-            <label style={{ display: 'block', color: '#94a3b8', fontSize: '0.8rem', marginBottom: 4 }}>Period start (UTC)</label>
+            <label style={{ display: 'block', color: 'var(--color-text-secondary)', fontSize: '0.8rem', marginBottom: 4 }}>Period start (UTC)</label>
             <input
               type="date"
               value={periodStart}
               onChange={(e) => setPeriodStart(e.target.value)}
-              style={{ padding: '8px 10px', background: '#0f172a', border: '1px solid #334155', borderRadius: 6, color: 'white' }}
+              style={{ padding: '8px 10px', background: 'var(--color-bg-primary)', border: '1px solid var(--color-border)', borderRadius: 6, color: 'var(--color-text-primary)' }}
             />
           </div>
           <div>
-            <label style={{ display: 'block', color: '#94a3b8', fontSize: '0.8rem', marginBottom: 4 }}>Period end (UTC)</label>
+            <label style={{ display: 'block', color: 'var(--color-text-secondary)', fontSize: '0.8rem', marginBottom: 4 }}>Period end (UTC)</label>
             <input
               type="date"
               value={periodEnd}
               onChange={(e) => setPeriodEnd(e.target.value)}
-              style={{ padding: '8px 10px', background: '#0f172a', border: '1px solid #334155', borderRadius: 6, color: 'white' }}
+              style={{ padding: '8px 10px', background: 'var(--color-bg-primary)', border: '1px solid var(--color-border)', borderRadius: 6, color: 'var(--color-text-primary)' }}
             />
           </div>
           <button
@@ -283,39 +283,39 @@ const CompanyInvoices = () => {
             {generating ? 'Generating…' : 'Generate draft'}
           </button>
         </div>
-        <p style={{ margin: '0.75rem 0 0', color: '#64748b', fontSize: '0.82rem' }}>
+        <p style={{ margin: '0.75rem 0 0', color: 'var(--color-text-muted)', fontSize: '0.82rem' }}>
           Lines follow company billing type: Reserved Slots → vendor lease rates (prorated); Usage Based → booking amounts.
           Max 92 days. One non-void invoice per exact period.
         </p>
       </div>
 
       <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '1rem', flexWrap: 'wrap', alignItems: 'center' }}>
-        <label style={{ color: '#94a3b8', fontSize: '0.85rem' }}>Status</label>
+        <label style={{ color: 'var(--color-text-secondary)', fontSize: '0.85rem' }}>Status</label>
         <select
           value={statusFilter}
           onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
-          style={{ padding: '8px 10px', background: '#0f172a', border: '1px solid #334155', borderRadius: 6, color: 'white' }}
+          style={{ padding: '8px 10px', background: 'var(--color-bg-primary)', border: '1px solid var(--color-border)', borderRadius: 6, color: 'var(--color-text-primary)' }}
         >
           <option value="all">All</option>
           {INVOICE_STATUS.map((label, i) => (
             <option key={label} value={i}>{label}</option>
           ))}
         </select>
-        <span style={{ color: '#64748b', fontSize: '0.85rem' }}>{totalCount} total</span>
+        <span style={{ color: 'var(--color-text-muted)', fontSize: '0.85rem' }}>{totalCount} total</span>
       </div>
 
-      <div style={{ background: '#1e293b', borderRadius: 12, border: '1px solid rgba(255,255,255,0.06)', overflow: 'hidden' }}>
+      <div style={{ background: 'var(--color-surface)', borderRadius: 12, border: '1px solid var(--color-border)', overflow: 'hidden' }}>
         {loading ? (
-          <div style={{ padding: '2rem', textAlign: 'center', color: '#94a3b8' }}>Loading…</div>
+          <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--color-text-secondary)' }}>Loading…</div>
         ) : invoices.length === 0 ? (
-          <div style={{ padding: '2rem', textAlign: 'center', color: '#94a3b8' }}>
+          <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--color-text-secondary)' }}>
             No invoices yet. Generate a draft for a billing period above.
           </div>
         ) : (
           <div style={{ overflowX: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
               <thead>
-                <tr style={{ color: '#94a3b8', textAlign: 'left', borderBottom: '1px solid #334155' }}>
+                <tr style={{ color: 'var(--color-text-secondary)', textAlign: 'left', borderBottom: '1px solid var(--color-border)' }}>
                   <th style={{ padding: '12px 14px' }}>Invoice</th>
                   <th style={{ padding: '12px 14px' }}>Period</th>
                   <th style={{ padding: '12px 14px' }}>Billing</th>
@@ -326,18 +326,18 @@ const CompanyInvoices = () => {
               </thead>
               <tbody>
                 {invoices.map((inv) => (
-                  <tr key={inv.id} style={{ borderBottom: '1px solid #1e293b', background: '#0f172a' }}>
-                    <td style={{ padding: '12px 14px', color: 'white', fontWeight: 600 }}>{inv.invoiceNumber}</td>
-                    <td style={{ padding: '12px 14px', color: '#cbd5e1' }}>
+                  <tr key={inv.id} style={{ borderBottom: '1px solid var(--color-border)', background: 'var(--color-bg-primary)' }}>
+                    <td style={{ padding: '12px 14px', color: 'var(--color-text-primary)', fontWeight: 600 }}>{inv.invoiceNumber}</td>
+                    <td style={{ padding: '12px 14px', color: 'var(--color-text-secondary)' }}>
                       {inv.periodStart} → {inv.periodEnd}
                     </td>
-                    <td style={{ padding: '12px 14px', color: '#cbd5e1' }}>
+                    <td style={{ padding: '12px 14px', color: 'var(--color-text-secondary)' }}>
                       {BILLING_TYPES[inv.billingTypeSnapshot] ?? inv.billingTypeSnapshot}
                     </td>
                     <td style={{ padding: '12px 14px' }}><StatusBadge status={inv.status} /></td>
-                    <td style={{ padding: '12px 14px', color: 'white' }}>
+                    <td style={{ padding: '12px 14px', color: 'var(--color-text-primary)' }}>
                       {formatMoney(inv.totalAmount, inv.currency)}
-                      <div style={{ fontSize: '0.75rem', color: '#64748b' }}>{inv.lineCount} lines</div>
+                      <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>{inv.lineCount} lines</div>
                     </td>
                     <td style={{ padding: '12px 14px' }}>
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
@@ -375,7 +375,7 @@ const CompanyInvoices = () => {
       {totalCount > 20 && (
         <div style={{ display: 'flex', gap: 8, marginTop: 12, justifyContent: 'flex-end' }}>
           <button type="button" className="btn btn-secondary" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>Prev</button>
-          <span style={{ color: '#94a3b8', alignSelf: 'center' }}>Page {page}</span>
+          <span style={{ color: 'var(--color-text-secondary)', alignSelf: 'center' }}>Page {page}</span>
           <button type="button" className="btn btn-secondary" disabled={page * 20 >= totalCount} onClick={() => setPage((p) => p + 1)}>Next</button>
         </div>
       )}
@@ -383,35 +383,35 @@ const CompanyInvoices = () => {
       {(detail || detailLoading) && (
         <div style={{
           marginTop: '1.5rem',
-          background: '#1e293b',
+          background: 'var(--color-surface)',
           borderRadius: 12,
           padding: '1.25rem',
-          border: '1px solid rgba(255,255,255,0.06)',
+          border: '1px solid var(--color-border)',
         }}>
           {detailLoading ? (
-            <div style={{ color: '#94a3b8' }}>Loading detail…</div>
+            <div style={{ color: 'var(--color-text-secondary)' }}>Loading detail…</div>
           ) : detail && (
             <>
               <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', marginBottom: '1rem' }}>
                 <div>
-                  <h2 style={{ margin: 0, color: 'white', fontSize: '1.15rem' }}>{detail.invoiceNumber}</h2>
-                  <p style={{ margin: '4px 0 0', color: '#94a3b8', fontSize: '0.85rem' }}>
+                  <h2 style={{ margin: 0, color: 'var(--color-text-primary)', fontSize: '1.15rem' }}>{detail.invoiceNumber}</h2>
+                  <p style={{ margin: '4px 0 0', color: 'var(--color-text-secondary)', fontSize: '0.85rem' }}>
                     {detail.periodStart} → {detail.periodEnd} · {BILLING_TYPES[detail.billingTypeSnapshot]} · <StatusBadge status={detail.status} />
                   </p>
                 </div>
-                <div style={{ color: 'white', fontSize: '1.2rem', fontWeight: 700 }}>
+                <div style={{ color: 'var(--color-text-primary)', fontSize: '1.2rem', fontWeight: 700 }}>
                   {formatMoney(detail.totalAmount, detail.currency)}
                 </div>
               </div>
               {Number(detail.totalAmount) === 0 && (
-                <p style={{ color: '#fbbf24', fontSize: '0.85rem', marginBottom: '0.75rem' }}>
+                <p style={{ color: 'var(--color-warning)', fontSize: '0.85rem', marginBottom: '0.75rem' }}>
                   Zero total — no billable vendor leases / usage lines for this period.
                 </p>
               )}
               <div style={{ overflowX: 'auto' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
                   <thead>
-                    <tr style={{ color: '#94a3b8', textAlign: 'left', borderBottom: '1px solid #334155' }}>
+                    <tr style={{ color: 'var(--color-text-secondary)', textAlign: 'left', borderBottom: '1px solid var(--color-border)' }}>
                       <th style={{ padding: '8px 10px' }}>Type</th>
                       <th style={{ padding: '8px 10px' }}>Description</th>
                       <th style={{ padding: '8px 10px' }}>Qty</th>
@@ -421,25 +421,25 @@ const CompanyInvoices = () => {
                   </thead>
                   <tbody>
                     {(detail.lines || []).map((line) => (
-                      <tr key={line.id} style={{ borderBottom: '1px solid #0f172a' }}>
-                        <td style={{ padding: '8px 10px', color: '#cbd5e1' }}>{LINE_TYPES[line.lineType] ?? line.lineType}</td>
-                        <td style={{ padding: '8px 10px', color: 'white' }}>{line.description}</td>
-                        <td style={{ padding: '8px 10px', color: '#cbd5e1' }}>{line.quantity}</td>
-                        <td style={{ padding: '8px 10px', color: '#cbd5e1' }}>{formatMoney(line.unitAmount, detail.currency)}</td>
-                        <td style={{ padding: '8px 10px', color: 'white' }}>{formatMoney(line.amount, detail.currency)}</td>
+                      <tr key={line.id} style={{ borderBottom: '1px solid var(--color-border)' }}>
+                        <td style={{ padding: '8px 10px', color: 'var(--color-text-secondary)' }}>{LINE_TYPES[line.lineType] ?? line.lineType}</td>
+                        <td style={{ padding: '8px 10px', color: 'var(--color-text-primary)' }}>{line.description}</td>
+                        <td style={{ padding: '8px 10px', color: 'var(--color-text-secondary)' }}>{line.quantity}</td>
+                        <td style={{ padding: '8px 10px', color: 'var(--color-text-secondary)' }}>{formatMoney(line.unitAmount, detail.currency)}</td>
+                        <td style={{ padding: '8px 10px', color: 'var(--color-text-primary)' }}>{formatMoney(line.amount, detail.currency)}</td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
               {detail.paymentReference && (
-                <p style={{ marginTop: 12, color: '#94a3b8', fontSize: '0.85rem' }}>
+                <p style={{ marginTop: 12, color: 'var(--color-text-secondary)', fontSize: '0.85rem' }}>
                   Payment ref: {detail.paymentReference}
                   {detail.paymentNotes ? ` · ${detail.paymentNotes}` : ''}
                 </p>
               )}
               {detail.voidReason && (
-                <p style={{ marginTop: 12, color: '#f87171', fontSize: '0.85rem' }}>
+                <p style={{ marginTop: 12, color: 'var(--color-error)', fontSize: '0.85rem' }}>
                   Voided: {detail.voidReason}
                 </p>
               )}
@@ -453,21 +453,21 @@ const CompanyInvoices = () => {
           position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex',
           alignItems: 'center', justifyContent: 'center', zIndex: 50, padding: 16,
         }}>
-          <div style={{ background: '#1e293b', borderRadius: 12, padding: 24, maxWidth: 420, width: '100%', border: '1px solid #334155' }}>
-            <h3 style={{ marginTop: 0, color: 'white' }}>Mark invoice paid</h3>
-            <label style={{ display: 'block', color: '#94a3b8', fontSize: '0.85rem', marginBottom: 4 }}>Payment reference (optional)</label>
+          <div style={{ background: 'var(--color-surface)', borderRadius: 12, padding: 24, maxWidth: 420, width: '100%', border: '1px solid var(--color-border)' }}>
+            <h3 style={{ marginTop: 0, color: 'var(--color-text-primary)' }}>Mark invoice paid</h3>
+            <label style={{ display: 'block', color: 'var(--color-text-secondary)', fontSize: '0.85rem', marginBottom: 4 }}>Payment reference (optional)</label>
             <input
               value={payRef}
               onChange={(e) => setPayRef(e.target.value)}
               placeholder="Bank transfer / cheque ref"
-              style={{ width: '100%', marginBottom: 12, padding: 10, background: '#0f172a', border: '1px solid #334155', borderRadius: 6, color: 'white' }}
+              style={{ width: '100%', marginBottom: 12, padding: 10, background: 'var(--color-bg-primary)', border: '1px solid var(--color-border)', borderRadius: 6, color: 'var(--color-text-primary)' }}
             />
-            <label style={{ display: 'block', color: '#94a3b8', fontSize: '0.85rem', marginBottom: 4 }}>Notes (optional)</label>
+            <label style={{ display: 'block', color: 'var(--color-text-secondary)', fontSize: '0.85rem', marginBottom: 4 }}>Notes (optional)</label>
             <textarea
               value={payNotes}
               onChange={(e) => setPayNotes(e.target.value)}
               rows={3}
-              style={{ width: '100%', marginBottom: 16, padding: 10, background: '#0f172a', border: '1px solid #334155', borderRadius: 6, color: 'white', resize: 'vertical' }}
+              style={{ width: '100%', marginBottom: 16, padding: 10, background: 'var(--color-bg-primary)', border: '1px solid var(--color-border)', borderRadius: 6, color: 'var(--color-text-primary)', resize: 'vertical' }}
             />
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
               <button type="button" className="btn btn-secondary" onClick={() => setPayModal(null)}>Cancel</button>
@@ -482,15 +482,15 @@ const CompanyInvoices = () => {
           position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex',
           alignItems: 'center', justifyContent: 'center', zIndex: 50, padding: 16,
         }}>
-          <div style={{ background: '#1e293b', borderRadius: 12, padding: 24, maxWidth: 420, width: '100%', border: '1px solid #334155' }}>
-            <h3 style={{ marginTop: 0, color: 'white' }}>Void invoice</h3>
-            <label style={{ display: 'block', color: '#94a3b8', fontSize: '0.85rem', marginBottom: 4 }}>Reason</label>
+          <div style={{ background: 'var(--color-surface)', borderRadius: 12, padding: 24, maxWidth: 420, width: '100%', border: '1px solid var(--color-border)' }}>
+            <h3 style={{ marginTop: 0, color: 'var(--color-text-primary)' }}>Void invoice</h3>
+            <label style={{ display: 'block', color: 'var(--color-text-secondary)', fontSize: '0.85rem', marginBottom: 4 }}>Reason</label>
             <textarea
               value={voidReason}
               onChange={(e) => setVoidReason(e.target.value)}
               rows={3}
               placeholder="At least 3 characters"
-              style={{ width: '100%', marginBottom: 16, padding: 10, background: '#0f172a', border: '1px solid #334155', borderRadius: 6, color: 'white', resize: 'vertical' }}
+              style={{ width: '100%', marginBottom: 16, padding: 10, background: 'var(--color-bg-primary)', border: '1px solid var(--color-border)', borderRadius: 6, color: 'var(--color-text-primary)', resize: 'vertical' }}
             />
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
               <button type="button" className="btn btn-secondary" onClick={() => setVoidModal(null)}>Cancel</button>

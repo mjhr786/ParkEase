@@ -1,4 +1,15 @@
-:root {
+/* =============================================================================
+   Theme tokens
+   - Default / [data-theme="dark"]: existing ParkEase dark palette (unchanged values)
+   - [data-theme="light"]: light counterpart
+   Semantic aliases (--color-primary, --color-surface, --color-text) keep
+   components that already use those names working under both themes.
+   ============================================================================= */
+
+:root,
+[data-theme="dark"] {
+  color-scheme: dark;
+
   /* Colors - Modern Dark Theme */
   --color-bg-primary: #0a0a0f;
   --color-bg-secondary: #12121a;
@@ -13,6 +24,9 @@
   --color-accent: #6366f1;
   --color-accent-light: #818cf8;
   --color-accent-dark: #4f46e5;
+  --color-primary: #6366f1;
+  --color-secondary: #8b5cf6;
+  --color-primary-alpha: rgba(99, 102, 241, 0.08);
 
   --color-success: #10b981;
   --color-warning: #f59e0b;
@@ -21,16 +35,44 @@
 
   --color-border: rgba(255, 255, 255, 0.08);
 
+  /* Semantic surface / text aliases used by Chat, NearMe, etc. */
+  --color-surface: #1e293b;
+  --color-surface-elevated: rgba(255, 255, 255, 0.04);
+  --color-text: #f1f5f9;
+  --color-text-on-accent: #ffffff;
+
+  /* Shell / chrome */
+  --header-bg: rgba(10, 10, 15, 0.85);
+  --dropdown-bg: #1e293b;
+  --dropdown-border: rgba(255, 255, 255, 0.08);
+  --dropdown-item: #cbd5e1;
+  --dropdown-item-hover-bg: rgba(255, 255, 255, 0.06);
+  --dropdown-muted: #64748b;
+  --badge-ring: rgba(10, 10, 15, 0.85);
+  --overlay-bg: rgba(15, 23, 42, 0.8);
+  --control-border: rgba(255, 255, 255, 0.15);
+
+  /* Toasts */
+  --toast-bg: #1e293b;
+  --toast-color: #f1f5f9;
+  --toast-border: #334155;
+  --toast-success-bg: #064e3b;
+  --toast-success-border: #10b981;
+  --toast-error-bg: #450a0a;
+  --toast-error-border: #ef4444;
+
   /* Gradients */
   --gradient-primary: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
   --gradient-card: linear-gradient(145deg, rgba(26, 26, 37, 0.9) 0%, rgba(18, 18, 26, 0.9) 100%);
   --gradient-hero: linear-gradient(180deg, #0a0a0f 0%, #12121a 100%);
+  --gradient-hero-text: linear-gradient(135deg, #fff 0%, #a0a0b0 100%);
 
   /* Shadows */
   --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.3);
   --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
   --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.5);
   --shadow-glow: 0 0 40px rgba(99, 102, 241, 0.3);
+  --shadow-dropdown: 0 20px 50px rgba(0, 0, 0, 0.5);
 
   /* Border Radius */
   --radius-sm: 8px;
@@ -42,6 +84,68 @@
   --transition-fast: 150ms ease;
   --transition-normal: 250ms ease;
   --transition-slow: 400ms ease;
+}
+
+[data-theme="light"] {
+  color-scheme: light;
+
+  --color-bg-primary: #f8fafc;
+  --color-bg-secondary: #ffffff;
+  --color-bg-tertiary: #f1f5f9;
+  --color-bg-card: rgba(255, 255, 255, 0.92);
+  --color-bg-glass: rgba(15, 23, 42, 0.04);
+
+  --color-text-primary: #0f172a;
+  --color-text-secondary: #475569;
+  --color-text-muted: #94a3b8;
+
+  --color-accent: #4f46e5;
+  --color-accent-light: #6366f1;
+  --color-accent-dark: #4338ca;
+  --color-primary: #4f46e5;
+  --color-secondary: #7c3aed;
+  --color-primary-alpha: rgba(79, 70, 229, 0.1);
+
+  --color-success: #059669;
+  --color-warning: #d97706;
+  --color-error: #dc2626;
+  --color-danger: #dc2626;
+
+  --color-border: rgba(15, 23, 42, 0.1);
+
+  --color-surface: #ffffff;
+  --color-surface-elevated: #f8fafc;
+  --color-text: #0f172a;
+  --color-text-on-accent: #ffffff;
+
+  --header-bg: rgba(255, 255, 255, 0.9);
+  --dropdown-bg: #ffffff;
+  --dropdown-border: rgba(15, 23, 42, 0.1);
+  --dropdown-item: #334155;
+  --dropdown-item-hover-bg: rgba(15, 23, 42, 0.05);
+  --dropdown-muted: #64748b;
+  --badge-ring: rgba(255, 255, 255, 0.95);
+  --overlay-bg: rgba(15, 23, 42, 0.45);
+  --control-border: rgba(15, 23, 42, 0.15);
+
+  --toast-bg: #ffffff;
+  --toast-color: #0f172a;
+  --toast-border: #e2e8f0;
+  --toast-success-bg: #ecfdf5;
+  --toast-success-border: #10b981;
+  --toast-error-bg: #fef2f2;
+  --toast-error-border: #ef4444;
+
+  --gradient-primary: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+  --gradient-card: linear-gradient(145deg, rgba(255, 255, 255, 0.98) 0%, rgba(248, 250, 252, 0.98) 100%);
+  --gradient-hero: linear-gradient(180deg, #f8fafc 0%, #eef2ff 100%);
+  --gradient-hero-text: linear-gradient(135deg, #0f172a 0%, #475569 100%);
+
+  --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.06);
+  --shadow-md: 0 4px 12px rgba(15, 23, 42, 0.08);
+  --shadow-lg: 0 12px 32px rgba(15, 23, 42, 0.12);
+  --shadow-glow: 0 0 32px rgba(79, 70, 229, 0.2);
+  --shadow-dropdown: 0 16px 40px rgba(15, 23, 42, 0.12);
 }
 
 * {
@@ -101,12 +205,39 @@ a:hover {
 
 /* Header */
 .header {
-  background: rgba(10, 10, 15, 0.8);
+  background: var(--header-bg);
   backdrop-filter: blur(20px);
   border-bottom: 1px solid var(--color-border);
   position: sticky;
   top: 0;
   z-index: 100;
+}
+
+/* Theme toggle (header) */
+.theme-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  border-radius: 999px;
+  border: 1px solid var(--control-border);
+  background: var(--color-bg-glass);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: color var(--transition-fast), border-color var(--transition-fast), background var(--transition-fast);
+}
+
+.theme-toggle:hover {
+  color: var(--color-text-primary);
+  border-color: var(--color-accent);
+  background: var(--color-primary-alpha);
+}
+
+.theme-toggle:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
 }
 
 .header-content {
@@ -357,7 +488,7 @@ a:hover {
   font-weight: 800;
   line-height: 1.1;
   margin-bottom: 1rem;
-  background: linear-gradient(135deg, #fff 0%, #a0a0b0 100%);
+  background: var(--gradient-hero-text);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -896,11 +1027,12 @@ a:hover {
   font-size: 0.95rem;
   display: block;
   margin-bottom: 0.25rem;
+  color: var(--color-text-primary);
 }
 
 .map-popup-address {
   font-size: 0.8rem;
-  color: #666;
+  color: var(--color-text-secondary);
   margin: 0.25rem 0;
 }
 
@@ -913,7 +1045,9 @@ a:hover {
 }
 
 .map-popup-details span {
-  background: #f0f0f0;
+  background: var(--color-bg-tertiary);
+  color: var(--color-text-secondary);
+  border: 1px solid var(--color-border);
   padding: 0.15rem 0.5rem;
   border-radius: 4px;
   font-weight: 500;
@@ -924,7 +1058,7 @@ a:hover {
   margin-top: 0.5rem;
   font-size: 0.85rem;
   font-weight: 600;
-  color: #6366f1 !important;
+  color: var(--color-primary) !important;
 }
 
 .map-popup-nav {
@@ -932,7 +1066,7 @@ a:hover {
   margin-top: 0.5rem;
   font-size: 0.85rem;
   font-weight: 600;
-  color: #10b981 !important;
+  color: var(--color-success) !important;
   text-decoration: none;
 }
 
@@ -944,6 +1078,52 @@ a:hover {
   display: flex;
   gap: 1rem;
   align-items: center;
+}
+
+/* Leaflet chrome — match active theme */
+.leaflet-container {
+  background: var(--color-bg-tertiary);
+  font-family: inherit;
+}
+
+.leaflet-popup-content-wrapper {
+  background: var(--color-bg-secondary);
+  color: var(--color-text-primary);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+  border: 1px solid var(--color-border);
+}
+
+.leaflet-popup-tip {
+  background: var(--color-bg-secondary);
+}
+
+.leaflet-popup-content {
+  margin: 0.75rem 1rem;
+  color: var(--color-text-primary);
+}
+
+.leaflet-popup-close-button {
+  color: var(--color-text-muted) !important;
+}
+
+.leaflet-control-zoom a {
+  background: var(--color-bg-secondary) !important;
+  color: var(--color-text-primary) !important;
+  border-color: var(--color-border) !important;
+}
+
+.leaflet-control-zoom a:hover {
+  background: var(--color-bg-tertiary) !important;
+}
+
+.leaflet-control-attribution {
+  background: var(--color-bg-secondary) !important;
+  color: var(--color-text-muted) !important;
+}
+
+.leaflet-control-attribution a {
+  color: var(--color-text-secondary) !important;
 }
 
 /* View Toggle */
@@ -1112,7 +1292,7 @@ body .cs-conversation-list .cs-conversation__info-content .cs-conversation__unre
 }
 
 .cs-conversation-header__user-name {
-  color: #000 !important;
+  color: var(--color-text-primary) !important;
   font-weight: 600 !important;
 }
 
@@ -1155,7 +1335,7 @@ body .cs-conversation-list .cs-conversation__info-content .cs-conversation__unre
 }
 
 .cs-message-input__content-editor {
-  background-color: rgba(255, 255, 255, 0.05) !important;
+  background-color: var(--color-bg-glass) !important;
   color: var(--color-text-primary) !important;
   border: 1px solid var(--color-border) !important;
   border-radius: var(--radius-xl) !important;
@@ -1218,7 +1398,7 @@ body .cs-conversation-list .cs-conversation__info-content .cs-conversation__unre
 }
 
 .amenity-checkbox.active {
-  background: rgba(99, 102, 241, 0.1);
+  background: var(--color-primary-alpha);
   border-color: var(--color-accent);
   color: var(--color-text-primary);
 }

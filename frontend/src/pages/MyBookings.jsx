@@ -145,16 +145,16 @@ const BOOKING_STATUS = [
     'Extension Payment Due',  // 9
 ];
 const STATUS_COLORS = {
-    0: '#f59e0b', // Pending
-    1: '#10b981', // Confirmed
-    2: '#6366f1', // InProgress
-    3: '#22c55e', // Completed
-    4: '#ef4444', // Cancelled
-    5: '#9ca3af', // Expired
-    6: '#8b5cf6', // Awaiting Payment
-    7: '#ef4444', // Rejected
-    8: '#f59e0b', // Extension Pending (same amber as Pending)
-    9: '#8b5cf6', // Extension Payment Due (same purple as AwaitingPayment)
+    0: 'var(--color-warning)', // Pending
+    1: 'var(--color-success)', // Confirmed
+    2: 'var(--color-primary)', // InProgress
+    3: 'var(--color-success)', // Completed
+    4: 'var(--color-error)', // Cancelled
+    5: 'var(--color-text-muted)', // Expired
+    6: 'var(--color-secondary)', // Awaiting Payment
+    7: 'var(--color-error)', // Rejected
+    8: 'var(--color-warning)', // Extension Pending (same amber as Pending)
+    9: 'var(--color-secondary)', // Extension Payment Due (same purple as AwaitingPayment)
 };
 
 const REFRESH_TRIGGERS = ['booking.approved', 'booking.rejected', 'payment.completed', 'extension.requested', 'extension.approved', 'extension.rejected'];
@@ -681,7 +681,7 @@ export default function MyBookings() {
                                             </span>
                                             <div className="parking-price mt-1">₹{booking.totalAmount}</div>
                                             {Number(booking.ancillarySubtotal) > 0 && (
-                                                <div style={{ marginTop: '0.35rem', fontSize: '0.8rem', color: '#f9a8d4' }}>
+                                                <div style={{ marginTop: '0.35rem', fontSize: '0.8rem', color: 'var(--color-secondary)' }}>
                                                     + add-ons ₹{booking.ancillarySubtotal}
                                                 </div>
                                             )}
@@ -702,7 +702,7 @@ export default function MyBookings() {
                                             border: '1px solid rgba(244, 114, 182, 0.25)',
                                             fontSize: '0.85rem',
                                         }}>
-                                            <strong style={{ color: '#f9a8d4' }}>Add-ons</strong>
+                                            <strong style={{ color: 'var(--color-secondary)' }}>Add-ons</strong>
                                             <ul style={{ listStyle: 'none', padding: 0, margin: '0.35rem 0 0' }}>
                                                 {booking.ancillaryLines.map((line, idx) => (
                                                     <li key={line.id || idx} style={{ display: 'flex', justifyContent: 'space-between', gap: '0.5rem' }}>
@@ -743,7 +743,7 @@ export default function MyBookings() {
                                                         alignItems: 'center',
                                                         gap: '0.3rem',
                                                         background: 'rgba(99,102,241,0.15)',
-                                                        color: '#818cf8',
+                                                        color: 'var(--color-accent-light)',
                                                         border: '1px solid rgba(99,102,241,0.35)',
                                                         borderRadius: '6px',
                                                         padding: '0.1rem 0.5rem',
@@ -800,7 +800,7 @@ export default function MyBookings() {
                                         )}
                                         {(booking.status === 9 || booking.status === 'AwaitingExtensionPayment') && ( // AwaitingExtensionPayment
                                             <>
-                                                <div style={{ width: '100%', padding: '0.5rem', background: 'rgba(139,92,246,0.1)', borderRadius: 'var(--radius-sm)', marginBottom: '0.5rem', fontSize: '0.85rem', color: '#8b5cf6' }}>
+                                                <div style={{ width: '100%', padding: '0.5rem', background: 'rgba(139,92,246,0.1)', borderRadius: 'var(--radius-sm)', marginBottom: '0.5rem', fontSize: '0.85rem', color: 'var(--color-secondary)' }}>
                                                     ⏳ Extension approved — pay ₹{Number(booking.pendingExtensionAmount || 0).toFixed(2)} to confirm the new end time of {booking.pendingExtensionEndDateTime ? new Date(booking.pendingExtensionEndDateTime).toLocaleString() : ''}
                                                 </div>
                                                 <button
@@ -813,7 +813,7 @@ export default function MyBookings() {
                                             </>
                                         )}
                                         {(booking.status === 8 || booking.status === 'PendingExtension') && ( // PendingExtension — user waiting for vendor
-                                            <div style={{ width: '100%', padding: '0.5rem', background: 'rgba(245,158,11,0.1)', borderRadius: 'var(--radius-sm)', fontSize: '0.85rem', color: '#f59e0b' }}>
+                                            <div style={{ width: '100%', padding: '0.5rem', background: 'rgba(245,158,11,0.1)', borderRadius: 'var(--radius-sm)', fontSize: '0.85rem', color: 'var(--color-warning)' }}>
                                                 ⏳ Extension request pending owner approval — proposed new end: {booking.pendingExtensionEndDateTime ? new Date(booking.pendingExtensionEndDateTime).toLocaleString() : ''}
                                                 {Number(booking.pendingExtensionAmount) > 0 && (
                                                     <> · amount due if approved: ₹{Number(booking.pendingExtensionAmount).toFixed(2)}</>
@@ -853,11 +853,11 @@ export default function MyBookings() {
                                                 borderRadius: 'var(--radius-sm)',
                                                 marginBottom: '0.5rem',
                                                 fontSize: '0.85rem',
-                                                color: '#f87171',
+                                                color: 'var(--color-error)',
                                             }}>
                                                 ⏱ Overstay fee due: ₹{Number(booking.overstayFeeOutstanding).toFixed(2)}
                                                 {Number(booking.overstayFeeAmount) > Number(booking.overstayFeePaidAmount || 0) && (
-                                                    <span style={{ color: '#94a3b8' }}>
+                                                    <span style={{ color: 'var(--color-text-secondary)' }}>
                                                         {' '}(assessed ₹{Number(booking.overstayFeeAmount).toFixed(2)}
                                                         {Number(booking.overstayFeePaidAmount) > 0
                                                             ? `, paid ₹${Number(booking.overstayFeePaidAmount).toFixed(2)}`
@@ -904,7 +904,7 @@ export default function MyBookings() {
                                                 borderRadius: 'var(--radius-sm)',
                                                 fontSize: '0.85rem',
                                             }}>
-                                                <div style={{ marginBottom: '0.35rem', color: '#c084fc', fontWeight: 600 }}>
+                                                <div style={{ marginBottom: '0.35rem', color: 'var(--color-secondary)', fontWeight: 600 }}>
                                                     🚗 Valet
                                                     {booking.valetStatus === 1 && ' · Requested'}
                                                     {booking.valetStatus === 2 && ' · Retrieving'}
@@ -1046,19 +1046,19 @@ export default function MyBookings() {
                         </div>
                         <div style={{
                             fontSize: '0.8rem',
-                            color: accessPass.isValidNow ? '#10b981' : '#f59e0b',
+                            color: accessPass.isValidNow ? 'var(--color-success)' : 'var(--color-warning)',
                             fontWeight: 600,
                             marginBottom: '0.5rem',
                         }}>
                             {accessPass.isValidNow ? 'Valid now for gate access' : 'Outside access window or inactive'}
                         </div>
-                        <div style={{ fontSize: '0.85rem', color: '#94a3b8', marginBottom: '0.35rem' }}>
+                        <div style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)', marginBottom: '0.35rem' }}>
                             Ref: {accessPass.bookingReference || '—'}
                         </div>
-                        <div style={{ fontSize: '0.8rem', color: '#64748b', wordBreak: 'break-all', marginBottom: '0.75rem' }}>
+                        <div style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)', wordBreak: 'break-all', marginBottom: '0.75rem' }}>
                             {accessPass.accessToken}
                         </div>
-                        <p style={{ fontSize: '0.75rem', color: '#64748b', marginBottom: '0.75rem' }}>
+                        <p style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginBottom: '0.75rem' }}>
                             Show this QR at non-LPR gates, or add it to your phone wallet when enabled.
                         </p>
                         {(accessPass.appleWalletAvailable || accessPass.googleWalletAvailable) && (
@@ -1084,7 +1084,7 @@ export default function MyBookings() {
                             </div>
                         )}
                         {accessPass.walletStatusMessage && (
-                            <p style={{ fontSize: '0.7rem', color: '#94a3b8', marginBottom: '0.75rem' }}>
+                            <p style={{ fontSize: '0.7rem', color: 'var(--color-text-secondary)', marginBottom: '0.75rem' }}>
                                 {accessPass.walletStatusMessage}
                             </p>
                         )}
@@ -1124,7 +1124,7 @@ export default function MyBookings() {
                                             key={star}
                                             onClick={() => setReviewRating(star)}
                                             style={{
-                                                color: star <= reviewRating ? '#f59e0b' : 'rgba(255,255,255,0.1)',
+                                                color: star <= reviewRating ? 'var(--color-warning)' : 'rgba(255,255,255,0.1)',
                                                 transition: 'color 0.2s, transform 0.1s',
                                             }}
                                             onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.2)'}

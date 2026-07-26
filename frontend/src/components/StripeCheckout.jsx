@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { loadStripe } from '@stripe/stripe-js';
 import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js';
+import { useTheme } from '../contexts/ThemeContext';
 
 let stripePromise = null;
 
@@ -79,27 +80,43 @@ function CheckoutForm({ onSuccess, onCancel, bookingId }) {
     );
 }
 
-export default function StripeCheckout({ clientSecret, publishableKey, onSuccess, onCancel, bookingId }) {
-    if (!clientSecret || !publishableKey) return null;
+function readCssVar(name, fallback) {
+    if (typeof window === 'undefined') return fallback;
+    const value = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+    return value || fallback;
+}
 
-    const options = {
-        clientSecret,
-        appearance: {
-            theme: 'night',
-            variables: {
-                colorPrimary: '#6366f1',
-                colorBackground: '#1a1a25',
-                colorText: '#ffffff',
-                colorDanger: '#ef4444',
-                borderRadius: '8px',
-                fontFamily: 'Inter, sans-serif',
+export default function StripeCheckout({ clientSecret, publishableKey, onSuccess, onCancel, bookingId }) {
+    const { theme, isLight } = useTheme();
+
+    const options = useMemo(() => {
+        if (!clientSecret) return null;
+        return {
+            clientSecret,
+            appearance: {
+                theme: isLight ? 'stripe' : 'night',
+                variables: {
+                    colorPrimary: readCssVar('--color-primary', isLight ? '#4f46e5' : '#6366f1'),
+                    colorBackground: readCssVar('--color-bg-tertiary', isLight ? '#f1f5f9' : '#1a1a25'),
+                    colorText: readCssVar('--color-text-primary', isLight ? '#0f172a' : '#ffffff'),
+                    colorDanger: readCssVar('--color-error', '#ef4444'),
+                    borderRadius: '8px',
+                    fontFamily: 'Inter, sans-serif',
+                },
             },
-        },
-    };
+        };
+    }, [clientSecret, theme, isLight]);
+
+    if (!clientSecret || !publishableKey || !options) return null;
 
     return (
         <div className="stripe-checkout">
-            <Elements stripe={getStripePromise(publishableKey)} options={options}>
+            {/* Remount Elements when theme changes so Stripe re-applies appearance */}
+            <Elements
+                key={theme}
+                stripe={getStripePromise(publishableKey)}
+                options={options}
+            >
                 <CheckoutForm onSuccess={onSuccess} onCancel={onCancel} bookingId={bookingId} />
             </Elements>
         </div>

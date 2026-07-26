@@ -18,16 +18,16 @@ const BOOKING_STATUS = [
 ];
 
 const STATUS_COLORS = {
-  0: '#f59e0b',
-  1: '#10b981',
-  2: '#6366f1',
-  3: '#22c55e',
-  4: '#ef4444',
-  5: '#9ca3af',
-  6: '#8b5cf6',
-  7: '#ef4444',
-  8: '#f59e0b',
-  9: '#8b5cf6',
+  0: 'var(--color-warning)',
+  1: 'var(--color-success)',
+  2: 'var(--color-primary)',
+  3: 'var(--color-success)',
+  4: 'var(--color-error)',
+  5: 'var(--color-text-muted)',
+  6: 'var(--color-secondary)',
+  7: 'var(--color-error)',
+  8: 'var(--color-warning)',
+  9: 'var(--color-secondary)',
 };
 
 const SLOT_TYPES = {
@@ -45,9 +45,9 @@ const StatusBadge = ({ status }) => (
     fontSize: '0.78rem',
     fontWeight: 700,
     whiteSpace: 'nowrap',
-    background: `${STATUS_COLORS[status] || '#64748b'}22`,
-    color: STATUS_COLORS[status] || '#94a3b8',
-    border: `1px solid ${STATUS_COLORS[status] || '#64748b'}55`,
+    background: `${STATUS_COLORS[status] || 'var(--color-text-muted)'}22`,
+    color: STATUS_COLORS[status] || 'var(--color-text-secondary)',
+    border: `1px solid ${STATUS_COLORS[status] || 'var(--color-text-muted)'}55`,
   }}>
     {BOOKING_STATUS[status] ?? `Status ${status}`}
   </span>
@@ -208,13 +208,13 @@ const CompanyBookings = () => {
   const totalAmountOnPage = bookings.reduce((sum, b) => sum + (Number(b.totalAmount) || 0), 0);
 
   return (
-    <div className="container" style={{ padding: '2rem 0', color: '#f1f5f9' }}>
+    <div className="container" style={{ padding: '2rem 0', color: 'var(--color-text)' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
         <div>
-          <h1 style={{ margin: '0 0 0.35rem 0', color: 'white', display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <h1 style={{ margin: '0 0 0.35rem 0', color: 'var(--color-text-primary)', display: 'flex', alignItems: 'center', gap: '10px' }}>
             <span style={{ fontSize: '2rem' }}>📅</span> Corporate Bookings
           </h1>
-          <p style={{ color: '#94a3b8', margin: 0 }}>
+          <p style={{ color: 'var(--color-text-secondary)', margin: 0 }}>
             {companyDetails?.name ? `${companyDetails.name} · ` : ''}
             Admins see company-wide reservations; employees see their own. Export uses the active filters.
           </p>
@@ -234,20 +234,20 @@ const CompanyBookings = () => {
         gap: '0.75rem',
         flexWrap: 'wrap',
         marginBottom: '1.25rem',
-        background: '#1e293b',
+        background: 'var(--color-surface)',
         borderRadius: '12px',
         padding: '1rem',
-        border: '1px solid rgba(255,255,255,0.05)',
+        border: '1px solid var(--color-border)',
       }}>
-        <label style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', fontSize: '0.8rem', color: '#94a3b8' }}>
+        <label style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>
           Status
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
             style={{
-              background: '#0f172a',
-              color: '#e2e8f0',
-              border: '1px solid #334155',
+              background: 'var(--color-bg-primary)',
+              color: 'var(--color-text-primary)',
+              border: '1px solid var(--color-border)',
               borderRadius: '8px',
               padding: '0.45rem 0.65rem',
               minWidth: '160px',
@@ -259,15 +259,15 @@ const CompanyBookings = () => {
             ))}
           </select>
         </label>
-        <label style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', fontSize: '0.8rem', color: '#94a3b8' }}>
+        <label style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>
           Type
           <select
             value={typeFilter}
             onChange={(e) => setTypeFilter(e.target.value)}
             style={{
-              background: '#0f172a',
-              color: '#e2e8f0',
-              border: '1px solid #334155',
+              background: 'var(--color-bg-primary)',
+              color: 'var(--color-text-primary)',
+              border: '1px solid var(--color-border)',
               borderRadius: '8px',
               padding: '0.45rem 0.65rem',
               minWidth: '140px',
@@ -278,39 +278,39 @@ const CompanyBookings = () => {
             <option value="visitor">Visitor only</option>
           </select>
         </label>
-        <label style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', fontSize: '0.8rem', color: '#94a3b8' }}>
+        <label style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>
           From (UTC)
           <input
             type="date"
             value={fromDate}
             onChange={(e) => setFromDate(e.target.value)}
             style={{
-              background: '#0f172a',
-              color: '#e2e8f0',
-              border: '1px solid #334155',
+              background: 'var(--color-bg-primary)',
+              color: 'var(--color-text-primary)',
+              border: '1px solid var(--color-border)',
               borderRadius: '8px',
               padding: '0.45rem 0.65rem',
             }}
           />
         </label>
-        <label style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', fontSize: '0.8rem', color: '#94a3b8' }}>
+        <label style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>
           To (UTC)
           <input
             type="date"
             value={toDate}
             onChange={(e) => setToDate(e.target.value)}
             style={{
-              background: '#0f172a',
-              color: '#e2e8f0',
-              border: '1px solid #334155',
+              background: 'var(--color-bg-primary)',
+              color: 'var(--color-text-primary)',
+              border: '1px solid var(--color-border)',
               borderRadius: '8px',
               padding: '0.45rem 0.65rem',
             }}
           />
         </label>
-        <div style={{ marginLeft: 'auto', alignSelf: 'flex-end', color: '#64748b', fontSize: '0.85rem', textAlign: 'right' }}>
+        <div style={{ marginLeft: 'auto', alignSelf: 'flex-end', color: 'var(--color-text-muted)', fontSize: '0.85rem', textAlign: 'right' }}>
           <div>{totalCount} booking{totalCount === 1 ? '' : 's'} match</div>
-          <div style={{ color: '#cbd5e1' }}>Page amount: {formatMoney(totalAmountOnPage)}</div>
+          <div style={{ color: 'var(--color-text-secondary)' }}>Page amount: {formatMoney(totalAmountOnPage)}</div>
         </div>
       </div>
 
@@ -318,12 +318,12 @@ const CompanyBookings = () => {
         <div style={{ padding: '3rem', textAlign: 'center' }}><div className="spinner" /></div>
       ) : bookings.length === 0 ? (
         <div style={{
-          background: '#1e293b',
+          background: 'var(--color-surface)',
           borderRadius: '12px',
           padding: '2.5rem',
           textAlign: 'center',
-          border: '1px solid rgba(255,255,255,0.05)',
-          color: '#94a3b8',
+          border: '1px solid var(--color-border)',
+          color: 'var(--color-text-secondary)',
         }}>
           No corporate bookings match the current filters.
         </div>
@@ -333,10 +333,10 @@ const CompanyBookings = () => {
             <div
               key={booking.id}
               style={{
-                background: '#1e293b',
+                background: 'var(--color-surface)',
                 borderRadius: '12px',
                 padding: '1.15rem 1.35rem',
-                border: '1px solid rgba(255,255,255,0.05)',
+                border: '1px solid var(--color-border)',
                 display: 'grid',
                 gridTemplateColumns: 'minmax(180px, 1.4fr) minmax(160px, 1fr) minmax(200px, 1.2fr) auto',
                 gap: '1rem',
@@ -344,10 +344,10 @@ const CompanyBookings = () => {
               }}
             >
               <div>
-                <div style={{ color: 'white', fontWeight: 600, marginBottom: '0.25rem' }}>
+                <div style={{ color: 'var(--color-text-primary)', fontWeight: 600, marginBottom: '0.25rem' }}>
                   {booking.parkingSpaceTitle || 'Corporate parking'}
                 </div>
-                <div style={{ color: '#94a3b8', fontSize: '0.82rem' }}>
+                <div style={{ color: 'var(--color-text-secondary)', fontSize: '0.82rem' }}>
                   {booking.bookingReference || booking.bookingId?.slice?.(0, 8) || booking.id}
                   {booking.slotNumber != null && ` · Slot #${booking.slotNumber}`}
                   {booking.slotType != null && ` · ${SLOT_TYPES[booking.slotType] || 'Slot'}`}
@@ -357,28 +357,28 @@ const CompanyBookings = () => {
               <div>
                 {booking.isVisitorBooking ? (
                   <>
-                    <div style={{ color: '#e2e8f0', fontWeight: 600 }}>
+                    <div style={{ color: 'var(--color-text-primary)', fontWeight: 600 }}>
                       👤 {booking.visitorName || 'Visitor'}
                     </div>
-                    <div style={{ color: '#94a3b8', fontSize: '0.82rem' }}>
+                    <div style={{ color: 'var(--color-text-secondary)', fontSize: '0.82rem' }}>
                       {booking.visitorLicensePlate || booking.vehicleNumber || 'No plate'} · Visitor
                     </div>
                   </>
                 ) : (
                   <>
-                    <div style={{ color: '#e2e8f0', fontWeight: 600 }}>
+                    <div style={{ color: 'var(--color-text-primary)', fontWeight: 600 }}>
                       {booking.memberName || 'Employee'}
                     </div>
-                    <div style={{ color: '#94a3b8', fontSize: '0.82rem' }}>
+                    <div style={{ color: 'var(--color-text-secondary)', fontSize: '0.82rem' }}>
                       {booking.memberEmail || booking.vehicleNumber || 'Employee booking'}
                     </div>
                   </>
                 )}
               </div>
 
-              <div style={{ color: '#cbd5e1', fontSize: '0.85rem' }}>
+              <div style={{ color: 'var(--color-text-secondary)', fontSize: '0.85rem' }}>
                 <div>{formatRange(booking.startDateTime, booking.endDateTime)}</div>
-                <div style={{ color: '#94a3b8', marginTop: '0.25rem' }}>{formatMoney(booking.totalAmount)}</div>
+                <div style={{ color: 'var(--color-text-secondary)', marginTop: '0.25rem' }}>{formatMoney(booking.totalAmount)}</div>
               </div>
 
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.4rem' }}>
@@ -394,7 +394,7 @@ const CompanyBookings = () => {
                   </button>
                 )}
                 {booking.qrCodeToken && (
-                  <span style={{ color: '#64748b', fontSize: '0.75rem' }} title={booking.qrCodeToken}>
+                  <span style={{ color: 'var(--color-text-muted)', fontSize: '0.75rem' }} title={booking.qrCodeToken}>
                     QR ready
                   </span>
                 )}
@@ -414,7 +414,7 @@ const CompanyBookings = () => {
           >
             Previous
           </button>
-          <span style={{ color: '#94a3b8', fontSize: '0.9rem' }}>
+          <span style={{ color: 'var(--color-text-secondary)', fontSize: '0.9rem' }}>
             Page {page} of {totalPages}
           </span>
           <button

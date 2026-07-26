@@ -2,6 +2,8 @@ import { useState, useEffect, useCallback } from 'react';
 import { MapContainer, TileLayer, Marker, useMapEvents, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import { useTheme } from '../contexts/ThemeContext';
+import { getMapTileUrl, MAP_TILE_ATTRIBUTION } from '../utils/mapTiles';
 
 // Fix Leaflet default marker icons (broken in bundlers)
 delete L.Icon.Default.prototype._getIconUrl;
@@ -33,6 +35,8 @@ function RecenterMap({ lat, lng }) {
 export default function LocationPicker({ latitude, longitude, onLocationSelect }) {
     const [position, setPosition] = useState(null);
     const [locating, setLocating] = useState(false);
+    const { theme } = useTheme();
+    const tileUrl = getMapTileUrl(theme);
 
     const lat = parseFloat(latitude);
     const lng = parseFloat(longitude);
@@ -62,7 +66,7 @@ export default function LocationPicker({ latitude, longitude, onLocationSelect }
                 onLocationSelect(geoLat.toFixed(6), geoLng.toFixed(6));
                 setLocating(false);
             },
-            (err) => {
+            () => {
                 alert('Unable to get your location. Please click on the map instead.');
                 setLocating(false);
             },
@@ -98,8 +102,9 @@ export default function LocationPicker({ latitude, longitude, onLocationSelect }
                     scrollWheelZoom={true}
                 >
                     <TileLayer
-                        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-                        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                        key={theme}
+                        attribution={MAP_TILE_ATTRIBUTION}
+                        url={tileUrl}
                     />
                     <MapClickHandler onLocationSelect={handleMapClick} />
                     {position && (

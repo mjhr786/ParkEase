@@ -8,23 +8,23 @@ import showToast from '../utils/toast.jsx';
 
 const BOOKING_STATUS = ['Pending', 'Confirmed', 'InProgress', 'Completed', 'Cancelled', 'Expired', 'Awaiting Payment', 'Rejected', 'Extension Pending', 'Extension Payment Due'];
 const STATUS_COLORS = {
-    0: '#f59e0b',
-    1: '#10b981',
-    2: '#6366f1',
-    3: '#22c55e',
-    4: '#ef4444',
-    5: '#9ca3af',
-    6: '#8b5cf6',
-    7: '#ef4444',
-    8: '#f59e0b',
-    9: '#8b5cf6',
+    0: 'var(--color-warning)',
+    1: 'var(--color-success)',
+    2: 'var(--color-primary)',
+    3: 'var(--color-success)',
+    4: 'var(--color-error)',
+    5: 'var(--color-text-muted)',
+    6: 'var(--color-secondary)',
+    7: 'var(--color-error)',
+    8: 'var(--color-warning)',
+    9: 'var(--color-secondary)',
 };
 
 const ALLOC_STATUS = {
-    0: { label: 'Pending Approval', color: '#f59e0b' },
-    1: { label: 'Active', color: '#10b981' },
-    2: { label: 'Rejected', color: '#ef4444' },
-    3: { label: 'Expired', color: '#94a3b8' },
+    0: { label: 'Pending Approval', color: 'var(--color-warning)' },
+    1: { label: 'Active', color: 'var(--color-success)' },
+    2: { label: 'Rejected', color: 'var(--color-error)' },
+    3: { label: 'Expired', color: 'var(--color-text-secondary)' },
 };
 
 const REFRESH_TRIGGERS = ['booking.requested', 'payment.completed', 'booking.cancelled', 'booking.checkin', 'booking.checkout', 'extension.requested', 'extension.approved', 'extension.rejected'];
@@ -272,7 +272,7 @@ export default function VendorBookings() {
                         <p style={{ margin: 0, color: 'var(--color-text-muted)', fontSize: '0.9rem' }}>
                             Marketplace booking requests and corporate bulk allocation approvals.
                             {pendingAllocCount > 0 && (
-                                <span style={{ marginLeft: '0.5rem', color: '#fbbf24', fontWeight: 600 }}>
+                                <span style={{ marginLeft: '0.5rem', color: 'var(--color-warning)', fontWeight: 600 }}>
                                     {pendingAllocCount} allocation{pendingAllocCount === 1 ? '' : 's'} pending
                                 </span>
                             )}
@@ -391,7 +391,7 @@ export default function VendorBookings() {
                                                             alignItems: 'center',
                                                             gap: '0.3rem',
                                                             background: 'rgba(99,102,241,0.15)',
-                                                            color: '#818cf8',
+                                                            color: 'var(--color-accent-light)',
                                                             border: '1px solid rgba(99,102,241,0.35)',
                                                             borderRadius: '6px',
                                                             padding: '0.1rem 0.5rem',
@@ -461,7 +461,7 @@ export default function VendorBookings() {
                                                 )}
                                                 {booking.valetStatus > 0 && booking.valetStatus < 4 && (
                                                     <div className="flex gap-1" style={{ flexWrap: 'wrap', alignItems: 'center' }}>
-                                                        <span style={{ color: '#c084fc', fontWeight: 600 }}>
+                                                        <span style={{ color: 'var(--color-secondary)', fontWeight: 600 }}>
                                                             Valet: {['None', 'Requested', 'Retrieving', 'Ready', 'Completed', 'Cancelled'][booking.valetStatus] || booking.valetStatus}
                                                             {booking.valetTargetReadyAt && (
                                                                 <span style={{ fontWeight: 400, color: 'var(--color-text-muted)' }}>
@@ -659,7 +659,7 @@ export default function VendorBookings() {
                                             </div>
 
                                             {allocation.status === 0 && (
-                                                <div className="flex gap-1 mt-2 pt-2" style={{ borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+                                                <div className="flex gap-1 mt-2 pt-2" style={{ borderTop: '1px solid var(--color-border)' }}>
                                                     <button
                                                         className="btn btn-primary"
                                                         type="button"

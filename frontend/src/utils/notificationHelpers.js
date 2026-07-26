@@ -50,13 +50,13 @@ export const TYPE_ICONS = {
 };
 
 export const TYPE_COLORS = {
-  BookingRequest: '#3b82f6',
-  BookingConfirmed: '#10b981',
-  BookingRejected: '#ef4444',
-  PaymentReceived: '#10b981',
-  NewMessage: '#8b5cf6',
-  SystemAlert: '#f59e0b',
-  default: '#6b7280',
+  BookingRequest: 'var(--color-primary)',
+  BookingConfirmed: 'var(--color-success)',
+  BookingRejected: 'var(--color-error)',
+  PaymentReceived: 'var(--color-success)',
+  NewMessage: 'var(--color-secondary)',
+  SystemAlert: 'var(--color-warning)',
+  default: 'var(--color-text-muted)',
 };
 
 export function iconForType(type) {

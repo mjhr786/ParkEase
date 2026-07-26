@@ -28,6 +28,12 @@ public class RefundRequest
     public Guid PaymentId { get; set; }
     public decimal Amount { get; set; }
     public string Reason { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gateway charge / PaymentIntent id (e.g. Stripe <c>pi_...</c>).
+    /// Required for live gateways; mocks ignore it.
+    /// </summary>
+    public string? GatewayTransactionId { get; set; }
 }
 
 public class RefundResult

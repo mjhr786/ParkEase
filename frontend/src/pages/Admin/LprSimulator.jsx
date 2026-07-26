@@ -86,10 +86,10 @@ export default function LprSimulator() {
   };
 
   const card = {
-    background: '#1e293b',
+    background: 'var(--color-surface)',
     borderRadius: '12px',
     padding: '1.25rem 1.5rem',
-    border: '1px solid rgba(255,255,255,0.06)',
+    border: '1px solid var(--color-border)',
   };
 
   return (
@@ -104,7 +104,7 @@ export default function LprSimulator() {
 
       <form onSubmit={onSubmit} style={{ ...card, display: 'grid', gap: '1rem', marginBottom: '1.5rem' }}>
         <label style={{ display: 'grid', gap: 6 }}>
-          <span style={{ fontSize: '0.85rem', color: '#94a3b8' }}>License plate</span>
+          <span style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>License plate</span>
           <input
             className="input"
             value={licensePlate}
@@ -115,9 +115,9 @@ export default function LprSimulator() {
         </label>
 
         <label style={{ display: 'grid', gap: 6 }}>
-          <span style={{ fontSize: '0.85rem', color: '#94a3b8' }}>Parking facility (LPR-enabled)</span>
+          <span style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>Parking facility (LPR-enabled)</span>
           {listingsLoading ? (
-            <div style={{ color: '#94a3b8', fontSize: '0.85rem' }}>Loading your LPR lots…</div>
+            <div style={{ color: 'var(--color-text-secondary)', fontSize: '0.85rem' }}>Loading your LPR lots…</div>
           ) : listings.length > 0 && !manualId ? (
             <>
               <select
@@ -162,9 +162,9 @@ export default function LprSimulator() {
                 </button>
               )}
               {listings.length === 0 && (
-                <p style={{ margin: 0, fontSize: '0.8rem', color: '#94a3b8' }}>
+                <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>
                   No LPR-enabled listings found.{' '}
-                  <Link to="/my/listings" style={{ color: '#93c5fd' }}>Enable LPR on a listing</Link>
+                  <Link to="/my/listings" style={{ color: 'var(--color-accent-light)' }}>Enable LPR on a listing</Link>
                   {isAdmin ? ' or paste a facility GUID above.' : '.'}
                 </p>
               )}
@@ -173,7 +173,7 @@ export default function LprSimulator() {
         </label>
 
         <label style={{ display: 'grid', gap: 6 }}>
-          <span style={{ fontSize: '0.85rem', color: '#94a3b8' }}>Direction</span>
+          <span style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>Direction</span>
           <select
             className="input"
             value={direction}
@@ -197,27 +197,27 @@ export default function LprSimulator() {
           <div style={{
             fontSize: '1.1rem',
             fontWeight: 700,
-            color: result.accessGranted ? '#34d399' : '#f87171',
+            color: result.accessGranted ? 'var(--color-success)' : 'var(--color-error)',
             marginBottom: '0.75rem',
           }}>
             {result.accessGranted ? 'Access granted' : 'Access denied'}
           </div>
           <dl style={{ display: 'grid', gridTemplateColumns: '160px 1fr', gap: '0.4rem 1rem', margin: 0, fontSize: '0.9rem' }}>
-            <dt style={{ color: '#94a3b8' }}>Decision</dt>
+            <dt style={{ color: 'var(--color-text-secondary)' }}>Decision</dt>
             <dd style={{ margin: 0 }}>{result.decision}</dd>
-            <dt style={{ color: '#94a3b8' }}>Plate</dt>
+            <dt style={{ color: 'var(--color-text-secondary)' }}>Plate</dt>
             <dd style={{ margin: 0 }}>{result.licensePlateNormalized}</dd>
-            <dt style={{ color: '#94a3b8' }}>Direction</dt>
+            <dt style={{ color: 'var(--color-text-secondary)' }}>Direction</dt>
             <dd style={{ margin: 0 }}>{result.direction}</dd>
-            <dt style={{ color: '#94a3b8' }}>Booking ref</dt>
+            <dt style={{ color: 'var(--color-text-secondary)' }}>Booking ref</dt>
             <dd style={{ margin: 0 }}>{result.bookingReference || '—'}</dd>
-            <dt style={{ color: '#94a3b8' }}>Booking ID</dt>
+            <dt style={{ color: 'var(--color-text-secondary)' }}>Booking ID</dt>
             <dd style={{ margin: 0, wordBreak: 'break-all' }}>{result.bookingId || '—'}</dd>
-            <dt style={{ color: '#94a3b8' }}>Denial code</dt>
+            <dt style={{ color: 'var(--color-text-secondary)' }}>Denial code</dt>
             <dd style={{ margin: 0 }}>{result.denialReasonCode || '—'}</dd>
-            <dt style={{ color: '#94a3b8' }}>Message</dt>
+            <dt style={{ color: 'var(--color-text-secondary)' }}>Message</dt>
             <dd style={{ margin: 0 }}>{result.denialMessage || '—'}</dd>
-            <dt style={{ color: '#94a3b8' }}>Attempt ID</dt>
+            <dt style={{ color: 'var(--color-text-secondary)' }}>Attempt ID</dt>
             <dd style={{ margin: 0, wordBreak: 'break-all' }}>{result.attemptId || '—'}</dd>
           </dl>
         </div>

@@ -260,18 +260,18 @@ const CorporateParkingSpaces = () => {
     if (!isCorporateMode) return null;
 
     return (
-        <div className="container" style={{ padding: '2rem 0', color: '#f1f5f9' }}>
+        <div className="container" style={{ padding: '2rem 0', color: 'var(--color-text)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
                 <div>
-                    <h1 style={{ color: 'white', margin: 0 }}>Corporate Parking Inventory</h1>
-                    <p style={{ color: '#94a3b8', margin: '0.4rem 0 0 0' }}>Company-owned spaces become active allocations without vendor approval.</p>
+                    <h1 style={{ color: 'var(--color-text-primary)', margin: 0 }}>Corporate Parking Inventory</h1>
+                    <p style={{ color: 'var(--color-text-secondary)', margin: '0.4rem 0 0 0' }}>Company-owned spaces become active allocations without vendor approval.</p>
                 </div>
                 <button onClick={() => navigate('/corporate/allocations')} className="btn btn-secondary">View Allocations</button>
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: 'minmax(320px, 420px) 1fr', gap: '1.5rem', alignItems: 'start' }}>
-                <form onSubmit={editingSpace ? handleUpdateSpace : handleCreateSpace} style={{ background: '#1e293b', border: '1px solid rgba(255,255,255,0.05)', borderRadius: '8px', padding: '1.5rem' }}>
-                    <h2 style={{ margin: '0 0 1rem 0', color: 'white', fontSize: '1.1rem' }}>{editingSpace ? 'Edit Owned Parking' : 'Add Owned Parking'}</h2>
+                <form onSubmit={editingSpace ? handleUpdateSpace : handleCreateSpace} style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '8px', padding: '1.5rem' }}>
+                    <h2 style={{ margin: '0 0 1rem 0', color: 'var(--color-text-primary)', fontSize: '1.1rem' }}>{editingSpace ? 'Edit Owned Parking' : 'Add Owned Parking'}</h2>
                     <Field label="Title" value={spaceForm.title} onChange={value => updateSpaceForm('title', value)} required />
                     <Field label="Description" value={spaceForm.description} onChange={value => updateSpaceForm('description', value)} required />
                     <Field label="Address" value={spaceForm.address} onChange={value => updateSpaceForm('address', value)} required />
@@ -291,7 +291,7 @@ const CorporateParkingSpaces = () => {
                         <Field label="Total Spots" type="number" min="1" value={spaceForm.totalSpots} onChange={value => updateSpaceForm('totalSpots', value)} required />
                         <Field label="Monthly Rate" type="number" min="0" value={spaceForm.monthlyRate} onChange={value => updateSpaceForm('monthlyRate', value)} />
                     </div>
-                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '1rem', color: '#cbd5e1', fontSize: '0.9rem' }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '1rem', color: 'var(--color-text-secondary)', fontSize: '0.9rem' }}>
                         <input type="checkbox" checked={spaceForm.is24Hours} onChange={e => updateSpaceForm('is24Hours', e.target.checked)} />
                         24 hours
                     </label>
@@ -311,16 +311,16 @@ const CorporateParkingSpaces = () => {
                     {loading ? (
                         <div style={{ padding: '3rem', textAlign: 'center' }}><div className="spinner"></div></div>
                     ) : spaces.length === 0 ? (
-                        <div style={{ background: '#1e293b', border: '1px solid rgba(255,255,255,0.05)', borderRadius: '12px', padding: '2rem', color: '#94a3b8' }}>
+                        <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '12px', padding: '2rem', color: 'var(--color-text-secondary)' }}>
                             No company-owned parking spaces yet.
                         </div>
                     ) : spaces.map(space => (
-                        <div key={space.id} style={{ background: '#1e293b', border: '1px solid rgba(255,255,255,0.05)', borderRadius: '8px', padding: '1.25rem' }}>
+                        <div key={space.id} style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '8px', padding: '1.25rem' }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem' }}>
                                 <div>
-                                    <h3 style={{ color: 'white', margin: '0 0 0.35rem 0' }}>{space.title}</h3>
-                                    <div style={{ color: '#94a3b8', fontSize: '0.9rem' }}>{space.address}, {space.city}</div>
-                                    <div style={{ display: 'flex', gap: '0.75rem', marginTop: '0.75rem', color: '#cbd5e1', fontSize: '0.85rem' }}>
+                                    <h3 style={{ color: 'var(--color-text-primary)', margin: '0 0 0.35rem 0' }}>{space.title}</h3>
+                                    <div style={{ color: 'var(--color-text-secondary)', fontSize: '0.9rem' }}>{space.address}, {space.city}</div>
+                                    <div style={{ display: 'flex', gap: '0.75rem', marginTop: '0.75rem', color: 'var(--color-text-secondary)', fontSize: '0.85rem' }}>
                                         <span>{space.totalSpots} spots</span>
                                         <span>{space.isActive ? 'Active' : 'Inactive'}</span>
                                         <span>Owned</span>
@@ -348,8 +348,8 @@ const CorporateParkingSpaces = () => {
 
             {allocationForm.parkingSpaceId && (
                 <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
-                    <form onSubmit={handleCreateAllocation} style={{ background: '#1e293b', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', padding: '1.5rem', width: '100%', maxWidth: '520px' }}>
-                        <h2 style={{ color: 'white', margin: '0 0 1rem 0' }}>Activate Internal Allocation</h2>
+                    <form onSubmit={handleCreateAllocation} style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '12px', padding: '1.5rem', width: '100%', maxWidth: '520px' }}>
+                        <h2 style={{ color: 'var(--color-text-primary)', margin: '0 0 1rem 0' }}>Activate Internal Allocation</h2>
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.75rem' }}>
                             <Field label="Total" type="number" min="1" value={allocationForm.totalSlots} onChange={value => setAllocationForm(prev => ({ ...prev, totalSlots: value }))} />
                             <Field label="Fixed" type="number" min="0" value={allocationForm.fixedSlots} onChange={value => setAllocationForm(prev => ({ ...prev, fixedSlots: value }))} />
@@ -372,7 +372,7 @@ const CorporateParkingSpaces = () => {
 };
 
 const Field = ({ label, value, onChange, type = 'text', required = false, min, step }) => (
-    <label style={{ display: 'block', marginBottom: '0.85rem', color: '#cbd5e1', fontSize: '0.85rem' }}>
+    <label style={{ display: 'block', marginBottom: '0.85rem', color: 'var(--color-text-secondary)', fontSize: '0.85rem' }}>
         <span style={{ display: 'block', marginBottom: '0.35rem' }}>{label}</span>
         <input
             type={type}
@@ -381,7 +381,7 @@ const Field = ({ label, value, onChange, type = 'text', required = false, min, s
             required={required}
             min={min}
             step={step}
-            style={{ width: '100%', padding: '10px', background: '#0f172a', border: '1px solid #334155', borderRadius: '6px', color: 'white' }}
+            style={{ width: '100%', padding: '10px', background: 'var(--color-bg-primary)', border: '1px solid var(--color-border)', borderRadius: '6px', color: 'var(--color-text-primary)' }}
         />
     </label>
 );
