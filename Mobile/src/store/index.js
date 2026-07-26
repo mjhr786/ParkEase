@@ -8,7 +8,14 @@ import parkingReducer from './slices/parkingSlice';
 import bookingReducer from './slices/bookingSlice';
 import dashboardReducer from './slices/dashboardSlice';
 import reviewReducer from './slices/reviewSlice';
+import chatReducer from './slices/chatSlice';
+import notificationReducer from './slices/notificationSlice';
+import vehicleReducer from './slices/vehicleSlice';
+import favoriteReducer from './slices/favoriteSlice';
+import paymentReducer from './slices/paymentSlice';
+import passReducer from './slices/passSlice';
 import uiReducer from './slices/uiSlice';
+import corporateReducer from './slices/corporateSlice';
 
 export const store = configureStore({
     reducer: {
@@ -17,12 +24,25 @@ export const store = configureStore({
         booking: bookingReducer,
         dashboard: dashboardReducer,
         review: reviewReducer,
+        chat: chatReducer,
+        notification: notificationReducer,
+        vehicle: vehicleReducer,
+        favorite: favoriteReducer,
+        payment: paymentReducer,
+        pass: passReducer,
         ui: uiReducer,
+        corporate: corporateReducer,
     },
     middleware: (getDefaultMiddleware) =>
         getDefaultMiddleware({
             serializableCheck: {
                 ignoredActions: ['auth/login/fulfilled', 'auth/register/fulfilled'],
+                ignoredActionPaths: [
+                    'meta.arg.callbacks.onFileStart',
+                    'meta.arg.callbacks.onProgress',
+                    'meta.arg.callbacks.onFileComplete',
+                    'meta.arg.callbacks.onFileError',
+                ],
             },
         }),
 });
