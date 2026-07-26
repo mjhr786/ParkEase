@@ -108,3 +108,109 @@ jobs:
           path: frontend/coverage/**
           if-no-files-found: warn
           retention-days: 14
+
+  notify-slack:
+    name: Notify Slack
+    runs-on: ubuntu-latest
+    needs: [backend, frontend]
+    if: always()
+    steps:
+      - name: Post unit test results to Slack
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          BACKEND_RESULT: ${{ needs.backend.result }}
+          FRONTEND_RESULT: ${{ needs.frontend.result }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          BRANCH: ${{ github.ref_name }}
+          SHA: ${{ github.sha }}
+          ACTOR: ${{ github.actor }}
+          EVENT: ${{ github.event_name }}
+          WORKFLOW: ${{ github.workflow }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${SLACK_WEBHOOK_URL:-}" ]; then
+            echo "::error::SLACK_WEBHOOK_URL secret is not set. Add it under Repo Settings → Secrets and variables → Actions."
+            exit 1
+          fi
+
+          if [ "$BACKEND_RESULT" = "success" ] && [ "$FRONTEND_RESULT" = "success" ]; then
+            emoji=":white_check_mark:"
+            color="#2eb886"
+            headline="Unit tests passed"
+          else
+            emoji=":x:"
+            color="#e01e5a"
+            headline="Unit tests failed"
+          fi
+
+          icon_for() {
+            case "$1" in
+              success) echo ":white_check_mark:" ;;
+              failure) echo ":x:" ;;
+              cancelled) echo ":no_entry_sign:" ;;
+              skipped) echo ":fast_forward:" ;;
+              *) echo ":grey_question:" ;;
+            esac
+          }
+
+          backend_icon=$(icon_for "$BACKEND_RESULT")
+          frontend_icon=$(icon_for "$FRONTEND_RESULT")
+          short_sha="${SHA:0:7}"
+          results_md="${backend_icon} *Backend (.NET):* \`${BACKEND_RESULT}\`"$'\n'"${frontend_icon} *Frontend (Vitest):* \`${FRONTEND_RESULT}\`"
+
+          payload=$(jq -n \
+            --arg color "$color" \
+            --arg headline "${emoji} ${headline}" \
+            --arg workflow "$WORKFLOW" \
+            --arg branch "$BRANCH" \
+            --arg sha "$short_sha" \
+            --arg actor "$ACTOR" \
+            --arg event "$EVENT" \
+            --arg results "$results_md" \
+            --arg run_url "$RUN_URL" \
+            --arg text "${headline} — ${BRANCH} (${short_sha})" \
+            '{
+              text: $text,
+              attachments: [
+                {
+                  color: $color,
+                  blocks: [
+                    {
+                      type: "header",
+                      text: { type: "plain_text", text: $headline, emoji: true }
+                    },
+                    {
+                      type: "section",
+                      fields: [
+                        { type: "mrkdwn", text: ("*Workflow:*\n" + $workflow) },
+                        { type: "mrkdwn", text: ("*Branch:*\n" + $branch) },
+                        { type: "mrkdwn", text: ("*Commit:*\n`" + $sha + "`") },
+                        { type: "mrkdwn", text: ("*Triggered by:*\n" + $actor + " (" + $event + ")") }
+                      ]
+                    },
+                    {
+                      type: "section",
+                      text: { type: "mrkdwn", text: ("*Results*\n" + $results) }
+                    },
+                    {
+                      type: "actions",
+                      elements: [
+                        {
+                          type: "button",
+                          text: { type: "plain_text", text: "View run", emoji: true },
+                          url: $run_url
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }')
+
+          curl -sS -f -X POST \
+            -H "Content-type: application/json" \
+            --data "$payload" \
+            "$SLACK_WEBHOOK_URL"
+
+          echo "Slack notification sent."
