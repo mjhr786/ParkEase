@@ -115,3 +115,26 @@ export const formatRating = (rating) => {
     if (rating == null) return '0.0';
     return Number(rating).toFixed(1);
 };
+
+/**
+ * Get an array of image URLs for a parking space, with a fallback
+ * @param {Object} parking
+ * @returns {Array<string>}
+ */
+export const getParkingImageUrls = (parking) => {
+    if (!parking) return ['https://via.placeholder.com/800x600?text=No+Image'];
+    
+    if (Array.isArray(parking.imageUrls) && parking.imageUrls.length > 0) {
+        return parking.imageUrls;
+    }
+    
+    if (Array.isArray(parking.images) && parking.images.length > 0) {
+        return parking.images;
+    }
+
+    if (typeof parking.imageUrl === 'string' && parking.imageUrl.trim() !== '') {
+        return [parking.imageUrl];
+    }
+    
+    return ['https://via.placeholder.com/800x600?text=No+Image'];
+};

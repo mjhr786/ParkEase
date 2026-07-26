@@ -147,7 +147,7 @@ const MyPassesScreen = ({ navigation }) => {
                     <EmptyState
                         icon={error ? 'alert-circle-outline' : 'ticket-outline'}
                         title={error ? 'Could not load passes' : 'No active passes'}
-                        message={error || 'Your weekly, monthly, and corporate parking passes will appear here.'}
+                        message={error ? 'We are experiencing temporary issues. Please try again later.' : 'Your weekly, monthly, and corporate parking passes will appear here.'}
                     />
                 }
                 refreshControl={

@@ -31,7 +31,7 @@ const CorporateBookingsScreen = () => {
             const data = await corporateService.getCorporateBookings(activeCompanyId, { page: 1, pageSize: 50 });
             setBookings(data?.items || data || []);
         } catch (error) {
-            console.error('Failed to load corporate bookings', error);
+            console.warn('Failed to load corporate bookings', error.message);
         } finally {
             setIsLoading(false);
         }

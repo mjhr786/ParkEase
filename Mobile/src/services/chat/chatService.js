@@ -60,6 +60,19 @@ const chatService = {
             throw error;
         }
     },
+
+    /**
+     * Get global unread message count
+     */
+    async getUnreadCount() {
+        try {
+            const response = await apiClient.get('/chat/unread-count');
+            return response.data;
+        } catch (error) {
+            logger.error(TAG, 'Failed to get unread count', error);
+            throw error;
+        }
+    },
 };
 
 export default chatService;
