@@ -32,6 +32,10 @@ export default function VendorListings() {
     const [uploadingId, setUploadingId] = useState(null);
     const [uploadProgress, setUploadProgress] = useState('');
     const [bookings, setBookings] = useState([]);
+    const [ancillaryBySpace, setAncillaryBySpace] = useState({}); // parkingSpaceId -> services[]
+    const [ancillaryForm, setAncillaryForm] = useState({}); // parkingSpaceId -> draft form
+    const [ancillarySaving, setAncillarySaving] = useState(null);
+    const [ancillaryOpenId, setAncillaryOpenId] = useState(null);
     const titleInputRef = useRef(null);
 
     const { subscribeToRefresh } = useNotificationContext();
@@ -47,6 +51,8 @@ export default function VendorListings() {
         latitude: '',
         longitude: '',
         parkingType: 0,
+        listingCategory: 0, // 0 Commercial, 1 Residential
+        instantBook: false,
         totalSpots: 10,
         hourlyRate: 50,
         dailyRate: 400,
@@ -55,6 +61,25 @@ export default function VendorListings() {
         is24Hours: true,
         amenities: '',
         specialInstructions: '',
+        isLprEnabled: false,
+        isDynamicPricingEnabled: false,
+        dynamicMinMultiplier: 0.8,
+        dynamicMaxMultiplier: 1.75,
+        peakHourMultiplier: 1.25,
+        weekendMultiplier: 1.15,
+        timeZoneId: 'Asia/Kolkata',
+        hasEvCharging: false,
+        evChargerCount: 1,
+        evChargingRatePerHour: 25,
+        evIdleRatePerHour: 50,
+        evIdleGraceMinutes: 15,
+        evPricingMode: 0, // 0=Hourly, 1=PerKwh
+        evRatePerKwh: 15,
+        isBayGuidanceEnabled: false,
+        isValetEnabled: false,
+        defaultFacilityLevel: '',
+        defaultFacilityZone: '',
+        indoorGuidanceNotes: '',
     };
 
     const [form, setForm] = useState(emptyForm);
@@ -69,6 +94,23 @@ export default function VendorListings() {
             showToast.error(handleApiError(err, 'Failed to load listings'));
         }
         if (shouldSetLoading) setLoading(false);
+    }, []);
+
+    const fetchAncillary = useCallback(async () => {
+        try {
+            const response = await api.getMyAncillaryServices();
+            if (response.success && Array.isArray(response.data)) {
+                const map = {};
+                for (const s of response.data) {
+                    const key = s.parkingSpaceId;
+                    if (!map[key]) map[key] = [];
+                    map[key].push(s);
+                }
+                setAncillaryBySpace(map);
+            }
+        } catch (err) {
+            // non-fatal
+        }
     }, []);
 
     const fetchBookings = useCallback(async () => {
@@ -89,11 +131,12 @@ export default function VendorListings() {
             await Promise.all([
                 fetchListings(false),
                 fetchBookings(),
+                fetchAncillary(),
             ]);
             setLoading(false);
         };
         loadData();
-    }, [fetchListings, fetchBookings]);
+    }, [fetchListings, fetchBookings, fetchAncillary]);
 
     // Subscribe to real-time refresh events
     useEffect(() => {
@@ -101,9 +144,76 @@ export default function VendorListings() {
             // console.log('🔄 VendorListings: Auto-refreshing due to notification');
             fetchListings(false); // background refresh
             fetchBookings();
+            fetchAncillary();
         });
         return unsubscribe;
-    }, [subscribeToRefresh, fetchListings, fetchBookings]);
+    }, [subscribeToRefresh, fetchListings, fetchBookings, fetchAncillary]);
+
+    const emptyAncillaryDraft = { name: '', description: '', price: '', durationMinutes: '', sortOrder: 0 };
+
+    const handleCreateAncillary = async (parkingSpaceId) => {
+        const draft = ancillaryForm[parkingSpaceId] || emptyAncillaryDraft;
+        if (!draft.name?.trim()) {
+            showToast.error('Add-on name is required');
+            return;
+        }
+        const price = parseFloat(draft.price);
+        if (Number.isNaN(price) || price < 0) {
+            showToast.error('Enter a valid price');
+            return;
+        }
+        setAncillarySaving(parkingSpaceId);
+        try {
+            const res = await api.createAncillaryService({
+                parkingSpaceId,
+                name: draft.name.trim(),
+                description: draft.description?.trim() || null,
+                price,
+                durationMinutes: draft.durationMinutes ? parseInt(draft.durationMinutes, 10) : null,
+                sortOrder: parseInt(draft.sortOrder, 10) || 0,
+                isActive: true,
+            });
+            if (res.success) {
+                showToast.success('Add-on created');
+                setAncillaryForm(prev => ({ ...prev, [parkingSpaceId]: { ...emptyAncillaryDraft } }));
+                await fetchAncillary();
+            } else {
+                showToast.error(res.message || 'Failed to create add-on');
+            }
+        } catch (err) {
+            showToast.error(handleApiError(err, 'Failed to create add-on'));
+        } finally {
+            setAncillarySaving(null);
+        }
+    };
+
+    const handleToggleAncillaryActive = async (service) => {
+        try {
+            const res = await api.updateAncillaryService(service.id, { isActive: !service.isActive });
+            if (res.success) {
+                showToast.success(service.isActive ? 'Add-on deactivated' : 'Add-on activated');
+                await fetchAncillary();
+            } else {
+                showToast.error(res.message || 'Update failed');
+            }
+        } catch (err) {
+            showToast.error(handleApiError(err, 'Update failed'));
+        }
+    };
+
+    const handleDeactivateAncillary = async (serviceId) => {
+        try {
+            const res = await api.deactivateAncillaryService(serviceId);
+            if (res.success) {
+                showToast.success('Add-on deactivated');
+                await fetchAncillary();
+            } else {
+                showToast.error(res.message || 'Deactivate failed');
+            }
+        } catch (err) {
+            showToast.error(handleApiError(err, 'Deactivate failed'));
+        }
+    };
 
     const getActiveBookingsForListing = (listingId, listingReservations = []) => {
         const now = new Date();
@@ -171,6 +281,27 @@ export default function VendorListings() {
             monthlyRate: parseFloat(form.monthlyRate),
             parkingType: parseInt(form.parkingType),
             amenities: form.amenities ? form.amenities.split(',').map(a => a.trim()) : [],
+            isLprEnabled: !!form.isLprEnabled,
+            isDynamicPricingEnabled: !!form.isDynamicPricingEnabled,
+            dynamicMinMultiplier: form.isDynamicPricingEnabled ? parseFloat(form.dynamicMinMultiplier) || 0.8 : undefined,
+            dynamicMaxMultiplier: form.isDynamicPricingEnabled ? parseFloat(form.dynamicMaxMultiplier) || 1.75 : undefined,
+            peakHourMultiplier: form.isDynamicPricingEnabled ? parseFloat(form.peakHourMultiplier) || 1.25 : undefined,
+            weekendMultiplier: form.isDynamicPricingEnabled ? parseFloat(form.weekendMultiplier) || 1.15 : undefined,
+            timeZoneId: form.timeZoneId || 'UTC',
+            hasEvCharging: !!form.hasEvCharging,
+            evChargerCount: form.hasEvCharging ? parseInt(form.evChargerCount, 10) || 0 : 0,
+            evChargingRatePerHour: form.hasEvCharging ? parseFloat(form.evChargingRatePerHour) || 0 : 0,
+            evIdleRatePerHour: form.hasEvCharging ? parseFloat(form.evIdleRatePerHour) || 0 : 0,
+            evIdleGraceMinutes: form.hasEvCharging ? parseInt(form.evIdleGraceMinutes, 10) || 15 : 15,
+            evPricingMode: form.hasEvCharging ? (parseInt(form.evPricingMode, 10) || 0) : 0,
+            evRatePerKwh: form.hasEvCharging ? parseFloat(form.evRatePerKwh) || 0 : 0,
+            listingCategory: parseInt(form.listingCategory, 10) || 0,
+            instantBook: !!form.instantBook,
+            isBayGuidanceEnabled: !!form.isBayGuidanceEnabled,
+            isValetEnabled: !!form.isValetEnabled,
+            defaultFacilityLevel: form.isBayGuidanceEnabled ? (form.defaultFacilityLevel || null) : null,
+            defaultFacilityZone: form.isBayGuidanceEnabled ? (form.defaultFacilityZone || null) : null,
+            indoorGuidanceNotes: form.isBayGuidanceEnabled ? (form.indoorGuidanceNotes || null) : null,
         };
 
         try {
@@ -200,8 +331,29 @@ export default function VendorListings() {
 
     const handleEdit = (listing) => {
         setForm({
+            ...emptyForm,
             ...listing,
             amenities: listing.amenities?.join(', ') || '',
+            isDynamicPricingEnabled: !!listing.isDynamicPricingEnabled,
+            dynamicMinMultiplier: listing.dynamicMinMultiplier ?? 0.8,
+            dynamicMaxMultiplier: listing.dynamicMaxMultiplier ?? 1.75,
+            peakHourMultiplier: listing.peakHourMultiplier ?? 1.25,
+            weekendMultiplier: listing.weekendMultiplier ?? 1.15,
+            timeZoneId: listing.timeZoneId || 'Asia/Kolkata',
+            hasEvCharging: !!listing.hasEvCharging,
+            evChargerCount: listing.evChargerCount ?? 1,
+            evChargingRatePerHour: listing.evChargingRatePerHour ?? 25,
+            evIdleRatePerHour: listing.evIdleRatePerHour ?? 50,
+            evIdleGraceMinutes: listing.evIdleGraceMinutes ?? 15,
+            evPricingMode: listing.evPricingMode ?? 0,
+            evRatePerKwh: listing.evRatePerKwh ?? 15,
+            listingCategory: listing.listingCategory ?? 0,
+            instantBook: !!listing.instantBook,
+            isBayGuidanceEnabled: !!listing.isBayGuidanceEnabled,
+            isValetEnabled: !!listing.isValetEnabled,
+            defaultFacilityLevel: listing.defaultFacilityLevel || '',
+            defaultFacilityZone: listing.defaultFacilityZone || '',
+            indoorGuidanceNotes: listing.indoorGuidanceNotes || '',
         });
         setEditingId(listing.id);
         setShowForm(true);
@@ -409,6 +561,30 @@ export default function VendorListings() {
                                     />
                                 </div>
                                 <div className="form-group" style={{ margin: 0 }}>
+                                    <label className="form-label">Listing type</label>
+                                    <select
+                                        className="form-select"
+                                        value={form.listingCategory}
+                                        onChange={(e) => {
+                                            const listingCategory = parseInt(e.target.value, 10) || 0;
+                                            const residential = listingCategory === 1;
+                                            setForm({
+                                                ...form,
+                                                listingCategory,
+                                                instantBook: residential ? true : form.instantBook,
+                                                totalSpots: residential && Number(form.totalSpots) > 10 ? 1 : (residential && !editingId ? 1 : form.totalSpots),
+                                                parkingType: residential && !editingId ? 0 : form.parkingType,
+                                            });
+                                        }}
+                                    >
+                                        <option value={0}>Commercial lot / garage</option>
+                                        <option value={1}>Residential driveway / home spot</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div className="grid grid-2 mt-1" style={{ gap: '1rem' }}>
+                                <div className="form-group" style={{ margin: 0 }}>
                                     <label className="form-label">Parking Type</label>
                                     <select
                                         className="form-select"
@@ -420,7 +596,23 @@ export default function VendorListings() {
                                         ))}
                                     </select>
                                 </div>
+                                <div className="form-group" style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem', paddingTop: '1.5rem' }}>
+                                    <input
+                                        type="checkbox"
+                                        id="instantBook"
+                                        checked={!!form.instantBook}
+                                        onChange={(e) => setForm({ ...form, instantBook: e.target.checked })}
+                                    />
+                                    <label htmlFor="instantBook" className="form-label" style={{ margin: 0 }}>
+                                        Instant book (skip host approval)
+                                    </label>
+                                </div>
                             </div>
+                            {Number(form.listingCategory) === 1 && (
+                                <p style={{ fontSize: '0.8rem', color: '#94a3b8', marginTop: '0.5rem' }}>
+                                    Residential listings are limited to 10 spots. Guests book like a driveway rental (JustPark-style).
+                                </p>
+                            )}
 
                             <div className="form-group mt-1">
                                 <label className="form-label">Description</label>
@@ -561,7 +753,7 @@ export default function VendorListings() {
                                 />
                             </div>
 
-                            <div className="form-group">
+                            <div className="form-group" style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                                 <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
                                     <input
                                         type="checkbox"
@@ -570,6 +762,234 @@ export default function VendorListings() {
                                     />
                                     24/7 Available
                                 </label>
+                                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+                                    <input
+                                        type="checkbox"
+                                        checked={!!form.isLprEnabled}
+                                        onChange={(e) => setForm({ ...form, isLprEnabled: e.target.checked })}
+                                    />
+                                    Enable LPR (ticketless gate access — requires plate on booking)
+                                </label>
+                                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+                                    <input
+                                        type="checkbox"
+                                        checked={!!form.isDynamicPricingEnabled}
+                                        onChange={(e) => setForm({ ...form, isDynamicPricingEnabled: e.target.checked })}
+                                    />
+                                    Enable dynamic pricing (demand-based rates from occupancy, peak hours, weekends)
+                                </label>
+                                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+                                    <input
+                                        type="checkbox"
+                                        checked={!!form.hasEvCharging}
+                                        onChange={(e) => setForm({ ...form, hasEvCharging: e.target.checked })}
+                                    />
+                                    Enable EV charging (bays + session/idle rates)
+                                </label>
+                                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+                                    <input
+                                        type="checkbox"
+                                        checked={!!form.isBayGuidanceEnabled}
+                                        onChange={(e) => setForm({ ...form, isBayGuidanceEnabled: e.target.checked })}
+                                    />
+                                    Indoor bay guidance (assign level / zone / bay on booking)
+                                </label>
+                                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+                                    <input
+                                        type="checkbox"
+                                        checked={!!form.isValetEnabled}
+                                        onChange={(e) => setForm({ ...form, isValetEnabled: e.target.checked })}
+                                    />
+                                    Valet vehicle retrieval (guest can request ~10 min before pickup)
+                                </label>
+                                {(form.isBayGuidanceEnabled || form.isValetEnabled) && (
+                                    <div className="grid grid-2" style={{ gap: '0.75rem', marginTop: '0.25rem' }}>
+                                        {form.isBayGuidanceEnabled && (
+                                            <>
+                                                <div className="form-group" style={{ margin: 0 }}>
+                                                    <label className="form-label">Default level</label>
+                                                    <input
+                                                        type="text"
+                                                        className="form-input"
+                                                        placeholder="e.g. P2"
+                                                        value={form.defaultFacilityLevel}
+                                                        onChange={(e) => setForm({ ...form, defaultFacilityLevel: e.target.value })}
+                                                    />
+                                                </div>
+                                                <div className="form-group" style={{ margin: 0 }}>
+                                                    <label className="form-label">Default zone</label>
+                                                    <input
+                                                        type="text"
+                                                        className="form-input"
+                                                        placeholder="e.g. Blue"
+                                                        value={form.defaultFacilityZone}
+                                                        onChange={(e) => setForm({ ...form, defaultFacilityZone: e.target.value })}
+                                                    />
+                                                </div>
+                                                <div className="form-group" style={{ margin: 0, gridColumn: '1 / -1' }}>
+                                                    <label className="form-label">Indoor wayfinding notes</label>
+                                                    <textarea
+                                                        className="form-input"
+                                                        rows={2}
+                                                        placeholder="Enter ramp B → elevators → follow blue signs to bay"
+                                                        value={form.indoorGuidanceNotes}
+                                                        onChange={(e) => setForm({ ...form, indoorGuidanceNotes: e.target.value })}
+                                                    />
+                                                </div>
+                                            </>
+                                        )}
+                                    </div>
+                                )}
+                                {form.hasEvCharging && (
+                                    <div className="grid grid-2" style={{ gap: '0.75rem', marginTop: '0.25rem' }}>
+                                        <div className="form-group" style={{ margin: 0 }}>
+                                            <label className="form-label">Charger bays</label>
+                                            <input
+                                                type="number"
+                                                className="form-input"
+                                                min="0"
+                                                value={form.evChargerCount}
+                                                onChange={(e) => setForm({ ...form, evChargerCount: e.target.value })}
+                                            />
+                                        </div>
+                                        <div className="form-group" style={{ margin: 0 }}>
+                                            <label className="form-label">Pricing mode</label>
+                                            <select
+                                                className="form-select"
+                                                value={form.evPricingMode ?? 0}
+                                                onChange={(e) => setForm({ ...form, evPricingMode: parseInt(e.target.value, 10) })}
+                                            >
+                                                <option value={0}>Hourly (lock at book)</option>
+                                                <option value={1}>Per kWh (settle after charge)</option>
+                                            </select>
+                                        </div>
+                                        {Number(form.evPricingMode) === 1 ? (
+                                            <div className="form-group" style={{ margin: 0 }}>
+                                                <label className="form-label">Energy rate ₹/kWh</label>
+                                                <input
+                                                    type="number"
+                                                    className="form-input"
+                                                    min="0"
+                                                    step="0.5"
+                                                    value={form.evRatePerKwh}
+                                                    onChange={(e) => setForm({ ...form, evRatePerKwh: e.target.value })}
+                                                />
+                                            </div>
+                                        ) : (
+                                            <div className="form-group" style={{ margin: 0 }}>
+                                                <label className="form-label">Charging rate ₹/hr</label>
+                                                <input
+                                                    type="number"
+                                                    className="form-input"
+                                                    min="0"
+                                                    step="1"
+                                                    value={form.evChargingRatePerHour}
+                                                    onChange={(e) => setForm({ ...form, evChargingRatePerHour: e.target.value })}
+                                                />
+                                            </div>
+                                        )}
+                                        <div className="form-group" style={{ margin: 0 }}>
+                                            <label className="form-label">Idle fee ₹/hr</label>
+                                            <input
+                                                type="number"
+                                                className="form-input"
+                                                min="0"
+                                                step="1"
+                                                value={form.evIdleRatePerHour}
+                                                onChange={(e) => setForm({ ...form, evIdleRatePerHour: e.target.value })}
+                                            />
+                                        </div>
+                                        <div className="form-group" style={{ margin: 0 }}>
+                                            <label className="form-label">Idle grace (min)</label>
+                                            <input
+                                                type="number"
+                                                className="form-input"
+                                                min="0"
+                                                value={form.evIdleGraceMinutes}
+                                                onChange={(e) => setForm({ ...form, evIdleGraceMinutes: e.target.value })}
+                                            />
+                                        </div>
+                                        <p style={{ gridColumn: '1 / -1', margin: 0, fontSize: '0.85rem', color: '#9ca3af' }}>
+                                            {Number(form.evPricingMode) === 1
+                                                ? 'Energy fee is settled after the charge session (OCPP/simulator). Idle fee still applies after end + grace.'
+                                                : 'Hourly charging fee is added at booking. Idle fee applies after end + grace if the EV session overstays.'}
+                                        </p>
+                                    </div>
+                                )}
+                                {form.isDynamicPricingEnabled && (
+                                    <div className="grid grid-2" style={{ gap: '0.75rem', marginTop: '0.25rem' }}>
+                                        <div className="form-group" style={{ margin: 0, gridColumn: '1 / -1' }}>
+                                            <label className="form-label">Peak / weekend timezone</label>
+                                            <select
+                                                className="form-select"
+                                                value={form.timeZoneId || 'UTC'}
+                                                onChange={(e) => setForm({ ...form, timeZoneId: e.target.value })}
+                                            >
+                                                <option value="Asia/Kolkata">Asia/Kolkata (IST)</option>
+                                                <option value="UTC">UTC</option>
+                                                <option value="Asia/Dubai">Asia/Dubai</option>
+                                                <option value="Europe/London">Europe/London</option>
+                                                <option value="America/New_York">America/New_York</option>
+                                                <option value="America/Los_Angeles">America/Los_Angeles</option>
+                                                <option value="Asia/Singapore">Asia/Singapore</option>
+                                            </select>
+                                            <p style={{ margin: '0.35rem 0 0', fontSize: '0.8rem', color: '#9ca3af' }}>
+                                                Peak windows 07:00–10:00 and 16:00–20:00 use this local clock.
+                                            </p>
+                                        </div>
+                                        <div className="form-group" style={{ margin: 0 }}>
+                                            <label className="form-label">Min multiplier</label>
+                                            <input
+                                                type="number"
+                                                className="form-input"
+                                                step="0.05"
+                                                min="0.1"
+                                                max="1"
+                                                value={form.dynamicMinMultiplier}
+                                                onChange={(e) => setForm({ ...form, dynamicMinMultiplier: e.target.value })}
+                                            />
+                                        </div>
+                                        <div className="form-group" style={{ margin: 0 }}>
+                                            <label className="form-label">Max multiplier</label>
+                                            <input
+                                                type="number"
+                                                className="form-input"
+                                                step="0.05"
+                                                min="1"
+                                                max="5"
+                                                value={form.dynamicMaxMultiplier}
+                                                onChange={(e) => setForm({ ...form, dynamicMaxMultiplier: e.target.value })}
+                                            />
+                                        </div>
+                                        <div className="form-group" style={{ margin: 0 }}>
+                                            <label className="form-label">Peak hour multiplier</label>
+                                            <input
+                                                type="number"
+                                                className="form-input"
+                                                step="0.05"
+                                                min="1"
+                                                max="3"
+                                                value={form.peakHourMultiplier}
+                                                onChange={(e) => setForm({ ...form, peakHourMultiplier: e.target.value })}
+                                            />
+                                        </div>
+                                        <div className="form-group" style={{ margin: 0 }}>
+                                            <label className="form-label">Weekend multiplier</label>
+                                            <input
+                                                type="number"
+                                                className="form-input"
+                                                step="0.05"
+                                                min="1"
+                                                max="3"
+                                                value={form.weekendMultiplier}
+                                                onChange={(e) => setForm({ ...form, weekendMultiplier: e.target.value })}
+                                            />
+                                        </div>
+                                        <p style={{ gridColumn: '1 / -1', margin: 0, fontSize: '0.85rem', color: '#9ca3af' }}>
+                                            Peak windows (UTC): 07:00–10:00 and 16:00–20:00. Occupancy surge/discount is automatic from available spots.
+                                        </p>
+                                    </div>
+                                )}
                             </div>
 
                             <button type="submit" className="btn btn-primary">
@@ -599,6 +1019,42 @@ export default function VendorListings() {
                                         style={{ background: listing.isActive ? 'rgba(16, 185, 129, 0.2)' : 'rgba(107, 114, 128, 0.2)' }}>
                                         {listing.isActive ? 'Active' : 'Inactive'}
                                     </span>
+                                    {listing.isLprEnabled && (
+                                        <span className="parking-tag"
+                                            style={{ background: 'rgba(99, 102, 241, 0.2)', color: '#a5b4fc' }}>
+                                            LPR
+                                        </span>
+                                    )}
+                                    {listing.isDynamicPricingEnabled && (
+                                        <span className="parking-tag"
+                                            style={{ background: 'rgba(245, 158, 11, 0.2)', color: '#fbbf24' }}>
+                                            Dynamic $
+                                        </span>
+                                    )}
+                                    {listing.isBayGuidanceEnabled && (
+                                        <span className="badge" style={{ background: 'rgba(59,130,246,0.15)', color: '#60a5fa' }}>Bay guidance</span>
+                                    )}
+                                    {listing.isValetEnabled && (
+                                        <span className="badge" style={{ background: 'rgba(168,85,247,0.15)', color: '#c084fc' }}>Valet</span>
+                                    )}
+                                    {listing.hasEvCharging && (
+                                        <span className="parking-tag"
+                                            style={{ background: 'rgba(16, 185, 129, 0.2)', color: '#6ee7b7' }}>
+                                            🔌 EV
+                                        </span>
+                                    )}
+                                    {(listing.listingCategory === 1 || listing.listingCategory === 'Residential') && (
+                                        <span className="parking-tag"
+                                            style={{ background: 'rgba(236, 72, 153, 0.2)', color: '#f9a8d4' }}>
+                                            🏠 Driveway
+                                        </span>
+                                    )}
+                                    {listing.instantBook && (
+                                        <span className="parking-tag"
+                                            style={{ background: 'rgba(34, 197, 94, 0.2)', color: '#86efac' }}>
+                                            Instant book
+                                        </span>
+                                    )}
                                 </div>
                                 <div className="parking-location">📍 {listing.address}, {listing.city}</div>
                                 <div className="flex gap-2 mt-1">
@@ -606,7 +1062,157 @@ export default function VendorListings() {
                                     <span className="parking-tag">{listing.totalSpots} spots</span>
                                     <span className="rating">⭐ {listing.averageRating?.toFixed(1) || 'New'}</span>
                                 </div>
-                                <div className="parking-price mt-1">₹{listing.hourlyRate}<span>/hr</span></div>
+                                <div className="parking-price mt-1">
+                                    {listing.dynamicPricingApplied && listing.effectiveHourlyRate != null
+                                        && Number(listing.effectiveHourlyRate) !== Number(listing.hourlyRate) ? (
+                                        <>
+                                            <span style={{ fontSize: '0.75rem', color: '#94a3b8', marginRight: '0.35rem' }}>from</span>
+                                            ₹{Number(listing.effectiveHourlyRate).toFixed(0)}
+                                            <span>/hr</span>
+                                            <span style={{
+                                                marginLeft: '0.4rem',
+                                                fontSize: '0.75rem',
+                                                color: '#94a3b8',
+                                                textDecoration: 'line-through',
+                                            }}>
+                                                ₹{listing.hourlyRate}
+                                            </span>
+                                        </>
+                                    ) : (
+                                        <>₹{listing.hourlyRate}<span>/hr</span></>
+                                    )}
+                                </div>
+
+                                {/* Ancillary add-ons catalog */}
+                                <div style={{
+                                    marginTop: '0.85rem',
+                                    padding: '0.75rem',
+                                    background: 'rgba(244, 114, 182, 0.08)',
+                                    borderRadius: 'var(--radius-sm)',
+                                    border: '1px solid rgba(244, 114, 182, 0.25)',
+                                }}>
+                                    <button
+                                        type="button"
+                                        className="btn btn-secondary"
+                                        style={{ width: '100%', marginBottom: ancillaryOpenId === listing.id ? '0.75rem' : 0 }}
+                                        onClick={() => setAncillaryOpenId(prev => prev === listing.id ? null : listing.id)}
+                                    >
+                                        🧼 Add-on services ({(ancillaryBySpace[listing.id] || []).length})
+                                        {' '}{ancillaryOpenId === listing.id ? '▲' : '▼'}
+                                    </button>
+                                    {ancillaryOpenId === listing.id && (
+                                        <div>
+                                            {(ancillaryBySpace[listing.id] || []).length === 0 ? (
+                                                <p style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)', margin: '0 0 0.75rem' }}>
+                                                    No add-ons yet. Guests can pick these at booking (wash, detail, etc.).
+                                                </p>
+                                            ) : (
+                                                <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 0.75rem' }}>
+                                                    {(ancillaryBySpace[listing.id] || []).map(svc => (
+                                                        <li key={svc.id} style={{
+                                                            display: 'flex',
+                                                            justifyContent: 'space-between',
+                                                            alignItems: 'center',
+                                                            gap: '0.5rem',
+                                                            padding: '0.4rem 0',
+                                                            borderBottom: '1px solid rgba(255,255,255,0.06)',
+                                                            fontSize: '0.9rem',
+                                                        }}>
+                                                            <div>
+                                                                <strong>{svc.name}</strong>
+                                                                <span style={{ marginLeft: '0.5rem', color: 'var(--color-primary)' }}>
+                                                                    ₹{svc.price}
+                                                                </span>
+                                                                {!svc.isActive && (
+                                                                    <span style={{ marginLeft: '0.4rem', fontSize: '0.75rem', color: '#9ca3af' }}>
+                                                                        (inactive)
+                                                                    </span>
+                                                                )}
+                                                                {svc.durationMinutes ? (
+                                                                    <span style={{ marginLeft: '0.4rem', fontSize: '0.75rem', color: '#9ca3af' }}>
+                                                                        · {svc.durationMinutes} min
+                                                                    </span>
+                                                                ) : null}
+                                                            </div>
+                                                            <div style={{ display: 'flex', gap: '0.35rem' }}>
+                                                                <button
+                                                                    type="button"
+                                                                    className="btn btn-secondary"
+                                                                    style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}
+                                                                    onClick={() => handleToggleAncillaryActive(svc)}
+                                                                >
+                                                                    {svc.isActive ? 'Hide' : 'Show'}
+                                                                </button>
+                                                                {svc.isActive && (
+                                                                    <button
+                                                                        type="button"
+                                                                        className="btn btn-secondary"
+                                                                        style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}
+                                                                        onClick={() => handleDeactivateAncillary(svc.id)}
+                                                                    >
+                                                                        Deactivate
+                                                                    </button>
+                                                                )}
+                                                            </div>
+                                                        </li>
+                                                    ))}
+                                                </ul>
+                                            )}
+                                            <div className="grid grid-2" style={{ gap: '0.5rem' }}>
+                                                <input
+                                                    className="form-input"
+                                                    placeholder="Name (e.g. Basic wash)"
+                                                    value={(ancillaryForm[listing.id] || emptyAncillaryDraft).name}
+                                                    onChange={(e) => setAncillaryForm(prev => ({
+                                                        ...prev,
+                                                        [listing.id]: { ...(prev[listing.id] || emptyAncillaryDraft), name: e.target.value },
+                                                    }))}
+                                                />
+                                                <input
+                                                    className="form-input"
+                                                    type="number"
+                                                    min="0"
+                                                    step="0.01"
+                                                    placeholder="Price ₹"
+                                                    value={(ancillaryForm[listing.id] || emptyAncillaryDraft).price}
+                                                    onChange={(e) => setAncillaryForm(prev => ({
+                                                        ...prev,
+                                                        [listing.id]: { ...(prev[listing.id] || emptyAncillaryDraft), price: e.target.value },
+                                                    }))}
+                                                />
+                                                <input
+                                                    className="form-input"
+                                                    placeholder="Description (optional)"
+                                                    value={(ancillaryForm[listing.id] || emptyAncillaryDraft).description}
+                                                    onChange={(e) => setAncillaryForm(prev => ({
+                                                        ...prev,
+                                                        [listing.id]: { ...(prev[listing.id] || emptyAncillaryDraft), description: e.target.value },
+                                                    }))}
+                                                />
+                                                <input
+                                                    className="form-input"
+                                                    type="number"
+                                                    min="0"
+                                                    placeholder="Duration min (opt.)"
+                                                    value={(ancillaryForm[listing.id] || emptyAncillaryDraft).durationMinutes}
+                                                    onChange={(e) => setAncillaryForm(prev => ({
+                                                        ...prev,
+                                                        [listing.id]: { ...(prev[listing.id] || emptyAncillaryDraft), durationMinutes: e.target.value },
+                                                    }))}
+                                                />
+                                            </div>
+                                            <button
+                                                type="button"
+                                                className="btn btn-primary"
+                                                style={{ marginTop: '0.5rem', width: '100%' }}
+                                                disabled={ancillarySaving === listing.id}
+                                                onClick={() => handleCreateAncillary(listing.id)}
+                                            >
+                                                {ancillarySaving === listing.id ? 'Saving…' : 'Add service'}
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
 
                                 {/* Active Reservations */}
                                 {(() => {
@@ -773,10 +1379,15 @@ export default function VendorListings() {
                                     </small>
                                 </div>
 
-                                <div className="flex gap-1 mt-2">
+                                <div className="flex gap-1 mt-2" style={{ flexWrap: 'wrap' }}>
                                     <button className="btn btn-secondary" onClick={() => handleEdit(listing)}>Edit</button>
                                     <button className="btn btn-danger" onClick={() => handleDelete(listing.id)}>Delete</button>
                                     <Link to={`/parking/${listing.id}`} className="btn btn-outline">View</Link>
+                                    {listing.isLprEnabled && (
+                                        <Link to={`/my/listings/${listing.id}/lpr`} className="btn btn-outline">
+                                            LPR registry
+                                        </Link>
+                                    )}
                                 </div>
                             </div>
                         ))}

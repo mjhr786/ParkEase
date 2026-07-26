@@ -8,10 +8,12 @@ using ParkingApp.Application.Interfaces;
 using ParkingApp.Marketplace.Application.Interfaces;
 
 using ParkingApp.Marketplace.Application.Mappings;
+using ParkingApp.Marketplace.Application.Services;
 using ParkingApp.BuildingBlocks.Domain;
 using ParkingApp.Marketplace.Domain.Entities;
 using ParkingApp.Marketplace.Contracts.Enums;
 using ParkingApp.Marketplace.Domain.Interfaces;
+using ParkingApp.BuildingBlocks.Exceptions;
 using Microsoft.Extensions.Logging;
 
 namespace ParkingApp.Marketplace.Application.Commands.Payments;
@@ -21,7 +23,12 @@ namespace ParkingApp.Marketplace.Application.Commands.Payments;
 // G??G??G??G??G??G??G??G??G??G??G??G??G??G??G??G??G??G??G??G??G??G??G??G??G??G??G??G??G??G??G??G??G??G??G??G??G??G??G??G??G??G??G??G??G??G??G??G??G??G??G??G??G??G??G??G??G??G??G??G??G??G??G??G??
 
 public sealed record ProcessPaymentCommand(Guid UserId, CreatePaymentDto Dto) : ICommand<ApiResponse<PaymentResultDto>>;
-public sealed record CreatePaymentOrderCommand(Guid UserId, Guid BookingId) : ICommand<ApiResponse<string>>;
+public sealed record CreatePaymentOrderCommand(
+    Guid UserId,
+    Guid BookingId,
+    /// <summary>When true (or when outstanding overstay exists and booking is not awaiting booking/extension payment), charge overstay fee only.</summary>
+    bool? PayOverstayFee = null
+) : ICommand<ApiResponse<string>>;
 public sealed record VerifyPaymentCommand(Guid UserId, VerifyPaymentDto Dto) : ICommand<ApiResponse<PaymentResultDto>>;
 public sealed record ProcessRefundCommand(Guid UserId, RefundRequestDto Dto) : ICommand<ApiResponse<RefundResultDto>>;
 
@@ -100,6 +107,7 @@ internal sealed class ProcessPaymentHandler : ICommandHandler<ProcessPaymentComm
             {
                 booking.Confirm();
                 booking.RecordPaymentCompleted(payment.Id, booking.TotalAmount, "INR", isExtensionPayment: false);
+                await BayAssignmentHelper.TryApplyAsync(_unitOfWork, booking, cancellationToken);
             }
 
             _unitOfWork.Bookings.Update(booking);
@@ -157,18 +165,48 @@ internal sealed class CreatePaymentOrderHandler : ICommandHandler<CreatePaymentO
         var booking = await _unitOfWork.Bookings.GetByIdAsync(command.BookingId, cancellationToken);
         if (booking == null) return new ApiResponse<string>(false, "Booking not found", null);
         if (booking.UserId != command.UserId) return new ApiResponse<string>(false, "Unauthorized", null);
-        if (booking.Status != BookingStatus.AwaitingPayment &&
-            booking.Status != BookingStatus.AwaitingExtensionPayment)
-            return new ApiResponse<string>(false, "Booking is not awaiting payment", null);
 
-        // For extension payments use the pending extension amount; otherwise use the full booking amount
-        var amount = booking.Status == BookingStatus.AwaitingExtensionPayment
-            ? (booking.PendingExtensionAmount ?? booking.TotalAmount)
-            : booking.TotalAmount;
+        var payOverstay = command.PayOverstayFee == true
+            || (command.PayOverstayFee != false
+                && booking.OverstayFeeOutstanding > 0
+                && booking.Status is BookingStatus.InProgress or BookingStatus.Completed or BookingStatus.Confirmed);
+
+        decimal amount;
+        Dictionary<string, string>? notes;
+
+        if (payOverstay)
+        {
+            if (booking.OverstayFeeOutstanding <= 0)
+                return new ApiResponse<string>(false, "No outstanding overstay fee", null);
+
+            amount = booking.OverstayFeeOutstanding;
+            notes = new Dictionary<string, string>
+            {
+                { "bookingId", booking.Id.ToString() },
+                { "purpose", "overstay" },
+                { "bookingReference", booking.BookingReference ?? string.Empty }
+            };
+        }
+        else
+        {
+            if (booking.Status != BookingStatus.AwaitingPayment &&
+                booking.Status != BookingStatus.AwaitingExtensionPayment)
+                return new ApiResponse<string>(false, "Booking is not awaiting payment", null);
+
+            amount = booking.Status == BookingStatus.AwaitingExtensionPayment
+                ? (booking.PendingExtensionAmount ?? booking.TotalAmount)
+                : booking.TotalAmount;
+
+            notes = new Dictionary<string, string>
+            {
+                { "bookingId", booking.Id.ToString() },
+                { "purpose", booking.Status == BookingStatus.AwaitingExtensionPayment ? "extension" : "booking" }
+            };
+        }
 
         try
         {
-            var orderId = await _paymentService.CreateOrderAsync(amount, "INR", null, cancellationToken);
+            var orderId = await _paymentService.CreateOrderAsync(amount, "INR", notes, cancellationToken);
             return new ApiResponse<string>(true, null, orderId);
         }
         catch (Exception ex)
@@ -205,8 +243,21 @@ internal sealed class VerifyPaymentHandler : ICommandHandler<VerifyPaymentComman
         if (booking.UserId != command.UserId) return new ApiResponse<PaymentResultDto>(false, "Unauthorized", null);
 
         var isExtensionPayment = booking.Status == BookingStatus.AwaitingExtensionPayment;
+        var isOverstayPayment = !isExtensionPayment
+            && booking.Status is not BookingStatus.AwaitingPayment
+            && booking.OverstayFeeOutstanding > 0;
+
+        // Idempotent overstay: already paid this PI
+        if (isOverstayPayment
+            && !string.IsNullOrWhiteSpace(command.Dto.RazorpayPaymentId)
+            && string.Equals(booking.OverstayFeeTransactionId, command.Dto.RazorpayPaymentId, StringComparison.Ordinal))
+        {
+            return new ApiResponse<PaymentResultDto>(true, "Overstay fee already paid", new PaymentResultDto(
+                true, booking.OverstayFeeTransactionId, PaymentStatus.Completed, "Overstay fee already paid", null));
+        }
+
         var existingPayment = await _unitOfWork.Payments.GetByBookingIdAsync(command.Dto.BookingId, cancellationToken);
-        if (existingPayment != null && existingPayment.Status == PaymentStatus.Completed)
+        if (!isOverstayPayment && existingPayment != null && existingPayment.Status == PaymentStatus.Completed)
         {
             // Idempotent recovery path: finalize extension if still awaiting extension payment.
             if (isExtensionPayment)
@@ -231,6 +282,37 @@ internal sealed class VerifyPaymentHandler : ICommandHandler<VerifyPaymentComman
         {
             _logger.LogWarning("Invalid payment signature for booking {BookingId}", command.Dto.BookingId);
             return new ApiResponse<PaymentResultDto>(false, "Invalid payment signature", null);
+        }
+
+        // ── Overstay fee payment (does not replace primary booking Payment) ──
+        if (isOverstayPayment)
+        {
+            var outstanding = booking.OverstayFeeOutstanding;
+            try
+            {
+                booking.MarkOverstayFeePaid(
+                    outstanding,
+                    command.Dto.RazorpayPaymentId,
+                    DateTime.UtcNow);
+            }
+            catch (DomainException ex)
+            {
+                return new ApiResponse<PaymentResultDto>(false, ex.Message, null);
+            }
+
+            _unitOfWork.Bookings.Update(booking);
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+            var parkingForOverstay = await _unitOfWork.ParkingSpaces.GetByIdAsync(booking.ParkingSpaceId, cancellationToken);
+            await CacheInvalidation.ForBookingChangeAsync(
+                _cache, booking.ParkingSpaceId, booking.UserId, parkingForOverstay?.OwnerId, cancellationToken);
+
+            _logger.LogInformation(
+                "Overstay fee paid for booking {BookingId}, amount {Amount}, remaining {Remaining}",
+                booking.Id, outstanding, booking.OverstayFeeOutstanding);
+
+            return new ApiResponse<PaymentResultDto>(true, "Overstay fee paid successfully", new PaymentResultDto(
+                true, command.Dto.RazorpayPaymentId, PaymentStatus.Completed, "Overstay fee paid successfully", null));
         }
 
         var paymentAmount = isExtensionPayment
@@ -267,6 +349,7 @@ internal sealed class VerifyPaymentHandler : ICommandHandler<VerifyPaymentComman
         {
             booking.Confirm();
             booking.RecordPaymentCompleted(payment.Id, paymentAmount, "INR", isExtensionPayment: false);
+            await BayAssignmentHelper.TryApplyAsync(_unitOfWork, booking, cancellationToken);
         }
 
         _unitOfWork.Bookings.Update(booking);

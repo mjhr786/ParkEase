@@ -225,9 +225,262 @@ public class CompanyQueryHandlerTests
         captured.FromUtc.Should().Be(from);
         captured.ToUtc.Should().Be(to);
     }
+
+    // ── Wave 16: remaining company list queries ─────────────────────────────
+
+    [Fact]
+    public async Task GetCompanyMembers_WhenNotAdmin_Denies()
+    {
+        var companyId = Guid.NewGuid();
+        var userId = Guid.NewGuid();
+        _companies.Setup(c => c.GetMembershipAsync(companyId, userId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(UserCompanyMembership.Create(companyId, userId, CompanyRole.Employee));
+
+        var handler = new GetCompanyMembersHandler(_uow.Object, _readStore.Object);
+        var result = await handler.HandleAsync(new GetCompanyMembersQuery(companyId, userId));
+
+        result.Success.Should().BeFalse();
+        result.Message.Should().Contain("admins");
+    }
+
+    [Fact]
+    public async Task GetCompanyMembers_WhenAdmin_ReturnsPage()
+    {
+        var companyId = Guid.NewGuid();
+        var userId = Guid.NewGuid();
+        _companies.Setup(c => c.GetMembershipAsync(companyId, userId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(UserCompanyMembership.Create(companyId, userId, CompanyRole.Admin));
+
+        var members = new List<MembershipDto>
+        {
+            new(Guid.NewGuid(), userId, "Admin", "a@acme.com", CompanyRole.Admin, null, 1, true, DateTime.UtcNow, companyId)
+        };
+        _readStore.Setup(r => r.GetCompanyMembersAsync(companyId, 0, 50, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((members, 1));
+
+        var handler = new GetCompanyMembersHandler(_uow.Object, _readStore.Object);
+        var result = await handler.HandleAsync(new GetCompanyMembersQuery(companyId, userId, 1, 50));
+
+        result.Success.Should().BeTrue();
+        result.Data!.TotalCount.Should().Be(1);
+        result.Data.Members.Should().HaveCount(1);
+    }
+
+    [Fact]
+    public async Task GetCompanyInvitations_WhenAdmin_MapsTokensAndExpired()
+    {
+        var companyId = Guid.NewGuid();
+        var userId = Guid.NewGuid();
+        _companies.Setup(c => c.GetMembershipAsync(companyId, userId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(UserCompanyMembership.Create(companyId, userId, CompanyRole.Admin));
+
+        var pending = EmployeeInvitation.Create(companyId, "p@acme.com", CompanyRole.Employee, userId, expiresInDays: 7);
+        var expired = EmployeeInvitation.Create(companyId, "e@acme.com", CompanyRole.Employee, userId, expiresInDays: 1);
+        // Force past expiry via MarkExpired then leave as Expired without pending token exposure
+        expired.MarkExpired();
+
+        var invites = new Mock<IEmployeeInvitationRepository>();
+        invites.Setup(i => i.GetByCompanyIdAsync(companyId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<EmployeeInvitation> { pending, expired });
+        _uow.Setup(u => u.EmployeeInvitations).Returns(invites.Object);
+
+        var handler = new GetCompanyInvitationsHandler(_uow.Object);
+        var result = await handler.HandleAsync(new GetCompanyInvitationsQuery(companyId, userId));
+
+        result.Success.Should().BeTrue();
+        result.Data.Should().HaveCount(2);
+        result.Data!.Single(d => d.Email == "p@acme.com").InvitationToken.Should().NotBeNullOrWhiteSpace();
+        result.Data.Single(d => d.Email == "e@acme.com").InvitationToken.Should().BeNull();
+        result.Data.Single(d => d.Email == "e@acme.com").Status.Should().Be(InvitationStatus.Expired);
+    }
+
+    [Fact]
+    public async Task GetCompanyInvitations_WhenNotAdmin_Denies()
+    {
+        var companyId = Guid.NewGuid();
+        var userId = Guid.NewGuid();
+        _companies.Setup(c => c.GetMembershipAsync(companyId, userId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(UserCompanyMembership.Create(companyId, userId, CompanyRole.Employee));
+
+        var handler = new GetCompanyInvitationsHandler(_uow.Object);
+        var result = await handler.HandleAsync(new GetCompanyInvitationsQuery(companyId, userId));
+
+        result.Success.Should().BeFalse();
+        result.Message.Should().Contain("admins");
+    }
+
+    [Fact]
+    public async Task GetCompanyAllocations_WhenMember_MapsQuotaCache()
+    {
+        var companyId = Guid.NewGuid();
+        var userId = Guid.NewGuid();
+        var allocationId = Guid.NewGuid();
+        var spaceId = Guid.NewGuid();
+        _companies.Setup(c => c.GetMembershipAsync(companyId, userId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(UserCompanyMembership.Create(companyId, userId, CompanyRole.Employee));
+
+        var quotaCache = new Mock<ICompanyQuotaCache>();
+        quotaCache.Setup(q => q.GetCompanyAllocationsAsync(companyId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<CompanyQuotaCacheEntry>
+            {
+                new(
+                    companyId, allocationId, spaceId, "Lot A", 25m, true,
+                    BillingType.UsageBased, AllocationStatus.Active, ParkingAllocationSource.CompanyOwned,
+                    null, null, null, null, 10, 2, 8, 0m,
+                    DateTime.UtcNow.Date, DateTime.UtcNow.Date.AddMonths(3), DateTime.UtcNow,
+                    2, 10, 1, TimeSpan.FromHours(7), TimeSpan.FromHours(22), true)
+            });
+
+        _readStore.Setup(r => r.GetFixedAssignmentsByAllocationAsync(companyId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Dictionary<Guid, List<FixedSlotAssignmentDto>>
+            {
+                [allocationId] = new List<FixedSlotAssignmentDto>
+                {
+                    new(Guid.NewGuid(), "Ada", 1, DateTime.UtcNow)
+                }
+            });
+
+        var handler = new GetCompanyAllocationsHandler(_uow.Object, quotaCache.Object, _readStore.Object);
+        var result = await handler.HandleAsync(new GetCompanyAllocationsQuery(companyId, userId));
+
+        result.Success.Should().BeTrue();
+        result.Data.Should().ContainSingle();
+        result.Data![0].ParkingSpaceTitle.Should().Be("Lot A");
+        result.Data[0].FixedAssignments.Should().HaveCount(1);
+    }
+
+    [Fact]
+    public async Task GetCompanyAllocations_WhenNotMember_Denies()
+    {
+        _companies.Setup(c => c.GetMembershipAsync(It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((UserCompanyMembership?)null);
+
+        var handler = new GetCompanyAllocationsHandler(
+            _uow.Object, new Mock<ICompanyQuotaCache>().Object, _readStore.Object);
+        var result = await handler.HandleAsync(new GetCompanyAllocationsQuery(Guid.NewGuid(), Guid.NewGuid()));
+
+        result.Success.Should().BeFalse();
+        result.Message.Should().Contain("Access denied");
+    }
+
+    [Fact]
+    public async Task GetCompanyParkingSpaces_WhenAdmin_ReturnsSpaces()
+    {
+        var companyId = Guid.NewGuid();
+        var userId = Guid.NewGuid();
+        _companies.Setup(c => c.GetMembershipAsync(companyId, userId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(UserCompanyMembership.Create(companyId, userId, CompanyRole.Admin));
+        _readStore.Setup(r => r.GetCompanyOwnedParkingSpacesAsync(companyId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Array.Empty<CorporateParkingSpaceDto>());
+
+        var handler = new GetCompanyParkingSpacesHandler(_uow.Object, _readStore.Object);
+        var result = await handler.HandleAsync(new GetCompanyParkingSpacesQuery(companyId, userId));
+
+        result.Success.Should().BeTrue();
+        result.Data.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task GetCompanyParkingSpaces_WhenNotAdmin_Denies()
+    {
+        var companyId = Guid.NewGuid();
+        var userId = Guid.NewGuid();
+        _companies.Setup(c => c.GetMembershipAsync(companyId, userId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(UserCompanyMembership.Create(companyId, userId, CompanyRole.Employee));
+
+        var handler = new GetCompanyParkingSpacesHandler(_uow.Object, _readStore.Object);
+        var result = await handler.HandleAsync(new GetCompanyParkingSpacesQuery(companyId, userId));
+
+        result.Success.Should().BeFalse();
+        result.Message.Should().Contain("admins");
+    }
+
+    [Fact]
+    public async Task GetCompanyWaitlist_WhenMember_ReturnsEntries()
+    {
+        var companyId = Guid.NewGuid();
+        var userId = Guid.NewGuid();
+        var membership = UserCompanyMembership.Create(companyId, userId, CompanyRole.Employee);
+        _companies.Setup(c => c.GetMembershipAsync(companyId, userId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(membership);
+
+        var entry = new CorporateWaitlistDto(
+            Guid.NewGuid(), Guid.NewGuid(), false,
+            DateTime.UtcNow, DateTime.UtcNow.AddHours(2), "KA01", null, null,
+            WaitlistStatus.Pending, 1, 1, DateTime.UtcNow);
+        _readStore.Setup(r => r.GetCompanyWaitlistAsync(
+                companyId, membership.Id, true, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<CorporateWaitlistDto> { entry });
+
+        var handler = new GetCompanyWaitlistHandler(_uow.Object, _readStore.Object);
+        var result = await handler.HandleAsync(new GetCompanyWaitlistQuery(companyId, userId));
+
+        result.Success.Should().BeTrue();
+        result.Data.Should().ContainSingle();
+        _readStore.Verify(r => r.GetCompanyWaitlistAsync(
+            companyId, membership.Id, true, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task GetCompanyInvoices_WhenAdmin_ReturnsList()
+    {
+        var companyId = Guid.NewGuid();
+        var userId = Guid.NewGuid();
+        _companies.Setup(c => c.GetMembershipAsync(companyId, userId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(UserCompanyMembership.Create(companyId, userId, CompanyRole.Admin));
+
+        var items = new List<CorporateInvoiceSummaryDto>
+        {
+            new(
+                Guid.NewGuid(), "INV-1", BillingType.UsageBased,
+                DateOnly.FromDateTime(DateTime.UtcNow.AddMonths(-1)),
+                DateOnly.FromDateTime(DateTime.UtcNow),
+                CorporateInvoiceStatus.Issued, "INR", 100m, 18m, 118m, 2,
+                DateTime.UtcNow, DateTime.UtcNow, null, null)
+        };
+        _readStore.Setup(r => r.GetCompanyInvoicesAsync(
+                companyId, null, 0, 20, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((items, 1));
+
+        var handler = new GetCompanyInvoicesHandler(_uow.Object, _readStore.Object);
+        var result = await handler.HandleAsync(new GetCompanyInvoicesQuery(companyId, userId));
+
+        result.Success.Should().BeTrue();
+        result.Data!.TotalCount.Should().Be(1);
+        result.Data.Items[0].InvoiceNumber.Should().Be("INV-1");
+    }
+
+    [Fact]
+    public async Task GetCompanyInvoices_WhenNotAdmin_Denies()
+    {
+        var companyId = Guid.NewGuid();
+        var userId = Guid.NewGuid();
+        _companies.Setup(c => c.GetMembershipAsync(companyId, userId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(UserCompanyMembership.Create(companyId, userId, CompanyRole.Employee));
+
+        var handler = new GetCompanyInvoicesHandler(_uow.Object, _readStore.Object);
+        var result = await handler.HandleAsync(new GetCompanyInvoicesQuery(companyId, userId));
+
+        result.Success.Should().BeFalse();
+        result.Message.Should().Contain("admins");
+    }
+
+    [Fact]
+    public async Task GetCorporateInvoiceDetails_WhenMissing_ReturnsNotFound()
+    {
+        var companyId = Guid.NewGuid();
+        var userId = Guid.NewGuid();
+        var invoiceId = Guid.NewGuid();
+        _companies.Setup(c => c.GetMembershipAsync(companyId, userId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(UserCompanyMembership.Create(companyId, userId, CompanyRole.Admin));
+        _readStore.Setup(r => r.GetCorporateInvoiceDetailAsync(companyId, invoiceId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((CorporateInvoiceDetailDto?)null);
+
+        var handler = new GetCorporateInvoiceDetailsHandler(_uow.Object, _readStore.Object);
+        var result = await handler.HandleAsync(new GetCorporateInvoiceDetailsQuery(companyId, userId, invoiceId));
+
+        result.Success.Should().BeFalse();
+        result.Message.Should().Contain("not found");
+    }
 }
-
-
-
-
 

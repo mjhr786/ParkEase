@@ -11,7 +11,8 @@ public sealed record ParkingSpaceSummary(
     bool IsActive,
     int TotalSpots,
     string OwnershipType,
-    Guid? CompanyOwnerId = null)
+    Guid? CompanyOwnerId = null,
+    bool IsLprEnabled = false)
 {
     public bool IsCompanyOwned =>
         string.Equals(OwnershipType, "CompanyOwned", StringComparison.OrdinalIgnoreCase);

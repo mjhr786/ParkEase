@@ -1,36 +1,19 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useNotificationContext } from '../context/NotificationContext';
 import api from '../services/api';
-
-const TYPE_ICONS = {
-    BookingRequest: '📥',
-    BookingConfirmed: '✅',
-    BookingRejected: '❌',
-    PaymentReceived: '💰',
-    NewMessage: '💬',
-    SystemAlert: '🔔',
-    default: '🔔',
-};
-
-const TYPE_COLORS = {
-    BookingRequest: '#3b82f6',
-    BookingConfirmed: '#10b981',
-    BookingRejected: '#ef4444',
-    PaymentReceived: '#10b981',
-    NewMessage: '#8b5cf6',
-    SystemAlert: '#f59e0b',
-    default: '#6b7280',
-};
-
-function timeAgo(dateStr) {
-    const diff = (Date.now() - new Date(dateStr).getTime()) / 1000;
-    if (diff < 60) return 'just now';
-    if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
-    if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
-    return `${Math.floor(diff / 86400)}d ago`;
-}
+import {
+    parseNotificationData,
+    isOverstayNotification,
+    isSessionEndingNotification,
+    isBookingActionNotification,
+    timeAgo,
+    TYPE_ICONS,
+    TYPE_COLORS,
+} from '../utils/notificationHelpers';
 
 export default function NotificationDropdown() {
+    const navigate = useNavigate();
     const [isOpen, setIsOpen] = useState(false);
     const [dbNotifications, setDbNotifications] = useState([]);
     // Single source of truth for badge: always the DB unread count
@@ -132,6 +115,26 @@ export default function NotificationDropdown() {
         } catch (err) {
             console.error('Failed to mark as read:', err);
         }
+    };
+
+    const goToBookingAction = async (e, notification, action) => {
+        e.stopPropagation();
+        await handleMarkRead(notification);
+        const data = parseNotificationData(notification.data);
+        const bookingId = data.BookingId || data.bookingId;
+        if (!bookingId) {
+            navigate('/bookings');
+            setIsOpen(false);
+            return;
+        }
+        if (action === 'extend') {
+            navigate(`/bookings?action=extend&bookingId=${bookingId}`);
+        } else if (action === 'checkout') {
+            navigate(`/bookings?action=checkout&bookingId=${bookingId}`);
+        } else {
+            navigate(`/bookings?bookingId=${bookingId}`);
+        }
+        setIsOpen(false);
     };
 
     const handleMarkAllRead = async () => {
@@ -325,6 +328,12 @@ export default function NotificationDropdown() {
                                 {dbNotifications.map(n => {
                                     const icon = TYPE_ICONS[n.type] || TYPE_ICONS.default;
                                     const color = TYPE_COLORS[n.type] || TYPE_COLORS.default;
+                                    const data = parseNotificationData(n.data);
+                                    const overstay = isOverstayNotification(data);
+                                    const sessionEnding = isSessionEndingNotification(data);
+                                    const bookingAction = isBookingActionNotification(data);
+                                    const canExtend = data.CanExtend === 'true' || data.ActionExtend === 'true';
+                                    const canCheckout = data.ActionCheckout === 'true' || overstay || sessionEnding;
                                     return (
                                         <div
                                             key={n.id}
@@ -370,6 +379,38 @@ export default function NotificationDropdown() {
                                                 }}>
                                                     {n.message}
                                                 </div>
+                                                {bookingAction && (
+                                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
+                                                        {canExtend && (
+                                                            <button
+                                                                type="button"
+                                                                className="btn btn-primary"
+                                                                style={{ fontSize: '0.72rem', padding: '0.25rem 0.6rem' }}
+                                                                onClick={(e) => goToBookingAction(e, n, 'extend')}
+                                                            >
+                                                                Extend
+                                                            </button>
+                                                        )}
+                                                        {canCheckout && (
+                                                            <button
+                                                                type="button"
+                                                                className="btn btn-secondary"
+                                                                style={{ fontSize: '0.72rem', padding: '0.25rem 0.6rem' }}
+                                                                onClick={(e) => goToBookingAction(e, n, 'checkout')}
+                                                            >
+                                                                Check out
+                                                            </button>
+                                                        )}
+                                                        <button
+                                                            type="button"
+                                                            className="btn btn-outline"
+                                                            style={{ fontSize: '0.72rem', padding: '0.25rem 0.6rem' }}
+                                                            onClick={(e) => goToBookingAction(e, n, 'open')}
+                                                        >
+                                                            View booking
+                                                        </button>
+                                                    </div>
+                                                )}
                                                 <div style={{ color: '#475569', fontSize: '0.72rem', marginTop: '4px' }}>
                                                     {timeAgo(n.createdAt)}
                                                 </div>

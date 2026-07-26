@@ -1,3 +1,5 @@
+using System.Diagnostics.CodeAnalysis;
+
 namespace ParkingApp.Domain.ValueObjects;
 
 /// <summary>
@@ -10,6 +12,8 @@ public sealed record Quota
     public int FixedSlots { get; private init; }
     public int SharedSlots { get; private init; }
 
+    // Required for EF Core materialization — no business logic.
+    [ExcludeFromCodeCoverage]
     private Quota()
     {
     }

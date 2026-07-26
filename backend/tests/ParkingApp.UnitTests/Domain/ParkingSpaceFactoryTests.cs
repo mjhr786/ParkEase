@@ -73,6 +73,36 @@ public class ParkingSpaceFactoryTests
     }
 
     [Fact]
+    public void SetDynamicPricing_EnablesAndStoresMultipliers()
+    {
+        var parking = ParkingSpace.CreateForVendor(
+            OwnerId, "Lot", "D", "A", "C", "S", "IN", "1",
+            0, 0, ParkingType.Open, 2, 10, 10, 10, 10);
+        parking.ClearDomainEvents();
+
+        parking.SetDynamicPricing(true, 0.75m, 1.5m, 1.2m, 1.1m);
+
+        parking.IsDynamicPricingEnabled.Should().BeTrue();
+        parking.DynamicMinMultiplier.Should().Be(0.75m);
+        parking.DynamicMaxMultiplier.Should().Be(1.5m);
+        parking.PeakHourMultiplier.Should().Be(1.2m);
+        parking.WeekendMultiplier.Should().Be(1.1m);
+        parking.DomainEvents.Should().ContainSingle(e => e is ParkingSpaceUpdatedEvent);
+    }
+
+    [Fact]
+    public void SetDynamicPricing_InvalidRange_Throws()
+    {
+        var parking = ParkingSpace.CreateForVendor(
+            OwnerId, "Lot", "D", "A", "C", "S", "IN", "1",
+            0, 0, ParkingType.Open, 2, 10, 10, 10, 10);
+
+        var act = () => parking.SetDynamicPricing(true, minMultiplier: 1.2m, maxMultiplier: 1.0m);
+
+        act.Should().Throw<ValidationException>();
+    }
+
+    [Fact]
     public void Retire_SoftDeletes_AndRaisesDeletedEvent()
     {
         var parking = ParkingSpace.CreateForVendor(

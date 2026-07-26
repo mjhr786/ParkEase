@@ -21,7 +21,9 @@ public record CreateBookingCommand(
     string? VehicleNumber,
     string? VehicleModel,
     string? VehicleColor,
-    string? DiscountCode
+    string? DiscountCode,
+    bool IncludeEvCharging = false,
+    IReadOnlyList<Guid>? AncillaryServiceIds = null
 ) : ICommand<ApiResponse<BookingDto>>;
 
 /// <summary>
@@ -76,17 +78,19 @@ public record UpdateBookingCommand(
 ) : ICommand<ApiResponse<BookingDto>>;
 
 /// <summary>
-/// Command to extend an existing booking GÇö creates a pending extension request
+/// Command to extend an existing booking Gï¿½ï¿½ creates a pending extension request
 /// that must be approved by the vendor before payment.
 /// </summary>
 public record RequestExtensionCommand(
     Guid BookingId,
     Guid UserId,
-    DateTime NewEndDateTime
+    DateTime NewEndDateTime,
+    /// <summary>Optional override for how the extension window is billed; null = original booking type.</summary>
+    PricingType? PricingType = null
 ) : ICommand<ApiResponse<BookingDto>>;
 
 /// <summary>
-/// Vendor approves a pending extension request GÇö moves to AwaitingExtensionPayment.
+/// Vendor approves a pending extension request Gï¿½ï¿½ moves to AwaitingExtensionPayment.
 /// </summary>
 public record ApproveExtensionCommand(
     Guid BookingId,
@@ -94,7 +98,7 @@ public record ApproveExtensionCommand(
 ) : ICommand<ApiResponse<BookingDto>>;
 
 /// <summary>
-/// Vendor rejects a pending extension request GÇö reverts to previous booking status.
+/// Vendor rejects a pending extension request Gï¿½ï¿½ reverts to previous booking status.
 /// </summary>
 public record RejectExtensionCommand(
     Guid BookingId,
@@ -103,7 +107,7 @@ public record RejectExtensionCommand(
 ) : ICommand<ApiResponse<BookingDto>>;
 
 /// <summary>
-/// Called after successful extension payment GÇö updates EndDateTime and confirms the extension.
+/// Called after successful extension payment Gï¿½ï¿½ updates EndDateTime and confirms the extension.
 /// </summary>
 public record ConfirmExtensionPaymentCommand(
     Guid BookingId,

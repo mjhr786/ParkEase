@@ -1,4 +1,5 @@
-﻿using ParkingApp.BuildingBlocks.Domain;
+﻿using System.Diagnostics.CodeAnalysis;
+using ParkingApp.BuildingBlocks.Domain;
 namespace ParkingApp.Corporate.Domain;
 
 /// <summary>
@@ -19,7 +20,8 @@ public class CompanyUsage : BaseEntity
     public virtual Company Company { get; private set; } = null!;
     public virtual ParkingAllocation Allocation { get; private set; } = null!;
 
-    // Required for EF Core
+    // Required for EF Core materialization — no business logic.
+    [ExcludeFromCodeCoverage]
     private CompanyUsage()
     {
     }

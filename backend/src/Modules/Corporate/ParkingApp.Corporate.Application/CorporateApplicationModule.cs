@@ -1,8 +1,11 @@
 using System.Reflection;
+using FluentValidation;
 using Microsoft.Extensions.DependencyInjection;
 using ParkingApp.Application.CQRS;
 using ParkingApp.Corporate.Application.Interfaces;
 using ParkingApp.Corporate.Application.Services;
+using ParkingApp.Corporate.Application.Validators;
+using ParkingApp.Marketplace.Contracts.DTOs;
 
 namespace ParkingApp.Corporate.Application;
 
@@ -15,6 +18,9 @@ public static class CorporateApplicationModule
     {
         services.AddScoped<IWaitlistPromotionService, WaitlistPromotionService>();
         services.AddScoped<ICorporateInvoiceCalculator, CorporateInvoiceCalculator>();
+
+        // Required by PassesController (AssignCorporate) — missing registration broke entire /api/passes/* (DEF-003).
+        services.AddScoped<IValidator<AssignCorporatePassDto>, AssignCorporatePassDtoValidator>();
 
         services.AddHandlersFromAssembly(Assembly.GetExecutingAssembly(), throwIfMissingHandlers: false);
         return services;

@@ -1,4 +1,6 @@
 using System.Collections.Concurrent;
+using Microsoft.Extensions.Options;
+using ParkingApp.API.Options;
 using ParkingApp.Application.DTOs;
 
 namespace ParkingApp.API.Middleware;
@@ -7,14 +9,18 @@ namespace ParkingApp.API.Middleware;
 /// Simple in-process sliding-window rate limit per client IP.
 /// Skips CORS preflight, health checks, hubs, and static SPA/asset paths so free-tier
 /// page loads do not burn the API budget.
+/// IoT LPR routes use a stricter per-IP budget from <see cref="IotLprOptions.RateLimitPerMinute"/>.
 /// </summary>
 public class RateLimitingMiddleware
 {
     private readonly RequestDelegate _next;
     private readonly ILogger<RateLimitingMiddleware> _logger;
+    private readonly IOptionsMonitor<IotLprOptions>? _iotOptions;
     private static readonly ConcurrentDictionary<string, Queue<DateTime>> _requestTimes = new();
+    private static readonly ConcurrentDictionary<string, Queue<DateTime>> _iotRequestTimes = new();
     private static readonly Timer _cleanupTimer;
     private const int MaxRequests = 100;
+    private const int DefaultIotMaxRequests = 30;
     private const int WindowSeconds = 60;
     private const int CleanupIntervalMinutes = 5;
 
@@ -26,21 +32,23 @@ public class RateLimitingMiddleware
 
     static RateLimitingMiddleware()
     {
-        // Periodic cleanup to prevent memory leaks
         _cleanupTimer = new Timer(CleanupOldEntries, null,
             TimeSpan.FromMinutes(CleanupIntervalMinutes),
             TimeSpan.FromMinutes(CleanupIntervalMinutes));
     }
 
-    public RateLimitingMiddleware(RequestDelegate next, ILogger<RateLimitingMiddleware> logger)
+    public RateLimitingMiddleware(
+        RequestDelegate next,
+        ILogger<RateLimitingMiddleware> logger,
+        IOptionsMonitor<IotLprOptions>? iotOptions = null)
     {
         _next = next;
         _logger = logger;
+        _iotOptions = iotOptions;
     }
 
     public async Task InvokeAsync(HttpContext context)
     {
-        // CORS preflight must pass through without rate-limit short-circuiting.
         if (HttpMethods.IsOptions(context.Request.Method))
         {
             await _next(context);
@@ -54,12 +62,32 @@ public class RateLimitingMiddleware
         }
 
         var clientId = context.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+        var isIot = IsIotPath(context.Request.Path);
 
-        if (!IsRequestAllowed(clientId))
+        if (isIot)
+        {
+            var iotLimit = ResolveIotLimitPerMinute();
+            if (!IsRequestAllowed(clientId, _iotRequestTimes, iotLimit))
+            {
+                _logger.LogWarning(
+                    "IoT LPR rate limit exceeded Client={ClientId} LimitPerMinute={Limit}",
+                    clientId, iotLimit);
+                context.Response.StatusCode = 429;
+                context.Response.Headers.Append("Retry-After", WindowSeconds.ToString());
+                await context.Response.WriteAsJsonAsync(new ApiResponse<object>(
+                    false, "IoT rate limit exceeded. Please try again later.", null));
+                return;
+            }
+
+            await _next(context);
+            return;
+        }
+
+        if (!IsRequestAllowed(clientId, _requestTimes, MaxRequests))
         {
             _logger.LogWarning("Rate limit exceeded for client: {ClientId}", clientId);
-            context.Response.StatusCode = 429; // Too Many Requests
-            context.Response.Headers.Append("Retry-After", "60");
+            context.Response.StatusCode = 429;
+            context.Response.Headers.Append("Retry-After", WindowSeconds.ToString());
             await context.Response.WriteAsJsonAsync(new ApiResponse<object>(
                 false, "Rate limit exceeded. Please try again later.", null));
             return;
@@ -68,6 +96,16 @@ public class RateLimitingMiddleware
         await _next(context);
     }
 
+    private int ResolveIotLimitPerMinute()
+    {
+        var configured = _iotOptions?.CurrentValue.RateLimitPerMinute ?? DefaultIotMaxRequests;
+        return Math.Clamp(configured, 1, 10_000);
+    }
+
+    /// <summary>Exposed for unit tests.</summary>
+    public static bool IsIotPath(PathString path) =>
+        path.StartsWithSegments("/api/iot", StringComparison.OrdinalIgnoreCase);
+
     /// <summary>Exposed for unit tests.</summary>
     public static bool ShouldSkipRateLimit(PathString path)
     {
@@ -75,14 +113,12 @@ public class RateLimitingMiddleware
         if (value.Length == 0 || value == "/")
             return true;
 
-        // Health + SignalR (long-lived / chatty) should not share the API REST budget.
         if (path.StartsWithSegments("/health", StringComparison.OrdinalIgnoreCase)
             || path.StartsWithSegments("/hubs", StringComparison.OrdinalIgnoreCase))
         {
             return true;
         }
 
-        // SPA static assets and local uploads (when not using R2 public URLs).
         if (path.StartsWithSegments("/assets", StringComparison.OrdinalIgnoreCase)
             || path.StartsWithSegments("/uploads", StringComparison.OrdinalIgnoreCase))
         {
@@ -106,22 +142,24 @@ public class RateLimitingMiddleware
         return false;
     }
 
-    private static bool IsRequestAllowed(string clientId)
+    private static bool IsRequestAllowed(
+        string clientId,
+        ConcurrentDictionary<string, Queue<DateTime>> store,
+        int maxRequests)
     {
         var now = DateTime.UtcNow;
         var windowStart = now.AddSeconds(-WindowSeconds);
 
-        var queue = _requestTimes.GetOrAdd(clientId, _ => new Queue<DateTime>());
+        var queue = store.GetOrAdd(clientId, _ => new Queue<DateTime>());
 
         lock (queue)
         {
-            // Remove old requests
             while (queue.Count > 0 && queue.Peek() < windowStart)
             {
                 queue.Dequeue();
             }
 
-            if (queue.Count >= MaxRequests)
+            if (queue.Count >= maxRequests)
             {
                 return false;
             }
@@ -134,20 +172,23 @@ public class RateLimitingMiddleware
     private static void CleanupOldEntries(object? state)
     {
         var now = DateTime.UtcNow;
-        var cutoff = now.AddMinutes(-10); // Remove entries older than 10 minutes
+        var cutoff = now.AddMinutes(-10);
 
-        foreach (var key in _requestTimes.Keys.ToList())
+        CleanupStore(_requestTimes, cutoff);
+        CleanupStore(_iotRequestTimes, cutoff);
+    }
+
+    private static void CleanupStore(ConcurrentDictionary<string, Queue<DateTime>> store, DateTime cutoff)
+    {
+        foreach (var key in store.Keys.ToList())
         {
-            if (_requestTimes.TryGetValue(key, out var queue))
+            if (!store.TryGetValue(key, out var queue))
+                continue;
+
+            lock (queue)
             {
-                lock (queue)
-                {
-                    // If all requests in queue are old, remove the entry
-                    if (queue.Count > 0 && queue.Max() < cutoff)
-                    {
-                        _requestTimes.TryRemove(key, out _);
-                    }
-                }
+                if (queue.Count > 0 && queue.Max() < cutoff)
+                    store.TryRemove(key, out _);
             }
         }
     }

@@ -56,6 +56,7 @@ export default function Search() {
         vehicleType: '',
         minRating: '',
         amenities: [], // Added array for amenities
+        isResidential: searchParams.get('driveways') === '1' ? true : '',
         sortBy: searchParams.get('lat') ? 'distance' : '', // Prefer nearest when location provided
         sortDescending: false,
         page: 1,
@@ -74,6 +75,11 @@ export default function Search() {
             // Special handling for amenities array (convert to comma-separated string)
             if (params.amenities) {
                 params.amenities = params.amenities.join(',');
+            }
+            if (params.isResidential === true || params.isResidential === 'true') {
+                params.isResidential = true;
+            } else {
+                delete params.isResidential;
             }
 
             // Fetch list and map data in parallel
@@ -398,12 +404,26 @@ export default function Search() {
                         <div className="amenities-group mt-2">
                             <span className="form-label" style={{ width: '100%', marginBottom: '0.25rem' }}>Features/Amenities</span>
                             <div className="flex gap-1" style={{ flexWrap: 'wrap' }}>
+                                <label
+                                    className={`amenity-checkbox ${filters.isResidential === true ? 'active' : ''}`}
+                                >
+                                    <input
+                                        type="checkbox"
+                                        checked={filters.isResidential === true}
+                                        onChange={() => setFilters((prev) => ({
+                                            ...prev,
+                                            isResidential: prev.isResidential === true ? '' : true,
+                                            page: 1,
+                                        }))}
+                                    />
+                                    🏠 Driveways only
+                                </label>
                                 {[
-                                    { id: 'EV_Charging', label: '🔌 EV Charging' },
+                                    { id: 'EV_Charging', label: '🔌 EV Charging' }, // matches HasEvCharging
                                     { id: 'CCTV', label: '📹 CCTV' },
                                     { id: 'Security', label: '👮 Security' },
                                     { id: 'Covered', label: '☂️ Covered' },
-                                    { id: '24x7', label: '🕒 24/7 Access' }
+                                    { id: '24x7', label: '🕒 24/7 Access' },
                                 ].map(amenity => (
                                     <label
                                         key={amenity.id}
@@ -518,7 +538,28 @@ export default function Search() {
                                                 </div>
                                                 <div className="flex-between mt-1">
                                                     <div className="parking-price">
-                                                        ₹{parking.hourlyRate}<span>/hr</span>
+                                                        {parking.dynamicPricingApplied
+                                                            && parking.effectiveHourlyRate != null
+                                                            && Number(parking.effectiveHourlyRate) !== Number(parking.hourlyRate) ? (
+                                                            <>
+                                                                <span style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', marginRight: '0.25rem' }}>
+                                                                    from
+                                                                </span>
+                                                                ₹{Number(parking.effectiveHourlyRate).toFixed(0)}
+                                                                <span>/hr</span>
+                                                                <span style={{
+                                                                    marginLeft: '0.35rem',
+                                                                    fontSize: '0.75rem',
+                                                                    color: 'var(--color-text-muted)',
+                                                                    textDecoration: 'line-through',
+                                                                    fontWeight: 400,
+                                                                }}>
+                                                                    ₹{parking.hourlyRate}
+                                                                </span>
+                                                            </>
+                                                        ) : (
+                                                            <>₹{parking.hourlyRate}<span>/hr</span></>
+                                                        )}
                                                     </div>
                                                     <div className="rating">
                                                         ⭐ {parking.averageRating?.toFixed(1) || 'New'}
@@ -530,6 +571,12 @@ export default function Search() {
                                                         {parking.availableSpots <= 0 ? 'FULL' : `${parking.availableSpots} spots`}
                                                     </span>
                                                     {parking.is24Hours && <span className="parking-tag">24/7</span>}
+                                                    {(parking.listingCategory === 1 || parking.listingCategory === 'Residential') && (
+                                                        <span className="parking-tag">🏠 Driveway</span>
+                                                    )}
+                                                    {parking.instantBook && (
+                                                        <span className="parking-tag">Instant book</span>
+                                                    )}
                                                 </div>
 
                                                 <BookedSlots reservations={parking.activeReservations} compact totalSpots={parking.totalSpots} />

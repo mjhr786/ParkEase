@@ -10,6 +10,7 @@ using ParkingApp.Marketplace.Application.Options;
 using ParkingApp.Application.Interfaces;
 using ParkingApp.BuildingBlocks.Domain;
 using ParkingApp.Marketplace.Domain.Entities;
+using ParkingApp.Marketplace.Domain.Services;
 using ParkingApp.Marketplace.Contracts.Enums;
 using ParkingApp.BuildingBlocks.Enums;
 using ParkingApp.Marketplace.Infrastructure.Persistence;
@@ -56,7 +57,9 @@ internal sealed class ParkingReadStore : IParkingReadStore
             parkingType: null,
             vehicleType: null,
             amenities,
-            criteria.MinRating);
+            criteria.MinRating,
+            criteria.HasEvCharging,
+            ResolveListingCategory(criteria));
 
         var sortBy = criteria.SortBy;
         var sortDescending = criteria.SortDescending;
@@ -125,7 +128,9 @@ internal sealed class ParkingReadStore : IParkingReadStore
             parkingType: null,
             vehicleType: null,
             amenities,
-            criteria.MinRating);
+            criteria.MinRating,
+            criteria.HasEvCharging,
+            ResolveListingCategory(criteria));
 
         return await query.CountAsync(ct);
     }
@@ -144,7 +149,10 @@ internal sealed class ParkingReadStore : IParkingReadStore
                      WHEN "ImageUrls" IS NULL OR BTRIM("ImageUrls") = '' THEN NULL
                      ELSE split_part("ImageUrls", ',', 1)
                    END AS "ThumbnailUrl",
-                   "AverageRating", "ParkingType"
+                   "AverageRating", "ParkingType", "ListingCategory", "InstantBook",
+                   "TotalSpots", "AvailableSpots", "IsDynamicPricingEnabled",
+                   "DynamicMinMultiplier", "DynamicMaxMultiplier",
+                   "PeakHourMultiplier", "WeekendMultiplier", "TimeZoneId"
             FROM "ParkingSpaces"
             WHERE "IsActive" = TRUE AND "IsDeleted" = FALSE AND "IsCorporateOnly" = FALSE
             """);
@@ -200,10 +208,28 @@ internal sealed class ParkingReadStore : IParkingReadStore
         {
             for (int i = 0; i < criteria.Amenities.Count; i++)
             {
+                var amenity = criteria.Amenities[i]?.Trim() ?? string.Empty;
+                if (string.Equals(amenity, "EV_Charging", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(amenity, "EV Charging", StringComparison.OrdinalIgnoreCase))
+                {
+                    sql.Append(""" AND ("HasEvCharging" = TRUE OR "Amenities" LIKE '%EV%')""");
+                    continue;
+                }
+
                 var paramName = $"Amenity{i}";
                 sql.Append($""" AND "Amenities" LIKE '%' || @{paramName} || '%'""");
-                parameters.Add(paramName, criteria.Amenities[i]);
+                parameters.Add(paramName, amenity);
             }
+        }
+
+        if (criteria.HasEvCharging == true)
+            sql.Append(""" AND "HasEvCharging" = TRUE""");
+
+        var listingCategory = ResolveListingCategory(criteria);
+        if (listingCategory.HasValue)
+        {
+            sql.Append(""" AND "ListingCategory" = @ListingCategory""");
+            parameters.Add("ListingCategory", (int)listingCategory.Value);
         }
 
         var maxPins = Math.Clamp(_discoveryOptions.CurrentValue.Map.MaxPins, 50, 2000);
@@ -214,17 +240,47 @@ internal sealed class ParkingReadStore : IParkingReadStore
         var rows = await connection.QueryAsync<MapRow>(
             new CommandDefinition(sql.ToString(), parameters, cancellationToken: ct));
 
-        return rows.Select(r => new ParkingMapDto(
-            r.Id,
-            r.Title,
-            r.Address,
-            r.City,
-            r.Latitude,
-            r.Longitude,
-            r.HourlyRate,
-            string.IsNullOrWhiteSpace(r.ThumbnailUrl) ? null : r.ThumbnailUrl.Trim(),
-            r.AverageRating,
-            (ParkingType)r.ParkingType)).ToList();
+        var asOf = criteria.StartDateTime?.ToUniversalTime() ?? DateTime.UtcNow;
+        return rows.Select(r =>
+        {
+            var dyn = DynamicPricingCalculator.Calculate(
+                r.HourlyRate,
+                r.IsDynamicPricingEnabled,
+                r.TotalSpots,
+                r.AvailableSpots,
+                asOf,
+                r.DynamicMinMultiplier,
+                r.DynamicMaxMultiplier,
+                r.PeakHourMultiplier,
+                r.WeekendMultiplier,
+                timeZoneId: r.TimeZoneId);
+            return new ParkingMapDto(
+                r.Id,
+                r.Title,
+                r.Address,
+                r.City,
+                r.Latitude,
+                r.Longitude,
+                r.HourlyRate,
+                string.IsNullOrWhiteSpace(r.ThumbnailUrl) ? null : r.ThumbnailUrl.Trim(),
+                r.AverageRating,
+                (ParkingType)r.ParkingType,
+                (ListingCategory)r.ListingCategory,
+                r.InstantBook,
+                dyn.EffectiveRate,
+                dyn.Applied);
+        }).ToList();
+    }
+
+    private static ListingCategory? ResolveListingCategory(ParkingSearchDto criteria)
+    {
+        if (criteria.ListingCategory.HasValue)
+            return criteria.ListingCategory;
+        if (criteria.IsResidential == true)
+            return ListingCategory.Residential;
+        if (criteria.IsResidential == false)
+            return ListingCategory.Commercial;
+        return null;
     }
 
     private static IQueryable<ParkingSpace> ApplySearchFilters(
@@ -240,7 +296,9 @@ internal sealed class ParkingReadStore : IParkingReadStore
         string? parkingType,
         string? vehicleType,
         string? amenities,
-        double? minRating)
+        double? minRating,
+        bool? hasEvCharging = null,
+        ListingCategory? listingCategory = null)
     {
         if (!string.IsNullOrEmpty(state))
             query = query.Where(p => p.State.ToLower() == state.ToLower());
@@ -280,9 +338,23 @@ internal sealed class ParkingReadStore : IParkingReadStore
             foreach (var amenity in amenityList)
             {
                 var a = amenity.Trim();
+                if (a.Equals("EV_Charging", StringComparison.OrdinalIgnoreCase)
+                    || a.Equals("EV Charging", StringComparison.OrdinalIgnoreCase))
+                {
+                    query = query.Where(p => p.HasEvCharging
+                        || (p.Amenities != null && (p.Amenities.Contains("EV") || p.Amenities.Contains("EV_Charging"))));
+                    continue;
+                }
+
                 query = query.Where(p => p.Amenities != null && p.Amenities.Contains(a));
             }
         }
+
+        if (hasEvCharging == true)
+            query = query.Where(p => p.HasEvCharging);
+
+        if (listingCategory.HasValue)
+            query = query.Where(p => p.ListingCategory == listingCategory.Value);
 
         if (minRating.HasValue)
             query = query.Where(p => p.AverageRating >= minRating.Value);
@@ -302,6 +374,16 @@ internal sealed class ParkingReadStore : IParkingReadStore
         public string? ThumbnailUrl { get; set; }
         public double AverageRating { get; set; }
         public int ParkingType { get; set; }
+        public int ListingCategory { get; set; }
+        public bool InstantBook { get; set; }
+        public int TotalSpots { get; set; }
+        public int AvailableSpots { get; set; }
+        public bool IsDynamicPricingEnabled { get; set; }
+        public decimal DynamicMinMultiplier { get; set; } = 0.80m;
+        public decimal DynamicMaxMultiplier { get; set; } = 1.75m;
+        public decimal PeakHourMultiplier { get; set; } = 1.25m;
+        public decimal WeekendMultiplier { get; set; } = 1.15m;
+        public string? TimeZoneId { get; set; }
     }
 }
 

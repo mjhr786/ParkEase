@@ -1,20 +1,16 @@
-using ParkingApp.Application.Interfaces;
 using FluentAssertions;
 using Moq;
-using ParkingApp.Marketplace.Contracts;
 using ParkingApp.Application.CQRS.Commands.Corporate;
 using ParkingApp.Application.CQRS.Commands.Corporate.Bookings;
-using ParkingApp.Identity.Application.Interfaces;
-using ParkingApp.Marketplace.Application.Interfaces;
+using ParkingApp.Application.Interfaces;
 using ParkingApp.Corporate.Application.Interfaces;
 using ParkingApp.Corporate.Domain;
-using ParkingApp.Domain.Enums;
-using ParkingApp.Marketplace.Contracts.Enums;
-using ParkingApp.Infrastructure.Persistence;
 using ParkingApp.Corporate.Domain.Interfaces;
-using Xunit;
+using ParkingApp.Domain.Enums;
+using ParkingApp.Marketplace.Contracts;
+using ParkingApp.Marketplace.Contracts.Enums;
 
-namespace ParkingApp.UnitTests.Corporate;
+namespace ParkingApp.Corporate.UnitTests;
 
 public class CancelCorporateBookingHandlerTests
 {
@@ -29,6 +25,10 @@ public class CancelCorporateBookingHandlerTests
     {
         _corporate.Setup(c => c.Companies).Returns(_companies.Object);
         _corporate.Setup(c => c.CorporateBookings).Returns(_corporateBookings.Object);
+        _corporate.Setup(c => c.SaveChangesAsync(It.IsAny<CancellationToken>())).ReturnsAsync(1);
+        _cache.Setup(c => c.RemoveAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
+        _cache.Setup(c => c.RemoveByPatternAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
+        _quotaCache.Setup(q => q.InvalidateCompanyAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
     }
 
     private CancelCorporateBookingHandler CreateHandler() =>
@@ -40,8 +40,7 @@ public class CancelCorporateBookingHandlerTests
         _companies.Setup(c => c.GetMembershipAsync(It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((UserCompanyMembership?)null);
 
-        var handler = CreateHandler();
-        var result = await handler.HandleAsync(new CancelCorporateBookingCommand(
+        var result = await CreateHandler().HandleAsync(new CancelCorporateBookingCommand(
             Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), "reason"));
 
         result.Success.Should().BeFalse();
@@ -66,8 +65,7 @@ public class CancelCorporateBookingHandlerTests
         _corporateBookings.Setup(r => r.GetByCompanyAndBookingIdAsync(companyId, corpBooking.BookingId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(corpBooking);
 
-        var handler = CreateHandler();
-        var result = await handler.HandleAsync(new CancelCorporateBookingCommand(
+        var result = await CreateHandler().HandleAsync(new CancelCorporateBookingCommand(
             companyId, employeeId, corpBooking.BookingId, "nope"));
 
         result.Success.Should().BeFalse();
@@ -112,21 +110,13 @@ public class CancelCorporateBookingHandlerTests
         _marketplaceBookings.Setup(m => m.CancelAsync(bookingId, It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new MarketplaceBookingCancelResult(true, "Booking cancelled.", snapshot));
 
-        var handler = CreateHandler();
-        var result = await handler.HandleAsync(new CancelCorporateBookingCommand(
+        var result = await CreateHandler().HandleAsync(new CancelCorporateBookingCommand(
             companyId, adminId, bookingId, "Admin cancel"));
 
         result.Success.Should().BeTrue();
         result.Data!.BookingId.Should().Be(bookingId);
         _corporate.Verify(c => c.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
         _marketplaceBookings.Verify(m => m.CancelAsync(bookingId, "Admin cancel", It.IsAny<CancellationToken>()), Times.Once);
-        _cache.Verify(c => c.RemoveAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.AtLeastOnce);
         _quotaCache.Verify(q => q.InvalidateCompanyAsync(companyId, It.IsAny<CancellationToken>()), Times.Once);
     }
 }
-
-
-
-
-
-

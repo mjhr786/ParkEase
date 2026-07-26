@@ -1,4 +1,5 @@
-﻿using ParkingApp.Domain.Enums;
+﻿using System.Diagnostics.CodeAnalysis;
+using ParkingApp.Domain.Enums;
 using ParkingApp.BuildingBlocks.Domain;
 
 namespace ParkingApp.Corporate.Domain;
@@ -37,6 +38,8 @@ public class CorporateInvoice : BaseEntity
     public virtual Company Company { get; private set; } = null!;
     public virtual ICollection<CorporateInvoiceLineItem> LineItems { get; private set; } = new List<CorporateInvoiceLineItem>();
 
+    // Required for EF Core materialization — no business logic.
+    [ExcludeFromCodeCoverage]
     private CorporateInvoice()
     {
     }

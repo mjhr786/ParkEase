@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using ParkingApp.BuildingBlocks.Enums;
 // Removed Marketplace reference for isolation
 using ParkingApp.BuildingBlocks.Domain;
@@ -29,6 +30,8 @@ public class CorporateWaitlistEntry : BaseEntity
     public virtual UserCompanyMembership Membership { get; private set; } = null!;
     public virtual ParkingAllocation Allocation { get; private set; } = null!;
 
+    // Required for EF Core materialization — no business logic.
+    [ExcludeFromCodeCoverage]
     private CorporateWaitlistEntry()
     {
     }

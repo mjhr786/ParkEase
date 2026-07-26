@@ -200,7 +200,15 @@ internal sealed class SearchParkingHandler : IQueryHandler<SearchParkingQuery, A
                 duration = routings[i].Duration;
             }
 
-            parkingDtos.Add(parking.ToDtoWithFullDetails(bookings, distance, duration));
+            var priceAsOf = dto.StartDateTime?.ToUniversalTime() ?? DateTime.UtcNow;
+            parkingDtos.Add(parking.ToDtoWithFullDetails(bookings, distance, duration, priceAsOf));
+        }
+
+        if (dto.SortBy?.ToLower() == "price")
+        {
+            parkingDtos = dto.SortDescending
+                ? parkingDtos.OrderByDescending(p => p.EffectiveHourlyRate).ToList()
+                : parkingDtos.OrderBy(p => p.EffectiveHourlyRate).ToList();
         }
 
         if (dto.SortBy?.ToLower() == "distance" && dto.Latitude.HasValue && dto.Longitude.HasValue)

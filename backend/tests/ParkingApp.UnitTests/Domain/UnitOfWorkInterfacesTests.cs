@@ -36,7 +36,9 @@ public class UnitOfWorkInterfacesTests
         var names = typeof(IMarketplaceUnitOfWork).GetProperties().Select(p => p.Name).ToHashSet();
         names.Should().BeEquivalentTo(new[]
         {
-            "ParkingSpaces", "Bookings", "ParkingPasses", "Payments", "Reviews", "Favorites"
+            "ParkingSpaces", "Bookings", "ParkingPasses", "Payments", "Reviews", "Favorites",
+            "LprAccessAttempts", "LprCameraKeys", "LprPlateRules",
+            "EventParkingPackages", "EvChargingSessions", "ParkingAncillaryServices"
         });
     }
 }

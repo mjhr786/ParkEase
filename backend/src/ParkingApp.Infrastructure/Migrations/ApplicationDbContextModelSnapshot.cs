@@ -861,6 +861,10 @@ namespace ParkingApp.Infrastructure.Migrations
                         .HasPrecision(18, 2)
                         .HasColumnType("numeric(18,2)");
 
+                    b.Property<string>("BayLabel")
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
                     b.Property<string>("BookingReference")
                         .HasMaxLength(50)
                         .HasColumnType("character varying(50)");
@@ -892,8 +896,57 @@ namespace ParkingApp.Infrastructure.Migrations
                     b.Property<DateTime>("EndDateTime")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<decimal>("EvChargingFeeAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<decimal>("EvIdleFeeAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<DateTime?>("EvIdleFeeChargedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("EventParkingPackageId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("FacilityLevel")
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<string>("FacilityZone")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<bool>("IncludeEvCharging")
+                        .HasColumnType("boolean");
+
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("boolean");
+
+                    b.Property<int>("OverstayBillableMinutes")
+                        .HasColumnType("integer");
+
+                    b.Property<decimal>("OverstayFeeAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<DateTime?>("OverstayFeeChargedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<decimal>("OverstayFeePaidAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<DateTime?>("OverstayFeePaidAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("OverstayFeeTransactionId")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<DateTime?>("OverstayNotifiedAt")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<Guid?>("ParkingPassId")
                         .HasColumnType("uuid");
@@ -925,6 +978,9 @@ namespace ParkingApp.Infrastructure.Migrations
                         .HasPrecision(18, 2)
                         .HasColumnType("numeric(18,2)");
 
+                    b.Property<DateTime?>("SessionEndRemindedAt")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<int?>("SlotNumber")
                         .HasColumnType("integer");
 
@@ -948,6 +1004,25 @@ namespace ParkingApp.Infrastructure.Migrations
                     b.Property<Guid>("UserId")
                         .HasColumnType("uuid");
 
+                    b.Property<string>("ValetNotes")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<DateTime?>("ValetReadyAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("ValetRequestedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("ValetStaffNotifiedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("ValetStatus")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime?>("ValetTargetReadyAt")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<string>("VehicleColor")
                         .HasMaxLength(50)
                         .HasColumnType("character varying(50)");
@@ -968,11 +1043,15 @@ namespace ParkingApp.Infrastructure.Migrations
                     b.HasIndex("BookingReference")
                         .IsUnique();
 
+                    b.HasIndex("EventParkingPackageId");
+
                     b.HasIndex("ParkingPassId");
 
                     b.HasIndex("ParkingSpaceId");
 
                     b.HasIndex("UserId");
+
+                    b.HasIndex("ValetStatus");
 
                     b.HasIndex("ParkingSpaceId", "CreatedAt")
                         .HasDatabaseName("IX_Bookings_Pending_Space")
@@ -985,6 +1064,225 @@ namespace ParkingApp.Infrastructure.Migrations
                         .HasFilter("\"IsDeleted\" = false AND \"Status\" NOT IN (4, 5, 7)");
 
                     b.ToTable("Bookings");
+                });
+
+            modelBuilder.Entity("ParkingApp.Marketplace.Domain.Entities.BookingAncillaryLine", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("BookingId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<int>("Quantity")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid?>("ServiceId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("SnapshotName")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<decimal>("UnitPrice")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BookingId");
+
+                    b.HasIndex("ServiceId");
+
+                    b.ToTable("BookingAncillaryLines", (string)null);
+                });
+
+            modelBuilder.Entity("ParkingApp.Marketplace.Domain.Entities.EvChargingSession", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("BookingId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("ConnectorId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<decimal>("EnergyDeliveredKwh")
+                        .HasPrecision(18, 3)
+                        .HasColumnType("numeric(18,3)");
+
+                    b.Property<decimal>("EnergyFeeAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<decimal>("LastMeterKwh")
+                        .HasPrecision(18, 3)
+                        .HasColumnType("numeric(18,3)");
+
+                    b.Property<decimal?>("MeterEndKwh")
+                        .HasPrecision(18, 3)
+                        .HasColumnType("numeric(18,3)");
+
+                    b.Property<decimal>("MeterStartKwh")
+                        .HasPrecision(18, 3)
+                        .HasColumnType("numeric(18,3)");
+
+                    b.Property<string>("OcppTransactionId")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<Guid>("ParkingSpaceId")
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("RatePerKwh")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<string>("Source")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<DateTime>("StartedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("StationId")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime?>("StoppedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OcppTransactionId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_EvChargingSessions_OcppTransactionId");
+
+                    b.HasIndex("ParkingSpaceId")
+                        .HasDatabaseName("IX_EvChargingSessions_ParkingSpaceId");
+
+                    b.HasIndex("BookingId", "StartedAtUtc")
+                        .HasDatabaseName("IX_EvChargingSessions_Booking_Started");
+
+                    b.ToTable("EvChargingSessions", (string)null);
+                });
+
+            modelBuilder.Entity("ParkingApp.Marketplace.Domain.Entities.EventParkingPackage", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("CreatedByUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<int>("EarlyEntryMinutes")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0);
+
+                    b.Property<DateTime>("EventEndUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("EventName")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<DateTime>("EventStartUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<int>("LateExitMinutes")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0);
+
+                    b.Property<decimal>("PackagePrice")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<Guid>("ParkingSpaceId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("SalesEndUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("SalesStartUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("SoldCount")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<int>("TotalSpots")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("VenueEventId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("VenueName")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("ZoneName")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ParkingSpaceId");
+
+                    b.HasIndex("VenueEventId");
+
+                    b.HasIndex("IsActive", "EventStartUtc");
+
+                    b.HasIndex("SalesStartUtc", "SalesEndUtc");
+
+                    b.ToTable("EventParkingPackages", (string)null);
                 });
 
             modelBuilder.Entity("ParkingApp.Marketplace.Domain.Entities.Favorite", b =>
@@ -1015,6 +1313,233 @@ namespace ParkingApp.Infrastructure.Migrations
                         .IsUnique();
 
                     b.ToTable("Favorites");
+                });
+
+            modelBuilder.Entity("ParkingApp.Marketplace.Domain.Entities.LprAccessAttempt", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("BookingId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ClientKeyId")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<double?>("Confidence")
+                        .HasColumnType("double precision");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("Decision")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("DenialReason")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<int>("Direction")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("ImageUrl")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("LicensePlateNormalized")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("LicensePlateRaw")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<DateTime>("OccurredAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("ParkingSpaceId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Source")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BookingId")
+                        .HasDatabaseName("IX_LprAccessAttempts_BookingId");
+
+                    b.HasIndex("LicensePlateNormalized", "OccurredAtUtc")
+                        .HasDatabaseName("IX_LprAccessAttempts_Plate_Occurred");
+
+                    b.HasIndex("ParkingSpaceId", "OccurredAtUtc")
+                        .HasDatabaseName("IX_LprAccessAttempts_Space_Occurred");
+
+                    b.ToTable("LprAccessAttempts", (string)null);
+                });
+
+            modelBuilder.Entity("ParkingApp.Marketplace.Domain.Entities.LprCameraKey", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("CreatedByUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsEnabled")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("KeyId")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<Guid>("ParkingSpaceId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("SecretHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("SecretPrefix")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("KeyId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_LprCameraKeys_KeyId");
+
+                    b.HasIndex("ParkingSpaceId")
+                        .HasDatabaseName("IX_LprCameraKeys_ParkingSpaceId");
+
+                    b.HasIndex("SecretHash")
+                        .HasDatabaseName("IX_LprCameraKeys_SecretHash");
+
+                    b.ToTable("LprCameraKeys", (string)null);
+                });
+
+            modelBuilder.Entity("ParkingApp.Marketplace.Domain.Entities.LprPlateRule", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("CreatedByUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsEnabled")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("LicensePlateNormalized")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<Guid>("ParkingSpaceId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("RuleType")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ParkingSpaceId")
+                        .HasDatabaseName("IX_LprPlateRules_ParkingSpaceId");
+
+                    b.HasIndex("ParkingSpaceId", "LicensePlateNormalized", "RuleType")
+                        .IsUnique()
+                        .HasDatabaseName("IX_LprPlateRules_Space_Plate_Type")
+                        .HasFilter("\"IsDeleted\" = false");
+
+                    b.ToTable("LprPlateRules", (string)null);
+                });
+
+            modelBuilder.Entity("ParkingApp.Marketplace.Domain.Entities.ParkingAncillaryService", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<int?>("DurationMinutes")
+                        .HasColumnType("integer");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<Guid>("ParkingSpaceId")
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("Price")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ParkingSpaceId");
+
+                    b.HasIndex("ParkingSpaceId", "IsActive", "SortOrder");
+
+                    b.ToTable("ParkingAncillaryServices", (string)null);
                 });
 
             modelBuilder.Entity("ParkingApp.Marketplace.Domain.Entities.ParkingAvailability", b =>
@@ -1159,10 +1684,50 @@ namespace ParkingApp.Infrastructure.Migrations
                         .HasPrecision(18, 2)
                         .HasColumnType("numeric(18,2)");
 
+                    b.Property<string>("DefaultFacilityLevel")
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<string>("DefaultFacilityZone")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
                     b.Property<string>("Description")
                         .IsRequired()
                         .HasMaxLength(2000)
                         .HasColumnType("character varying(2000)");
+
+                    b.Property<decimal>("DynamicMaxMultiplier")
+                        .HasPrecision(9, 4)
+                        .HasColumnType("numeric(9,4)");
+
+                    b.Property<decimal>("DynamicMinMultiplier")
+                        .HasPrecision(9, 4)
+                        .HasColumnType("numeric(9,4)");
+
+                    b.Property<int>("EvChargerCount")
+                        .HasColumnType("integer");
+
+                    b.Property<decimal>("EvChargingRatePerHour")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<int>("EvIdleGraceMinutes")
+                        .HasColumnType("integer");
+
+                    b.Property<decimal>("EvIdleRatePerHour")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<int>("EvPricingMode")
+                        .HasColumnType("integer");
+
+                    b.Property<decimal>("EvRatePerKwh")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<bool>("HasEvCharging")
+                        .HasColumnType("boolean");
 
                     b.Property<decimal>("HourlyRate")
                         .HasPrecision(18, 2)
@@ -1172,10 +1737,20 @@ namespace ParkingApp.Infrastructure.Migrations
                         .HasMaxLength(4000)
                         .HasColumnType("character varying(4000)");
 
+                    b.Property<string>("IndoorGuidanceNotes")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<bool>("InstantBook")
+                        .HasColumnType("boolean");
+
                     b.Property<bool>("Is24Hours")
                         .HasColumnType("boolean");
 
                     b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsBayGuidanceEnabled")
                         .HasColumnType("boolean");
 
                     b.Property<bool>("IsCorporateOnly")
@@ -1184,11 +1759,23 @@ namespace ParkingApp.Infrastructure.Migrations
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("boolean");
 
+                    b.Property<bool>("IsDynamicPricingEnabled")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsLprEnabled")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsValetEnabled")
+                        .HasColumnType("boolean");
+
                     b.Property<bool>("IsVerified")
                         .HasColumnType("boolean");
 
                     b.Property<double>("Latitude")
                         .HasColumnType("double precision");
+
+                    b.Property<int>("ListingCategory")
+                        .HasColumnType("integer");
 
                     b.Property<Point>("Location")
                         .HasColumnType("geography (point)");
@@ -1212,6 +1799,10 @@ namespace ParkingApp.Infrastructure.Migrations
                     b.Property<int>("ParkingType")
                         .HasColumnType("integer");
 
+                    b.Property<decimal>("PeakHourMultiplier")
+                        .HasPrecision(9, 4)
+                        .HasColumnType("numeric(9,4)");
+
                     b.Property<string>("PostalCode")
                         .IsRequired()
                         .HasMaxLength(20)
@@ -1225,6 +1816,13 @@ namespace ParkingApp.Infrastructure.Migrations
                         .IsRequired()
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
+
+                    b.Property<string>("TimeZoneId")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasDefaultValue("UTC");
 
                     b.Property<string>("Title")
                         .IsRequired()
@@ -1240,6 +1838,10 @@ namespace ParkingApp.Infrastructure.Migrations
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<decimal>("WeekendMultiplier")
+                        .HasPrecision(9, 4)
+                        .HasColumnType("numeric(9,4)");
+
                     b.Property<decimal>("WeeklyRate")
                         .HasPrecision(18, 2)
                         .HasColumnType("numeric(18,2)");
@@ -1253,6 +1855,16 @@ namespace ParkingApp.Infrastructure.Migrations
                     b.HasIndex("City");
 
                     b.HasIndex("CompanyOwnerId");
+
+                    b.HasIndex("HasEvCharging");
+
+                    b.HasIndex("InstantBook");
+
+                    b.HasIndex("IsBayGuidanceEnabled");
+
+                    b.HasIndex("IsValetEnabled");
+
+                    b.HasIndex("ListingCategory");
 
                     b.HasIndex("Location");
 
@@ -1854,12 +2466,56 @@ namespace ParkingApp.Infrastructure.Migrations
                     b.Navigation("ParkingSpace");
                 });
 
+            modelBuilder.Entity("ParkingApp.Marketplace.Domain.Entities.BookingAncillaryLine", b =>
+                {
+                    b.HasOne("ParkingApp.Marketplace.Domain.Entities.Booking", "Booking")
+                        .WithMany("AncillaryLines")
+                        .HasForeignKey("BookingId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Booking");
+                });
+
+            modelBuilder.Entity("ParkingApp.Marketplace.Domain.Entities.EvChargingSession", b =>
+                {
+                    b.HasOne("ParkingApp.Marketplace.Domain.Entities.Booking", "Booking")
+                        .WithMany()
+                        .HasForeignKey("BookingId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Booking");
+                });
+
+            modelBuilder.Entity("ParkingApp.Marketplace.Domain.Entities.EventParkingPackage", b =>
+                {
+                    b.HasOne("ParkingApp.Marketplace.Domain.Entities.ParkingSpace", "ParkingSpace")
+                        .WithMany()
+                        .HasForeignKey("ParkingSpaceId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("ParkingSpace");
+                });
+
             modelBuilder.Entity("ParkingApp.Marketplace.Domain.Entities.Favorite", b =>
                 {
                     b.HasOne("ParkingApp.Marketplace.Domain.Entities.ParkingSpace", "ParkingSpace")
                         .WithMany("FavoritedBy")
                         .HasForeignKey("ParkingSpaceId")
                         .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("ParkingSpace");
+                });
+
+            modelBuilder.Entity("ParkingApp.Marketplace.Domain.Entities.ParkingAncillaryService", b =>
+                {
+                    b.HasOne("ParkingApp.Marketplace.Domain.Entities.ParkingSpace", "ParkingSpace")
+                        .WithMany()
+                        .HasForeignKey("ParkingSpaceId")
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.Navigation("ParkingSpace");
@@ -2057,6 +2713,8 @@ namespace ParkingApp.Infrastructure.Migrations
 
             modelBuilder.Entity("ParkingApp.Marketplace.Domain.Entities.Booking", b =>
                 {
+                    b.Navigation("AncillaryLines");
+
                     b.Navigation("Payment");
                 });
 

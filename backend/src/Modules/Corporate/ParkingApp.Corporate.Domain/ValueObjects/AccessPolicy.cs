@@ -1,3 +1,5 @@
+using System.Diagnostics.CodeAnalysis;
+
 namespace ParkingApp.Domain.ValueObjects;
 
 /// <summary>
@@ -11,6 +13,8 @@ public sealed record AccessPolicy
     public DateTime AccessExpiryUtc { get; private init; }
     public string QrCodeToken { get; private init; } = string.Empty;
 
+    // Required for EF Core materialization — no business logic.
+    [ExcludeFromCodeCoverage]
     private AccessPolicy()
     {
     }

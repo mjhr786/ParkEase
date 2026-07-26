@@ -105,7 +105,28 @@ internal sealed class UpdateParkingHandler : ICommandHandler<UpdateParkingComman
                 allowedVehicleTypes: dto.AllowedVehicleTypes?.Select(v => v.ToString()),
                 imageUrls: dto.ImageUrls,
                 specialInstructions: dto.SpecialInstructions,
-                isActive: dto.IsActive);
+                isActive: dto.IsActive,
+                isLprEnabled: dto.IsLprEnabled,
+                isDynamicPricingEnabled: dto.IsDynamicPricingEnabled,
+                dynamicMinMultiplier: dto.DynamicMinMultiplier,
+                dynamicMaxMultiplier: dto.DynamicMaxMultiplier,
+                peakHourMultiplier: dto.PeakHourMultiplier,
+                weekendMultiplier: dto.WeekendMultiplier,
+                hasEvCharging: dto.HasEvCharging,
+                evChargerCount: dto.EvChargerCount,
+                evChargingRatePerHour: dto.EvChargingRatePerHour,
+                evIdleRatePerHour: dto.EvIdleRatePerHour,
+                evIdleGraceMinutes: dto.EvIdleGraceMinutes,
+                evPricingMode: dto.EvPricingMode,
+                evRatePerKwh: dto.EvRatePerKwh,
+                listingCategory: dto.ListingCategory,
+                instantBook: dto.InstantBook,
+                timeZoneId: dto.TimeZoneId,
+                isBayGuidanceEnabled: dto.IsBayGuidanceEnabled,
+                isValetEnabled: dto.IsValetEnabled,
+                defaultFacilityLevel: dto.DefaultFacilityLevel,
+                defaultFacilityZone: dto.DefaultFacilityZone,
+                indoorGuidanceNotes: dto.IndoorGuidanceNotes);
 
             _unitOfWork.ParkingSpaces.Update(parking);
             await _unitOfWork.SaveChangesAsync(cancellationToken);

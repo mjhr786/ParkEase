@@ -46,6 +46,13 @@ public enum ParkingSpaceOwnershipType
     CompanyOwned = 1
 }
 
+/// <summary>Marketplace inventory kind: commercial garage/lot vs residential driveway/home spot.</summary>
+public enum ListingCategory
+{
+    Commercial = 0,
+    Residential = 1
+}
+
 public enum PaymentMethod
 {
     CreditCard = 0,

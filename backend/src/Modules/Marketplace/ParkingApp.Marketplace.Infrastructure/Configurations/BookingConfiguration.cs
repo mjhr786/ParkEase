@@ -24,10 +24,22 @@ entity.HasKey(e => e.Id);
             entity.Property(e => e.DiscountAmount).HasPrecision(18, 2);
             entity.Property(e => e.TotalAmount).HasPrecision(18, 2);
             entity.Property(e => e.RefundAmount).HasPrecision(18, 2);
+            entity.Property(e => e.OverstayFeeAmount).HasPrecision(18, 2);
+            entity.Property(e => e.OverstayFeePaidAmount).HasPrecision(18, 2);
+            entity.Property(e => e.EvChargingFeeAmount).HasPrecision(18, 2);
+            entity.Property(e => e.EvIdleFeeAmount).HasPrecision(18, 2);
+            entity.Property(e => e.OverstayFeeTransactionId).HasMaxLength(100);
+            entity.Property(e => e.FacilityLevel).HasMaxLength(32);
+            entity.Property(e => e.FacilityZone).HasMaxLength(64);
+            entity.Property(e => e.BayLabel).HasMaxLength(32);
+            entity.Property(e => e.ValetStatus).HasConversion<int>();
+            entity.Property(e => e.ValetNotes).HasMaxLength(500);
+            entity.HasIndex(e => e.ValetStatus);
             entity.HasIndex(e => e.BookingReference).IsUnique();
             entity.HasIndex(e => e.UserId);
             entity.HasIndex(e => e.ParkingSpaceId);
             entity.HasIndex(e => e.ParkingPassId);
+            entity.HasIndex(e => e.EventParkingPackageId);
             entity.HasIndex(e => new { e.StartDateTime, e.EndDateTime });
             // Overlap / capacity: active bookings by space and time window
             // Status: Cancelled=4, Expired=5, Rejected=7
@@ -52,5 +64,9 @@ entity.HasKey(e => e.Id);
                 .WithMany(p => p.Bookings)
                 .HasForeignKey(e => e.ParkingPassId)
                 .OnDelete(DeleteBehavior.SetNull);
+
+            entity.Navigation(e => e.AncillaryLines)
+                .HasField("_ancillaryLines")
+                .UsePropertyAccessMode(PropertyAccessMode.Field);
     }
 }

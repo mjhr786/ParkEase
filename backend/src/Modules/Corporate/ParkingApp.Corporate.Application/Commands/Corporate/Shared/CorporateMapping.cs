@@ -1,7 +1,9 @@
 using System;
+using System.Linq;
 using ParkingApp.Corporate.Application.DTOs;
 using ParkingApp.Corporate.Domain;
-using System.Linq;
+using ParkingApp.Domain.Enums;
+using ParkingApp.Marketplace.Contracts;
 using ParkingApp.Marketplace.Contracts.Enums;
 
 namespace ParkingApp.Application.CQRS.Commands.Corporate.Shared;
@@ -10,12 +12,161 @@ internal static class CorporateMapping
 {
     public static CompanyDto ToCompanyDto(Company company)
     {
-        return null!; // Stubbed during modular monolith refactoring
+        ArgumentNullException.ThrowIfNull(company);
+        return new CompanyDto(
+            company.Id,
+            company.Name,
+            company.RegistrationNumber,
+            company.ContactEmail,
+            company.ContactPhone,
+            company.BillingAddress,
+            company.BillingType,
+            company.IsActive,
+            company.Memberships.Count(m => !m.IsDeleted && m.IsActive),
+            company.Allocations.Count(a => !a.IsDeleted && a.Status == AllocationStatus.Active),
+            company.CreatedAt);
+    }
+
+    public static ParkingAllocationDto ToAllocationDto(
+        ParkingAllocation allocation,
+        string parkingSpaceTitle,
+        string? vendorName = null)
+    {
+        ArgumentNullException.ThrowIfNull(allocation);
+        return new ParkingAllocationDto(
+            allocation.Id,
+            allocation.CompanyId,
+            allocation.ParkingSpaceId,
+            parkingSpaceTitle,
+            allocation.Quota.TotalSlots,
+            allocation.Quota.FixedSlots,
+            allocation.Quota.SharedSlots,
+            allocation.MonthlyRate,
+            allocation.StartDate,
+            allocation.EndDate,
+            allocation.Status,
+            allocation.SourceType,
+            allocation.VendorId,
+            allocation.LeaseReference,
+            allocation.ApprovedByUserId,
+            allocation.ApprovedAt,
+            new BookingPolicyDto(
+                allocation.BookingPolicy.MaxBookingsPerEmployeePerDay,
+                allocation.BookingPolicy.MaxBookingsPerEmployeePerWeek,
+                allocation.BookingPolicy.PriorityThreshold,
+                allocation.BookingPolicy.AllowedStartTime,
+                allocation.BookingPolicy.AllowedEndTime,
+                allocation.BookingPolicy.AllowWeekends),
+            allocation.FixedAssignments
+                .Where(f => !f.IsDeleted)
+                .Select(f => new FixedSlotAssignmentDto(f.MembershipId, string.Empty, f.SlotNumber, f.AssignedAt))
+                .ToList(),
+            allocation.CreatedAt,
+            vendorName);
+    }
+
+    public static CorporateBookingDto ToCorporateBookingDto(
+        CorporateBooking corporateBooking,
+        BookingSnapshot booking)
+    {
+        Enum.TryParse<BookingStatus>(booking.Status, ignoreCase: true, out var status);
+        return new CorporateBookingDto(
+            corporateBooking.Id,
+            booking.BookingId,
+            booking.BookingReference,
+            corporateBooking.SlotType,
+            booking.SlotNumber,
+            corporateBooking.IsVisitorBooking,
+            corporateBooking.VisitorName,
+            corporateBooking.VisitorLicensePlate,
+            booking.StartUtc,
+            booking.EndUtc,
+            status,
+            corporateBooking.AccessPolicy?.QrCodeToken ?? booking.QrCode,
+            corporateBooking.CreatedAt,
+            corporateBooking.AllocationId,
+            ParkingSpaceTitle: null,
+            corporateBooking.MembershipId,
+            MemberName: null,
+            MemberEmail: null,
+            booking.TotalAmount,
+            booking.VehicleNumber);
+    }
+
+    public static CorporateParkingSpaceDto ToCorporateParkingSpaceDto(CompanyOwnedParkingSpaceDetail space)
+    {
+        ArgumentNullException.ThrowIfNull(space);
+        return new CorporateParkingSpaceDto(
+            space.Id,
+            space.CompanyId,
+            space.Title,
+            space.Description,
+            space.Address,
+            space.City,
+            space.State,
+            space.Country,
+            space.PostalCode,
+            space.Latitude,
+            space.Longitude,
+            space.ParkingType,
+            space.TotalSpots,
+            space.AvailableSpots,
+            space.HourlyRate,
+            space.DailyRate,
+            space.WeeklyRate,
+            space.MonthlyRate,
+            space.OpenTime,
+            space.CloseTime,
+            space.Is24Hours,
+            space.Amenities.ToList(),
+            space.AllowedVehicleTypes.ToList(),
+            space.ImageUrls.ToList(),
+            space.IsActive,
+            space.IsVerified,
+            space.SpecialInstructions,
+            space.ZoneCode,
+            space.CreatedAt);
     }
 
     public static CorporateInvoiceDetailDto ToInvoiceDetailDto(CorporateInvoice invoice)
     {
-        return null!; // Stubbed during modular monolith refactoring
+        ArgumentNullException.ThrowIfNull(invoice);
+        var lines = invoice.LineItems
+            .OrderBy(l => l.Description, StringComparer.OrdinalIgnoreCase)
+            .Select(l => new CorporateInvoiceLineDto(
+                l.Id,
+                l.LineType,
+                l.AllocationId,
+                l.BookingId,
+                l.Description,
+                l.Quantity,
+                l.UnitAmount,
+                l.Amount))
+            .ToList();
+
+        return new CorporateInvoiceDetailDto(
+            invoice.Id,
+            invoice.InvoiceNumber,
+            invoice.BillingTypeSnapshot,
+            invoice.PeriodStart,
+            invoice.PeriodEnd,
+            invoice.Status,
+            invoice.Currency,
+            invoice.Subtotal,
+            invoice.TaxAmount,
+            invoice.TotalAmount,
+            invoice.GeneratedByUserId,
+            invoice.CreatedAt,
+            invoice.IssuedAt,
+            invoice.IssuedByUserId,
+            invoice.PaidAt,
+            invoice.PaidByUserId,
+            invoice.PaymentReference,
+            invoice.PaymentNotes,
+            invoice.VoidedAt,
+            invoice.VoidedByUserId,
+            invoice.VoidReason,
+            lines);
     }
 
     public static CorporateReservationResultDto ToReservationResultDto(CorporateReservationOutcome outcome, Company company, CorporateBookingDraft? draft = null)

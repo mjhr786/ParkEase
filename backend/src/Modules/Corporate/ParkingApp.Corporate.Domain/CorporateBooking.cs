@@ -1,4 +1,5 @@
 // Removed Marketplace reference for isolation
+using System.Diagnostics.CodeAnalysis;
 using ParkingApp.BuildingBlocks.Domain;
 using ParkingApp.Domain.Enums;
 using ParkingApp.Domain.ValueObjects;
@@ -33,7 +34,8 @@ public class CorporateBooking : BaseEntity
     public virtual UserCompanyMembership Membership { get; private set; } = null!;
     public virtual ParkingAllocation Allocation { get; private set; } = null!;
 
-    // Required for EF Core
+    // Required for EF Core materialization — no business logic.
+    [ExcludeFromCodeCoverage]
     private CorporateBooking()
     {
     }

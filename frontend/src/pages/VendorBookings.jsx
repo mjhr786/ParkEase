@@ -35,6 +35,20 @@ const formatMoney = (value) => {
     return n.toLocaleString(undefined, { style: 'currency', currency: 'INR', maximumFractionDigits: 0 });
 };
 
+/** PricingType: 0=Hourly; Daily/Weekly/Monthly show dates only. */
+const formatBookingRangeValue = (dateTime, pricingType) => {
+    const d = new Date(dateTime);
+    if (Number.isNaN(d.getTime())) return '—';
+    if (Number(pricingType) > 0) {
+        return d.toLocaleDateString(undefined, {
+            year: 'numeric',
+            month: 'numeric',
+            day: 'numeric',
+        });
+    }
+    return d.toLocaleString();
+};
+
 export default function VendorBookings() {
     const [bookings, setBookings] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -249,7 +263,12 @@ export default function VendorBookings() {
             <div className="container">
                 <div className="flex-between mb-3" style={{ flexWrap: 'wrap', gap: '1rem' }}>
                     <div>
-                        <h1 style={{ margin: '0 0 0.25rem 0' }}>Vendor Inbox</h1>
+                        <h1 style={{ margin: '0 0 0.25rem 0' }}>
+                            Vendor Inbox{' '}
+                            <Link to="/my/access-scan" className="btn btn-outline" style={{ fontSize: '0.8rem', marginLeft: '0.5rem', verticalAlign: 'middle' }}>
+                                📱 Scan pass
+                            </Link>
+                        </h1>
                         <p style={{ margin: 0, color: 'var(--color-text-muted)', fontSize: '0.9rem' }}>
                             Marketplace booking requests and corporate bulk allocation approvals.
                             {pendingAllocCount > 0 && (
@@ -350,11 +369,11 @@ export default function VendorBookings() {
                                             </div>
                                             <div>
                                                 <small style={{ color: 'var(--color-text-muted)' }}>Start</small>
-                                                <div>{new Date(booking.startDateTime).toLocaleString()}</div>
+                                                <div>{formatBookingRangeValue(booking.startDateTime, booking.pricingType)}</div>
                                             </div>
                                             <div>
                                                 <small style={{ color: 'var(--color-text-muted)' }}>End</small>
-                                                <div>{new Date(booking.endDateTime).toLocaleString()}</div>
+                                                <div>{formatBookingRangeValue(booking.endDateTime, booking.pricingType)}</div>
                                             </div>
                                             <div>
                                                 <small style={{ color: 'var(--color-text-muted)' }}>Vehicle</small>
@@ -385,7 +404,144 @@ export default function VendorBookings() {
                                                     </div>
                                                 </div>
                                             )}
+                                            {(booking.bayLabel || booking.facilityLevel || booking.facilityZone) && (
+                                                <div>
+                                                    <small style={{ color: 'var(--color-text-muted)' }}>Bay</small>
+                                                    <div style={{ fontWeight: 600 }}>
+                                                        {[booking.facilityLevel, booking.facilityZone, booking.bayLabel].filter(Boolean).join(' · ')}
+                                                    </div>
+                                                </div>
+                                            )}
                                         </div>
+
+                                        {(booking.isBayGuidanceEnabled || booking.valetStatus > 0) && [1, 2, 6, 8, 9].includes(booking.status) && (
+                                            <div style={{
+                                                marginTop: '0.6rem',
+                                                padding: '0.55rem 0.7rem',
+                                                background: 'rgba(59,130,246,0.08)',
+                                                borderRadius: 'var(--radius-sm)',
+                                                fontSize: '0.85rem',
+                                            }}>
+                                                {booking.isBayGuidanceEnabled && (
+                                                    <div className="flex gap-1" style={{ flexWrap: 'wrap', marginBottom: booking.valetStatus > 0 ? '0.5rem' : 0 }}>
+                                                        <button
+                                                            className="btn btn-outline"
+                                                            type="button"
+                                                            style={{ fontSize: '0.8rem' }}
+                                                            disabled={processingId === booking.id}
+                                                            onClick={async () => {
+                                                                const level = window.prompt('Facility level', booking.facilityLevel || 'P1');
+                                                                if (level === null) return;
+                                                                const zone = window.prompt('Zone', booking.facilityZone || '');
+                                                                if (zone === null) return;
+                                                                const bay = window.prompt('Bay label', booking.bayLabel || (booking.slotNumber ? `B-${booking.slotNumber}` : ''));
+                                                                if (bay === null) return;
+                                                                setProcessingId(booking.id);
+                                                                try {
+                                                                    const res = await api.assignBay(booking.id, {
+                                                                        facilityLevel: level || null,
+                                                                        facilityZone: zone || null,
+                                                                        bayLabel: bay || null,
+                                                                    });
+                                                                    if (res.success) {
+                                                                        showToast.success('Bay assignment updated');
+                                                                        fetchData();
+                                                                    } else {
+                                                                        showToast.error(res.message || 'Failed to assign bay');
+                                                                    }
+                                                                } catch (err) {
+                                                                    showToast.error(handleApiError(err, 'Failed to assign bay'));
+                                                                }
+                                                                setProcessingId(null);
+                                                            }}
+                                                        >
+                                                            Assign bay
+                                                        </button>
+                                                    </div>
+                                                )}
+                                                {booking.valetStatus > 0 && booking.valetStatus < 4 && (
+                                                    <div className="flex gap-1" style={{ flexWrap: 'wrap', alignItems: 'center' }}>
+                                                        <span style={{ color: '#c084fc', fontWeight: 600 }}>
+                                                            Valet: {['None', 'Requested', 'Retrieving', 'Ready', 'Completed', 'Cancelled'][booking.valetStatus] || booking.valetStatus}
+                                                            {booking.valetTargetReadyAt && (
+                                                                <span style={{ fontWeight: 400, color: 'var(--color-text-muted)' }}>
+                                                                    {' '}· target {new Date(booking.valetTargetReadyAt).toLocaleTimeString()}
+                                                                </span>
+                                                            )}
+                                                        </span>
+                                                        {booking.valetStatus === 1 && (
+                                                            <button
+                                                                className="btn btn-primary"
+                                                                type="button"
+                                                                style={{ fontSize: '0.8rem' }}
+                                                                disabled={processingId === booking.id}
+                                                                onClick={async () => {
+                                                                    setProcessingId(booking.id);
+                                                                    try {
+                                                                        const res = await api.acknowledgeValet(booking.id);
+                                                                        if (res.success) {
+                                                                            showToast.success('Valet acknowledged');
+                                                                            fetchData();
+                                                                        } else showToast.error(res.message || 'Failed');
+                                                                    } catch (err) {
+                                                                        showToast.error(handleApiError(err, 'Failed'));
+                                                                    }
+                                                                    setProcessingId(null);
+                                                                }}
+                                                            >
+                                                                Acknowledge
+                                                            </button>
+                                                        )}
+                                                        {[1, 2].includes(booking.valetStatus) && (
+                                                            <button
+                                                                className="btn btn-primary"
+                                                                type="button"
+                                                                style={{ fontSize: '0.8rem' }}
+                                                                disabled={processingId === booking.id}
+                                                                onClick={async () => {
+                                                                    setProcessingId(booking.id);
+                                                                    try {
+                                                                        const res = await api.markValetReady(booking.id);
+                                                                        if (res.success) {
+                                                                            showToast.success('Vehicle ready — guest notified');
+                                                                            fetchData();
+                                                                        } else showToast.error(res.message || 'Failed');
+                                                                    } catch (err) {
+                                                                        showToast.error(handleApiError(err, 'Failed'));
+                                                                    }
+                                                                    setProcessingId(null);
+                                                                }}
+                                                            >
+                                                                Mark ready
+                                                            </button>
+                                                        )}
+                                                        {[1, 2, 3].includes(booking.valetStatus) && (
+                                                            <button
+                                                                className="btn btn-outline"
+                                                                type="button"
+                                                                style={{ fontSize: '0.8rem' }}
+                                                                disabled={processingId === booking.id}
+                                                                onClick={async () => {
+                                                                    setProcessingId(booking.id);
+                                                                    try {
+                                                                        const res = await api.completeValet(booking.id);
+                                                                        if (res.success) {
+                                                                            showToast.success('Valet completed');
+                                                                            fetchData();
+                                                                        } else showToast.error(res.message || 'Failed');
+                                                                    } catch (err) {
+                                                                        showToast.error(handleApiError(err, 'Failed'));
+                                                                    }
+                                                                    setProcessingId(null);
+                                                                }}
+                                                            >
+                                                                Complete
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
 
                                         {booking.status === 0 && (
                                             <div className="flex gap-1 mt-2">

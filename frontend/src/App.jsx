@@ -34,6 +34,12 @@ const CompanyInvoices = React.lazy(() => import('./pages/Corporate/CompanyInvoic
 const CompanySettings = React.lazy(() => import('./pages/Corporate/CompanySettings'));
 const AcceptInvitation = React.lazy(() => import('./pages/Corporate/AcceptInvitation'));
 const OutboxAdmin = React.lazy(() => import('./pages/Admin/OutboxAdmin'));
+const LprSimulator = React.lazy(() => import('./pages/Admin/LprSimulator'));
+const EvChargeSimulator = React.lazy(() => import('./pages/Admin/EvChargeSimulator'));
+const LprRegistry = React.lazy(() => import('./pages/Vendor/LprRegistry'));
+const AccessPassScanner = React.lazy(() => import('./pages/Vendor/AccessPassScanner'));
+const EventPackagesVendor = React.lazy(() => import('./pages/Vendor/EventPackages'));
+const EventPackagesBrowse = React.lazy(() => import('./pages/EventPackagesBrowse'));
 
 function Loading() {
   return (
@@ -159,6 +165,7 @@ function Header() {
         <Link to="/" className="logo">ParkEase</Link>
         <nav className="nav">
           <Link to="/search" className="nav-link">Find Parking</Link>
+          <Link to="/events" className="nav-link">Events</Link>
 
           {isAuthenticated ? (
             <>
@@ -277,6 +284,8 @@ function Header() {
                       { to: '/corporate/invoices', icon: '🧾', label: 'Invoices' },
                       { to: '/corporate/settings', icon: '⚙️', label: 'Company Settings' },
                       { to: '/profile', icon: '👤', label: 'My Profile' },
+                      { to: '/admin/lpr-simulator', icon: '📷', label: 'LPR Simulator' },
+                      { to: '/admin/ev-charge-simulator', icon: '⚡', label: 'EV Charge Simulator' },
                       ...(isAdmin ? [{ to: '/admin/outbox', icon: '📬', label: 'Outbox Admin' }] : []),
                     ] : [
                       { to: '/dashboard', icon: '🏠', label: 'Dashboard' },
@@ -285,7 +294,11 @@ function Header() {
                       { to: '/favorites', icon: '❤️', label: 'Favorites' },
                       { to: '/profile', icon: '👤', label: 'My Profile' },
                       { to: '/my/listings', icon: '💰', label: 'My Listings' },
+                      { to: '/my/event-packages', icon: '🎟️', label: 'Event packages' },
                       { to: '/my/requests', icon: '📋', label: 'Vendor Inbox', badge: pendingRequests > 0 ? pendingRequests : null },
+                      { to: '/my/access-scan', icon: '📱', label: 'Scan access pass' },
+                      { to: '/admin/lpr-simulator', icon: '📷', label: 'LPR Simulator' },
+                      { to: '/admin/ev-charge-simulator', icon: '⚡', label: 'EV Charge Simulator' },
                       ...(isAdmin ? [{ to: '/admin/outbox', icon: '📬', label: 'Outbox Admin' }] : []),
                     ]).map(item => (
                       <Link
@@ -405,6 +418,7 @@ function AppRoutes() {
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/search" element={<Search />} />
+        <Route path="/events" element={<EventPackagesBrowse />} />
         <Route path="/parking/:id" element={<ParkingDetails />} />
         <Route
           path="/login"
@@ -459,6 +473,22 @@ function AppRoutes() {
           element={
             <ProtectedRoute>
               <VendorBookings />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/my/access-scan"
+          element={
+            <ProtectedRoute>
+              <AccessPassScanner />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/my/event-packages"
+          element={
+            <ProtectedRoute>
+              <EventPackagesVendor />
             </ProtectedRoute>
           }
         />
@@ -547,6 +577,30 @@ function AppRoutes() {
           element={
             <ProtectedRoute>
               <OutboxAdmin />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/lpr-simulator"
+          element={
+            <ProtectedRoute>
+              <LprSimulator />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/ev-charge-simulator"
+          element={
+            <ProtectedRoute>
+              <EvChargeSimulator />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/my/listings/:parkingSpaceId/lpr"
+          element={
+            <ProtectedRoute>
+              <LprRegistry />
             </ProtectedRoute>
           }
         />

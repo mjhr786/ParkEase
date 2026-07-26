@@ -1,3 +1,5 @@
+using System.Diagnostics.CodeAnalysis;
+
 namespace ParkingApp.Domain.ValueObjects;
 
 /// <summary>
@@ -13,6 +15,8 @@ public sealed record BookingPolicy
     public TimeSpan AllowedEndTime { get; private init; } = new(22, 0, 0);
     public bool AllowWeekends { get; private init; }
 
+    // Required for EF Core materialization — no business logic.
+    [ExcludeFromCodeCoverage]
     private BookingPolicy()
     {
     }

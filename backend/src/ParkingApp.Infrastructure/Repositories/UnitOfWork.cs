@@ -36,6 +36,12 @@ public class UnitOfWork : IUnitOfWork, ICorporateUnitOfWork
     private IConversationRepository? _conversations;
     private IChatMessageRepository? _chatMessages;
     private IFavoriteRepository? _favorites;
+    private ILprAccessAttemptRepository? _lprAccessAttempts;
+    private ILprCameraKeyRepository? _lprCameraKeys;
+    private ILprPlateRuleRepository? _lprPlateRules;
+    private IEventParkingPackageRepository? _eventParkingPackages;
+    private IEvChargingSessionRepository? _evChargingSessions;
+    private IParkingAncillaryServiceRepository? _parkingAncillaryServices;
     private INotificationRepository? _notifications;
     private IVehicleRepository? _vehicles;
     private IDeviceTokenRepository? _deviceTokens;
@@ -67,6 +73,15 @@ public class UnitOfWork : IUnitOfWork, ICorporateUnitOfWork
     public IConversationRepository Conversations => _conversations ??= new ConversationRepository(_context);
     public IChatMessageRepository ChatMessages => _chatMessages ??= new ChatMessageRepository(_context);
     public IFavoriteRepository Favorites => _favorites ??= new FavoriteRepository(_context);
+    public ILprAccessAttemptRepository LprAccessAttempts => _lprAccessAttempts ??= new LprAccessAttemptRepository(_context);
+    public ILprCameraKeyRepository LprCameraKeys => _lprCameraKeys ??= new LprCameraKeyRepository(_context);
+    public ILprPlateRuleRepository LprPlateRules => _lprPlateRules ??= new LprPlateRuleRepository(_context);
+    public IEventParkingPackageRepository EventParkingPackages =>
+        _eventParkingPackages ??= new EventParkingPackageRepository(_context);
+    public IEvChargingSessionRepository EvChargingSessions =>
+        _evChargingSessions ??= new EvChargingSessionRepository(_context);
+    public IParkingAncillaryServiceRepository ParkingAncillaryServices =>
+        _parkingAncillaryServices ??= new ParkingAncillaryServiceRepository(_context);
     public INotificationRepository Notifications => _notifications ??= new NotificationRepository(_context);
     public IVehicleRepository Vehicles => _vehicles ??= new VehicleRepository(_context);
     public IDeviceTokenRepository DeviceTokens => _deviceTokens ??= new DeviceTokenRepository(_context);

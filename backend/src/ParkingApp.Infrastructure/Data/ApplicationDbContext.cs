@@ -42,6 +42,13 @@ public class ApplicationDbContext : DbContext, ParkingApp.Identity.Infrastructur
     public DbSet<Conversation> Conversations => Set<Conversation>();
     public DbSet<ChatMessage> ChatMessages => Set<ChatMessage>();
     public DbSet<Favorite> Favorites => Set<Favorite>();
+    public DbSet<LprAccessAttempt> LprAccessAttempts => Set<LprAccessAttempt>();
+    public DbSet<LprCameraKey> LprCameraKeys => Set<LprCameraKey>();
+    public DbSet<LprPlateRule> LprPlateRules => Set<LprPlateRule>();
+    public DbSet<EventParkingPackage> EventParkingPackages => Set<EventParkingPackage>();
+    public DbSet<EvChargingSession> EvChargingSessions => Set<EvChargingSession>();
+    public DbSet<ParkingAncillaryService> ParkingAncillaryServices => Set<ParkingAncillaryService>();
+    public DbSet<BookingAncillaryLine> BookingAncillaryLines => Set<BookingAncillaryLine>();
     public DbSet<Notification> Notifications => Set<Notification>();
     public DbSet<Vehicle> Vehicles => Set<Vehicle>();
     public DbSet<DeviceToken> DeviceTokens => Set<DeviceToken>();

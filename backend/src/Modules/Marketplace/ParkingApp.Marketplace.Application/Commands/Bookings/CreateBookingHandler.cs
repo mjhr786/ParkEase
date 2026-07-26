@@ -19,7 +19,11 @@ using ParkingApp.Marketplace.Domain.Entities;
 using ParkingApp.Marketplace.Contracts.Enums;
 using ParkingApp.BuildingBlocks.Enums;
 using ParkingApp.Marketplace.Domain.Interfaces;
+using ParkingApp.Marketplace.Domain.ValueObjects;
+using ParkingApp.Marketplace.Domain.Services;
 using ParkingApp.Identity.Contracts;
+using Microsoft.Extensions.Options;
+using ParkingApp.Marketplace.Application.Options;
 
 namespace ParkingApp.Marketplace.Application.Commands.Bookings;
 
@@ -64,6 +68,14 @@ internal sealed class CreateBookingHandler : ICommandHandler<CreateBookingComman
             return new ApiResponse<BookingDto>(false, "Parking space is not available", null);
         }
 
+        if (parking.IsLprEnabled && string.IsNullOrWhiteSpace(LicensePlate.Normalize(command.VehicleNumber)))
+        {
+            return new ApiResponse<BookingDto>(
+                false,
+                "A license plate is required for LPR-enabled parking facilities.",
+                null);
+        }
+
         var availability = await _availability.CanCreateAsync(
             command.UserId,
             parking,
@@ -78,6 +90,25 @@ internal sealed class CreateBookingHandler : ICommandHandler<CreateBookingComman
             return new ApiResponse<BookingDto>(false, availability.ErrorMessage ?? "Booking not available", null);
         }
 
+        if (command.IncludeEvCharging && !parking.HasEvCharging)
+        {
+            return new ApiResponse<BookingDto>(
+                false,
+                "This parking facility does not offer EV charging.",
+                null);
+        }
+
+        var ancillary = await AncillaryServiceResolver.ResolveForBookingAsync(
+            _unitOfWork,
+            parking.Id,
+            command.AncillaryServiceIds,
+            requireAllActive: true,
+            cancellationToken);
+        if (!ancillary.Success)
+        {
+            return new ApiResponse<BookingDto>(false, ancillary.ErrorMessage ?? "Invalid add-on services", null);
+        }
+
         var pricing = await _pricingService.CalculateAsync(
             command.UserId,
             parking,
@@ -86,6 +117,9 @@ internal sealed class CreateBookingHandler : ICommandHandler<CreateBookingComman
             command.PricingType,
             command.DiscountCode,
             null,
+            command.IncludeEvCharging,
+            ancillary.Subtotal,
+            ancillary.QuoteLines,
             cancellationToken);
 
         var booking = Booking.CreateMarketplace(
@@ -105,10 +139,34 @@ internal sealed class CreateBookingHandler : ICommandHandler<CreateBookingComman
             command.SlotNumber,
             command.VehicleNumber,
             command.VehicleModel,
-            command.VehicleColor);
+            command.VehicleColor,
+            includeEvCharging: pricing.IncludeEvCharging,
+            evChargingFeeAmount: pricing.EvChargingFeeAmount);
+
+        foreach (var service in ancillary.Services)
+        {
+            booking.AddAncillaryLine(service.Name, service.Price, quantity: 1, serviceId: service.Id);
+        }
+
+        // Instant book (typical residential driveway): skip host approval queue.
+        if (parking.InstantBook)
+        {
+            var isPassCovered = booking.ParkingPassId.HasValue && booking.TotalAmount <= 0;
+            if (isPassCovered || booking.TotalAmount <= 0)
+            {
+                booking.Confirm();
+                if (parking.IsBayGuidanceEnabled)
+                {
+                    var peers = await _unitOfWork.Bookings.GetByParkingSpaceIdAsync(parking.Id, cancellationToken);
+                    BayAssignmentHelper.TryApplyOnConfirm(booking, parking, peers);
+                }
+            }
+            else
+                booking.AwaitPayment();
+        }
 
         await _unitOfWork.Bookings.AddAsync(booking, cancellationToken);
-        // BookingRequestedEvent ΓåÆ outbox ΓåÆ email + in-app notification handlers
+        // BookingRequestedEvent (+ optional approved/confirmed) → outbox handlers
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         await CacheInvalidation.ForBookingChangeAsync(
@@ -118,8 +176,13 @@ internal sealed class CreateBookingHandler : ICommandHandler<CreateBookingComman
             vendorId: parking.OwnerId,
             cancellationToken);
 
-        // DTO without reload: navigations may be null ΓÇö ToDto tolerates Unknown for names/address.
-        return new ApiResponse<BookingDto>(true, "Booking created successfully", booking.ToDto());
+        var message = parking.InstantBook
+            ? (booking.Status == BookingStatus.Confirmed
+                ? "Booking confirmed (instant book)"
+                : "Booking ready for payment (instant book)")
+            : "Booking created successfully";
+
+        return new ApiResponse<BookingDto>(true, message, booking.ToDto());
     }
 }
 
@@ -156,6 +219,18 @@ internal sealed class CancelBookingHandler : ICommandHandler<CancelBookingComman
         {
             // Raises BookingCancelledEvent ΓåÆ cache + owner push via domain event handlers after SaveChanges
             booking.Cancel(command.Reason);
+
+            // Free event package inventory when a package booking is cancelled
+            if (booking.EventParkingPackageId is Guid packageId)
+            {
+                var package = await _unitOfWork.EventParkingPackages.GetByIdAsync(packageId, cancellationToken);
+                if (package is not null)
+                {
+                    package.ReleaseSale();
+                    _unitOfWork.EventParkingPackages.Update(package);
+                }
+            }
+
             _unitOfWork.Bookings.Update(booking);
             await _unitOfWork.SaveChangesAsync(cancellationToken);
 
@@ -222,6 +297,11 @@ internal sealed class ApproveBookingHandler : ICommandHandler<ApproveBookingComm
             {
                 // BookingConfirmedEvent ΓåÆ outbox notification/email handlers
                 booking.Confirm();
+                if (booking.ParkingSpace is { IsBayGuidanceEnabled: true } space)
+                {
+                    var peers = await _unitOfWork.Bookings.GetByParkingSpaceIdAsync(space.Id, cancellationToken);
+                    BayAssignmentHelper.TryApplyOnConfirm(booking, space, peers);
+                }
             }
             else
             {
@@ -325,6 +405,11 @@ internal sealed class CheckInHandler : ICommandHandler<CheckInCommand, ApiRespon
         {
             // Raises BookingCheckedInEvent ΓåÆ outbox ΓåÆ BookingCheckedInNotificationHandler
             booking.CheckIn();
+            if (booking.ParkingSpace is { IsBayGuidanceEnabled: true } space)
+            {
+                var peers = await _unitOfWork.Bookings.GetByParkingSpaceIdAsync(space.Id, cancellationToken);
+                BayAssignmentHelper.TryApplyOnConfirm(booking, space, peers);
+            }
             _unitOfWork.Bookings.Update(booking);
             await _unitOfWork.SaveChangesAsync(cancellationToken);
 
@@ -340,10 +425,14 @@ internal sealed class CheckInHandler : ICommandHandler<CheckInCommand, ApiRespon
 internal sealed class CheckOutHandler : ICommandHandler<CheckOutCommand, ApiResponse<BookingDto>>
 {
     private readonly IMarketplaceUnitOfWork _unitOfWork;
+    private readonly IOptionsMonitor<LprAccessOptions> _lprOptions;
 
-    public CheckOutHandler(IMarketplaceUnitOfWork unitOfWork)
+    public CheckOutHandler(
+        IMarketplaceUnitOfWork unitOfWork,
+        IOptionsMonitor<LprAccessOptions> lprOptions)
     {
         _unitOfWork = unitOfWork;
+        _lprOptions = lprOptions;
     }
 
     public async Task<ApiResponse<BookingDto>> HandleAsync(CheckOutCommand command, CancellationToken cancellationToken = default)
@@ -361,7 +450,23 @@ internal sealed class CheckOutHandler : ICommandHandler<CheckOutCommand, ApiResp
 
         try
         {
-            booking.CheckOut();
+            var now = DateTime.UtcNow;
+            // Finalize overstay fee against actual check-out time before completing.
+            OverstayFeeAssessor.TryAssess(booking, _lprOptions.CurrentValue.Overstay, now, out _);
+
+            // EV idle fee for charger-hogging after end + facility grace.
+            if (booking.IncludeEvCharging && booking.ParkingSpace is { HasEvCharging: true } space)
+            {
+                var idle = EvChargingFeeCalculator.CalculateIdleFee(
+                    booking.EndDateTime,
+                    now,
+                    space.EvIdleGraceMinutes,
+                    space.EvIdleRatePerHour);
+                if (idle.HasFee)
+                    booking.ApplyEvIdleFee(idle.Fee, now);
+            }
+
+            booking.CheckOut(now);
             _unitOfWork.Bookings.Update(booking);
             await _unitOfWork.SaveChangesAsync(cancellationToken);
 
@@ -422,15 +527,18 @@ internal sealed class RequestExtensionHandler : ICommandHandler<RequestExtension
         // Price only the extended window (current end → new end), matching the member UI quote.
         // Full-booking reprice often yields 0 extra (daily/weekly unit ceilings or pass covering
         // the original period), which skipped AwaitingExtensionPayment and hid the pay button.
+        // Member may choose a different unit for the extension (e.g. hourly booking + daily extension).
+        var extensionPricingType = command.PricingType ?? booking.PricingType;
         var extensionPricing = await _pricingService.CalculateAsync(
             command.UserId,
             parking,
             booking.EndDateTime,
             newEndDateTime,
-            booking.PricingType,
+            extensionPricingType,
             booking.DiscountCode,
             booking.Id,
-            cancellationToken);
+            includeEvCharging: booking.IncludeEvCharging,
+            cancellationToken: cancellationToken);
 
         var totalExtra = Math.Max(0, extensionPricing.TotalAmount);
 

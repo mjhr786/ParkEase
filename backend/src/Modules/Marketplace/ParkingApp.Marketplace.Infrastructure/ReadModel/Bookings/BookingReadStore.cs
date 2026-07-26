@@ -179,7 +179,24 @@ internal sealed class BookingReadStore : IBookingReadStore
                     WHEN 2 THEN 'Corporate'
                     ELSE NULL
                 END AS ParkingPassType,
-                (b."ParkingPassId" IS NOT NULL) AS IsPassApplied
+                (b."ParkingPassId" IS NOT NULL) AS IsPassApplied,
+                b."QRCode" AS QrCode,
+                b."FacilityLevel" AS FacilityLevel,
+                b."FacilityZone" AS FacilityZone,
+                b."BayLabel" AS BayLabel,
+                b."ValetStatus" AS ValetStatus,
+                b."ValetRequestedAt" AS ValetRequestedAt,
+                b."ValetTargetReadyAt" AS ValetTargetReadyAt,
+                b."ValetReadyAt" AS ValetReadyAt,
+                b."ValetNotes" AS ValetNotes,
+                COALESCE(ps."IsValetEnabled", FALSE) AS IsValetEnabled,
+                COALESCE(ps."IsBayGuidanceEnabled", FALSE) AS IsBayGuidanceEnabled,
+                ps."IndoorGuidanceNotes" AS IndoorGuidanceNotes,
+                COALESCE((
+                    SELECT SUM(l."UnitPrice" * l."Quantity")
+                    FROM "BookingAncillaryLines" l
+                    WHERE l."BookingId" = b."Id" AND l."IsDeleted" = FALSE
+                ), 0) AS AncillarySubtotal
             FROM "Bookings" b
             {joins}
             WHERE {baseWhere}{filterSql}
@@ -200,7 +217,58 @@ internal sealed class BookingReadStore : IBookingReadStore
         var totalCount = await multi.ReadSingleAsync<int>();
         var totalPages = pageSize > 0 ? (int)Math.Ceiling(totalCount / (double)pageSize) : 0;
 
+        if (items.Count > 0)
+        {
+            var bookingIds = items.Select(i => i.Id).ToArray();
+            const string linesSql = """
+                SELECT
+                    l."Id" AS Id,
+                    l."BookingId" AS BookingId,
+                    l."ServiceId" AS ServiceId,
+                    l."SnapshotName" AS SnapshotName,
+                    l."UnitPrice" AS UnitPrice,
+                    l."Quantity" AS Quantity,
+                    (l."UnitPrice" * l."Quantity") AS LineTotal
+                FROM "BookingAncillaryLines" l
+                WHERE l."IsDeleted" = FALSE
+                  AND l."BookingId" = ANY(@BookingIds)
+                ORDER BY l."CreatedAt"
+                """;
+
+            var lineRows = (await connection.QueryAsync<AncillaryLineRow>(
+                new CommandDefinition(linesSql, new { BookingIds = bookingIds }, cancellationToken: ct))).ToList();
+
+            if (lineRows.Count > 0)
+            {
+                var byBooking = lineRows
+                    .GroupBy(r => r.BookingId)
+                    .ToDictionary(
+                        g => g.Key,
+                        g => (IReadOnlyList<BookingAncillaryLineDto>)g
+                            .Select(r => new BookingAncillaryLineDto(
+                                r.Id, r.ServiceId, r.SnapshotName, r.UnitPrice, r.Quantity, r.LineTotal))
+                            .ToList());
+
+                items = items
+                    .Select(b => byBooking.TryGetValue(b.Id, out var lines)
+                        ? b with { AncillaryLines = lines }
+                        : b)
+                    .ToList();
+            }
+        }
+
         return new BookingListResultDto(items, totalCount, page, pageSize, totalPages);
+    }
+
+    private sealed class AncillaryLineRow
+    {
+        public Guid Id { get; init; }
+        public Guid BookingId { get; init; }
+        public Guid? ServiceId { get; init; }
+        public string SnapshotName { get; init; } = string.Empty;
+        public decimal UnitPrice { get; init; }
+        public int Quantity { get; init; }
+        public decimal LineTotal { get; init; }
     }
 
     private static (int Page, int PageSize, int Offset) NormalizePaging(BookingFilterDto? filter, int defaultPageSize)

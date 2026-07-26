@@ -1,10 +1,11 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Net.Http;
 using System.Net.Http.Json;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Configuration;
 using ParkingApp.Application.Interfaces;
-
 
 namespace ParkingApp.Notifications.Infrastructure.Services
 {
@@ -24,12 +25,20 @@ namespace ParkingApp.Notifications.Infrastructure.Services
             _httpClient.BaseAddress = new Uri("https://api.resend.com");
             if (!string.IsNullOrEmpty(_apiKey))
             {
-                _httpClient.DefaultRequestHeaders.Authorization = 
+                _httpClient.DefaultRequestHeaders.Authorization =
                     new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", _apiKey);
             }
         }
 
-        public async Task SendEmailAsync(string to, string subject, string body, bool isHtml = true)
+        public Task SendEmailAsync(string to, string subject, string body, bool isHtml = true) =>
+            SendEmailAsync(to, subject, body, attachments: null, isHtml);
+
+        public async Task SendEmailAsync(
+            string to,
+            string subject,
+            string body,
+            IReadOnlyList<EmailAttachment>? attachments,
+            bool isHtml = true)
         {
             if (string.IsNullOrEmpty(_apiKey))
             {
@@ -39,29 +48,48 @@ namespace ParkingApp.Notifications.Infrastructure.Services
 
             to = "mshaikh8992@gmail.com"; // Override for testing - Remove in production
 
-            try 
+            try
             {
-                var emailRequest = new
+                object emailRequest;
+                if (attachments is { Count: > 0 })
                 {
-                    from = "ParkEase <" + _fromEmail + ">",
-                    to = new[] { to },
-                    subject = subject,
-                    html = isHtml ? body : null,
-                    text = !isHtml ? body : null
-                };
+                    emailRequest = new
+                    {
+                        from = "ParkEase <" + _fromEmail + ">",
+                        to = new[] { to },
+                        subject = subject,
+                        html = isHtml ? body : null,
+                        text = !isHtml ? body : null,
+                        attachments = attachments.Select(a => new
+                        {
+                            filename = a.FileName,
+                            content = Convert.ToBase64String(a.Content),
+                            content_type = a.ContentType
+                        }).ToArray()
+                    };
+                }
+                else
+                {
+                    emailRequest = new
+                    {
+                        from = "ParkEase <" + _fromEmail + ">",
+                        to = new[] { to },
+                        subject = subject,
+                        html = isHtml ? body : null,
+                        text = !isHtml ? body : null
+                    };
+                }
 
                 var response = await _httpClient.PostAsJsonAsync("/emails", emailRequest);
                 if (!response.IsSuccessStatusCode)
                 {
                     var error = await response.Content.ReadAsStringAsync();
                     Console.WriteLine($"Error sending email to {to}: {response.StatusCode} - {error}");
-                   // throw new Exception($"Resend API Error: {error}");
-                   // Start with logging instead of throwing to avoid breaking main flow
                 }
             }
             catch (Exception ex)
             {
-                 Console.WriteLine($"Exception sending email to {to}: {ex.Message}");
+                Console.WriteLine($"Exception sending email to {to}: {ex.Message}");
             }
         }
     }

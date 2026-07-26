@@ -49,7 +49,32 @@ public record ParkingSpaceDto(
     string? ZoneCode = null,
     Guid? CompanyOwnerId = null,
     ParkingSpaceOwnershipType OwnershipType = ParkingSpaceOwnershipType.IndividualVendor,
-    bool IsCorporateOnly = false
+    bool IsCorporateOnly = false,
+    bool IsLprEnabled = false,
+    bool IsDynamicPricingEnabled = false,
+    decimal DynamicMinMultiplier = 0.80m,
+    decimal DynamicMaxMultiplier = 1.75m,
+    decimal PeakHourMultiplier = 1.25m,
+    decimal WeekendMultiplier = 1.15m,
+    bool HasEvCharging = false,
+    int EvChargerCount = 0,
+    decimal EvChargingRatePerHour = 0m,
+    decimal EvIdleRatePerHour = 0m,
+    int EvIdleGraceMinutes = 15,
+    EvPricingMode EvPricingMode = EvPricingMode.Hourly,
+    decimal EvRatePerKwh = 0m,
+    ListingCategory ListingCategory = ListingCategory.Commercial,
+    bool InstantBook = false,
+    string TimeZoneId = "UTC",
+    /// <summary>Effective hourly rate after dynamic pricing (search “from ₹…”).</summary>
+    decimal EffectiveHourlyRate = 0m,
+    bool DynamicPricingApplied = false,
+    decimal? DynamicMultiplier = null,
+    bool IsBayGuidanceEnabled = false,
+    bool IsValetEnabled = false,
+    string? DefaultFacilityLevel = null,
+    string? DefaultFacilityZone = null,
+    string? IndoorGuidanceNotes = null
 );
 
 public record CreateParkingSpaceDto(
@@ -75,7 +100,28 @@ public record CreateParkingSpaceDto(
     List<VehicleType>? AllowedVehicleTypes = null,
     List<string>? ImageUrls = null,
     string? SpecialInstructions = null,
-    string? ZoneCode = null
+    string? ZoneCode = null,
+    bool IsLprEnabled = false,
+    bool IsDynamicPricingEnabled = false,
+    decimal? DynamicMinMultiplier = null,
+    decimal? DynamicMaxMultiplier = null,
+    decimal? PeakHourMultiplier = null,
+    decimal? WeekendMultiplier = null,
+    bool HasEvCharging = false,
+    int? EvChargerCount = null,
+    decimal? EvChargingRatePerHour = null,
+    decimal? EvIdleRatePerHour = null,
+    int? EvIdleGraceMinutes = null,
+    EvPricingMode EvPricingMode = EvPricingMode.Hourly,
+    decimal? EvRatePerKwh = null,
+    ListingCategory ListingCategory = ListingCategory.Commercial,
+    bool? InstantBook = null,
+    string? TimeZoneId = null,
+    bool IsBayGuidanceEnabled = false,
+    bool IsValetEnabled = false,
+    string? DefaultFacilityLevel = null,
+    string? DefaultFacilityZone = null,
+    string? IndoorGuidanceNotes = null
 );
 
 public record UpdateParkingSpaceDto(
@@ -102,7 +148,28 @@ public record UpdateParkingSpaceDto(
     List<string>? ImageUrls,
     string? SpecialInstructions,
     bool? IsActive,
-    string? ZoneCode = null
+    string? ZoneCode = null,
+    bool? IsLprEnabled = null,
+    bool? IsDynamicPricingEnabled = null,
+    decimal? DynamicMinMultiplier = null,
+    decimal? DynamicMaxMultiplier = null,
+    decimal? PeakHourMultiplier = null,
+    decimal? WeekendMultiplier = null,
+    bool? HasEvCharging = null,
+    int? EvChargerCount = null,
+    decimal? EvChargingRatePerHour = null,
+    decimal? EvIdleRatePerHour = null,
+    int? EvIdleGraceMinutes = null,
+    EvPricingMode? EvPricingMode = null,
+    decimal? EvRatePerKwh = null,
+    ListingCategory? ListingCategory = null,
+    bool? InstantBook = null,
+    string? TimeZoneId = null,
+    bool? IsBayGuidanceEnabled = null,
+    bool? IsValetEnabled = null,
+    string? DefaultFacilityLevel = null,
+    string? DefaultFacilityZone = null,
+    string? IndoorGuidanceNotes = null
 );
 
 public record ParkingSearchDto(
@@ -124,7 +191,11 @@ public record ParkingSearchDto(
     string? SortBy = null, // price, rating, distance
     bool SortDescending = false,
     int Page = 1,
-    int PageSize = 20
+    int PageSize = 20,
+    bool? HasEvCharging = null,
+    /// <summary>When true, only residential driveway listings; when false, only commercial.</summary>
+    bool? IsResidential = null,
+    ListingCategory? ListingCategory = null
 );
 
 public record ParkingSearchResultDto(
@@ -145,7 +216,11 @@ public record ParkingMapDto(
     decimal HourlyRate,
     string? ThumbnailUrl,
     double AverageRating,
-    ParkingType ParkingType
+    ParkingType ParkingType,
+    ListingCategory ListingCategory = ListingCategory.Commercial,
+    bool InstantBook = false,
+    decimal EffectiveHourlyRate = 0m,
+    bool DynamicPricingApplied = false
 );
 
 

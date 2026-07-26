@@ -2,13 +2,7 @@ import { useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import showToast from '../utils/toast.jsx';
-
-function safeReturnUrl(raw) {
-    if (!raw || typeof raw !== 'string') return null;
-    // Only allow same-app relative paths (block open redirects).
-    if (!raw.startsWith('/') || raw.startsWith('//')) return null;
-    return raw;
-}
+import { safeReturnUrl } from '../utils/safeReturnUrl';
 
 export default function Login() {
     const [email, setEmail] = useState('');

@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using ParkingApp.BuildingBlocks.Enums;
 using ParkingApp.BuildingBlocks.Domain;
 using ParkingApp.Domain.Enums;
@@ -31,7 +32,8 @@ public class Company : BaseEntity
     public virtual ICollection<CompanyUsage> Usages { get; private set; } = new List<CompanyUsage>();
     public virtual ICollection<CorporateWaitlistEntry> WaitlistEntries { get; private set; } = new List<CorporateWaitlistEntry>();
 
-    // Required for EF Core
+    // Required for EF Core materialization — no business logic.
+    [ExcludeFromCodeCoverage]
     private Company()
     {
     }

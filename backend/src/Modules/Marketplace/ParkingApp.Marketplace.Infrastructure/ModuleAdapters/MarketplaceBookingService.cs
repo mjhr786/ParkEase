@@ -4,6 +4,7 @@ using ParkingApp.Marketplace.Contracts.Enums;
 using ParkingApp.BuildingBlocks.Enums;
 using ParkingApp.Marketplace.Domain.Interfaces;
 using ParkingApp.Marketplace.Domain.Entities;
+using ParkingApp.Marketplace.Domain.ValueObjects;
 using ParkingApp.Marketplace.Application.Interfaces;
 
 namespace ParkingApp.Marketplace.Infrastructure.ModuleAdapters;
@@ -61,6 +62,15 @@ internal sealed class MarketplaceBookingService : IMarketplaceBookingService, IM
         StageCorporateBookingRequest request,
         CancellationToken cancellationToken = default)
     {
+        var parking = await _marketplace.ParkingSpaces.GetByIdAsync(request.ParkingSpaceId, cancellationToken);
+        if (parking is null)
+            throw new ValidationException("parkingSpaceId", "Parking space not found");
+
+        if (parking.IsLprEnabled && string.IsNullOrWhiteSpace(LicensePlate.Normalize(request.VehicleNumber)))
+            throw new ValidationException(
+                "vehicleNumber",
+                "A license plate is required for LPR-enabled parking facilities.");
+
         Booking booking;
 
         if (request.IsVisitor)

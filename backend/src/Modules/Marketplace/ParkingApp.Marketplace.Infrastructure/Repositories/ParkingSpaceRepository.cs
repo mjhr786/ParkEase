@@ -3,6 +3,7 @@ using NetTopologySuite.Geometries;
 using ParkingApp.Marketplace.Domain.Entities;
 using ParkingApp.Marketplace.Contracts.Enums;
 using ParkingApp.Marketplace.Domain.Interfaces;
+using ParkingApp.Marketplace.Domain.ValueObjects;
 using ParkingApp.Marketplace.Infrastructure.Persistence;
 
 namespace ParkingApp.Marketplace.Infrastructure.Repositories;
@@ -196,21 +197,20 @@ internal sealed class BookingRepository : MarketplaceRepository<Booking>, IBooki
     public override async Task<Booking?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
     {
         return await _dbSet
-            
             .Include(b => b.ParkingSpace)
             .Include(b => b.ParkingPass)
             .Include(b => b.Payment)
+            .Include(b => b.AncillaryLines)
             .FirstOrDefaultAsync(b => b.Id == id, cancellationToken);
     }
 
     public async Task<Booking?> GetByIdWithDetailsAsync(Guid id, CancellationToken cancellationToken = default)
     {
         return await _dbSet
-            
             .Include(b => b.ParkingSpace)
-                
             .Include(b => b.ParkingPass)
             .Include(b => b.Payment)
+            .Include(b => b.AncillaryLines)
             .FirstOrDefaultAsync(b => b.Id == id, cancellationToken);
     }
 
@@ -221,6 +221,7 @@ internal sealed class BookingRepository : MarketplaceRepository<Booking>, IBooki
             .Include(b => b.ParkingSpace)
             .Include(b => b.ParkingPass)
             .Include(b => b.Payment)
+            .Include(b => b.AncillaryLines)
             .Where(b => b.UserId == userId)
             .OrderByDescending(b => b.CreatedAt)
             .ToListAsync(cancellationToken);
@@ -230,9 +231,9 @@ internal sealed class BookingRepository : MarketplaceRepository<Booking>, IBooki
     {
         return await _dbSet
             .AsNoTracking()
-            
             .Include(b => b.ParkingPass)
             .Include(b => b.Payment)
+            .Include(b => b.AncillaryLines)
             .Where(b => b.ParkingSpaceId == parkingSpaceId)
             .OrderByDescending(b => b.CreatedAt)
             .ToListAsync(cancellationToken);
@@ -242,13 +243,24 @@ internal sealed class BookingRepository : MarketplaceRepository<Booking>, IBooki
     {
         return await _dbSet
             .AsNoTracking()
-            
             .Include(b => b.ParkingSpace)
             .Include(b => b.ParkingPass)
             .Include(b => b.Payment)
+            .Include(b => b.AncillaryLines)
             .Where(b => b.ParkingSpace.OwnerId == vendorId)
             .OrderByDescending(b => b.CreatedAt)
             .ToListAsync(cancellationToken);
+    }
+
+    public async Task<Booking?> GetByAccessPassTokenAsync(string accessPassToken, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(accessPassToken))
+            return null;
+
+        var token = accessPassToken.Trim().ToUpperInvariant();
+        return await _dbSet
+            .Include(b => b.ParkingSpace)
+            .FirstOrDefaultAsync(b => b.QRCode != null && b.QRCode == token, cancellationToken);
     }
 
     public async Task<Booking?> GetByReferenceAsync(string bookingReference, CancellationToken cancellationToken = default)
@@ -395,6 +407,319 @@ internal sealed class BookingRepository : MarketplaceRepository<Booking>, IBooki
                         b.Status != BookingStatus.Expired)
             .ToListAsync(cancellationToken);
     }
+
+    public async Task<IReadOnlyList<Booking>> FindLprCandidatesAsync(
+        Guid parkingSpaceId,
+        string normalizedLicensePlate,
+        LprDirection direction,
+        DateTime occurredAtUtc,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(normalizedLicensePlate))
+            return Array.Empty<Booking>();
+
+        // Load status/window candidates first; fuzzy plate match in memory (hyphen/space variants).
+        IQueryable<Booking> query = _dbSet.Where(b =>
+            b.ParkingSpaceId == parkingSpaceId &&
+            b.VehicleNumber != null &&
+            b.VehicleNumber != "");
+
+        if (direction == LprDirection.Entry)
+        {
+            var earliest = occurredAtUtc.AddHours(1);
+            query = query.Where(b =>
+                b.Status == BookingStatus.Confirmed &&
+                b.StartDateTime <= earliest &&
+                occurredAtUtc < b.EndDateTime);
+        }
+        else
+        {
+            query = query.Where(b => b.Status == BookingStatus.InProgress);
+        }
+
+        var list = await query
+            .Include(b => b.ParkingSpace)
+            .ToListAsync(cancellationToken);
+
+        list = list
+            .Where(b => LicensePlate.Matches(b.VehicleNumber, normalizedLicensePlate))
+            .ToList();
+
+        if (direction == LprDirection.Entry)
+        {
+            return list
+                .Where(b => occurredAtUtc >= b.StartDateTime.AddHours(-1) && occurredAtUtc < b.EndDateTime)
+                .OrderBy(b => b.StartDateTime)
+                .ToList();
+        }
+
+        return list
+            .OrderByDescending(b => b.CheckInTime ?? b.StartDateTime)
+            .ToList();
+    }
+
+    public async Task<IReadOnlyList<Booking>> GetOverdueInProgressAsync(
+        DateTime asOfUtc,
+        int take,
+        CancellationToken cancellationToken = default)
+    {
+        take = Math.Clamp(take, 1, 200);
+        // Includes already-notified stays so fees can increase as overstay continues.
+        return await _dbSet
+            .Include(b => b.ParkingSpace)
+            .Where(b =>
+                b.Status == BookingStatus.InProgress &&
+                b.EndDateTime < asOfUtc)
+            .OrderBy(b => b.EndDateTime)
+            .Take(take)
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<Booking>> GetEndingSoonForReminderAsync(
+        DateTime nowUtc,
+        DateTime windowEndUtc,
+        int take,
+        CancellationToken cancellationToken = default)
+    {
+        take = Math.Clamp(take, 1, 200);
+        if (windowEndUtc <= nowUtc)
+            return Array.Empty<Booking>();
+
+        return await _dbSet
+            .Include(b => b.ParkingSpace)
+            .Where(b =>
+                (b.Status == BookingStatus.Confirmed || b.Status == BookingStatus.InProgress) &&
+                b.SessionEndRemindedAt == null &&
+                b.EndDateTime > nowUtc &&
+                b.EndDateTime <= windowEndUtc)
+            .OrderBy(b => b.EndDateTime)
+            .Take(take)
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<Booking>> GetByEventPackageIdsAsync(
+        IEnumerable<Guid> eventPackageIds,
+        CancellationToken cancellationToken = default)
+    {
+        var ids = eventPackageIds.Distinct().ToList();
+        if (ids.Count == 0)
+            return Array.Empty<Booking>();
+
+        return await _dbSet
+            .AsNoTracking()
+            .Where(b => b.EventParkingPackageId != null && ids.Contains(b.EventParkingPackageId.Value))
+            .ToListAsync(cancellationToken);
+    }
+}
+
+internal sealed class LprAccessAttemptRepository : MarketplaceRepository<LprAccessAttempt>, ILprAccessAttemptRepository
+{
+    public LprAccessAttemptRepository(IMarketplaceDbContext context) : base((DbContext)context) { }
+}
+
+internal sealed class EvChargingSessionRepository : MarketplaceRepository<EvChargingSession>, IEvChargingSessionRepository
+{
+    public EvChargingSessionRepository(IMarketplaceDbContext context) : base((DbContext)context) { }
+
+    public async Task<EvChargingSession?> GetByOcppTransactionIdAsync(
+        string ocppTransactionId,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(ocppTransactionId))
+            return null;
+
+        var id = ocppTransactionId.Trim();
+        return await _dbSet.FirstOrDefaultAsync(s => s.OcppTransactionId == id, cancellationToken);
+    }
+
+    public async Task<EvChargingSession?> GetActiveByBookingIdAsync(
+        Guid bookingId,
+        CancellationToken cancellationToken = default)
+    {
+        return await _dbSet.FirstOrDefaultAsync(
+            s => s.BookingId == bookingId
+                 && (s.Status == EvChargingSessionStatus.Charging
+                     || s.Status == EvChargingSessionStatus.Pending),
+            cancellationToken);
+    }
+
+    public async Task<EvChargingSession?> GetLatestByBookingIdAsync(
+        Guid bookingId,
+        CancellationToken cancellationToken = default)
+    {
+        return await _dbSet
+            .Where(s => s.BookingId == bookingId)
+            .OrderByDescending(s => s.StartedAtUtc)
+            .FirstOrDefaultAsync(cancellationToken);
+    }
+}
+
+internal sealed class EventParkingPackageRepository : MarketplaceRepository<EventParkingPackage>, IEventParkingPackageRepository
+{
+    public EventParkingPackageRepository(IMarketplaceDbContext context) : base((DbContext)context) { }
+
+    public async Task<IReadOnlyList<EventParkingPackage>> GetByParkingSpaceIdAsync(
+        Guid parkingSpaceId,
+        bool activeOnly,
+        CancellationToken cancellationToken = default)
+    {
+        var query = _dbSet.AsNoTracking().Where(p => p.ParkingSpaceId == parkingSpaceId);
+        if (activeOnly)
+            query = query.Where(p => p.IsActive);
+
+        return await query
+            .OrderBy(p => p.EventStartUtc)
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<EventParkingPackage>> GetOnSaleAsync(
+        DateTime asOfUtc,
+        int take,
+        CancellationToken cancellationToken = default)
+    {
+        take = Math.Clamp(take, 1, 200);
+        // Coarse SQL filter; IsOnSale applies AccessEndUtc (late exit) after materialize.
+        // EventEndUtc + 1 day covers max LateExitMinutes (24h) without translating AddMinutes in SQL.
+        var accessHorizon = asOfUtc.AddDays(-1);
+        return await _dbSet
+            .AsNoTracking()
+            .Include(p => p.ParkingSpace)
+            .Where(p =>
+                p.IsActive &&
+                p.SoldCount < p.TotalSpots &&
+                p.SalesStartUtc <= asOfUtc &&
+                p.EventEndUtc > accessHorizon &&
+                (p.SalesEndUtc == null || p.SalesEndUtc >= asOfUtc))
+            .OrderBy(p => p.EventStartUtc)
+            .Take(take)
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task<EventParkingPackage?> GetByIdWithSpaceAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        return await _dbSet
+            .Include(p => p.ParkingSpace)
+            .FirstOrDefaultAsync(p => p.Id == id, cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<EventParkingPackage>> GetByVenueEventIdAsync(
+        Guid venueEventId,
+        bool activeOnly,
+        CancellationToken cancellationToken = default)
+    {
+        var query = _dbSet
+            .AsNoTracking()
+            .Include(p => p.ParkingSpace)
+            .Where(p => p.VenueEventId == venueEventId);
+
+        if (activeOnly)
+            query = query.Where(p => p.IsActive);
+
+        return await query
+            .OrderBy(p => p.PackagePrice)
+            .ThenBy(p => p.ZoneName)
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<EventParkingPackage>> GetByParkingSpaceIdsAsync(
+        IEnumerable<Guid> parkingSpaceIds,
+        bool activeOnly,
+        CancellationToken cancellationToken = default)
+    {
+        var ids = parkingSpaceIds.Distinct().ToList();
+        if (ids.Count == 0)
+            return Array.Empty<EventParkingPackage>();
+
+        var query = _dbSet
+            .AsNoTracking()
+            .Include(p => p.ParkingSpace)
+            .Where(p => ids.Contains(p.ParkingSpaceId));
+
+        if (activeOnly)
+            query = query.Where(p => p.IsActive);
+
+        return await query
+            .OrderBy(p => p.EventStartUtc)
+            .ToListAsync(cancellationToken);
+    }
+}
+
+internal sealed class LprCameraKeyRepository : MarketplaceRepository<LprCameraKey>, ILprCameraKeyRepository
+{
+    public LprCameraKeyRepository(IMarketplaceDbContext context) : base((DbContext)context) { }
+
+    public async Task<LprCameraKey?> FindEnabledBySecretHashAsync(string secretHash, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(secretHash))
+            return null;
+
+        var hash = secretHash.Trim().ToUpperInvariant();
+        return await _dbSet.FirstOrDefaultAsync(
+            k => k.IsEnabled && k.SecretHash == hash,
+            cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<LprCameraKey>> GetByParkingSpaceIdAsync(Guid parkingSpaceId, CancellationToken cancellationToken = default)
+    {
+        return await _dbSet
+            .AsNoTracking()
+            .Where(k => k.ParkingSpaceId == parkingSpaceId)
+            .OrderByDescending(k => k.CreatedAt)
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task<bool> KeyIdExistsAsync(string keyId, Guid? excludeId = null, CancellationToken cancellationToken = default)
+    {
+        var query = _dbSet.Where(k => k.KeyId == keyId);
+        if (excludeId.HasValue)
+            query = query.Where(k => k.Id != excludeId.Value);
+        return await query.AnyAsync(cancellationToken);
+    }
+}
+
+internal sealed class LprPlateRuleRepository : MarketplaceRepository<LprPlateRule>, ILprPlateRuleRepository
+{
+    public LprPlateRuleRepository(IMarketplaceDbContext context) : base((DbContext)context) { }
+
+    public async Task<IReadOnlyList<LprPlateRule>> GetEnabledByParkingSpaceIdAsync(
+        Guid parkingSpaceId,
+        CancellationToken cancellationToken = default)
+    {
+        return await _dbSet
+            .AsNoTracking()
+            .Where(r => r.ParkingSpaceId == parkingSpaceId && r.IsEnabled)
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<LprPlateRule>> GetByParkingSpaceIdAsync(
+        Guid parkingSpaceId,
+        CancellationToken cancellationToken = default)
+    {
+        return await _dbSet
+            .AsNoTracking()
+            .Where(r => r.ParkingSpaceId == parkingSpaceId)
+            .OrderBy(r => r.RuleType)
+            .ThenBy(r => r.LicensePlateNormalized)
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task<bool> ExistsAsync(
+        Guid parkingSpaceId,
+        string normalizedPlate,
+        LprPlateRuleType ruleType,
+        Guid? excludeId = null,
+        CancellationToken cancellationToken = default)
+    {
+        var query = _dbSet.Where(r =>
+            r.ParkingSpaceId == parkingSpaceId
+            && r.LicensePlateNormalized == normalizedPlate
+            && r.RuleType == ruleType);
+
+        if (excludeId.HasValue)
+            query = query.Where(r => r.Id != excludeId.Value);
+
+        return await query.AnyAsync(cancellationToken);
+    }
 }
 
 internal sealed class PaymentRepository : MarketplaceRepository<Payment>, IPaymentRepository
@@ -452,6 +777,76 @@ internal sealed class ReviewRepository : MarketplaceRepository<Review>, IReviewR
             .ToListAsync(cancellationToken);
 
         return reviews.Count > 0 ? reviews.Average(r => r.Rating) : 0;
+    }
+}
+
+internal sealed class ParkingAncillaryServiceRepository
+    : MarketplaceRepository<ParkingAncillaryService>, IParkingAncillaryServiceRepository
+{
+    public ParkingAncillaryServiceRepository(IMarketplaceDbContext context) : base((DbContext)context) { }
+
+    public async Task<IReadOnlyList<ParkingAncillaryService>> GetByParkingSpaceIdAsync(
+        Guid parkingSpaceId,
+        bool activeOnly,
+        CancellationToken cancellationToken = default)
+    {
+        var query = _dbSet.AsNoTracking().Where(s => s.ParkingSpaceId == parkingSpaceId);
+        if (activeOnly)
+            query = query.Where(s => s.IsActive);
+
+        return await query
+            .OrderBy(s => s.SortOrder)
+            .ThenBy(s => s.Name)
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<ParkingAncillaryService>> GetByParkingSpaceIdsAsync(
+        IEnumerable<Guid> parkingSpaceIds,
+        bool activeOnly,
+        CancellationToken cancellationToken = default)
+    {
+        var ids = parkingSpaceIds.Distinct().ToList();
+        if (ids.Count == 0)
+            return Array.Empty<ParkingAncillaryService>();
+
+        var query = _dbSet.AsNoTracking().Where(s => ids.Contains(s.ParkingSpaceId));
+        if (activeOnly)
+            query = query.Where(s => s.IsActive);
+
+        return await query
+            .OrderBy(s => s.ParkingSpaceId)
+            .ThenBy(s => s.SortOrder)
+            .ThenBy(s => s.Name)
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task<ParkingAncillaryService?> GetByIdWithSpaceAsync(
+        Guid id,
+        CancellationToken cancellationToken = default)
+    {
+        return await _dbSet
+            .Include(s => s.ParkingSpace)
+            .FirstOrDefaultAsync(s => s.Id == id, cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<ParkingAncillaryService>> GetByIdsForSpaceAsync(
+        Guid parkingSpaceId,
+        IEnumerable<Guid> serviceIds,
+        bool activeOnly,
+        CancellationToken cancellationToken = default)
+    {
+        var ids = serviceIds.Where(id => id != Guid.Empty).Distinct().ToList();
+        if (ids.Count == 0)
+            return Array.Empty<ParkingAncillaryService>();
+
+        var query = _dbSet.Where(s =>
+            s.ParkingSpaceId == parkingSpaceId &&
+            ids.Contains(s.Id));
+
+        if (activeOnly)
+            query = query.Where(s => s.IsActive);
+
+        return await query.ToListAsync(cancellationToken);
     }
 }
 

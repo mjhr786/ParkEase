@@ -3,8 +3,10 @@ using ParkingApp.Application.Interfaces;
 using ParkingApp.BuildingBlocks.Domain;
 using ParkingApp.Marketplace.Domain.Entities;
 using ParkingApp.Marketplace.Application.Interfaces;
+using ParkingApp.Marketplace.Contracts.DTOs;
 using ParkingApp.Marketplace.Contracts.Enums;
 using ParkingApp.Marketplace.Domain.Interfaces;
+using ParkingApp.Marketplace.Domain.Services;
 
 namespace ParkingApp.Marketplace.Application.Services;
 
@@ -29,10 +31,32 @@ internal sealed class ParkingPassPricingService : IParkingPassPricingService
         PricingType pricingType,
         string? discountCode = null,
         Guid? excludeBookingId = null,
+        bool includeEvCharging = false,
+        decimal ancillarySubtotal = 0m,
+        IReadOnlyList<BookingAncillaryLineDto>? ancillaryLines = null,
         CancellationToken cancellationToken = default)
     {
         var duration = endDateUtc - startDateUtc;
-        var (baseAmount, durationValue, durationUnit) = CalculateBaseAmount(parkingSpace, duration, pricingType);
+        var (parkingBase, durationValue, durationUnit, dynamicInfo) = CalculateBaseAmount(
+            parkingSpace,
+            startDateUtc,
+            endDateUtc,
+            pricingType);
+
+        var wantsEv = includeEvCharging && parkingSpace.HasEvCharging;
+        // PerKwh: energy fee settled after charge stop (EvChargingSession). Hourly: lock at book.
+        var evFee = wantsEv && parkingSpace.EvPricingMode == EvPricingMode.Hourly
+            ? EvChargingFeeCalculator.CalculateChargingFee(duration, parkingSpace.EvChargingRatePerHour)
+            : 0m;
+        var evMode = parkingSpace.HasEvCharging ? parkingSpace.EvPricingMode : EvPricingMode.Hourly;
+        var evRateKwh = parkingSpace.HasEvCharging ? parkingSpace.EvRatePerKwh : 0m;
+
+        var safeAncillary = ancillarySubtotal < 0
+            ? 0m
+            : Math.Round(ancillarySubtotal, 2, MidpointRounding.AwayFromZero);
+
+        // BaseAmount is taxable parking + optional EV + ancillary add-ons (before tax/service).
+        var baseAmount = parkingBase + evFee + safeAncillary;
 
         var taxAmount = Math.Round(baseAmount * TaxRate, 2, MidpointRounding.AwayFromZero);
         var serviceFee = Math.Round(baseAmount * ServiceFeeRate, 2, MidpointRounding.AwayFromZero);
@@ -52,6 +76,16 @@ internal sealed class ParkingPassPricingService : IParkingPassPricingService
             {
                 var discountAmount = applicablePass.CalculateDiscountAmount(grossAmount);
                 var totalAmount = Math.Max(0, grossAmount - discountAmount);
+                var passDescription = BuildPricingDescription(
+                    pricingType,
+                    discountCode: null,
+                    dynamicInfo,
+                    wantsEv,
+                    evFee,
+                    passKind: applicablePass.PassType.Kind.ToString(),
+                    evMode,
+                    evRateKwh,
+                    safeAncillary);
 
                 return new ParkingPassPricingResult(
                     baseAmount,
@@ -59,20 +93,28 @@ internal sealed class ParkingPassPricingService : IParkingPassPricingService
                     serviceFee,
                     discountAmount,
                     totalAmount,
-                    $"{applicablePass.PassType.Kind} pass applied",
+                    passDescription,
                     durationValue,
                     durationUnit,
                     applicablePass.Id,
                     applicablePass.PassType.Kind.ToString(),
                     applicablePass.DiscountPercentage,
-                    true);
+                    true,
+                    dynamicInfo.Applied,
+                    dynamicInfo.Applied ? dynamicInfo.Multiplier : null,
+                    dynamicInfo.Applied ? dynamicInfo.FactorsDescription : null,
+                    wantsEv,
+                    evFee,
+                    evMode,
+                    evRateKwh,
+                    safeAncillary,
+                    ancillaryLines);
             }
         }
 
         var promoDiscount = ApplyDiscountCode(grossAmount, discountCode);
-        var pricingDescription = string.IsNullOrWhiteSpace(discountCode)
-            ? $"{pricingType} rate applied"
-            : $"{pricingType} rate applied with promo discount";
+        var pricingDescription = BuildPricingDescription(
+            pricingType, discountCode, dynamicInfo, wantsEv, evFee, passKind: null, evMode, evRateKwh, safeAncillary);
 
         return new ParkingPassPricingResult(
             baseAmount,
@@ -86,7 +128,16 @@ internal sealed class ParkingPassPricingService : IParkingPassPricingService
             null,
             null,
             null,
-            false);
+            false,
+            dynamicInfo.Applied,
+            dynamicInfo.Applied ? dynamicInfo.Multiplier : null,
+            dynamicInfo.Applied ? dynamicInfo.FactorsDescription : null,
+            wantsEv,
+            evFee,
+            evMode,
+            evRateKwh,
+            safeAncillary,
+            ancillaryLines);
     }
 
     private async Task<ParkingPass?> ResolveApplicablePassAsync(
@@ -145,39 +196,113 @@ internal sealed class ParkingPassPricingService : IParkingPassPricingService
         return null;
     }
 
-    private static (decimal amount, int duration, string unit) CalculateBaseAmount(
+    private static (decimal amount, int duration, string unit, DynamicPricingResult dynamicInfo) CalculateBaseAmount(
         ParkingSpace parkingSpace,
-        TimeSpan duration,
+        DateTime startDateUtc,
+        DateTime endDateUtc,
         PricingType pricingType)
     {
-        return pricingType switch
+        // Hourly: bill by clock hours (partial hour rounds up).
+        // Daily / Weekly / Monthly: bill by full calendar days in the facility timezone
+        // so start/end clock times do not change the day count (e.g. Jul 26 5pm → Jul 28 6pm
+        // is the same as Jul 26 → Jul 28 by date only).
+        var (listRate, durationValue, durationUnit) = pricingType switch
         {
             PricingType.Hourly => (
-                parkingSpace.HourlyRate * (decimal)Math.Ceiling(duration.TotalHours),
-                (int)Math.Ceiling(duration.TotalHours),
+                parkingSpace.HourlyRate,
+                Math.Max(1, (int)Math.Ceiling((endDateUtc - startDateUtc).TotalHours)),
                 "hours"
             ),
             PricingType.Daily => (
-                parkingSpace.DailyRate * (decimal)Math.Ceiling(duration.TotalDays),
-                (int)Math.Ceiling(duration.TotalDays),
+                parkingSpace.DailyRate,
+                GetBillableCalendarDays(startDateUtc, endDateUtc, parkingSpace.TimeZoneId),
                 "days"
             ),
             PricingType.Weekly => (
-                parkingSpace.WeeklyRate * (decimal)Math.Ceiling(duration.TotalDays / 7),
-                (int)Math.Ceiling(duration.TotalDays / 7),
+                parkingSpace.WeeklyRate,
+                Math.Max(1, (int)Math.Ceiling(
+                    GetBillableCalendarDays(startDateUtc, endDateUtc, parkingSpace.TimeZoneId) / 7.0)),
                 "weeks"
             ),
             PricingType.Monthly => (
-                parkingSpace.MonthlyRate * (decimal)Math.Ceiling(duration.TotalDays / 30),
-                (int)Math.Ceiling(duration.TotalDays / 30),
+                parkingSpace.MonthlyRate,
+                Math.Max(1, (int)Math.Ceiling(
+                    GetBillableCalendarDays(startDateUtc, endDateUtc, parkingSpace.TimeZoneId) / 30.0)),
                 "months"
             ),
             _ => (
-                parkingSpace.HourlyRate * (decimal)Math.Ceiling(duration.TotalHours),
-                (int)Math.Ceiling(duration.TotalHours),
+                parkingSpace.HourlyRate,
+                Math.Max(1, (int)Math.Ceiling((endDateUtc - startDateUtc).TotalHours)),
                 "hours"
             )
         };
+
+        var dynamicInfo = DynamicPricingCalculator.Calculate(
+            listRate,
+            parkingSpace.IsDynamicPricingEnabled,
+            parkingSpace.TotalSpots,
+            parkingSpace.AvailableSpots,
+            startDateUtc,
+            parkingSpace.DynamicMinMultiplier,
+            parkingSpace.DynamicMaxMultiplier,
+            parkingSpace.PeakHourMultiplier,
+            parkingSpace.WeekendMultiplier,
+            timeZoneId: parkingSpace.TimeZoneId);
+
+        var unitRate = dynamicInfo.EffectiveRate;
+        var amount = Math.Round(unitRate * durationValue, 2, MidpointRounding.AwayFromZero);
+        return (amount, durationValue, durationUnit, dynamicInfo);
+    }
+
+    /// <summary>
+    /// Inclusive calendar-day span in the facility timezone. Clock times are ignored:
+    /// same local date → 1 day; Jul 26 → Jul 28 → 3 days (26, 27, and 28 each count as a full day).
+    /// </summary>
+    internal static int GetBillableCalendarDays(DateTime startUtc, DateTime endUtc, string? timeZoneId)
+    {
+        var startLocal = DynamicPricingCalculator.ToLocalClock(startUtc, timeZoneId);
+        var endLocal = DynamicPricingCalculator.ToLocalClock(endUtc, timeZoneId);
+
+        if (endLocal < startLocal)
+            return 1;
+
+        var days = (endLocal.Date - startLocal.Date).Days + 1;
+        return days < 1 ? 1 : days;
+    }
+
+    private static string BuildPricingDescription(
+        PricingType pricingType,
+        string? discountCode,
+        DynamicPricingResult dynamicInfo,
+        bool includeEv = false,
+        decimal evFee = 0m,
+        string? passKind = null,
+        EvPricingMode evMode = EvPricingMode.Hourly,
+        decimal evRateKwh = 0m,
+        decimal ancillarySubtotal = 0m)
+    {
+        var baseText = passKind is not null
+            ? $"{passKind} pass applied"
+            : string.IsNullOrWhiteSpace(discountCode)
+                ? $"{pricingType} rate applied"
+                : $"{pricingType} rate applied with promo discount";
+
+        if (dynamicInfo.Applied)
+            baseText += $"; dynamic pricing ×{dynamicInfo.Multiplier:0.####}";
+
+        if (includeEv && evMode == EvPricingMode.PerKwh)
+            baseText += evRateKwh > 0
+                ? $"; EV energy billed after charge at ₹{evRateKwh:0.00}/kWh"
+                : "; EV energy billed after charge (kWh)";
+        else if (includeEv && evFee > 0)
+            baseText += $"; EV charging ₹{evFee:0.00}";
+        else if (includeEv)
+            baseText += "; EV charging included (no surcharge)";
+
+        if (ancillarySubtotal > 0)
+            baseText += $"; add-ons ₹{ancillarySubtotal:0.00}";
+
+        return baseText;
     }
 
     private static decimal ApplyDiscountCode(decimal grossAmount, string? discountCode)

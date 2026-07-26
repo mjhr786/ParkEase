@@ -75,13 +75,55 @@ public class PaymentsController : ControllerBase
 
     [HttpPost("create-order")]
     [ProducesResponseType(typeof(ApiResponse<string>), StatusCodes.Status200OK)]
-    public async Task<IActionResult> CreateOrder([FromBody] Guid bookingId, CancellationToken cancellationToken)
+    public async Task<IActionResult> CreateOrder([FromBody] System.Text.Json.JsonElement body, CancellationToken cancellationToken)
     {
         var userId = GetUserId();
         if (userId == null) return Unauthorized();
 
-        var result = await _dispatcher.SendAsync(new CreatePaymentOrderCommand(userId.Value, bookingId), cancellationToken);
+        // Supports legacy raw GUID JSON string and { bookingId, payOverstayFee }.
+        if (!TryParseCreateOrderBody(body, out var bookingId, out var payOverstayFee))
+            return BadRequest(new ApiResponse<string>(false, "bookingId is required", null));
+
+        var result = await _dispatcher.SendAsync(
+            new CreatePaymentOrderCommand(userId.Value, bookingId, payOverstayFee),
+            cancellationToken);
         return result.Success ? Ok(result) : BadRequest(result);
+    }
+
+    private static bool TryParseCreateOrderBody(
+        System.Text.Json.JsonElement body,
+        out Guid bookingId,
+        out bool? payOverstayFee)
+    {
+        bookingId = Guid.Empty;
+        payOverstayFee = null;
+
+        if (body.ValueKind == System.Text.Json.JsonValueKind.String)
+            return Guid.TryParse(body.GetString(), out bookingId);
+
+        if (body.ValueKind != System.Text.Json.JsonValueKind.Object)
+            return false;
+
+        if (!body.TryGetProperty("bookingId", out var idEl) && !body.TryGetProperty("BookingId", out idEl))
+            return false;
+
+        if (idEl.ValueKind == System.Text.Json.JsonValueKind.String)
+        {
+            if (!Guid.TryParse(idEl.GetString(), out bookingId))
+                return false;
+        }
+        else if (!idEl.TryGetGuid(out bookingId))
+        {
+            return false;
+        }
+
+        if (body.TryGetProperty("payOverstayFee", out var feeEl) || body.TryGetProperty("PayOverstayFee", out feeEl))
+        {
+            if (feeEl.ValueKind is System.Text.Json.JsonValueKind.True or System.Text.Json.JsonValueKind.False)
+                payOverstayFee = feeEl.GetBoolean();
+        }
+
+        return bookingId != Guid.Empty;
     }
 
     [HttpPost("verify")]

@@ -30,6 +30,11 @@
     <UserSecretsId>3171e604-9434-46e3-b839-7067beddea1d</UserSecretsId>
     <!-- Framework-dependent deploy (host provides ASP.NET runtime). Override with self-contained true if needed. -->
     <SelfContained>false</SelfContained>
+    <!-- Tolerate host patch skew (e.g. app built against 9.0.18, host has 9.0.10+). -->
+    <RollForward>LatestMinor</RollForward>
+    <!-- Workstation GC uses less RAM on free-tier shared hosts (MonsterASP). -->
+    <ServerGarbageCollection>false</ServerGarbageCollection>
+    <ConcurrentGarbageCollection>true</ConcurrentGarbageCollection>
     <!-- Keep managed PDBs out of publish; native package PDBs are removed in RemoveSymbolsFromPublish. -->
     <CopyOutputSymbolsToPublishDirectory>false</CopyOutputSymbolsToPublishDirectory>
     <CopyDebugSymbolFilesFromPackages>false</CopyDebugSymbolFilesFromPackages>

@@ -131,6 +131,73 @@ public class BookingsController : ControllerBase
     }
 
     /// <summary>
+    /// Digital access pass (QR token + image URL + wallet flags) for a booking.
+    /// </summary>
+    [HttpGet("{id:guid}/access-pass")]
+    [ProducesResponseType(typeof(ApiResponse<BookingAccessPassDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<BookingAccessPassDto>), StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> GetAccessPass(Guid id, CancellationToken cancellationToken)
+    {
+        var userId = GetUserId();
+        if (userId == null) return Unauthorized();
+
+        var result = await _dispatcher.QueryAsync(new GetBookingAccessPassQuery(id, userId.Value), cancellationToken);
+        return result.Success ? Ok(result) : BadRequest(result);
+    }
+
+    /// <summary>
+    /// Download Apple Wallet .pkpass for a booking access pass.
+    /// </summary>
+    [HttpGet("{id:guid}/access-pass/apple.pkpass")]
+    [Produces("application/vnd.apple.pkpass", "application/json")]
+    [ProducesResponseType(typeof(FileContentResult), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<AppleWalletPassFileDto>), StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> GetAppleWalletPass(Guid id, CancellationToken cancellationToken)
+    {
+        var userId = GetUserId();
+        if (userId == null) return Unauthorized();
+
+        var result = await _dispatcher.QueryAsync(new GetAppleWalletPassQuery(id, userId.Value), cancellationToken);
+        if (!result.Success || result.Data is null)
+            return BadRequest(result);
+
+        return File(result.Data.Content, result.Data.ContentType, result.Data.FileName);
+    }
+
+    /// <summary>
+    /// Google Wallet save-to-wallet URL (JWT) for a booking access pass.
+    /// </summary>
+    [HttpGet("{id:guid}/access-pass/google-wallet")]
+    [ProducesResponseType(typeof(ApiResponse<GoogleWalletSaveLinkDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<GoogleWalletSaveLinkDto>), StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> GetGoogleWalletSaveLink(Guid id, CancellationToken cancellationToken)
+    {
+        var userId = GetUserId();
+        if (userId == null) return Unauthorized();
+
+        var result = await _dispatcher.QueryAsync(new GetGoogleWalletSaveLinkQuery(id, userId.Value), cancellationToken);
+        return result.Success ? Ok(result) : BadRequest(result);
+    }
+
+    /// <summary>
+    /// Verify a scanned digital access-pass token (guest or facility owner).
+    /// </summary>
+    [HttpPost("access-pass/verify")]
+    [ProducesResponseType(typeof(ApiResponse<AccessPassVerifyResultDto>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> VerifyAccessPass([FromBody] VerifyAccessPassDto dto, CancellationToken cancellationToken)
+    {
+        var userId = GetUserId();
+        var result = await _dispatcher.QueryAsync(
+            new VerifyAccessPassQuery(dto.Token, userId),
+            cancellationToken);
+
+        if (!result.Success && string.Equals(result.Message, "Unauthorized", StringComparison.OrdinalIgnoreCase))
+            return StatusCode(StatusCodes.Status403Forbidden, result);
+
+        return Ok(result);
+    }
+
+    /// <summary>
     /// Calculate price for a booking
     /// </summary>
     [HttpPost("calculate-price")]
@@ -145,7 +212,9 @@ public class BookingsController : ControllerBase
             dto.EndDateTime,
             (int)dto.PricingType,
             dto.DiscountCode,
-            userId
+            userId,
+            dto.IncludeEvCharging,
+            dto.AncillaryServiceIds
         );
         var result = await _dispatcher.QueryAsync(query, cancellationToken);
 
@@ -174,7 +243,9 @@ public class BookingsController : ControllerBase
             dto.VehicleNumber,
             dto.VehicleModel,
             dto.VehicleColor,
-            dto.DiscountCode
+            dto.DiscountCode,
+            dto.IncludeEvCharging,
+            dto.AncillaryServiceIds
         );
 
         var result = await _dispatcher.SendAsync(command, cancellationToken);
@@ -295,6 +366,87 @@ public class BookingsController : ControllerBase
         return result.Success ? Ok(result) : BadRequest(result);
     }
 
+    /// <summary>Guest: request valet vehicle retrieval (~10 min lead by default).</summary>
+    [HttpPost("{id:guid}/valet/request")]
+    [ProducesResponseType(typeof(ApiResponse<BookingDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<BookingDto>), StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> RequestValet(Guid id, [FromBody] RequestValetDto? dto, CancellationToken cancellationToken)
+    {
+        var userId = GetUserId();
+        if (userId == null) return Unauthorized();
+
+        var result = await _dispatcher.SendAsync(
+            new RequestValetCommand(id, userId.Value, dto?.Notes, dto?.LeadMinutes),
+            cancellationToken);
+        return result.Success ? Ok(result) : BadRequest(result);
+    }
+
+    /// <summary>Guest: cancel an open valet request.</summary>
+    [HttpPost("{id:guid}/valet/cancel")]
+    [ProducesResponseType(typeof(ApiResponse<BookingDto>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> CancelValet(Guid id, CancellationToken cancellationToken)
+    {
+        var userId = GetUserId();
+        if (userId == null) return Unauthorized();
+
+        var result = await _dispatcher.SendAsync(new CancelValetCommand(id, userId.Value), cancellationToken);
+        return result.Success ? Ok(result) : BadRequest(result);
+    }
+
+    /// <summary>Vendor: acknowledge valet request (retrieving vehicle).</summary>
+    [HttpPost("{id:guid}/valet/acknowledge")]
+    [Authorize(Roles = "User,Admin")]
+    [ProducesResponseType(typeof(ApiResponse<BookingDto>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> AcknowledgeValet(Guid id, CancellationToken cancellationToken)
+    {
+        var userId = GetUserId();
+        if (userId == null) return Unauthorized();
+
+        var result = await _dispatcher.SendAsync(new AcknowledgeValetCommand(id, userId.Value), cancellationToken);
+        return result.Success ? Ok(result) : BadRequest(result);
+    }
+
+    /// <summary>Vendor: mark vehicle ready for guest pickup.</summary>
+    [HttpPost("{id:guid}/valet/ready")]
+    [Authorize(Roles = "User,Admin")]
+    [ProducesResponseType(typeof(ApiResponse<BookingDto>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> MarkValetReady(Guid id, CancellationToken cancellationToken)
+    {
+        var userId = GetUserId();
+        if (userId == null) return Unauthorized();
+
+        var result = await _dispatcher.SendAsync(new MarkValetReadyCommand(id, userId.Value), cancellationToken);
+        return result.Success ? Ok(result) : BadRequest(result);
+    }
+
+    /// <summary>Vendor: complete valet handoff.</summary>
+    [HttpPost("{id:guid}/valet/complete")]
+    [Authorize(Roles = "User,Admin")]
+    [ProducesResponseType(typeof(ApiResponse<BookingDto>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> CompleteValet(Guid id, CancellationToken cancellationToken)
+    {
+        var userId = GetUserId();
+        if (userId == null) return Unauthorized();
+
+        var result = await _dispatcher.SendAsync(new CompleteValetCommand(id, userId.Value), cancellationToken);
+        return result.Success ? Ok(result) : BadRequest(result);
+    }
+
+    /// <summary>Vendor: assign or override indoor bay / level / zone guidance.</summary>
+    [HttpPost("{id:guid}/bay-assignment")]
+    [Authorize(Roles = "User,Admin")]
+    [ProducesResponseType(typeof(ApiResponse<BookingDto>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> AssignBay(Guid id, [FromBody] AssignBayDto dto, CancellationToken cancellationToken)
+    {
+        var userId = GetUserId();
+        if (userId == null) return Unauthorized();
+
+        var result = await _dispatcher.SendAsync(
+            new AssignBayCommand(id, userId.Value, dto.FacilityLevel, dto.FacilityZone, dto.BayLabel, dto.SlotNumber),
+            cancellationToken);
+        return result.Success ? Ok(result) : BadRequest(result);
+    }
+
     /// <summary>
     /// Request an extension for a booking (creates pending extension request for vendor approval)
     /// </summary>
@@ -306,7 +458,7 @@ public class BookingsController : ControllerBase
         var userId = GetUserId();
         if (userId == null) return Unauthorized();
 
-        var command = new RequestExtensionCommand(id, userId.Value, dto.NewEndDateTime);
+        var command = new RequestExtensionCommand(id, userId.Value, dto.NewEndDateTime, dto.PricingType);
         var result = await _dispatcher.SendAsync(command, cancellationToken);
 
         return result.Success ? Ok(result) : BadRequest(result);

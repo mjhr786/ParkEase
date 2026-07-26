@@ -1,4 +1,5 @@
 // Navigation properties removed for strict module isolation
+using System.Diagnostics.CodeAnalysis;
 using ParkingApp.BuildingBlocks.Domain;
 using ParkingApp.Domain.Enums;
 using ParkingApp.Domain.ValueObjects;
@@ -41,7 +42,8 @@ public class ParkingAllocation : BaseEntity
     public virtual ICollection<FixedSlotAssignment> FixedAssignments { get; private set; } = new List<FixedSlotAssignment>();
     public virtual ICollection<CorporateBooking> CorporateBookings { get; private set; } = new List<CorporateBooking>();
 
-    // Required for EF Core
+    // Required for EF Core materialization — no business logic.
+    [ExcludeFromCodeCoverage]
     private ParkingAllocation()
     {
     }

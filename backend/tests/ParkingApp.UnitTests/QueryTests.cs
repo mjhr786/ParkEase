@@ -102,6 +102,91 @@ public class QueryTests
     }
 
     [Fact]
+    public async Task CalculatePriceHandler_ForDailyPricing_ShouldUseInclusiveCalendarDays_IgnoringClockTimes()
+    {
+        // Arrange — times differ but both fall on Jul 26 and Jul 28 local (UTC)
+        var handler = new CalculatePriceHandler(_mockUnitOfWork.Object);
+        var parkingId = Guid.NewGuid();
+        var parking = new ParkingSpace
+        {
+            Id = parkingId,
+            HourlyRate = 100,
+            DailyRate = 400,
+            TimeZoneId = "UTC"
+        };
+
+        _mockParkingRepository.Setup(r => r.GetByIdAsync(parkingId, It.IsAny<CancellationToken>())).ReturnsAsync(parking);
+
+        var start = new DateTime(2026, 7, 26, 17, 23, 0, DateTimeKind.Utc);
+        var end = new DateTime(2026, 7, 28, 18, 23, 0, DateTimeKind.Utc); // +1 hour vs exact 48h
+        var query = new CalculatePriceQuery(parkingId, start, end, (int)PricingType.Daily, null);
+
+        // Act
+        var result = await handler.HandleAsync(query);
+
+        // Assert — Jul 26, 27, 28 = 3 full calendar days (clock times ignored)
+        result.Success.Should().BeTrue();
+        result.Data!.Duration.Should().Be(3);
+        result.Data.DurationUnit.Should().Be("days");
+        // 3 * 400 = 1200 base; tax 216; fee 60; total 1476
+        result.Data.BaseAmount.Should().Be(1200);
+        result.Data.TotalAmount.Should().Be(1476);
+    }
+
+    [Fact]
+    public async Task CalculatePriceHandler_ForDailyPricing_SameCalendarDay_ShouldBillOneDay()
+    {
+        var handler = new CalculatePriceHandler(_mockUnitOfWork.Object);
+        var parkingId = Guid.NewGuid();
+        var parking = new ParkingSpace
+        {
+            Id = parkingId,
+            DailyRate = 500,
+            TimeZoneId = "UTC"
+        };
+
+        _mockParkingRepository.Setup(r => r.GetByIdAsync(parkingId, It.IsAny<CancellationToken>())).ReturnsAsync(parking);
+
+        var start = new DateTime(2026, 7, 26, 9, 0, 0, DateTimeKind.Utc);
+        var end = new DateTime(2026, 7, 26, 18, 30, 0, DateTimeKind.Utc);
+        var query = new CalculatePriceQuery(parkingId, start, end, (int)PricingType.Daily, null);
+
+        var result = await handler.HandleAsync(query);
+
+        result.Success.Should().BeTrue();
+        result.Data!.Duration.Should().Be(1);
+        result.Data.DurationUnit.Should().Be("days");
+        result.Data.BaseAmount.Should().Be(500);
+    }
+
+    [Fact]
+    public async Task CalculatePriceHandler_ForWeeklyPricing_ShouldUseCalendarDaysNotHours()
+    {
+        var handler = new CalculatePriceHandler(_mockUnitOfWork.Object);
+        var parkingId = Guid.NewGuid();
+        var parking = new ParkingSpace
+        {
+            Id = parkingId,
+            WeeklyRate = 2000,
+            TimeZoneId = "UTC"
+        };
+
+        _mockParkingRepository.Setup(r => r.GetByIdAsync(parkingId, It.IsAny<CancellationToken>())).ReturnsAsync(parking);
+
+        // 8 calendar days (Jul 1–8 inclusive) → 2 weeks
+        var start = new DateTime(2026, 7, 1, 22, 0, 0, DateTimeKind.Utc);
+        var end = new DateTime(2026, 7, 8, 6, 0, 0, DateTimeKind.Utc);
+        var query = new CalculatePriceQuery(parkingId, start, end, (int)PricingType.Weekly, null);
+
+        var result = await handler.HandleAsync(query);
+
+        result.Success.Should().BeTrue();
+        result.Data!.Duration.Should().Be(2);
+        result.Data.DurationUnit.Should().Be("weeks");
+        result.Data.BaseAmount.Should().Be(4000);
+    }
+
+    [Fact]
     public async Task SearchParkingHandler_WhenFound_ShouldSucceedWithReservations()
     {
         // Arrange

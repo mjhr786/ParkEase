@@ -11,6 +11,8 @@ using ParkingApp.Marketplace.Infrastructure.ReadModel.Dashboard;
 using ParkingApp.Marketplace.Infrastructure.Services;
 using ParkingApp.Marketplace.Application.Interfaces;
 using ParkingApp.Marketplace.Application.Options;
+using Microsoft.Extensions.Hosting;
+// IOcppChargeStationAdapter + MockOcppChargeStationAdapter
 
 namespace ParkingApp.Marketplace.Infrastructure;
 
@@ -37,12 +39,27 @@ public static class MarketplaceInfrastructureModule
                 configuration.GetSection(ForecastOptions.SectionName));
             services.Configure<RoutingOptions>(
                 configuration.GetSection(RoutingOptions.SectionName));
+            services.Configure<LprConfigApiKeyOptions>(
+                configuration.GetSection(LprConfigApiKeyOptions.SectionName));
+            services.Configure<LprAccessOptions>(
+                configuration.GetSection(LprAccessOptions.SectionName));
+            services.Configure<SessionReminderOptions>(
+                configuration.GetSection(SessionReminderOptions.SectionName));
+            services.Configure<WalletPassOptions>(
+                configuration.GetSection(WalletPassOptions.SectionName));
+            services.Configure<ValetOptions>(
+                configuration.GetSection(ValetOptions.SectionName));
         }
         else
         {
             services.Configure<MarketplaceDiscoveryOptions>(_ => { });
             services.Configure<ForecastOptions>(_ => { });
             services.Configure<RoutingOptions>(_ => { });
+            services.Configure<LprConfigApiKeyOptions>(_ => { });
+            services.Configure<LprAccessOptions>(_ => { });
+            services.Configure<SessionReminderOptions>(_ => { });
+            services.Configure<WalletPassOptions>(_ => { });
+            services.Configure<ValetOptions>(_ => { });
         }
 
         services.AddScoped<IParkingSpaceRepository, ParkingSpaceRepository>();
@@ -62,10 +79,17 @@ public static class MarketplaceInfrastructureModule
 
         services.AddScoped<IParkingSpaceLookup, ParkingSpaceLookup>();
         services.AddScoped<IBookingLookup, BookingLookup>();
+        services.AddScoped<ICompanyOwnedParkingSpaceService, CompanyOwnedParkingSpaceService>();
         services.AddScoped<MarketplaceBookingService>();
         services.AddScoped<IMarketplaceBookingService>(sp => sp.GetRequiredService<MarketplaceBookingService>());
         services.AddScoped<IMarketplaceBookingPersistence>(sp => sp.GetRequiredService<MarketplaceBookingService>());
         services.AddScoped<IMarketplaceUserDataCleanup, MarketplaceUserDataCleanup>();
+        services.AddScoped<ILprCameraKeyAuthenticator, LprCameraKeyAuthenticator>();
+        services.AddSingleton<IWalletPassService, WalletPassService>();
+        services.AddSingleton<IEventPackageTicketPdfService, EventPackageTicketPdfService>();
+        services.AddSingleton<IOcppChargeStationAdapter, MockOcppChargeStationAdapter>();
+        services.AddHostedService<OverstayDetectionBackgroundService>();
+        services.AddHostedService<SessionReminderBackgroundService>();
 
         return services;
     }

@@ -1,4 +1,5 @@
 // Removed Identity reference for isolation
+using System.Diagnostics.CodeAnalysis;
 using ParkingApp.BuildingBlocks.Domain;
 using ParkingApp.Domain.Enums;
 
@@ -21,7 +22,8 @@ public class UserCompanyMembership : BaseEntity
     // Navigation
     public virtual Company Company { get; private set; } = null!;
 
-    // Required for EF Core
+    // Required for EF Core materialization — no business logic.
+    [ExcludeFromCodeCoverage]
     private UserCompanyMembership()
     {
     }

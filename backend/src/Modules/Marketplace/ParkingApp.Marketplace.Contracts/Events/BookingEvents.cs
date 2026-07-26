@@ -50,6 +50,26 @@ public sealed record BookingCheckedOutEvent(
     Guid ParkingSpaceId,
     string? BookingReference) : DomainEvent;
 
+/// <summary>Overstay fee assessed or increased on a booking.</summary>
+public sealed record BookingOverstayFeeAssessedEvent(
+    Guid BookingId,
+    Guid UserId,
+    Guid ParkingSpaceId,
+    string? BookingReference,
+    decimal FeeAmount,
+    int BillableMinutes,
+    decimal DeltaAmount) : DomainEvent;
+
+/// <summary>Overstay fee (or portion) paid successfully.</summary>
+public sealed record BookingOverstayFeePaidEvent(
+    Guid BookingId,
+    Guid UserId,
+    Guid ParkingSpaceId,
+    string? BookingReference,
+    decimal PaidAmount,
+    decimal RemainingOutstanding,
+    string? TransactionId) : DomainEvent;
+
 /// <summary>Member requested a booking end-time extension (PendingExtension).</summary>
 public sealed record BookingExtensionRequestedEvent(
     Guid BookingId,

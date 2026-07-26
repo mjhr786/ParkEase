@@ -57,28 +57,41 @@ public class MiddlewareTests
     [Fact]
     public async Task RateLimitingMiddleware_WhenLimitExceeded_ShouldReturn429()
     {
-        // Arrange
-        var context = new DefaultHttpContext();
-        context.Connection.RemoteIpAddress = IPAddress.Loopback;
-        
+        // Unique IP so static windows from other tests do not interfere.
+        var clientIp = IPAddress.Parse($"203.0.113.{Random.Shared.Next(1, 254)}");
         var mockLogger = new Mock<ILogger<RateLimitingMiddleware>>();
-        RequestDelegate next = (innerContext) => Task.CompletedTask;
+        RequestDelegate next = _ => Task.CompletedTask;
         var middleware = new RateLimitingMiddleware(next, mockLogger.Object);
 
-        // Act: Hit the limit (Limit is 100 in middleware)
-        for (int i = 0; i < 100; i++)
+        static DefaultHttpContext CreateCtx(IPAddress ip)
         {
-            await middleware.InvokeAsync(context);
-            context.Response.StatusCode.Should().Be(200);
+            var ctx = new DefaultHttpContext();
+            ctx.Connection.RemoteIpAddress = ip;
+            // Empty path is skipped; use a real API path.
+            ctx.Request.Path = "/api/bookings";
+            ctx.Request.Method = HttpMethods.Get;
+            return ctx;
         }
 
-        // 101st request
-        var context2 = new DefaultHttpContext();
-        context2.Connection.RemoteIpAddress = IPAddress.Loopback;
+        // Act: Hit the general API limit (100 / min / IP)
+        for (int i = 0; i < 100; i++)
+        {
+            var ctx = CreateCtx(clientIp);
+            await middleware.InvokeAsync(ctx);
+            ctx.Response.StatusCode.Should().Be(200);
+        }
+
+        var context2 = CreateCtx(clientIp);
         await middleware.InvokeAsync(context2);
 
-        // Assert
         context2.Response.StatusCode.Should().Be(429);
+    }
+
+    [Fact]
+    public void RateLimitingMiddleware_IsIotPath_DetectsIotRoutes()
+    {
+        RateLimitingMiddleware.IsIotPath(new PathString("/api/iot/lpr-events")).Should().BeTrue();
+        RateLimitingMiddleware.IsIotPath(new PathString("/api/bookings")).Should().BeFalse();
     }
 }
 

@@ -10,6 +10,32 @@ import react from '@vitejs/plugin-react'
 // Behavior and UI are unchanged — only network payload shape.
 export default defineConfig({
   plugins: [react()],
+  test: {
+    environment: 'jsdom',
+    include: ['src/**/*.{test,spec}.{js,jsx}'],
+    setupFiles: ['./src/test/setup.js'],
+    coverage: {
+      provider: 'v8',
+      reporter: ['text', 'html', 'lcov'],
+      // Gate pure utils only — api.js / corporateService.js have large untested surfaces;
+      // their critical paths are still unit-tested, but full-file floors come later.
+      // RTL covers AuthContext / Login / CompanySwitcher separately (not full-file gated yet).
+      include: [
+        'src/utils/errorHandler.js',
+        'src/utils/authEvents.js',
+        'src/utils/indianStatesCities.js',
+        'src/utils/notificationHelpers.js',
+        'src/utils/formatCurrency.js',
+        'src/utils/safeReturnUrl.js',
+      ],
+      thresholds: {
+        lines: 90,
+        functions: 90,
+        branches: 70,
+        statements: 90,
+      },
+    },
+  },
   build: {
     // Slightly higher than Vite default so named vendor chunks do not warn noisily
     chunkSizeWarningLimit: 700,

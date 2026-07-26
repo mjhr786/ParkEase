@@ -82,23 +82,35 @@ public sealed class OutboxProcessor : IOutboxProcessor
                 continue;
             }
 
-            // Atomically try to claim the message for processing
-            var rowsAffected = await _db.OutboxMessages
-                .Where(m => m.Id == message.Id && (m.Status == OutboxStatus.Pending || m.Status == OutboxStatus.Failed))
-                .ExecuteUpdateAsync(s => s
-                    .SetProperty(x => x.Status, OutboxStatus.Processing)
-                    .SetProperty(x => x.AttemptCount, x => x.AttemptCount + 1),
-                    cancellationToken);
-
-            if (rowsAffected == 0)
+            // Atomically claim the message (ExecuteUpdate is relational-only; InMemory unit tests use local claim).
+            if (_db.Database.IsRelational())
             {
-                // Another thread/process beat us to it, or it was already processed
-                continue;
-            }
+                var rowsAffected = await _db.OutboxMessages
+                    .Where(m => m.Id == message.Id && (m.Status == OutboxStatus.Pending || m.Status == OutboxStatus.Failed))
+                    .ExecuteUpdateAsync(s => s
+                        .SetProperty(x => x.Status, OutboxStatus.Processing)
+                        .SetProperty(x => x.AttemptCount, x => x.AttemptCount + 1),
+                        cancellationToken);
 
-            // Sync the local tracked entity state so subsequent SaveChangesAsync doesn't overwrite
-            message.Status = OutboxStatus.Processing;
-            message.AttemptCount += 1;
+                if (rowsAffected == 0)
+                {
+                    // Another thread/process beat us to it, or it was already processed
+                    continue;
+                }
+
+                // Sync the local tracked entity so subsequent SaveChangesAsync doesn't overwrite
+                message.Status = OutboxStatus.Processing;
+                message.AttemptCount += 1;
+            }
+            else
+            {
+                if (message.Status is not (OutboxStatus.Pending or OutboxStatus.Failed))
+                    continue;
+
+                message.Status = OutboxStatus.Processing;
+                message.AttemptCount += 1;
+                await _db.SaveChangesAsync(cancellationToken);
+            }
 
             // After claim, do not cancel mid-side-effect because the HTTP request ended.
             // Otherwise the row can be retried and non-idempotent handlers fire again.

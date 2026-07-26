@@ -82,6 +82,148 @@ public class CorporateInvoiceDomainTests
 
         act.Should().Throw<ArgumentException>();
     }
+
+    [Fact]
+    public void ValidatePeriod_ShouldRejectEndBeforeStart()
+    {
+        Action act = () => CorporateInvoice.ValidatePeriod(
+            new DateOnly(2026, 6, 30),
+            new DateOnly(2026, 6, 1));
+
+        act.Should().Throw<ArgumentException>().WithMessage("*on or after*");
+    }
+
+    [Fact]
+    public void Create_WithLinesAndTax_SumsTotals()
+    {
+        var allocationId = Guid.NewGuid();
+        var bookingId = Guid.NewGuid();
+        var invoice = CorporateInvoice.Create(
+            Guid.NewGuid(),
+            BillingType.UsageBased,
+            new DateOnly(2026, 6, 1),
+            new DateOnly(2026, 6, 30),
+            Guid.NewGuid(),
+            new[]
+            {
+                new CorporateInvoiceLineDraft(
+                    CorporateInvoiceLineType.Usage, "  Spot A  ", 2m, 50m, allocationId, bookingId),
+                new CorporateInvoiceLineDraft(
+                    CorporateInvoiceLineType.ReservedCapacity, "Credit", 1m, 10m)
+            },
+            currency: "inr",
+            taxAmount: 18m);
+
+        invoice.Currency.Should().Be("INR");
+        invoice.LineItems.Should().HaveCount(2);
+        invoice.Subtotal.Should().Be(110m); // 2*50 + 1*10
+        invoice.TaxAmount.Should().Be(18m);
+        invoice.TotalAmount.Should().Be(128m);
+        invoice.LineItems.First().Description.Should().Be("Spot A");
+        invoice.LineItems.First().Amount.Should().Be(100m);
+        invoice.LineItems.First().AllocationId.Should().Be(allocationId);
+        invoice.LineItems.First().BookingId.Should().Be(bookingId);
+    }
+
+    [Fact]
+    public void Create_RejectsEmptyCompany_NegativeTax_NullLines()
+    {
+        Action emptyCompany = () => CorporateInvoice.Create(
+            Guid.Empty, BillingType.UsageBased,
+            new DateOnly(2026, 6, 1), new DateOnly(2026, 6, 30),
+            Guid.NewGuid(), Array.Empty<CorporateInvoiceLineDraft>());
+        emptyCompany.Should().Throw<ArgumentException>().WithMessage("*Company*");
+
+        Action emptyActor = () => CorporateInvoice.Create(
+            Guid.NewGuid(), BillingType.UsageBased,
+            new DateOnly(2026, 6, 1), new DateOnly(2026, 6, 30),
+            Guid.Empty, Array.Empty<CorporateInvoiceLineDraft>());
+        emptyActor.Should().Throw<ArgumentException>().WithMessage("*Generated*");
+
+        Action negTax = () => CorporateInvoice.Create(
+            Guid.NewGuid(), BillingType.UsageBased,
+            new DateOnly(2026, 6, 1), new DateOnly(2026, 6, 30),
+            Guid.NewGuid(), Array.Empty<CorporateInvoiceLineDraft>(), taxAmount: -1m);
+        negTax.Should().Throw<ArgumentOutOfRangeException>();
+
+        Action nullLines = () => CorporateInvoice.Create(
+            Guid.NewGuid(), BillingType.UsageBased,
+            new DateOnly(2026, 6, 1), new DateOnly(2026, 6, 30),
+            Guid.NewGuid(), null!);
+        nullLines.Should().Throw<ArgumentNullException>();
+    }
+
+    [Fact]
+    public void MarkPaid_OnDraft_Throws_And_VoidIssued_Succeeds()
+    {
+        var admin = Guid.NewGuid();
+        var invoice = CorporateInvoice.Create(
+            Guid.NewGuid(),
+            BillingType.ReservedSlots,
+            new DateOnly(2026, 6, 1),
+            new DateOnly(2026, 6, 30),
+            admin,
+            new[] { new CorporateInvoiceLineDraft(CorporateInvoiceLineType.ReservedCapacity, "Lease", 1m, 1000m) });
+
+        Action payDraft = () => invoice.MarkPaid(admin);
+        payDraft.Should().Throw<InvalidOperationException>().WithMessage("*issued*");
+
+        invoice.Issue(admin);
+        invoice.Void(admin, "customer cancelled");
+        invoice.Status.Should().Be(CorporateInvoiceStatus.Void);
+        invoice.VoidedByUserId.Should().Be(admin);
+        invoice.VoidReason.Should().Be("customer cancelled");
+
+        Action voidAgain = () => invoice.Void(admin, "again");
+        voidAgain.Should().Throw<InvalidOperationException>();
+    }
+
+    [Fact]
+    public void Void_ShortReason_And_EmptyActor_Throw()
+    {
+        var admin = Guid.NewGuid();
+        var invoice = CorporateInvoice.Create(
+            Guid.NewGuid(),
+            BillingType.ReservedSlots,
+            new DateOnly(2026, 6, 1),
+            new DateOnly(2026, 6, 30),
+            admin,
+            Array.Empty<CorporateInvoiceLineDraft>());
+
+        Action shortReason = () => invoice.Void(admin, "no");
+        shortReason.Should().Throw<ArgumentException>().WithMessage("*3 characters*");
+
+        Action emptyActor = () => invoice.Issue(Guid.Empty);
+        emptyActor.Should().Throw<ArgumentException>().WithMessage("*User ID*");
+    }
+
+    [Fact]
+    public void LineItem_Create_ValidatesInputs()
+    {
+        Action emptyDesc = () => CorporateInvoiceLineItem.Create(
+            Guid.NewGuid(), CorporateInvoiceLineType.Usage, "  ", 1, 10);
+        emptyDesc.Should().Throw<ArgumentException>();
+
+        Action negQty = () => CorporateInvoiceLineItem.Create(
+            Guid.NewGuid(), CorporateInvoiceLineType.Usage, "x", -1, 10);
+        negQty.Should().Throw<ArgumentOutOfRangeException>();
+
+        Action negUnit = () => CorporateInvoiceLineItem.Create(
+            Guid.NewGuid(), CorporateInvoiceLineType.Usage, "x", 1, -1);
+        negUnit.Should().Throw<ArgumentOutOfRangeException>();
+
+        Action emptyInvoice = () => CorporateInvoiceLineItem.Create(
+            Guid.Empty, CorporateInvoiceLineType.Usage, "x", 1, 10);
+        emptyInvoice.Should().Throw<ArgumentException>();
+
+        var line = CorporateInvoiceLineItem.Create(
+            Guid.NewGuid(), CorporateInvoiceLineType.Usage, "  adj  ", 1.5m, 10.555m);
+        line.Description.Should().Be("adj");
+        line.Amount.Should().Be(15.83m); // 1.5 * 10.56 rounded? unit rounds to 10.56? 
+        // UnitAmount = Math.Round(10.555, 2) = 10.56; Quantity = 1.5; amount = Round(1.5*10.555, 2) happens before unit round in code:
+        // amount = Round(quantity * unitAmount, 2) with original unitAmount 10.555 => Round(15.8325, 2) = 15.83
+        line.UnitAmount.Should().Be(10.56m);
+    }
 }
 
 public class CorporateInvoiceCalculatorTests
@@ -219,6 +361,158 @@ public class CorporateInvoiceCalculatorTests
         lines[0].UnitAmount.Should().Be(150m);
         lines[0].BookingId.Should().Be(bookingId);
         lines[0].Description.Should().Contain("Jane Doe");
+    }
+
+    [Fact]
+    public void UsageBased_VisitorBooking_UsesVisitorNameInDescription()
+    {
+        var bookingId = Guid.NewGuid();
+        var lines = _sut.BuildLines(
+            BillingType.UsageBased,
+            new DateOnly(2026, 6, 1),
+            new DateOnly(2026, 6, 30),
+            Array.Empty<InvoiceAllocationChargeInput>(),
+            new[]
+            {
+                new InvoiceBookingChargeInput(
+                    bookingId,
+                    Guid.NewGuid(),
+                    75m,
+                    new DateTime(2026, 6, 5, 9, 0, 0, DateTimeKind.Utc),
+                    new DateTime(2026, 6, 5, 11, 0, 0, DateTimeKind.Utc),
+                    BookingStatus.Confirmed,
+                    true,
+                    null,
+                    "Visitor X",
+                    "Guest Lot")
+            });
+
+        lines.Should().HaveCount(1);
+        lines[0].Description.Should().Contain("Visitor X");
+        lines[0].UnitAmount.Should().Be(75m);
+    }
+
+    [Fact]
+    public void ReservedSlots_NoActiveVendorLease_ReturnsEmpty()
+    {
+        var lines = _sut.BuildLines(
+            BillingType.ReservedSlots,
+            new DateOnly(2026, 6, 1),
+            new DateOnly(2026, 6, 30),
+            new[]
+            {
+                new InvoiceAllocationChargeInput(
+                    Guid.NewGuid(),
+                    "Owned",
+                    null,
+                    ParkingAllocationSource.CompanyOwned,
+                    AllocationStatus.Active,
+                    1000m,
+                    new DateOnly(2026, 1, 1),
+                    new DateOnly(2026, 12, 31))
+            },
+            Array.Empty<InvoiceBookingChargeInput>());
+
+        lines.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void UsageBased_ZeroAmountBooking_Excluded()
+    {
+        var lines = _sut.BuildLines(
+            BillingType.UsageBased,
+            new DateOnly(2026, 6, 1),
+            new DateOnly(2026, 6, 30),
+            Array.Empty<InvoiceAllocationChargeInput>(),
+            new[]
+            {
+                new InvoiceBookingChargeInput(
+                    Guid.NewGuid(),
+                    Guid.NewGuid(),
+                    0m,
+                    new DateTime(2026, 6, 5, 9, 0, 0, DateTimeKind.Utc),
+                    new DateTime(2026, 6, 5, 11, 0, 0, DateTimeKind.Utc),
+                    BookingStatus.Confirmed,
+                    false,
+                    "Free",
+                    null,
+                    "Lot")
+            });
+
+        lines.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void UnsupportedBillingType_Throws()
+    {
+        var act = () => _sut.BuildLines(
+            (BillingType)999,
+            new DateOnly(2026, 6, 1),
+            new DateOnly(2026, 6, 30),
+            Array.Empty<InvoiceAllocationChargeInput>(),
+            Array.Empty<InvoiceBookingChargeInput>());
+
+        act.Should().Throw<ArgumentOutOfRangeException>().WithParameterName("billingType");
+    }
+
+    [Fact]
+    public void ReservedSlots_ZeroMonthlyRate_OrNoOverlap_Skipped()
+    {
+        var lines = _sut.BuildLines(
+            BillingType.ReservedSlots,
+            new DateOnly(2026, 6, 1),
+            new DateOnly(2026, 6, 30),
+            new[]
+            {
+                new InvoiceAllocationChargeInput(
+                    Guid.NewGuid(),
+                    "Zero rate",
+                    null,
+                    ParkingAllocationSource.VendorLease,
+                    AllocationStatus.Active,
+                    0m,
+                    new DateOnly(2026, 1, 1),
+                    new DateOnly(2026, 12, 31)),
+                new InvoiceAllocationChargeInput(
+                    Guid.NewGuid(),
+                    "Outside period",
+                    null,
+                    ParkingAllocationSource.VendorLease,
+                    AllocationStatus.Expired,
+                    2000m,
+                    new DateOnly(2025, 1, 1),
+                    new DateOnly(2025, 12, 31))
+            },
+            Array.Empty<InvoiceBookingChargeInput>());
+
+        lines.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void UsageBased_ExceedsMaxLineItems_Throws()
+    {
+        var bookings = Enumerable.Range(0, CorporateInvoice.MaxLineItems + 1)
+            .Select(i => new InvoiceBookingChargeInput(
+                Guid.NewGuid(),
+                Guid.NewGuid(),
+                10m,
+                new DateTime(2026, 6, 1, 0, 0, 0, DateTimeKind.Utc).AddHours(i),
+                new DateTime(2026, 6, 1, 1, 0, 0, DateTimeKind.Utc).AddHours(i),
+                BookingStatus.Confirmed,
+                false,
+                $"M{i}",
+                null,
+                "Lot"))
+            .ToArray();
+
+        var act = () => _sut.BuildLines(
+            BillingType.UsageBased,
+            new DateOnly(2026, 6, 1),
+            new DateOnly(2026, 6, 30),
+            Array.Empty<InvoiceAllocationChargeInput>(),
+            bookings);
+
+        act.Should().Throw<InvalidOperationException>().WithMessage("*line items*");
     }
 }
 

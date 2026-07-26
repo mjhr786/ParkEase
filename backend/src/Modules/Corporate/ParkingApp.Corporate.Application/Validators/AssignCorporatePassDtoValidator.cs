@@ -1,13 +1,14 @@
 using System;
 using System.Linq;
 using FluentValidation;
-using ParkingApp.Application.DTOs;
 using ParkingApp.Marketplace.Contracts.DTOs;
-using ParkingApp.Corporate.Application.DTOs;
 using ParkingApp.Marketplace.Contracts.Enums;
 
 namespace ParkingApp.Corporate.Application.Validators;
 
+/// <summary>
+/// Validates admin corporate pass assignment. Registered in <see cref="CorporateApplicationModule"/>.
+/// </summary>
 internal class AssignCorporatePassDtoValidator : AbstractValidator<AssignCorporatePassDto>
 {
     public AssignCorporatePassDtoValidator()
