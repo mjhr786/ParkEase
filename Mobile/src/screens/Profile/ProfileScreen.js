@@ -4,24 +4,32 @@
  */
 
 import React, { useState, useCallback } from 'react';
+import { EventBus } from '../../utils/EventBus';
 import { View, Text, TouchableOpacity, Alert, StyleSheet } from 'react-native';
+import { useDispatch, useSelector } from 'react-redux';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../hooks/useAuth';
 import { authService } from '../../services/auth/authService';
+import { deleteAccountThunk } from '../../store/slices/authSlice';
 import ScreenLayout from '../../components/Layouts/ScreenLayout';
 import Card from '../../components/Common/Card';
 import Button from '../../components/Common/Button';
 import Input from '../../components/Common/Input';
 import { colors, spacing, typography, shadows } from '../../styles/globalStyles';
-import { UserRoleLabels } from '../../utils/constants';
 
-const MenuItem = ({ icon, label, value, onPress, danger = false }) => (
+
+const MenuItem = ({ icon, label, value, onPress, danger = false, badge = 0 }) => (
     <TouchableOpacity style={menuStyles.item} onPress={onPress}>
         <Ionicons name={icon} size={22} color={danger ? colors.danger : colors.primary} />
         <View style={menuStyles.info}>
             <Text style={[menuStyles.label, danger && { color: colors.danger }]}>{label}</Text>
             {value && <Text style={menuStyles.value}>{value}</Text>}
         </View>
+        {badge > 0 && (
+            <View style={menuStyles.badge}>
+                <Text style={menuStyles.badgeText}>{badge > 99 ? '99+' : badge}</Text>
+            </View>
+        )}
         <Ionicons name="chevron-forward" size={18} color={colors.textTertiary} />
     </TouchableOpacity>
 );
@@ -31,46 +39,94 @@ const menuStyles = StyleSheet.create({
     info: { flex: 1 },
     label: { ...typography.body, color: colors.textPrimary },
     value: { ...typography.caption, color: colors.textTertiary, marginTop: 2 },
+    badge: {
+        backgroundColor: colors.danger,
+        paddingHorizontal: 6,
+        paddingVertical: 2,
+        borderRadius: 10,
+        marginRight: spacing.xs,
+        minWidth: 20,
+        alignItems: 'center',
+    },
+    badgeText: {
+        color: colors.white,
+        fontSize: 11,
+        fontWeight: '700',
+    },
 });
 
 const ProfileScreen = ({ navigation }) => {
+    const dispatch = useDispatch();
     const { user, logout, updateProfile, loading } = useAuth();
     const [editing, setEditing] = useState(false);
+    const [isLoggingOut, setIsLoggingOut] = useState(false);
     const [firstName, setFirstName] = useState(user?.firstName || '');
     const [lastName, setLastName] = useState(user?.lastName || '');
     const [phoneNumber, setPhoneNumber] = useState(user?.phoneNumber || '');
+
+    // Get unread count safely
+    const { unreadCount: notificationUnreadCount } = useSelector((s) => s.notification);
 
     const handleSaveProfile = useCallback(async () => {
         const result = await updateProfile({ firstName, lastName, phoneNumber });
         if (!result.error) {
             setEditing(false);
-            Alert.alert('Success', 'Profile updated');
+            EventBus.emit('SHOW_BANNER', { title: 'Success', message: 'Profile updated', type: 'success' });
         }
     }, [updateProfile, firstName, lastName, phoneNumber]);
 
     const handleLogout = useCallback(() => {
+        if (isLoggingOut) {
+            return;
+        }
+
         Alert.alert('Logout', 'Are you sure you want to logout?', [
             { text: 'Cancel', style: 'cancel' },
-            { text: 'Logout', style: 'destructive', onPress: logout },
+            {
+                text: 'Logout',
+                style: 'destructive',
+                onPress: async () => {
+                    try {
+                        setIsLoggingOut(true);
+                        await logout().unwrap();
+                    } catch (error) {
+                        setIsLoggingOut(false);
+                        EventBus.emit('SHOW_BANNER', {
+                            title: 'Logout Failed',
+                            message: error || 'Could not log out right now.',
+                            type: 'error',
+                        });
+                    }
+                },
+            },
         ]);
-    }, [logout]);
+    }, [isLoggingOut, logout]);
 
     const handleChangePassword = () => {
-        Alert.prompt(
-            'Change Password',
-            'Enter your new password (min 8 characters)',
-            async (newPassword) => {
-                if (newPassword && newPassword.length >= 8) {
-                    try {
-                        await authService.changePassword({ currentPassword: '', newPassword });
-                        Alert.alert('Success', 'Password changed');
-                    } catch {
-                        Alert.alert('Error', 'Failed to change password');
-                    }
-                }
-            }
-        );
+        navigation.navigate('ChangePassword');
     };
+
+    const handleDeleteAccount = useCallback(() => {
+        Alert.alert(
+            'Delete Account',
+            'This action is permanent and cannot be undone. Are you sure?',
+            [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                    text: 'Delete',
+                    style: 'destructive',
+                    onPress: async () => {
+                        try {
+                            await dispatch(deleteAccountThunk()).unwrap();
+                            EventBus.emit('SHOW_BANNER', { title: 'Account Deleted', message: 'Your account has been permanently deleted.', type: 'success' });
+                        } catch (error) {
+                            EventBus.emit('SHOW_ERROR_BANNER', { title: 'Error', message: error || 'Failed to delete account.' });
+                        }
+                    },
+                },
+            ]
+        );
+    }, [dispatch]);
 
     return (
         <ScreenLayout scrollable>
@@ -89,9 +145,6 @@ const ProfileScreen = ({ navigation }) => {
                     </View>
                     <Text style={styles.userName}>{user?.firstName} {user?.lastName}</Text>
                     <Text style={styles.userEmail}>{user?.email}</Text>
-                    <View style={styles.roleBadge}>
-                        <Text style={styles.roleText}>{UserRoleLabels[user?.role] || 'Member'}</Text>
-                    </View>
                 </View>
 
                 {/* Edit Profile */}
@@ -110,13 +163,28 @@ const ProfileScreen = ({ navigation }) => {
 
                 {/* Menu */}
                 <Card>
-                    <MenuItem icon="person-outline" label="Edit Profile" value={`${user?.firstName} ${user?.lastName}`} onPress={() => setEditing(true)} />
+                    <MenuItem icon="person-outline" label="Edit Profile" value={`${user?.firstName} ${user?.lastName}`} onPress={() => navigation.navigate('EditProfile')} />
                     <MenuItem icon="mail-outline" label="Email" value={user?.email} onPress={() => { }} />
                     <MenuItem icon="call-outline" label="Phone" value={user?.phoneNumber} onPress={() => { }} />
                     <MenuItem icon="lock-closed-outline" label="Change Password" onPress={handleChangePassword} />
+                    <MenuItem icon="car-outline" label="My Vehicles" onPress={() => navigation.navigate('Vehicles')} />
+                    <MenuItem icon="ticket-outline" label="My Passes" onPress={() => navigation.navigate('MyPasses')} />
+                    <MenuItem icon="heart-outline" label="Favorites" onPress={() => navigation.navigate('Favorites')} />
+                    <MenuItem icon="notifications-outline" label="Notifications" badge={notificationUnreadCount} onPress={() => navigation.navigate('Notifications')} />
                 </Card>
 
-                <Button title="Logout" onPress={handleLogout} variant="danger" style={styles.logoutBtn} icon={<Ionicons name="log-out-outline" size={20} color={colors.white} />} />
+                <Card>
+                    <MenuItem icon="trash-outline" label="Delete Account" onPress={handleDeleteAccount} danger />
+                </Card>
+
+                <Button
+                    title={isLoggingOut ? 'Logging out...' : 'Logout'}
+                    onPress={handleLogout}
+                    loading={isLoggingOut}
+                    variant="danger"
+                    style={styles.logoutBtn}
+                    icon={!isLoggingOut ? <Ionicons name="log-out-outline" size={20} color={colors.white} /> : undefined}
+                />
             </View>
         </ScreenLayout>
     );
@@ -124,7 +192,7 @@ const ProfileScreen = ({ navigation }) => {
 
 const styles = StyleSheet.create({
     content: { paddingBottom: spacing['3xl'] },
-    header: { paddingTop: 60, paddingHorizontal: spacing.screenHorizontal, paddingBottom: spacing.base },
+    header: { paddingTop: spacing.md, paddingHorizontal: spacing.screenHorizontal, paddingBottom: spacing.base },
     screenTitle: { ...typography.h2, color: colors.textPrimary },
     avatarSection: { alignItems: 'center', paddingVertical: spacing.xl },
     avatarCircle: { width: 80, height: 80, borderRadius: 40, backgroundColor: colors.primary, justifyContent: 'center', alignItems: 'center', ...shadows.lg },

@@ -24,6 +24,8 @@ export const BookingStatus = {
     Expired: 5,
     AwaitingPayment: 6,
     Rejected: 7,
+    PendingExtension: 8,
+    AwaitingExtensionPayment: 9,
 };
 
 export const BookingStatusLabels = {
@@ -35,6 +37,8 @@ export const BookingStatusLabels = {
     [BookingStatus.Expired]: 'Expired',
     [BookingStatus.AwaitingPayment]: 'Awaiting Payment',
     [BookingStatus.Rejected]: 'Rejected',
+    [BookingStatus.PendingExtension]: 'Extension Pending',
+    [BookingStatus.AwaitingExtensionPayment]: 'Extension Payment Due',
 };
 
 export const PaymentStatus = {
@@ -107,7 +111,6 @@ export const PaymentMethod = {
     UPI: 2,
     NetBanking: 3,
     Wallet: 4,
-    Cash: 5,
 };
 
 export const PaymentMethodLabels = {
@@ -116,7 +119,6 @@ export const PaymentMethodLabels = {
     [PaymentMethod.UPI]: 'UPI',
     [PaymentMethod.NetBanking]: 'Net Banking',
     [PaymentMethod.Wallet]: 'Wallet',
-    [PaymentMethod.Cash]: 'Cash',
 };
 
 export const AMENITIES = [
