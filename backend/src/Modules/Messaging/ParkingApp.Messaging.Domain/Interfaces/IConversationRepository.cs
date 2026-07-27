@@ -6,6 +6,14 @@ namespace ParkingApp.Messaging.Domain.Interfaces;
 public interface IConversationRepository : IRepository<Conversation>
 {
     Task<Conversation?> GetByParticipantsAsync(Guid parkingSpaceId, Guid userId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// When the sender is the vendor and no conversationId was provided: return the single
+    /// conversation for this space+vendor if and only if exactly one exists (preserves prior behavior).
+    /// Uses Take(2) so popular listings never load the full thread set.
+    /// </summary>
+    Task<Conversation?> GetSoleByVendorAndSpaceAsync(Guid parkingSpaceId, Guid vendorId, CancellationToken cancellationToken = default);
+
     Task<IEnumerable<Conversation>> GetByUserIdAsync(Guid userId, int page = 1, int pageSize = 20, CancellationToken cancellationToken = default);
     Task<int> CountByUserIdAsync(Guid userId, CancellationToken cancellationToken = default);
 }
@@ -25,7 +33,12 @@ public interface IChatMessageRepository : IRepository<ChatMessage>
         Guid userId,
         CancellationToken cancellationToken = default);
 
-    Task MarkAsReadAsync(Guid conversationId, Guid userId, CancellationToken cancellationToken = default);
+    /// <summary>
+    /// Marks unread messages from the other participant as read.
+    /// Returns <c>true</c> when the caller must call <c>SaveChanges</c> (tracked/InMemory path);
+    /// <c>false</c> when a set-based UPDATE already persisted (relational).
+    /// </summary>
+    Task<bool> MarkAsReadAsync(Guid conversationId, Guid userId, CancellationToken cancellationToken = default);
 }
 
 public interface INotificationRepository : IRepository<Notification>

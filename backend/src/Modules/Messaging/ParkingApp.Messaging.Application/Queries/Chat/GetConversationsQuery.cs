@@ -4,6 +4,7 @@ using ParkingApp.Application.Caching;
 using ParkingApp.Application.CQRS;
 using ParkingApp.Application.DTOs;
 using ParkingApp.Application.Interfaces;
+using ParkingApp.Messaging.Application;
 using ParkingApp.Messaging.Application.DTOs;
 using ParkingApp.Messaging.Application.Mappings;
 using ParkingApp.Messaging.Domain.Interfaces;
@@ -47,8 +48,10 @@ internal sealed class GetConversationsHandler : IQueryHandler<GetConversationsQu
         GetConversationsQuery query,
         CancellationToken cancellationToken = default)
     {
+        var (page, pageSize) = ChatPaging.ClampConversations(query.Page, query.PageSize);
+
         var conversations = (await _unitOfWork.Conversations.GetByUserIdAsync(
-            query.UserId, query.Page, query.PageSize, cancellationToken)).ToList();
+            query.UserId, page, pageSize, cancellationToken)).ToList();
         var totalCount = await _unitOfWork.Conversations.CountByUserIdAsync(query.UserId, cancellationToken);
 
         if (conversations.Count == 0)
@@ -59,9 +62,9 @@ internal sealed class GetConversationsHandler : IQueryHandler<GetConversationsQu
                 new ConversationListDto(
                     new List<ConversationDto>(),
                     totalCount,
-                    query.Page,
-                    query.PageSize,
-                    (int)Math.Ceiling(totalCount / (double)query.PageSize)));
+                    page,
+                    pageSize,
+                    (int)Math.Ceiling(totalCount / (double)pageSize)));
         }
 
         var conversationIds = conversations.Select(c => c.Id).ToList();
@@ -97,9 +100,9 @@ internal sealed class GetConversationsHandler : IQueryHandler<GetConversationsQu
         var result = new ConversationListDto(
             dtos,
             totalCount,
-            query.Page,
-            query.PageSize,
-            (int)Math.Ceiling(totalCount / (double)query.PageSize));
+            page,
+            pageSize,
+            (int)Math.Ceiling(totalCount / (double)pageSize));
 
         return new ApiResponse<ConversationListDto>(true, null, result);
     }
@@ -120,6 +123,8 @@ internal sealed class GetMessagesHandler : IQueryHandler<GetMessagesQuery, ApiRe
         GetMessagesQuery query,
         CancellationToken cancellationToken = default)
     {
+        var (page, pageSize) = ChatPaging.ClampMessages(query.Page, query.PageSize);
+
         var conversation = await _unitOfWork.Conversations.GetByIdAsync(query.ConversationId, cancellationToken);
         if (conversation == null)
             return new ApiResponse<List<ChatMessageDto>>(false, "Conversation not found", null);
@@ -128,7 +133,7 @@ internal sealed class GetMessagesHandler : IQueryHandler<GetMessagesQuery, ApiRe
             return new ApiResponse<List<ChatMessageDto>>(false, "Unauthorized", null);
 
         var messages = (await _unitOfWork.ChatMessages.GetByConversationIdAsync(
-            query.ConversationId, query.Page, query.PageSize, cancellationToken)).ToList();
+            query.ConversationId, page, pageSize, cancellationToken)).ToList();
 
         if (messages.Count == 0)
             return new ApiResponse<List<ChatMessageDto>>(true, null, new List<ChatMessageDto>());

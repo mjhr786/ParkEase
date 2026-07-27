@@ -90,8 +90,8 @@ public class SendMessageHandlerTests
             .ReturnsAsync(new ParkingSpaceSummary(_spaceId, _senderId, "Lot", true, 5, "IndividualVendor"));
         _conversations.Setup(x => x.GetByParticipantsAsync(_spaceId, _senderId, It.IsAny<CancellationToken>()))
             .ReturnsAsync((Conversation?)null);
-        _conversations.Setup(x => x.FindAsync(It.IsAny<System.Linq.Expressions.Expression<Func<Conversation, bool>>>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(Array.Empty<Conversation>());
+        _conversations.Setup(x => x.GetSoleByVendorAndSpaceAsync(_spaceId, _senderId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((Conversation?)null);
 
         var result = await CreateSut().HandleAsync(new SendMessageCommand(
             _senderId, new SendMessageDto(_spaceId, "hello")));
@@ -107,8 +107,8 @@ public class SendMessageHandlerTests
             .ReturnsAsync(new ParkingSpaceSummary(_spaceId, _vendorId, "Lot", true, 5, "IndividualVendor"));
         _conversations.Setup(x => x.GetByParticipantsAsync(_spaceId, _senderId, It.IsAny<CancellationToken>()))
             .ReturnsAsync((Conversation?)null);
-        _conversations.Setup(x => x.FindAsync(It.IsAny<System.Linq.Expressions.Expression<Func<Conversation, bool>>>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(Array.Empty<Conversation>());
+        _conversations.Setup(x => x.GetSoleByVendorAndSpaceAsync(_spaceId, _senderId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((Conversation?)null);
 
         var result = await CreateSut().HandleAsync(new SendMessageCommand(
             _senderId, new SendMessageDto(_spaceId, "Is this available?")));
@@ -118,6 +118,7 @@ public class SendMessageHandlerTests
         result.Data.RecipientId.Should().Be(_vendorId);
         _messages.Verify(x => x.AddAsync(It.IsAny<ChatMessage>(), It.IsAny<CancellationToken>()), Times.Once);
         _push.Verify(x => x.ScheduleSendToUser(_vendorId, It.IsAny<PushNotificationPayload>()), Times.Once);
+        _conversations.Verify(x => x.AddAsync(It.Is<Conversation>(c => c.LastMessageAt != null), It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
@@ -150,12 +151,13 @@ public class SendMessageHandlerTests
         _conversations.Setup(x => x.GetByIdAsync(conversation.Id, It.IsAny<CancellationToken>()))
             .ReturnsAsync(conversation);
         _messages.Setup(x => x.MarkAsReadAsync(conversation.Id, _senderId, It.IsAny<CancellationToken>()))
-            .Returns(Task.CompletedTask);
+            .ReturnsAsync(false);
 
         var handler = new MarkMessagesReadHandler(_uow.Object, _cache.Object);
         var result = await handler.HandleAsync(new MarkMessagesReadCommand(_senderId, conversation.Id));
 
         result.Success.Should().BeTrue();
         result.Data!.OtherParticipantId.Should().Be(_vendorId);
+        _uow.Verify(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
     }
 }

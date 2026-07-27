@@ -73,6 +73,22 @@ public class ChatControllerTests
     }
 
     [Fact]
+    public async Task GetConversations_ClampsOversizedPageSize()
+    {
+        var userId = Guid.NewGuid();
+        SetupControllerUser(_controller, userId);
+
+        _dispatcherMock.Setup(d => d.QueryAsync(It.IsAny<GetConversationsQuery>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.FromResult(new ApiResponse<ConversationListDto>(true, "Success", new ConversationListDto(new List<ConversationDto>(), 0, 1, 50, 0), null)));
+
+        await _controller.GetConversations(0, 500, CancellationToken.None);
+
+        _dispatcherMock.Verify(d => d.QueryAsync(
+            It.Is<GetConversationsQuery>(q => q.Page == 1 && q.PageSize == 50),
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
     public async Task GetMessages_ReturnsOk()
     {
         var userId = Guid.NewGuid();
@@ -85,6 +101,23 @@ public class ChatControllerTests
         var result = await _controller.GetMessages(convId, 1, 50, CancellationToken.None);
 
         result.Should().BeOfType<OkObjectResult>();
+    }
+
+    [Fact]
+    public async Task GetMessages_ClampsOversizedPageSize()
+    {
+        var userId = Guid.NewGuid();
+        var convId = Guid.NewGuid();
+        SetupControllerUser(_controller, userId);
+
+        _dispatcherMock.Setup(d => d.QueryAsync(It.IsAny<GetMessagesQuery>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.FromResult(new ApiResponse<List<ChatMessageDto>>(true, "Success", new List<ChatMessageDto>(), null)));
+
+        await _controller.GetMessages(convId, -1, 999, CancellationToken.None);
+
+        _dispatcherMock.Verify(d => d.QueryAsync(
+            It.Is<GetMessagesQuery>(q => q.Page == 1 && q.PageSize == 100 && q.ConversationId == convId),
+            It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]

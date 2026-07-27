@@ -101,14 +101,64 @@ public class SendMessageHandlerTests
             .ReturnsAsync(new ParkingSpaceSummary(_spaceId, _senderId, "Lot", true, 5, "IndividualVendor"));
         _conversations.Setup(x => x.GetByParticipantsAsync(_spaceId, _senderId, It.IsAny<CancellationToken>()))
             .ReturnsAsync((Conversation?)null);
-        _conversations.Setup(x => x.FindAsync(It.IsAny<System.Linq.Expressions.Expression<Func<Conversation, bool>>>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(Array.Empty<Conversation>());
+        _conversations.Setup(x => x.GetSoleByVendorAndSpaceAsync(_spaceId, _senderId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((Conversation?)null);
 
         var result = await CreateHandler().HandleAsync(new SendMessageCommand(
             _senderId, new SendMessageDto(_spaceId, "hello")));
 
         result.Success.Should().BeFalse();
         result.Message.Should().Contain("yourself");
+    }
+
+    [Fact]
+    public async Task Send_WhenExistingByParticipants_SkipsParkingLookup()
+    {
+        var conversation = new Conversation
+        {
+            Id = Guid.NewGuid(),
+            ParkingSpaceId = _spaceId,
+            UserId = _senderId,
+            VendorId = _vendorId
+        };
+        _conversations.Setup(x => x.GetByParticipantsAsync(_spaceId, _senderId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(conversation);
+        _messages.Setup(x => x.AddAsync(It.IsAny<ChatMessage>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((ChatMessage m, CancellationToken _) => m);
+
+        var result = await CreateHandler().HandleAsync(new SendMessageCommand(
+            _senderId, new SendMessageDto(_spaceId, "still here")));
+
+        result.Success.Should().BeTrue();
+        result.Data!.RecipientId.Should().Be(_vendorId);
+        _parking.Verify(x => x.GetByIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
+        _conversations.Verify(x => x.GetSoleByVendorAndSpaceAsync(It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task Send_WhenVendorSoleConversation_UsesTargetedLookup()
+    {
+        var conversation = new Conversation
+        {
+            Id = Guid.NewGuid(),
+            ParkingSpaceId = _spaceId,
+            UserId = Guid.NewGuid(),
+            VendorId = _senderId
+        };
+        _conversations.Setup(x => x.GetByParticipantsAsync(_spaceId, _senderId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((Conversation?)null);
+        _conversations.Setup(x => x.GetSoleByVendorAndSpaceAsync(_spaceId, _senderId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(conversation);
+        _messages.Setup(x => x.AddAsync(It.IsAny<ChatMessage>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((ChatMessage m, CancellationToken _) => m);
+
+        var result = await CreateHandler().HandleAsync(new SendMessageCommand(
+            _senderId, new SendMessageDto(_spaceId, "reply as vendor")));
+
+        result.Success.Should().BeTrue();
+        result.Data!.RecipientId.Should().Be(conversation.UserId);
+        _parking.Verify(x => x.GetByIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
+        _conversations.Verify(x => x.FindAsync(It.IsAny<System.Linq.Expressions.Expression<Func<Conversation, bool>>>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
@@ -165,7 +215,7 @@ public class SendMessageHandlerTests
                 VendorId = _vendorId
             });
         _messages.Setup(x => x.MarkAsReadAsync(conversationId, _senderId, It.IsAny<CancellationToken>()))
-            .Returns(Task.CompletedTask);
+            .ReturnsAsync(false); // relational path — no SaveChanges
 
         var handler = new MarkMessagesReadHandler(_messaging.Object, _cache.Object);
         var result = await handler.HandleAsync(new MarkMessagesReadCommand(_senderId, conversationId));
@@ -173,5 +223,28 @@ public class SendMessageHandlerTests
         result.Success.Should().BeTrue();
         result.Data!.OtherParticipantId.Should().Be(_vendorId);
         _cache.Verify(x => x.RemoveAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Once);
+        _messaging.Verify(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task MarkRead_WhenTrackedPath_CallsSaveChanges()
+    {
+        var conversationId = Guid.NewGuid();
+        _conversations.Setup(x => x.GetByIdAsync(conversationId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Conversation
+            {
+                Id = conversationId,
+                ParkingSpaceId = _spaceId,
+                UserId = _senderId,
+                VendorId = _vendorId
+            });
+        _messages.Setup(x => x.MarkAsReadAsync(conversationId, _senderId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true); // InMemory / tracked path
+
+        var handler = new MarkMessagesReadHandler(_messaging.Object, _cache.Object);
+        var result = await handler.HandleAsync(new MarkMessagesReadCommand(_senderId, conversationId));
+
+        result.Success.Should().BeTrue();
+        _messaging.Verify(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
     }
 }

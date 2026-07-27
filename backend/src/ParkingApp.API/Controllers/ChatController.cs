@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.SignalR;
 using ParkingApp.Application.CQRS;
+using ParkingApp.Messaging.Application;
 using ParkingApp.Messaging.Application.Commands.Chat;
 using ParkingApp.Messaging.Application.Queries.Chat;
 using ParkingApp.Application.DTOs;
@@ -43,6 +44,9 @@ public class ChatController : ControllerBase
         var userId = GetUserId();
         if (userId == null) return Unauthorized();
 
+        // Clamp early so logs/metrics reflect effective work (handler also clamps defensively).
+        (page, pageSize) = ChatPaging.ClampConversations(page, pageSize);
+
         var sw = Stopwatch.StartNew();
         var result = await _dispatcher.QueryAsync(
             new GetConversationsQuery(userId.Value, page, pageSize), cancellationToken);
@@ -65,6 +69,8 @@ public class ChatController : ControllerBase
     {
         var userId = GetUserId();
         if (userId == null) return Unauthorized();
+
+        (page, pageSize) = ChatPaging.ClampMessages(page, pageSize);
 
         var sw = Stopwatch.StartNew();
         var result = await _dispatcher.QueryAsync(

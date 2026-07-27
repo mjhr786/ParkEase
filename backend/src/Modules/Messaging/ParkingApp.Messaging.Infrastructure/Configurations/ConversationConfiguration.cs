@@ -18,6 +18,11 @@ internal sealed class ConversationConfiguration : IEntityTypeConfiguration<Conve
         entity.HasIndex(e => e.UserId);
         entity.HasIndex(e => e.VendorId);
         entity.HasIndex(e => e.LastMessageAt);
+        // Inbox list: filter by participant + ORDER BY LastMessageAt DESC
+        entity.HasIndex(e => new { e.UserId, e.LastMessageAt })
+            .HasDatabaseName("IX_Conversations_UserId_LastMessageAt");
+        entity.HasIndex(e => new { e.VendorId, e.LastMessageAt })
+            .HasDatabaseName("IX_Conversations_VendorId_LastMessageAt");
         entity.HasQueryFilter(e => !e.IsDeleted);
 
         // Identity User / Marketplace ParkingSpace principals are configured in their modules.

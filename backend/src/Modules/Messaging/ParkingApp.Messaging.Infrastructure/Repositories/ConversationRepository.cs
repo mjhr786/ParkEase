@@ -12,16 +12,36 @@ internal class ConversationRepository : MessagingRepository<Conversation>, IConv
     public async Task<Conversation?> GetByParticipantsAsync(Guid parkingSpaceId, Guid userId, CancellationToken cancellationToken = default) =>
         await _dbSet.FirstOrDefaultAsync(c => c.ParkingSpaceId == parkingSpaceId && c.UserId == userId, cancellationToken);
 
+    public async Task<Conversation?> GetSoleByVendorAndSpaceAsync(
+        Guid parkingSpaceId,
+        Guid vendorId,
+        CancellationToken cancellationToken = default)
+    {
+        // Take(2): preserve "use only if exactly one" without materializing every vendor thread on a listing.
+        var matches = await _dbSet
+            .Where(c => c.ParkingSpaceId == parkingSpaceId && c.VendorId == vendorId)
+            .Take(2)
+            .ToListAsync(cancellationToken);
+
+        return matches.Count == 1 ? matches[0] : null;
+    }
+
     public async Task<IEnumerable<Conversation>> GetByUserIdAsync(Guid userId, int page = 1, int pageSize = 20, CancellationToken cancellationToken = default) =>
+        // Read-only inbox page — no tracking (handlers map to DTOs only).
         await _dbSet
+            .AsNoTracking()
             .Where(c => c.UserId == userId || c.VendorId == userId)
-            .OrderByDescending(c => c.LastMessageAt ?? c.CreatedAt)
+            // Prefer LastMessageAt (backfilled / always set on send) so composite indexes can help.
+            .OrderByDescending(c => c.LastMessageAt)
+            .ThenByDescending(c => c.CreatedAt)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
             .ToListAsync(cancellationToken);
 
     public async Task<int> CountByUserIdAsync(Guid userId, CancellationToken cancellationToken = default) =>
-        await _dbSet.CountAsync(c => c.UserId == userId || c.VendorId == userId, cancellationToken);
+        await _dbSet
+            .AsNoTracking()
+            .CountAsync(c => c.UserId == userId || c.VendorId == userId, cancellationToken);
 }
 
 internal class ChatMessageRepository : MessagingRepository<ChatMessage>, IChatMessageRepository
@@ -30,6 +50,7 @@ internal class ChatMessageRepository : MessagingRepository<ChatMessage>, IChatMe
 
     public async Task<IEnumerable<ChatMessage>> GetByConversationIdAsync(Guid conversationId, int page = 1, int pageSize = 50, CancellationToken cancellationToken = default) =>
         await _dbSet
+            .AsNoTracking()
             .Where(m => m.ConversationId == conversationId)
             .OrderByDescending(m => m.CreatedAt)
             .Skip((page - 1) * pageSize)
@@ -70,13 +91,13 @@ internal class ChatMessageRepository : MessagingRepository<ChatMessage>, IChatMe
         return rows.ToDictionary(r => r.ConversationId, r => r.Count);
     }
 
-    public async Task MarkAsReadAsync(Guid conversationId, Guid userId, CancellationToken cancellationToken = default)
+    public async Task<bool> MarkAsReadAsync(Guid conversationId, Guid userId, CancellationToken cancellationToken = default)
     {
         var now = DateTime.UtcNow;
         var filter = _dbSet.Where(m =>
             m.ConversationId == conversationId && !m.IsRead && m.SenderId != userId);
 
-        // Production (PostgreSQL): single set-based UPDATE.
+        // Production (PostgreSQL): single set-based UPDATE — already persisted; no SaveChanges needed.
         // InMemory (unit tests): ExecuteUpdate is unsupported — fall back to tracked entities.
         if (_context.Database.IsRelational())
         {
@@ -86,7 +107,7 @@ internal class ChatMessageRepository : MessagingRepository<ChatMessage>, IChatMe
                     .SetProperty(m => m.ReadAt, now)
                     .SetProperty(m => m.UpdatedAt, now),
                 cancellationToken);
-            return;
+            return false;
         }
 
         var unreadMessages = await filter.ToListAsync(cancellationToken);
@@ -96,6 +117,8 @@ internal class ChatMessageRepository : MessagingRepository<ChatMessage>, IChatMe
             message.ReadAt = now;
             message.UpdatedAt = now;
         }
+
+        return true; // tracked changes require SaveChanges
     }
 }
 

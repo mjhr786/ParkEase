@@ -1,7 +1,5 @@
 using ParkingApp.Notifications.Contracts;
 using System;
-using System.Linq.Expressions;
-using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using FluentAssertions;
@@ -144,7 +142,7 @@ public class ChatCommandsTests
 
         _mockParkingLookup.Setup(r => r.GetByIdAsync(parkingId, It.IsAny<CancellationToken>())).ReturnsAsync(parking);
         _mockConversationRepo.Setup(r => r.GetByParticipantsAsync(parkingId, senderId, It.IsAny<CancellationToken>())).ReturnsAsync((Conversation?)null);
-        _mockConversationRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<Conversation, bool>>>(), It.IsAny<CancellationToken>())).ReturnsAsync(new List<Conversation>());
+        _mockConversationRepo.Setup(r => r.GetSoleByVendorAndSpaceAsync(parkingId, senderId, It.IsAny<CancellationToken>())).ReturnsAsync((Conversation?)null);
 
         var res = await handler.HandleAsync(new SendMessageCommand(senderId, new SendMessageDto(parkingId, "Hello", null)));
 
@@ -186,6 +184,9 @@ public class ChatCommandsTests
         var vendorId = Guid.NewGuid();
         var conversation = new Conversation { Id = Guid.NewGuid(), UserId = userId, VendorId = vendorId };
         _mockConversationRepo.Setup(r => r.GetByIdAsync(conversation.Id, It.IsAny<CancellationToken>())).ReturnsAsync(conversation);
+        // Relational path: ExecuteUpdate already persisted → no SaveChanges
+        _mockChatMessageRepo.Setup(r => r.MarkAsReadAsync(conversation.Id, userId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(false);
 
         var res = await handler.HandleAsync(new MarkMessagesReadCommand(userId, conversation.Id));
 
@@ -193,6 +194,6 @@ public class ChatCommandsTests
         res.Data!.Marked.Should().BeTrue();
         res.Data.OtherParticipantId.Should().Be(vendorId);
         _mockChatMessageRepo.Verify(r => r.MarkAsReadAsync(conversation.Id, userId, It.IsAny<CancellationToken>()), Times.Once);
-        _mockMessaging.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
+        _mockMessaging.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
     }
 }

@@ -77,41 +77,37 @@ internal sealed class SendMessageHandler : ICommandHandler<SendMessageCommand, A
             }
         }
 
-        ParkingSpaceSummary? parkingSpace = null;
-
-        // Fallback: find or create by parking space + participants
+        // Fallback: find or create by parking space + participants (mobile often omits conversationId)
         if (conversation == null)
         {
-            parkingSpace = await _parkingSpaceLookup.GetByIdAsync(command.Dto.ParkingSpaceId, cancellationToken);
-            if (parkingSpace == null)
-                return new ApiResponse<ChatMessageDto>(false, "Parking space not found", null);
-
+            // Renter path first — single unique index lookup (ParkingSpaceId, UserId)
             conversation = await _messaging.Conversations.GetByParticipantsAsync(
                 command.Dto.ParkingSpaceId, command.SenderId, cancellationToken);
 
-            // If sender is the vendor, try to find the conversation where they are the vendor
+            // Vendor path: only when exactly one thread exists for this space+vendor (same semantics as before)
             if (conversation == null)
             {
-                var vendorConversations = await _messaging.Conversations.FindAsync(
-                    c => c.ParkingSpaceId == command.Dto.ParkingSpaceId && c.VendorId == command.SenderId,
-                    cancellationToken);
-
-                var conversationsList = vendorConversations.ToList();
-                if (conversationsList.Count == 1)
-                    conversation = conversationsList[0];
+                conversation = await _messaging.Conversations.GetSoleByVendorAndSpaceAsync(
+                    command.Dto.ParkingSpaceId, command.SenderId, cancellationToken);
             }
 
             if (conversation == null)
             {
+                var parkingSpace = await _parkingSpaceLookup.GetByIdAsync(command.Dto.ParkingSpaceId, cancellationToken);
+                if (parkingSpace == null)
+                    return new ApiResponse<ChatMessageDto>(false, "Parking space not found", null);
+
                 // Only prevent self-chat when creating a NEW conversation
                 if (parkingSpace.OwnerId == command.SenderId)
                     return new ApiResponse<ChatMessageDto>(false, "Cannot start a conversation with yourself", null);
 
+                var now = DateTime.UtcNow;
                 conversation = new Conversation
                 {
                     ParkingSpaceId = command.Dto.ParkingSpaceId,
                     UserId = command.SenderId,
-                    VendorId = parkingSpace.OwnerId
+                    VendorId = parkingSpace.OwnerId,
+                    LastMessageAt = now
                 };
                 await _messaging.Conversations.AddAsync(conversation, cancellationToken);
             }
@@ -207,8 +203,11 @@ internal sealed class MarkMessagesReadHandler : ICommandHandler<MarkMessagesRead
         if (conversation.UserId != command.UserId && conversation.VendorId != command.UserId)
             return new ApiResponse<MarkMessagesReadResult>(false, "Unauthorized", null);
 
-        await _unitOfWork.ChatMessages.MarkAsReadAsync(command.ConversationId, command.UserId, cancellationToken);
-        await _unitOfWork.SaveChangesAsync(cancellationToken);
+        // Relational path uses ExecuteUpdate (already persisted); InMemory needs SaveChanges.
+        var requiresSave = await _unitOfWork.ChatMessages.MarkAsReadAsync(
+            command.ConversationId, command.UserId, cancellationToken);
+        if (requiresSave)
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         var otherParticipantId = conversation.UserId == command.UserId
             ? conversation.VendorId
