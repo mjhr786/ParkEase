@@ -51,17 +51,27 @@ internal sealed class GetParkingByIdHandler : IQueryHandler<GetParkingByIdQuery,
         var cached = await _cache.GetAsync<ParkingSpaceDto>(cacheKey, cancellationToken);
         if (cached != null)
         {
+            // KD-9a: never serve corporate-only inventory from the public parking cache
+            // (e.g. after an earlier warm that poisoned the public key).
+            if (cached.IsCorporateOnly)
+            {
+                _logger.LogCacheHit(cacheKey);
+                return new ApiResponse<ParkingSpaceDto>(false, "Parking space not found", null);
+            }
+
             _logger.LogCacheHit(cacheKey);
             return new ApiResponse<ParkingSpaceDto>(true, null, cached);
         }
 
         _logger.LogCacheMiss(cacheKey);
         var parking = await _unitOfWork.ParkingSpaces.GetByIdAsync(query.ParkingId, cancellationToken);
-        if (parking == null)
+        // KD-9: corporate-only inventory is company/admin surface only - 404 like not-found.
+        if (parking == null || parking.IsCorporateOnly)
             return new ApiResponse<ParkingSpaceDto>(false, "Parking space not found", null);
 
         var bookings = await _unitOfWork.Bookings.GetActiveBookingsForSpacesAsync(new[] { parking.Id }, cancellationToken);
         var dto = parking.ToDtoWithReservations(bookings);
+        // Only cache public (non-corporate-only) DTOs under the public key.
         await _cache.SetAsync(cacheKey, dto, TimeSpan.FromMinutes(5), cancellationToken);
 
         return new ApiResponse<ParkingSpaceDto>(true, null, dto);
@@ -84,10 +94,15 @@ internal sealed class GetOwnerParkingsHandler : IQueryHandler<GetOwnerParkingsQu
         var cacheKey = CacheKeys.OwnerParkings(query.OwnerId);
         var cached = await _cache.GetAsync<List<ParkingSpaceDto>>(cacheKey, cancellationToken);
         if (cached != null)
-            return new ApiResponse<List<ParkingSpaceDto>>(true, null, cached);
+        {
+            // KD-9: strip any corporate-only entries that may have been cached before isolation.
+            var publicCached = cached.Where(p => !p.IsCorporateOnly).ToList();
+            return new ApiResponse<List<ParkingSpaceDto>>(true, null, publicCached);
+        }
 
+        // Repository already excludes IsCorporateOnly for marketplace owner listings.
         var parkingSpaces = await _unitOfWork.ParkingSpaces.GetByOwnerIdAsync(query.OwnerId, cancellationToken);
-        var parkingList = parkingSpaces.ToList();
+        var parkingList = parkingSpaces.Where(p => !p.IsCorporateOnly).ToList();
 
         // Batch fetch active bookings for all parking spaces
         var parkingIds = parkingList.Select(p => p.Id).ToList();

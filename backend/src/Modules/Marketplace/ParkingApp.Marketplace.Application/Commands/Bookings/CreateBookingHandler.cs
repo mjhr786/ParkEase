@@ -63,7 +63,8 @@ internal sealed class CreateBookingHandler : ICommandHandler<CreateBookingComman
         var endDateTimeUtc = command.EndDateTime.ToUtc();
 
         var parking = await _unitOfWork.ParkingSpaces.GetByIdAsync(command.ParkingSpaceId, cancellationToken);
-        if (parking == null)
+        // KD-9: corporate-only inventory is not bookable via marketplace product APIs.
+        if (parking == null || parking.IsCorporateOnly)
         {
             return new ApiResponse<BookingDto>(false, "Parking space is not available", null);
         }

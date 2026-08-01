@@ -116,7 +116,8 @@ internal sealed class CalculatePriceHandler : IQueryHandler<CalculatePriceQuery,
     public async Task<ApiResponse<PriceBreakdownDto>> HandleAsync(CalculatePriceQuery query, CancellationToken cancellationToken = default)
     {
         var parking = await _unitOfWork.ParkingSpaces.GetByIdAsync(query.ParkingSpaceId, cancellationToken);
-        if (parking == null)
+        // KD-9: do not quote marketplace prices for corporate-only inventory.
+        if (parking == null || parking.IsCorporateOnly)
         {
             return new ApiResponse<PriceBreakdownDto>(false, "Parking space not found", null);
         }

@@ -22,7 +22,8 @@ internal sealed class ToggleFavoriteCommandHandler : ICommandHandler<ToggleFavor
     public async Task<ApiResponse<bool>> HandleAsync(ToggleFavoriteCommand command, CancellationToken cancellationToken = default)
     {
         var parkingSpace = await _unitOfWork.ParkingSpaces.GetByIdAsync(command.ParkingSpaceId, cancellationToken);
-        if (parkingSpace == null)
+        // KD-9: corporate-only inventory is hidden from marketplace favorites.
+        if (parkingSpace == null || parkingSpace.IsCorporateOnly)
             return new ApiResponse<bool>(false, "Parking space not found", false);
 
         // Includes soft-deleted rows: Remove is soft-delete, and the unique index on
