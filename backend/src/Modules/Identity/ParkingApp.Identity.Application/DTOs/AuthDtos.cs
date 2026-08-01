@@ -18,6 +18,7 @@ public record LoginDto(
     [Required] string Password
 );
 
+
 /// <summary>Corporate product entry (KD-3 / KD-16). Optional companyId when user has multiple memberships.</summary>
 public record CorporateLoginDto(
     [Required][EmailAddress] string Email,
@@ -59,6 +60,26 @@ public record ChannelContextDto
     public bool IsBootstrap { get; init; }
     public bool IsolationEnabled { get; init; }
     public IReadOnlyList<CompanyMembershipOptionDto> Memberships { get; init; } = Array.Empty<CompanyMembershipOptionDto>();
+}
+
+/// <summary>
+/// Property-init record (KD-24) so channel/session fields can grow without positional churn.
+/// </summary>
+public record TokenDto
+{
+    public required string AccessToken { get; init; }
+    public required string RefreshToken { get; init; }
+    public required DateTime ExpiresAt { get; init; }
+    public required UserDto User { get; init; }
+
+    /// <summary>Product channel name: Marketplace | Corporate | Admin.</summary>
+    public required string Channel { get; init; }
+
+    public Guid? CompanyId { get; init; }
+    public string? CompanyRole { get; init; }
+
+    /// <summary>True when Corporate channel without company_id (founder bootstrap).</summary>
+    public bool? IsBootstrap { get; init; }
 }
 
 /// <summary>

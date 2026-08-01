@@ -191,6 +191,7 @@ internal sealed class RefreshTokenHandler : ICommandHandler<RefreshTokenCommand,
                     break;
 
                 case ProductChannel.Corporate:
+
                 {
                     // PR3: validated Corporate re-bind via membership lookup
                     var memberships = await _memberships.GetActiveMembershipsAsync(user.Id, cancellationToken);
@@ -233,6 +234,13 @@ internal sealed class RefreshTokenHandler : ICommandHandler<RefreshTokenCommand,
 
                     break;
                 }
+                    // Full membership validation lands in PR3 — do not poison Session* with unvalidated companyId.
+                    return new ApiResponse<TokenDto>(
+                        false,
+                        "Corporate channel re-bind is not available yet",
+                        null,
+                        new List<string> { "Use corporate login/switch (PR3); refresh may only preserve an existing Corporate session when channel is omitted or null" },
+                        "channel_rebind_forbidden");
 
                 default:
                     return new ApiResponse<TokenDto>(
