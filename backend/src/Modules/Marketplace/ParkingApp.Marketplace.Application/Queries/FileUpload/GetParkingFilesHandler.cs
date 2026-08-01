@@ -21,7 +21,8 @@ internal sealed class GetParkingFilesHandler : IQueryHandler<GetParkingFilesQuer
         CancellationToken cancellationToken = default)
     {
         var parking = await _unitOfWork.ParkingSpaces.GetByIdAsync(query.ParkingSpaceId, cancellationToken);
-        if (parking == null || string.IsNullOrEmpty(parking.ImageUrls))
+        // KD-9: corporate-only inventory is not readable via marketplace product file APIs.
+        if (parking == null || parking.IsCorporateOnly || string.IsNullOrEmpty(parking.ImageUrls))
         {
             return new ApiResponse<List<string>>(true, null, new List<string>());
         }

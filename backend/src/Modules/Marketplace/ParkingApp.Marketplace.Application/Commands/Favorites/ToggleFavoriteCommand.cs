@@ -22,8 +22,7 @@ internal sealed class ToggleFavoriteCommandHandler : ICommandHandler<ToggleFavor
     public async Task<ApiResponse<bool>> HandleAsync(ToggleFavoriteCommand command, CancellationToken cancellationToken = default)
     {
         var parkingSpace = await _unitOfWork.ParkingSpaces.GetByIdAsync(command.ParkingSpaceId, cancellationToken);
-        // KD-9: corporate-only inventory is hidden from marketplace favorites.
-        if (parkingSpace == null || parkingSpace.IsCorporateOnly)
+        if (parkingSpace == null)
             return new ApiResponse<bool>(false, "Parking space not found", false);
 
         // Includes soft-deleted rows: Remove is soft-delete, and the unique index on
@@ -32,11 +31,15 @@ internal sealed class ToggleFavoriteCommandHandler : ICommandHandler<ToggleFavor
 
         if (existingFavorite != null && !existingFavorite.IsDeleted)
         {
-            // Already favorited; toggle means remove it (soft-delete)
+            // Always allow unfavorite — including pre-isolation orphan rows on corporate-only spaces.
             _unitOfWork.Favorites.Remove(existingFavorite);
             await _unitOfWork.SaveChangesAsync(cancellationToken);
             return new ApiResponse<bool>(true, "Removed from favorites", false);
         }
+
+        // KD-9: block new favorites / restore for corporate-only inventory.
+        if (parkingSpace.IsCorporateOnly)
+            return new ApiResponse<bool>(false, "Parking space not found", false);
 
         if (existingFavorite != null && existingFavorite.IsDeleted)
         {

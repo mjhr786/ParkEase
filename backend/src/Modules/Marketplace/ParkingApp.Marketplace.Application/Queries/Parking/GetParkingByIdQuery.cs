@@ -55,7 +55,10 @@ internal sealed class GetParkingByIdHandler : IQueryHandler<GetParkingByIdQuery,
             // (e.g. after an earlier warm that poisoned the public key).
             if (cached.IsCorporateOnly)
             {
-                _logger.LogCacheHit(cacheKey);
+                _logger.LogWarning(
+                    "Public parking cache key {CacheKey} held corporate-only DTO; removing poisoned entry",
+                    cacheKey);
+                await _cache.RemoveAsync(cacheKey, cancellationToken);
                 return new ApiResponse<ParkingSpaceDto>(false, "Parking space not found", null);
             }
 

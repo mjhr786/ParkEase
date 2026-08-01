@@ -5,9 +5,13 @@ using ParkingApp.Application.Caching;
 using ParkingApp.Application.Interfaces;
 using ParkingApp.BuildingBlocks.Enums;
 using ParkingApp.Marketplace.Application.Commands.Bookings;
+using ParkingApp.Marketplace.Application.Commands.EventPackages;
 using ParkingApp.Marketplace.Application.Commands.Favorites;
+using ParkingApp.Marketplace.Application.Commands.FileUpload;
 using ParkingApp.Marketplace.Application.Queries.Bookings;
+using ParkingApp.Marketplace.Application.Queries.EventPackages;
 using ParkingApp.Marketplace.Application.Queries.Favorites;
+using ParkingApp.Marketplace.Application.Queries.FileUpload;
 using ParkingApp.Marketplace.Application.Queries.Parking;
 using ParkingApp.Marketplace.Contracts.DTOs;
 using ParkingApp.Marketplace.Contracts.Enums;
@@ -28,6 +32,7 @@ public class CorporateOnlyInventoryIsolationTests
     private readonly Mock<IParkingSpaceRepository> _parkingRepo = new();
     private readonly Mock<IBookingRepository> _bookingRepo = new();
     private readonly Mock<IFavoriteRepository> _favoriteRepo = new();
+    private readonly Mock<IEventParkingPackageRepository> _eventPackageRepo = new();
     private readonly Mock<ICacheService> _cache = new();
 
     public CorporateOnlyInventoryIsolationTests()
@@ -35,6 +40,7 @@ public class CorporateOnlyInventoryIsolationTests
         _uow.Setup(u => u.ParkingSpaces).Returns(_parkingRepo.Object);
         _uow.Setup(u => u.Bookings).Returns(_bookingRepo.Object);
         _uow.Setup(u => u.Favorites).Returns(_favoriteRepo.Object);
+        _uow.Setup(u => u.EventParkingPackages).Returns(_eventPackageRepo.Object);
     }
 
     private static ParkingSpaceDto PublicDto(Guid id) =>
@@ -99,6 +105,8 @@ public class CorporateOnlyInventoryIsolationTests
         _cache.Verify(
             c => c.SetAsync(It.IsAny<string>(), It.IsAny<ParkingSpaceDto>(), It.IsAny<TimeSpan>(), It.IsAny<CancellationToken>()),
             Times.Never);
+        // Heal the poisoned public key so the next miss revalidates against the DB.
+        _cache.Verify(c => c.RemoveAsync(cacheKey, It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
@@ -281,7 +289,7 @@ public class CorporateOnlyInventoryIsolationTests
     // ── Favorites ───────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task ToggleFavorite_WhenCorporateOnly_ReturnsNotFound()
+    public async Task ToggleFavorite_WhenCorporateOnlyAndNoExistingFavorite_ReturnsNotFound()
     {
         var handler = new ToggleFavoriteCommandHandler(_uow.Object);
         var parkingId = Guid.NewGuid();
@@ -289,6 +297,9 @@ public class CorporateOnlyInventoryIsolationTests
         _parkingRepo
             .Setup(r => r.GetByIdAsync(parkingId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(new ParkingSpace { Id = parkingId, IsCorporateOnly = true });
+        _favoriteRepo
+            .Setup(r => r.GetByUserAndSpaceAsync(userId, parkingId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((Favorite?)null);
 
         var result = await handler.HandleAsync(new ToggleFavoriteCommand(userId, parkingId));
 
@@ -298,6 +309,30 @@ public class CorporateOnlyInventoryIsolationTests
         _favoriteRepo.Verify(
             r => r.AddAsync(It.IsAny<Favorite>(), It.IsAny<CancellationToken>()),
             Times.Never);
+    }
+
+    [Fact]
+    public async Task ToggleFavorite_WhenCorporateOnlyWithExistingFavorite_AllowsRemove()
+    {
+        var handler = new ToggleFavoriteCommandHandler(_uow.Object);
+        var parkingId = Guid.NewGuid();
+        var userId = Guid.NewGuid();
+        var existing = new Favorite { UserId = userId, ParkingSpaceId = parkingId, IsDeleted = false };
+
+        _parkingRepo
+            .Setup(r => r.GetByIdAsync(parkingId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ParkingSpace { Id = parkingId, IsCorporateOnly = true });
+        _favoriteRepo
+            .Setup(r => r.GetByUserAndSpaceAsync(userId, parkingId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(existing);
+
+        var result = await handler.HandleAsync(new ToggleFavoriteCommand(userId, parkingId));
+
+        result.Success.Should().BeTrue();
+        result.Message.Should().Be("Removed from favorites");
+        result.Data.Should().BeFalse();
+        _favoriteRepo.Verify(r => r.Remove(existing), Times.Once);
+        _uow.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
@@ -336,5 +371,46 @@ public class CorporateOnlyInventoryIsolationTests
         result.Data.Should().HaveCount(1);
         result.Data!.Single().Title.Should().Be("Public");
         result.Data!.Single().IsCorporateOnly.Should().BeFalse();
+    }
+
+    // ── Residual public-by-id product surfaces ───────────────────────────────
+
+    [Fact]
+    public async Task GetParkingFiles_WhenCorporateOnly_ReturnsEmptyList()
+    {
+        var handler = new GetParkingFilesHandler(_uow.Object);
+        var parkingId = Guid.NewGuid();
+        _parkingRepo
+            .Setup(r => r.GetByIdAsync(parkingId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ParkingSpace
+            {
+                Id = parkingId,
+                IsCorporateOnly = true,
+                ImageUrls = "https://cdn.example/corp.jpg"
+            });
+
+        var result = await handler.HandleAsync(new GetParkingFilesQuery(parkingId));
+
+        result.Success.Should().BeTrue();
+        result.Data.Should().NotBeNull().And.BeEmpty();
+    }
+
+    [Fact]
+    public async Task GetEventPackagesForParking_WhenCorporateOnly_ReturnsNotFound()
+    {
+        var handler = new GetEventPackagesForParkingHandler(_uow.Object);
+        var parkingId = Guid.NewGuid();
+        _parkingRepo
+            .Setup(r => r.GetByIdAsync(parkingId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ParkingSpace { Id = parkingId, IsCorporateOnly = true, Title = "HQ" });
+
+        var result = await handler.HandleAsync(new GetEventPackagesForParkingQuery(parkingId, ActiveOnly: true));
+
+        result.Success.Should().BeFalse();
+        result.Message.Should().Contain("not found");
+        result.Data.Should().BeNull();
+        _eventPackageRepo.Verify(
+            r => r.GetByParkingSpaceIdAsync(It.IsAny<Guid>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()),
+            Times.Never);
     }
 }
