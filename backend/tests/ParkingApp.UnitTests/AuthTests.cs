@@ -5,18 +5,10 @@ using Microsoft.Extensions.Logging;
 using ParkingApp.Identity.Application.Commands.Auth;
 using ParkingApp.Application.DTOs;
 using ParkingApp.Identity.Application.DTOs;
-using ParkingApp.Marketplace.Contracts.DTOs;
-using ParkingApp.Messaging.Application.DTOs;
-using ParkingApp.Notifications.Application.DTOs;
-using ParkingApp.Corporate.Application.DTOs;
 using ParkingApp.Identity.Application.Interfaces;
-using ParkingApp.Marketplace.Application.Interfaces;
-using ParkingApp.Corporate.Application.Interfaces;
-using ParkingApp.BuildingBlocks.Domain;
-using ParkingApp.Marketplace.Domain.Entities;
+using ParkingApp.BuildingBlocks.Security;
 using ParkingApp.Identity.Domain.Entities;
-using ParkingApp.Messaging.Domain.Entities;
-using ParkingApp.Corporate.Domain;
+using ParkingApp.Identity.Domain.Enums;
 using ParkingApp.Infrastructure.Persistence;
 using ParkingApp.Identity.Domain.Interfaces;
 
@@ -75,17 +67,20 @@ public class AuthTests
             FirstName = "Test",
             LastName = "User",
             PhoneNumber = "1",
-            IsActive = true
+            IsActive = true,
+            Role = UserRole.User
         };
 
         _mockUserRepository.Setup(r => r.GetByEmailAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(user);
-        _mockTokenService.Setup(t => t.GenerateAccessToken(It.IsAny<User>())).Returns("access-token");
+        _mockTokenService.Setup(t => t.GenerateAccessToken(It.IsAny<User>(), It.IsAny<ProductChannel>(), It.IsAny<Guid?>(), It.IsAny<string?>())).Returns("access-token");
         _mockTokenService.Setup(t => t.GenerateRefreshToken()).Returns("refresh-token");
 
         var result = await handler.HandleAsync(new LoginCommand(new LoginDto("test@example.com", password)));
 
         result.Success.Should().BeTrue();
         result.Data!.AccessToken.Should().Be("access-token");
+        result.Data.Channel.Should().Be(nameof(ProductChannel.Marketplace));
+        user.SessionChannel.Should().Be(ProductChannel.Marketplace);
         _mockUserRepository.Verify(r => r.Update(user), Times.Once);
         _mockUnitOfWork.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
     }
@@ -122,7 +117,7 @@ public class AuthTests
             _mockRegisterLogger.Object);
         _mockUserRepository.Setup(r => r.GetByEmailAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((User?)null);
-        _mockTokenService.Setup(t => t.GenerateAccessToken(It.IsAny<User>())).Returns("access-token");
+        _mockTokenService.Setup(t => t.GenerateAccessToken(It.IsAny<User>(), It.IsAny<ProductChannel>(), It.IsAny<Guid?>(), It.IsAny<string?>())).Returns("access-token");
         _mockTokenService.Setup(t => t.GenerateRefreshToken()).Returns("refresh-token");
 
         var dto = new RegisterDto("new@test.com", "Pass123!", "First", "Last", "123");
@@ -130,8 +125,9 @@ public class AuthTests
 
         result.Success.Should().BeTrue();
         result.Data!.AccessToken.Should().Be("access-token");
+        result.Data.Channel.Should().Be(nameof(ProductChannel.Marketplace));
         _mockUserRepository.Verify(r => r.AddAsync(
-            It.Is<User>(u => u.PasswordHash == "hash:Pass123!"),
+            It.Is<User>(u => u.PasswordHash == "hash:Pass123!" && u.SessionChannel == ProductChannel.Marketplace),
             It.IsAny<CancellationToken>()), Times.Once);
         _mockUnitOfWork.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
     }
@@ -141,16 +137,21 @@ public class AuthTests
     #region Logout Tests
 
     [Fact]
-    public async Task LogoutHandler_WhenUserExists_ShouldClearRefreshToken()
+    public async Task LogoutHandler_WhenUserExists_ShouldClearRefreshTokenAndSession()
     {
         var handler = new LogoutHandler(_mockUnitOfWork.Object, _mockLogoutLogger.Object);
         var user = new User { Id = Guid.NewGuid(), Email = "test@example.com", PasswordHash = "hash", FirstName = "Test", LastName = "User", PhoneNumber = "1", IsActive = true };
+        user.BindSession(ProductChannel.Corporate, Guid.NewGuid(), "Admin");
+        user.RotateRefreshToken("rt", DateTime.UtcNow.AddDays(1));
         _mockUserRepository.Setup(r => r.GetByIdAsync(user.Id, It.IsAny<CancellationToken>())).ReturnsAsync(user);
 
         var result = await handler.HandleAsync(new LogoutCommand(user.Id));
 
         result.Success.Should().BeTrue();
         user.RefreshToken.Should().BeNull();
+        user.SessionChannel.Should().BeNull();
+        user.SessionCompanyId.Should().BeNull();
+        user.SessionCompanyRole.Should().BeNull();
         _mockUserRepository.Verify(r => r.Update(user), Times.Once);
     }
 
@@ -188,8 +189,3 @@ public class AuthTests
 
     #endregion
 }
-
-
-
-
-

@@ -3,21 +3,19 @@ using ParkingApp.Identity.Application.Interfaces;
 using ParkingApp.Application.DTOs;
 using ParkingApp.Identity.Application.DTOs;
 using TokenDto = ParkingApp.Identity.Application.DTOs.TokenDto;
-using UserDto = ParkingApp.Identity.Application.DTOs.UserDto;
-
-using ParkingApp.Application.Interfaces;
 
 using ParkingApp.Identity.Application.Mappings;
-using ParkingApp.BuildingBlocks.Domain;
+using ParkingApp.BuildingBlocks.Security;
 using ParkingApp.Identity.Domain.Entities;
+using ParkingApp.Identity.Domain.Enums;
 using ParkingApp.Identity.Domain.Interfaces;
 using Microsoft.Extensions.Logging;
 
 namespace ParkingApp.Identity.Application.Commands.Auth;
 
-// ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+// ═══════════════════════════════════════════════════════════════════════════════
 // Commands
-// ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+// ═══════════════════════════════════════════════════════════════════════════════
 
 public sealed record RegisterCommand(RegisterDto Dto) : ICommand<ApiResponse<TokenDto>>;
 public sealed record LoginCommand(LoginDto Dto) : ICommand<ApiResponse<TokenDto>>;
@@ -25,9 +23,9 @@ public sealed record RefreshTokenCommand(RefreshTokenDto Dto) : ICommand<ApiResp
 public sealed record LogoutCommand(Guid UserId) : ICommand<ApiResponse<bool>>;
 public sealed record ChangePasswordCommand(Guid UserId, ChangePasswordDto Dto) : ICommand<ApiResponse<bool>>;
 
-// ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+// ═══════════════════════════════════════════════════════════════════════════════
 // Handlers
-// ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+// ═══════════════════════════════════════════════════════════════════════════════
 
 internal sealed class RegisterHandler : ICommandHandler<RegisterCommand, ApiResponse<TokenDto>>
 {
@@ -65,9 +63,12 @@ internal sealed class RegisterHandler : ICommandHandler<RegisterCommand, ApiResp
             command.Dto.LastName,
             command.Dto.PhoneNumber);
 
-        var accessToken = _tokenService.GenerateAccessToken(user);
+        // KD-3: register always mints Marketplace
+        var channel = ProductChannel.Marketplace;
+        var accessToken = _tokenService.GenerateAccessToken(user, channel);
         var refreshToken = _tokenService.GenerateRefreshToken();
         user.RotateRefreshToken(refreshToken, DateTime.UtcNow.AddDays(RefreshTokenExpirationDays));
+        user.BindSession(channel);
 
         await _unitOfWork.Users.AddAsync(user, cancellationToken);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
@@ -75,8 +76,27 @@ internal sealed class RegisterHandler : ICommandHandler<RegisterCommand, ApiResp
         _logger.LogInformation("User registered: {Email}, Role: {Role}", user.Email, user.Role);
 
         return new ApiResponse<TokenDto>(true, "Registration successful",
-            new TokenDto(accessToken, refreshToken, DateTime.UtcNow.AddMinutes(15), user.ToDto()));
+            BuildTokenDto(accessToken, refreshToken, user, channel));
     }
+
+    internal static TokenDto BuildTokenDto(
+        string accessToken,
+        string refreshToken,
+        User user,
+        ProductChannel channel,
+        Guid? companyId = null,
+        string? companyRole = null) =>
+        new()
+        {
+            AccessToken = accessToken,
+            RefreshToken = refreshToken,
+            ExpiresAt = DateTime.UtcNow.AddMinutes(15),
+            User = user.ToDto(),
+            Channel = channel.ToString(),
+            CompanyId = companyId,
+            CompanyRole = companyRole,
+            IsBootstrap = channel == ProductChannel.Corporate && companyId is null
+        };
 }
 
 internal sealed class LoginHandler : ICommandHandler<LoginCommand, ApiResponse<TokenDto>>
@@ -111,17 +131,20 @@ internal sealed class LoginHandler : ICommandHandler<LoginCommand, ApiResponse<T
         if (!user.IsActive)
             return new ApiResponse<TokenDto>(false, "Account disabled", null, new List<string> { "Your account has been disabled" });
 
-        var accessToken = _tokenService.GenerateAccessToken(user);
+        // KD-3: default login → Marketplace for User; Admin for UserRole.Admin. Corporate is PR3.
+        var channel = user.Role == UserRole.Admin ? ProductChannel.Admin : ProductChannel.Marketplace;
+        var accessToken = _tokenService.GenerateAccessToken(user, channel);
         var refreshToken = _tokenService.GenerateRefreshToken();
         user.RecordLogin(refreshToken, DateTime.UtcNow.AddDays(RefreshTokenExpirationDays));
+        user.BindSession(channel);
 
         _unitOfWork.Users.Update(user);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
-        _logger.LogInformation("User logged in: {Email}, UserId: {UserId}", user.Email, user.Id);
+        _logger.LogInformation("User logged in: {Email}, UserId: {UserId}, Channel: {Channel}", user.Email, user.Id, channel);
 
         return new ApiResponse<TokenDto>(true, "Login successful",
-            new TokenDto(accessToken, refreshToken, DateTime.UtcNow.AddMinutes(15), user.ToDto()));
+            RegisterHandler.BuildTokenDto(accessToken, refreshToken, user, channel));
     }
 }
 
@@ -143,15 +166,67 @@ internal sealed class RefreshTokenHandler : ICommandHandler<RefreshTokenCommand,
         if (user == null || !_tokenService.ValidateRefreshToken(user, command.Dto.RefreshToken))
             return new ApiResponse<TokenDto>(false, "Invalid refresh token", null, new List<string> { "Refresh token is invalid or expired" });
 
-        var accessToken = _tokenService.GenerateAccessToken(user);
+        // C5 / KD-2 refresh algorithm:
+        // 1. Non-null channel in body → request re-bind (full membership validation is PR3).
+        // 2. Null / omit → use User.Session*.
+        // 3. Session null (legacy) → Marketplace (or Admin by role), then persist.
+        ProductChannel channel;
+        Guid? companyId;
+        string? companyRole;
+
+        if (!string.IsNullOrWhiteSpace(command.Dto.Channel))
+        {
+            if (!Enum.TryParse<ProductChannel>(command.Dto.Channel.Trim(), ignoreCase: true, out channel)
+                || !Enum.IsDefined(channel))
+            {
+                return new ApiResponse<TokenDto>(
+                    false,
+                    "Invalid channel",
+                    null,
+                    new List<string> { "Channel must be Marketplace, Corporate, or Admin" });
+            }
+
+            // PR3 will fully validate membership/role. PR1: accept requested channel + optional companyId.
+            if (channel == ProductChannel.Corporate)
+            {
+                companyId = command.Dto.CompanyId ?? user.SessionCompanyId;
+                companyRole = companyId.HasValue
+                    ? (companyId == user.SessionCompanyId ? user.SessionCompanyRole : null)
+                    : null;
+            }
+            else
+            {
+                companyId = null;
+                companyRole = null;
+            }
+        }
+        else
+        {
+            // Omitted or explicit null → preserve server session bind
+            if (user.SessionChannel is null)
+            {
+                channel = user.Role == UserRole.Admin ? ProductChannel.Admin : ProductChannel.Marketplace;
+                companyId = null;
+                companyRole = null;
+            }
+            else
+            {
+                channel = user.SessionChannel.Value;
+                companyId = user.SessionCompanyId;
+                companyRole = user.SessionCompanyRole;
+            }
+        }
+
+        var accessToken = _tokenService.GenerateAccessToken(user, channel, companyId, companyRole);
         var refreshToken = _tokenService.GenerateRefreshToken();
         user.RotateRefreshToken(refreshToken, DateTime.UtcNow.AddDays(RefreshTokenExpirationDays));
+        user.BindSession(channel, companyId, companyRole);
 
         _unitOfWork.Users.Update(user);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         return new ApiResponse<TokenDto>(true, "Token refreshed",
-            new TokenDto(accessToken, refreshToken, DateTime.UtcNow.AddMinutes(15), user.ToDto()));
+            RegisterHandler.BuildTokenDto(accessToken, refreshToken, user, channel, companyId, companyRole));
     }
 }
 
@@ -213,4 +288,3 @@ internal sealed class ChangePasswordHandler : ICommandHandler<ChangePasswordComm
         return new ApiResponse<bool>(true, "Password changed successfully", true);
     }
 }
-

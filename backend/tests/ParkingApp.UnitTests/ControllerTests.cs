@@ -59,7 +59,14 @@ public class ControllerTests
         // Arrange
         var controller = new AuthController(_mockDispatcher.Object, _mockRegisterValidator.Object, _mockLoginValidator.Object);
         var dto = new LoginDto("test@test.com", "Password123!");
-        var tokenDto = new TokenDto("access", "refresh", DateTime.UtcNow.AddHours(1), new UserDto(Guid.NewGuid(), "test@test.com", "John", "Doe", "123", ParkingApp.Identity.Domain.Enums.UserRole.User, true, true, DateTime.UtcNow));
+        var tokenDto = new TokenDto
+        {
+            AccessToken = "access",
+            RefreshToken = "refresh",
+            ExpiresAt = DateTime.UtcNow.AddHours(1),
+            User = new UserDto(Guid.NewGuid(), "test@test.com", "John", "Doe", "123", ParkingApp.Identity.Domain.Enums.UserRole.User, true, true, DateTime.UtcNow),
+            Channel = "Marketplace"
+        };
         var apiResponse = new ApiResponse<TokenDto>(true, "Success", tokenDto);
 
         _mockLoginValidator.Setup(v => v.ValidateAsync(dto, It.IsAny<CancellationToken>()))

@@ -1,5 +1,6 @@
-﻿using ParkingApp.BuildingBlocks.Domain;
+using ParkingApp.BuildingBlocks.Domain;
 using ParkingApp.BuildingBlocks.Exceptions;
+using ParkingApp.BuildingBlocks.Security;
 using ParkingApp.BuildingBlocks.ValueObjects;
 using ParkingApp.Identity.Domain.Enums;
 
@@ -25,6 +26,15 @@ public class User : BaseEntity
     public string? RefreshToken { get; internal set; }
     public DateTime? RefreshTokenExpiryTime { get; internal set; }
     public DateTime? LastLoginAt { get; internal set; }
+
+    /// <summary>Last successful mint product channel (session bind for refresh). Nullable for legacy users.</summary>
+    public ProductChannel? SessionChannel { get; internal set; }
+
+    /// <summary>Last Corporate company bind (null for Marketplace/Admin/bootstrap).</summary>
+    public Guid? SessionCompanyId { get; internal set; }
+
+    /// <summary>Last Corporate company_role (Admin|Employee) for re-mint; null when unbound.</summary>
+    public string? SessionCompanyRole { get; internal set; }
 
     // Identity-owned collections only (no Marketplace reverse navigations)
     public virtual ICollection<Vehicle> Vehicles { get; internal set; } = new List<Vehicle>();
@@ -101,10 +111,27 @@ public class User : BaseEntity
         UpdatedAt = DateTime.UtcNow;
     }
 
+    /// <summary>
+    /// Persist product-channel session bind (KD-2). Call after every successful mint.
+    /// </summary>
+    public void BindSession(ProductChannel channel, Guid? companyId = null, string? companyRole = null)
+    {
+        SessionChannel = channel;
+        SessionCompanyId = companyId;
+        SessionCompanyRole = companyRole;
+        UpdatedAt = DateTime.UtcNow;
+    }
+
+    /// <summary>
+    /// Clears refresh token and session channel bind (KD-26).
+    /// </summary>
     public void RevokeRefreshToken()
     {
         RefreshToken = null;
         RefreshTokenExpiryTime = null;
+        SessionChannel = null;
+        SessionCompanyId = null;
+        SessionCompanyRole = null;
         UpdatedAt = DateTime.UtcNow;
     }
 
