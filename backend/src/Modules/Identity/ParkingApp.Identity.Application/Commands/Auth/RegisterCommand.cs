@@ -5,6 +5,7 @@ using ParkingApp.Identity.Application.DTOs;
 using TokenDto = ParkingApp.Identity.Application.DTOs.TokenDto;
 
 using ParkingApp.BuildingBlocks.Security;
+using ParkingApp.Corporate.Contracts;
 using ParkingApp.Identity.Domain.Entities;
 using ParkingApp.Identity.Domain.Enums;
 using ParkingApp.Identity.Domain.Interfaces;
@@ -132,12 +133,17 @@ internal sealed class RefreshTokenHandler : ICommandHandler<RefreshTokenCommand,
 {
     private readonly IIdentityUnitOfWork _unitOfWork;
     private readonly ITokenService _tokenService;
+    private readonly ICompanyMembershipLookup _memberships;
     private const int RefreshTokenExpirationDays = 7;
 
-    public RefreshTokenHandler(IIdentityUnitOfWork unitOfWork, ITokenService tokenService)
+    public RefreshTokenHandler(
+        IIdentityUnitOfWork unitOfWork,
+        ITokenService tokenService,
+        ICompanyMembershipLookup memberships)
     {
         _unitOfWork = unitOfWork;
         _tokenService = tokenService;
+        _memberships = memberships;
     }
 
     public async Task<ApiResponse<TokenDto>> HandleAsync(RefreshTokenCommand command, CancellationToken cancellationToken = default)
@@ -146,10 +152,7 @@ internal sealed class RefreshTokenHandler : ICommandHandler<RefreshTokenCommand,
         if (user == null || !_tokenService.ValidateRefreshToken(user, command.Dto.RefreshToken))
             return new ApiResponse<TokenDto>(false, "Invalid refresh token", null, new List<string> { "Refresh token is invalid or expired" });
 
-        // C5 / KD-2 refresh algorithm:
-        // 1. Non-null channel in body → limited re-bind (PR1: Marketplace demotion; Admin if role; Corporate deferred to PR3).
-        // 2. Null / omit → use User.Session*.
-        // 3. Session null (legacy) → Marketplace (or Admin by role), then persist.
+        // C5 / KD-2: non-null channel → validated re-bind; null/omit → Session*; legacy → Marketplace/Admin.
         ProductChannel channel;
         Guid? companyId;
         string? companyRole;
@@ -169,7 +172,6 @@ internal sealed class RefreshTokenHandler : ICommandHandler<RefreshTokenCommand,
             switch (channel)
             {
                 case ProductChannel.Marketplace:
-                    // Demotion / marketplace re-bind: clear company session fields.
                     companyId = null;
                     companyRole = null;
                     break;
@@ -189,6 +191,49 @@ internal sealed class RefreshTokenHandler : ICommandHandler<RefreshTokenCommand,
                     break;
 
                 case ProductChannel.Corporate:
+
+                {
+                    // PR3: validated Corporate re-bind via membership lookup
+                    var memberships = await _memberships.GetActiveMembershipsAsync(user.Id, cancellationToken);
+                    if (command.Dto.CompanyId is Guid requestedCompanyId)
+                    {
+                        var match = memberships.FirstOrDefault(m => m.CompanyId == requestedCompanyId);
+                        if (match is null)
+                        {
+                            return new ApiResponse<TokenDto>(
+                                false,
+                                "Not a member of the selected company",
+                                null,
+                                new List<string> { "Active membership required for companyId" },
+                                "membership_required");
+                        }
+
+                        companyId = match.CompanyId;
+                        companyRole = match.Role;
+                    }
+                    else if (memberships.Count == 1)
+                    {
+                        companyId = memberships[0].CompanyId;
+                        companyRole = memberships[0].Role;
+                    }
+                    else if (memberships.Count == 0)
+                    {
+                        // Bootstrap corporate refresh re-bind
+                        companyId = null;
+                        companyRole = null;
+                    }
+                    else
+                    {
+                        return new ApiResponse<TokenDto>(
+                            false,
+                            "Company selection required",
+                            null,
+                            new List<string> { "Provide companyId for Corporate channel refresh re-bind" },
+                            "company_selection_required");
+                    }
+
+                    break;
+                }
                     // Full membership validation lands in PR3 — do not poison Session* with unvalidated companyId.
                     return new ApiResponse<TokenDto>(
                         false,

@@ -15,6 +15,84 @@ class ApiService {
     return localStorage.getItem('accessToken');
   }
 
+  getStoredChannel() {
+    return localStorage.getItem('channel');
+  }
+
+  getStoredCompanyId() {
+    return localStorage.getItem('companyId');
+  }
+
+  /**
+   * Detect channel_forbidden denials (ApiResponse.Code or Errors token).
+   * @param {object|null|undefined} data
+   */
+  static isChannelForbidden(data) {
+    if (!data) return false;
+    if (data.code === 'channel_forbidden') return true;
+    const errors = data.errors;
+    if (Array.isArray(errors)) {
+      return errors.some((e) => String(e).toLowerCase().includes('channel_forbidden'));
+    }
+    return false;
+  }
+
+  /**
+   * Apply a TokenDto-shaped session to localStorage (tokens + channel bind fields).
+   * Syncs activeCompanyId cache with JWT company_id when Corporate-bound (KD-8 / PR10b).
+   * @param {object} session TokenDto-like
+   * @param {{ syncCompanyCache?: boolean }} [opts]
+   */
+  applySession(session, opts = {}) {
+    const { syncCompanyCache = true } = opts;
+    if (!session?.accessToken || !session?.refreshToken) {
+      throw new Error('Invalid session: missing tokens');
+    }
+    this.setTokens(session.accessToken, session.refreshToken);
+
+    if (session.user) {
+      localStorage.setItem('user', JSON.stringify(session.user));
+    }
+
+    const channel = session.channel || 'Marketplace';
+    localStorage.setItem('channel', channel);
+
+    if (session.companyId) {
+      localStorage.setItem('companyId', String(session.companyId));
+    } else {
+      localStorage.removeItem('companyId');
+    }
+
+    if (session.companyRole) {
+      localStorage.setItem('companyRole', session.companyRole);
+    } else {
+      localStorage.removeItem('companyRole');
+    }
+
+    const isBootstrap =
+      session.isBootstrap === true ||
+      (channel === 'Corporate' && !session.companyId);
+    localStorage.setItem('isBootstrap', isBootstrap ? 'true' : 'false');
+
+    if (syncCompanyCache) {
+      // Cache for corporateService path helpers — chrome uses JWT channel only
+      if (channel === 'Corporate' && session.companyId) {
+        localStorage.setItem('activeCompanyId', String(session.companyId));
+      } else {
+        localStorage.removeItem('activeCompanyId');
+      }
+    }
+
+    dispatchAuthChanged({ reason: 'session-applied', channel, companyId: session.companyId ?? null });
+    return {
+      channel,
+      companyId: session.companyId ? String(session.companyId) : null,
+      companyRole: session.companyRole || null,
+      isBootstrap,
+      user: session.user || null,
+    };
+  }
+
   setTokens(accessToken, refreshToken) {
     localStorage.setItem('accessToken', accessToken);
     localStorage.setItem('refreshToken', refreshToken);
@@ -26,6 +104,12 @@ class ApiService {
     localStorage.removeItem('accessToken');
     localStorage.removeItem('refreshToken');
     localStorage.removeItem('user');
+    localStorage.removeItem('channel');
+    localStorage.removeItem('companyId');
+    localStorage.removeItem('companyRole');
+    localStorage.removeItem('isBootstrap');
+    localStorage.removeItem('isolationEnabled');
+    localStorage.removeItem('activeCompanyId');
     // Notify SignalR hooks to disconnect after logout / failed refresh.
     dispatchAuthChanged({ reason: 'tokens-cleared' });
   }
@@ -83,13 +167,15 @@ class ApiService {
       const data = await response.json();
 
       if (!response.ok) {
-        // Preserve the entire error response including errors array
+        // Preserve the entire error response including errors array and Code (channel_forbidden)
         throw {
           response: {
             data: data,
             status: response.status
           },
-          message: data.message || `HTTP error! status: ${response.status}`
+          message: data.message || `HTTP error! status: ${response.status}`,
+          code: data.code || null,
+          channelForbidden: ApiService.isChannelForbidden(data),
         };
       }
 
@@ -163,20 +249,31 @@ class ApiService {
     if (!refreshToken) return false;
 
     try {
-      const body = JSON.stringify({ refreshToken });
+      // Prefer sending stored channel+companyId; server still preserves session if omitted (PR3).
+      const payload = { refreshToken };
+      const channel = this.getStoredChannel();
+      const companyId = this.getStoredCompanyId();
+      if (channel) payload.channel = channel;
+      if (companyId) payload.companyId = companyId;
+
       const response = await fetch(`${this.baseUrl}/auth/refresh`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Accept: 'application/json',
         },
-        body,
+        body: JSON.stringify(payload),
       });
 
       if (response.ok) {
         const data = await response.json();
         if (data.success && data.data?.accessToken && data.data?.refreshToken) {
-          this.setTokens(data.data.accessToken, data.data.refreshToken);
+          // Prefer full session apply when server returns channel fields
+          if (data.data.channel) {
+            this.applySession(data.data, { clearSoftKeys: false });
+          } else {
+            this.setTokens(data.data.accessToken, data.data.refreshToken);
+          }
           return true;
         }
       }
@@ -199,6 +296,32 @@ class ApiService {
       method: 'POST',
       body: JSON.stringify(data),
     });
+  }
+
+  /** Corporate product entry — bootstrap or bound company (POST /api/auth/login/corporate). */
+  async loginCorporate({ email, password, companyId } = {}) {
+    const body = { email, password };
+    if (companyId) body.companyId = companyId;
+    return this.request('/auth/login/corporate', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+  }
+
+  /** Authenticated channel switch / re-bind (POST /api/auth/channel). */
+  async switchChannel({ channel, companyId, bootstrap } = {}) {
+    const body = { channel };
+    if (companyId != null) body.companyId = companyId;
+    if (bootstrap === true) body.bootstrap = true;
+    return this.request('/auth/channel', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+  }
+
+  /** Runtime isolation + memberships (GET /api/auth/channel-context). */
+  async getChannelContext() {
+    return this.request('/auth/channel-context');
   }
 
   async logout() {

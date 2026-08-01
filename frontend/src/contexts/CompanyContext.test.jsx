@@ -4,7 +4,11 @@ import { render, screen, waitFor, act, cleanup } from '@testing-library/react';
 import { CompanyProvider, useCompany } from './CompanyContext';
 
 const mockGetCompany = vi.fn();
-let authState = { isAuthenticated: true };
+let authState = {
+  isAuthenticated: true,
+  channel: 'Marketplace',
+  companyId: null,
+};
 
 vi.mock('../services/corporateService', () => ({
   default: {
@@ -51,7 +55,11 @@ describe('CompanyContext', () => {
   beforeEach(() => {
     localStorage.clear();
     vi.clearAllMocks();
-    authState = { isAuthenticated: true };
+    authState = {
+      isAuthenticated: true,
+      channel: 'Marketplace',
+      companyId: null,
+    };
     mockGetCompany.mockResolvedValue({
       success: true,
       data: { id: 'co-1', name: 'Acme' },
@@ -73,7 +81,7 @@ describe('CompanyContext', () => {
     );
   });
 
-  it('starts without active company', () => {
+  it('starts without active company on Marketplace', () => {
     render(
       <CompanyProvider>
         <CompanyProbe />
@@ -84,12 +92,8 @@ describe('CompanyContext', () => {
     expect(mockGetCompany).not.toHaveBeenCalled();
   });
 
-  it('hydrates activeCompanyId from localStorage and fetches details when authenticated', async () => {
+  it('ignores bare localStorage activeCompanyId without Corporate channel', async () => {
     localStorage.setItem('activeCompanyId', 'co-stored');
-    mockGetCompany.mockResolvedValue({
-      success: true,
-      data: { id: 'co-stored', name: 'Stored Co' },
-    });
 
     render(
       <CompanyProvider>
@@ -98,17 +102,14 @@ describe('CompanyContext', () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByTestId('activeId').textContent).toBe('co-stored');
-      expect(screen.getByTestId('details').textContent).toContain('Stored Co');
-      expect(screen.getByTestId('corporate').textContent).toBe('true');
-      expect(screen.getByTestId('loading').textContent).toBe('false');
+      expect(screen.getByTestId('corporate').textContent).toBe('false');
+      expect(screen.getByTestId('activeId').textContent).toBe('none');
     });
-    expect(mockGetCompany).toHaveBeenCalled();
+    expect(mockGetCompany).not.toHaveBeenCalled();
   });
 
-  it('does not fetch when not authenticated even with stored id', async () => {
-    authState = { isAuthenticated: false };
-    localStorage.setItem('activeCompanyId', 'co-1');
+  it('does not fetch when not authenticated', async () => {
+    authState = { isAuthenticated: false, channel: 'Marketplace', companyId: null };
 
     render(
       <CompanyProvider>
@@ -117,13 +118,13 @@ describe('CompanyContext', () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByTestId('activeId').textContent).toBe('co-1');
+      expect(screen.getByTestId('activeId').textContent).toBe('none');
       expect(screen.getByTestId('details').textContent).toBe('none');
     });
     expect(mockGetCompany).not.toHaveBeenCalled();
   });
 
-  it('switchCompany persists id and loads details', async () => {
+  it('switchCompany cache is cleared when not Corporate channel', async () => {
     render(
       <CompanyProvider>
         <CompanyProbe />
@@ -134,15 +135,44 @@ describe('CompanyContext', () => {
       screen.getByRole('button', { name: /switch/i }).click();
     });
 
+    // Marketplace channel effect clears bare cache — chrome stays non-corporate
     await waitFor(() => {
-      expect(localStorage.getItem('activeCompanyId')).toBe('co-1');
-      expect(screen.getByTestId('activeId').textContent).toBe('co-1');
-      expect(screen.getByTestId('details').textContent).toContain('Acme');
+      expect(screen.getByTestId('corporate').textContent).toBe('false');
+      expect(screen.getByTestId('activeId').textContent).toBe('none');
     });
   });
 
-  it('clears active company on failed getCompany', async () => {
-    localStorage.setItem('activeCompanyId', 'bad-co');
+  it('Corporate channel sets isCorporateMode and syncs jwt companyId', async () => {
+    authState = {
+      isAuthenticated: true,
+      channel: 'Corporate',
+      companyId: 'co-jwt',
+    };
+    mockGetCompany.mockResolvedValue({
+      success: true,
+      data: { id: 'co-jwt', name: 'JWT Co' },
+    });
+
+    render(
+      <CompanyProvider>
+        <CompanyProbe />
+      </CompanyProvider>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('corporate').textContent).toBe('true');
+      expect(screen.getByTestId('activeId').textContent).toBe('co-jwt');
+      expect(localStorage.getItem('activeCompanyId')).toBe('co-jwt');
+      expect(screen.getByTestId('details').textContent).toContain('JWT Co');
+    });
+  });
+
+  it('clears active company on failed getCompany while Corporate', async () => {
+    authState = {
+      isAuthenticated: true,
+      channel: 'Corporate',
+      companyId: 'bad-co',
+    };
     mockGetCompany.mockResolvedValue({ success: false, message: 'gone' });
 
     render(
@@ -154,12 +184,15 @@ describe('CompanyContext', () => {
     await waitFor(() => {
       expect(screen.getByTestId('activeId').textContent).toBe('none');
       expect(localStorage.getItem('activeCompanyId')).toBeNull();
-      expect(screen.getByTestId('corporate').textContent).toBe('false');
     });
   });
 
-  it('clearActiveCompany removes storage and details', async () => {
-    localStorage.setItem('activeCompanyId', 'co-1');
+  it('clearActiveCompany removes storage and details on Corporate', async () => {
+    authState = {
+      isAuthenticated: true,
+      channel: 'Corporate',
+      companyId: 'co-1',
+    };
     mockGetCompany.mockResolvedValue({
       success: true,
       data: { id: 'co-1', name: 'Acme' },
@@ -179,14 +212,20 @@ describe('CompanyContext', () => {
       screen.getByRole('button', { name: /clear/i }).click();
     });
 
-    expect(screen.getByTestId('activeId').textContent).toBe('none');
-    expect(localStorage.getItem('activeCompanyId')).toBeNull();
-    expect(screen.getByTestId('details').textContent).toBe('none');
+    // JWT still Corporate with companyId — effect re-syncs cache from JWT
+    await waitFor(() => {
+      expect(screen.getByTestId('activeId').textContent).toBe('co-1');
+      expect(localStorage.getItem('activeCompanyId')).toBe('co-1');
+    });
   });
 
-  it('keeps company on fetch throw and stops loading', async () => {
+  it('keeps loading false after fetch throw', async () => {
     const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-    localStorage.setItem('activeCompanyId', 'co-1');
+    authState = {
+      isAuthenticated: true,
+      channel: 'Corporate',
+      companyId: 'co-1',
+    };
     mockGetCompany.mockRejectedValue(new Error('network'));
 
     render(
@@ -198,8 +237,27 @@ describe('CompanyContext', () => {
     await waitFor(() => {
       expect(screen.getByTestId('loading').textContent).toBe('false');
       expect(screen.getByTestId('activeId').textContent).toBe('co-1');
-      expect(screen.getByTestId('details').textContent).toBe('none');
     });
     errSpy.mockRestore();
+  });
+
+  it('Marketplace channel never sets isCorporateMode from storage', async () => {
+    localStorage.setItem('activeCompanyId', 'co-stored');
+    authState = {
+      isAuthenticated: true,
+      channel: 'Marketplace',
+      companyId: null,
+    };
+
+    render(
+      <CompanyProvider>
+        <CompanyProbe />
+      </CompanyProvider>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('corporate').textContent).toBe('false');
+      expect(screen.getByTestId('activeId').textContent).toBe('none');
+    });
   });
 });

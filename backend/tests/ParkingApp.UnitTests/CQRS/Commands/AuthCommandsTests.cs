@@ -13,6 +13,7 @@ using ParkingApp.Identity.Domain.Entities;
 using ParkingApp.Identity.Domain.Enums;
 using ParkingApp.Infrastructure.Persistence;
 using ParkingApp.Identity.Domain.Interfaces;
+using ParkingApp.Corporate.Contracts;
 using Xunit;
 
 namespace ParkingApp.UnitTests.CQRS.Commands;
@@ -27,6 +28,7 @@ public class AuthCommandsTests
     private readonly Mock<ILogger<LoginHandler>> _mockLoginLogger;
     private readonly Mock<ILogger<LogoutHandler>> _mockLogoutLogger;
     private readonly Mock<ILogger<ChangePasswordHandler>> _mockChangePasswordLogger;
+    private readonly Mock<ICompanyMembershipLookup> _mockMemberships;
 
     public AuthCommandsTests()
     {
@@ -40,6 +42,13 @@ public class AuthCommandsTests
         _mockLoginLogger = new Mock<ILogger<LoginHandler>>();
         _mockLogoutLogger = new Mock<ILogger<LogoutHandler>>();
         _mockChangePasswordLogger = new Mock<ILogger<ChangePasswordHandler>>();
+        _mockMemberships = new Mock<ICompanyMembershipLookup>();
+        _mockMemberships
+            .Setup(m => m.GetActiveMembershipsAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Array.Empty<CompanyMembershipSummary>());
+        _mockMemberships
+            .Setup(m => m.GetActiveMembershipAsync(It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((CompanyMembershipSummary?)null);
 
         _mockPasswordHasher
             .Setup(h => h.Hash(It.IsAny<string>()))
@@ -175,7 +184,7 @@ public class AuthCommandsTests
     [Fact]
     public async Task RefreshTokenHandler_ShouldFail_WhenInvalidToken()
     {
-        var handler = new RefreshTokenHandler(_mockUow.Object, _mockTokenService.Object);
+        var handler = new RefreshTokenHandler(_mockUow.Object, _mockTokenService.Object, _mockMemberships.Object);
         _mockUserRepo.Setup(r => r.GetByRefreshTokenAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync((User)null!);
 
         var res = await handler.HandleAsync(new RefreshTokenCommand(new RefreshTokenDto("token")));
@@ -187,7 +196,7 @@ public class AuthCommandsTests
     [Fact]
     public async Task RefreshTokenHandler_ShouldSucceed()
     {
-        var handler = new RefreshTokenHandler(_mockUow.Object, _mockTokenService.Object);
+        var handler = new RefreshTokenHandler(_mockUow.Object, _mockTokenService.Object, _mockMemberships.Object);
         var user = new User
         {
             Id = Guid.NewGuid(),
@@ -216,7 +225,7 @@ public class AuthCommandsTests
     [Fact]
     public async Task RefreshTokenHandler_WhenSessionCorporate_BodyOmit_PreservesCorporate()
     {
-        var handler = new RefreshTokenHandler(_mockUow.Object, _mockTokenService.Object);
+        var handler = new RefreshTokenHandler(_mockUow.Object, _mockTokenService.Object, _mockMemberships.Object);
         var companyId = Guid.NewGuid();
         var user = new User
         {
@@ -249,7 +258,7 @@ public class AuthCommandsTests
     [Fact]
     public async Task RefreshTokenHandler_WhenSessionCorporate_ChannelNull_PreservesCorporate()
     {
-        var handler = new RefreshTokenHandler(_mockUow.Object, _mockTokenService.Object);
+        var handler = new RefreshTokenHandler(_mockUow.Object, _mockTokenService.Object, _mockMemberships.Object);
         var companyId = Guid.NewGuid();
         var user = new User
         {
@@ -279,7 +288,7 @@ public class AuthCommandsTests
     [Fact]
     public async Task RefreshTokenHandler_WhenSessionCorporate_RebindMarketplace_DemotesAndClearsCompany()
     {
-        var handler = new RefreshTokenHandler(_mockUow.Object, _mockTokenService.Object);
+        var handler = new RefreshTokenHandler(_mockUow.Object, _mockTokenService.Object, _mockMemberships.Object);
         var companyId = Guid.NewGuid();
         var user = new User
         {
@@ -313,9 +322,9 @@ public class AuthCommandsTests
     }
 
     [Fact]
-    public async Task RefreshTokenHandler_WhenChannelCorporate_RejectsUnvalidatedRebind()
+    public async Task RefreshTokenHandler_WhenChannelCorporate_WithoutMembership_Rejects()
     {
-        var handler = new RefreshTokenHandler(_mockUow.Object, _mockTokenService.Object);
+        var handler = new RefreshTokenHandler(_mockUow.Object, _mockTokenService.Object, _mockMemberships.Object);
         var user = new User
         {
             Id = Guid.NewGuid(),
@@ -330,13 +339,14 @@ public class AuthCommandsTests
         user.BindSession(ProductChannel.Marketplace);
         _mockUserRepo.Setup(r => r.GetByRefreshTokenAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(user);
         _mockTokenService.Setup(t => t.ValidateRefreshToken(user, It.IsAny<string>())).Returns(true);
+        // Default mock: empty memberships → no match for requested companyId
 
         var companyId = Guid.NewGuid();
         var res = await handler.HandleAsync(new RefreshTokenCommand(
             new RefreshTokenDto("token1", Channel: "Corporate", CompanyId: companyId)));
 
         res.Success.Should().BeFalse();
-        res.Code.Should().Be("channel_rebind_forbidden");
+        res.Code.Should().Be("membership_required");
         user.SessionChannel.Should().Be(ProductChannel.Marketplace);
         user.SessionCompanyId.Should().BeNull();
         _mockTokenService.Verify(t => t.GenerateAccessToken(It.IsAny<User>(), It.IsAny<ProductChannel>(), It.IsAny<Guid?>(), It.IsAny<string?>()), Times.Never);
@@ -346,7 +356,7 @@ public class AuthCommandsTests
     [Fact]
     public async Task RefreshTokenHandler_WhenChannelAdmin_AndUserNotAdmin_Rejects()
     {
-        var handler = new RefreshTokenHandler(_mockUow.Object, _mockTokenService.Object);
+        var handler = new RefreshTokenHandler(_mockUow.Object, _mockTokenService.Object, _mockMemberships.Object);
         var user = new User
         {
             Id = Guid.NewGuid(),
@@ -372,7 +382,7 @@ public class AuthCommandsTests
     [Fact]
     public async Task RefreshTokenHandler_WhenChannelAdmin_AndUserIsAdmin_RebindsAdmin()
     {
-        var handler = new RefreshTokenHandler(_mockUow.Object, _mockTokenService.Object);
+        var handler = new RefreshTokenHandler(_mockUow.Object, _mockTokenService.Object, _mockMemberships.Object);
         var user = new User
         {
             Id = Guid.NewGuid(),
@@ -401,7 +411,7 @@ public class AuthCommandsTests
     [Fact]
     public async Task RefreshTokenHandler_WhenChannelInvalid_ReturnsInvalidChannelCode()
     {
-        var handler = new RefreshTokenHandler(_mockUow.Object, _mockTokenService.Object);
+        var handler = new RefreshTokenHandler(_mockUow.Object, _mockTokenService.Object, _mockMemberships.Object);
         var user = new User
         {
             Id = Guid.NewGuid(),
@@ -430,7 +440,7 @@ public class AuthCommandsTests
     [Fact]
     public async Task RefreshTokenHandler_WhenChannelNumeric_Rejects()
     {
-        var handler = new RefreshTokenHandler(_mockUow.Object, _mockTokenService.Object);
+        var handler = new RefreshTokenHandler(_mockUow.Object, _mockTokenService.Object, _mockMemberships.Object);
         var user = new User
         {
             Id = Guid.NewGuid(),

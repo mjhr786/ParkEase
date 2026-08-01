@@ -1,23 +1,32 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import corporateService from '../../services/corporateService';
 import { useAuth } from '../../contexts/AuthContext';
 import { useCompany } from '../../contexts/CompanyContext';
 import toast from 'react-hot-toast';
 
+/**
+ * Invite accept bridge (KD-12 / PR10b).
+ * Always re-mints Corporate channel after accept — no soft activeCompanyId-only path.
+ */
 const AcceptInvitation = () => {
     const { token } = useParams();
     const navigate = useNavigate();
-    const { isAuthenticated } = useAuth();
+    const { isAuthenticated, switchChannel } = useAuth();
     const { switchCompany } = useCompany();
-    
+    const ran = useRef(false);
+
     const [status, setStatus] = useState('processing'); // processing, success, error
     const [errorMessage, setErrorMessage] = useState('');
 
     useEffect(() => {
+        if (ran.current) return;
+        ran.current = true;
+
         if (!isAuthenticated) {
             toast.error('Please login to accept the invitation.');
-            navigate(`/login?returnUrl=${encodeURIComponent(`/invite/accept/${token || ''}`)}`);
+            const invitePath = `/invite/accept/${token || ''}`;
+            navigate(`/corporate/login?returnUrl=${encodeURIComponent(invitePath)}`);
             return;
         }
 
@@ -25,19 +34,42 @@ const AcceptInvitation = () => {
             try {
                 const response = await corporateService.acceptInvitation(token);
                 if (response.success) {
+                    const companyId = response.data?.companyId || response.data?.CompanyId;
+                    const companyIdStr = companyId ? String(companyId) : null;
+
+                    if (companyIdStr) {
+                        const switchResult = await switchChannel({
+                            channel: 'Corporate',
+                            companyId: companyIdStr,
+                        });
+                        if (!switchResult.success) {
+                            toast.error(
+                                switchResult.message ||
+                                    'Invitation accepted — please sign in to Corporate to continue.'
+                            );
+                            navigate(
+                                `/corporate/login?companyId=${encodeURIComponent(companyIdStr)}`
+                            );
+                            return;
+                        }
+                        if (switchCompany) {
+                            switchCompany(companyIdStr);
+                        }
+                    }
+
                     setStatus('success');
                     toast.success('Invitation accepted! You are now part of the company.');
-                    // Switch into the new company if the API returns membership/company context
-                    const companyId = response.data?.companyId;
-                    if (companyId && switchCompany) {
-                        switchCompany(companyId);
-                    }
-                    setTimeout(() => navigate(companyId ? '/corporate/dashboard' : '/dashboard'), 2500);
+                    setTimeout(
+                        () => navigate(companyIdStr ? '/corporate/dashboard' : '/dashboard'),
+                        2500
+                    );
                 } else {
                     setStatus('error');
-                    setErrorMessage(response.message || 'The invitation link is invalid or has expired.');
+                    setErrorMessage(
+                        response.message || 'The invitation link is invalid or has expired.'
+                    );
                 }
-            } catch (error) {
+            } catch {
                 setStatus('error');
                 setErrorMessage('An unexpected error occurred while communicating with the server.');
             }
@@ -49,37 +81,67 @@ const AcceptInvitation = () => {
             setStatus('error');
             setErrorMessage('No invitation token provided.');
         }
-    }, [token, isAuthenticated]);
+    }, [token, isAuthenticated, navigate, switchChannel, switchCompany]);
 
     return (
-        <div className="container" style={{ minHeight: '60vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '16px', padding: '3rem', width: '100%', maxWidth: '500px', textAlign: 'center' }}>
-                
+        <div
+            className="container"
+            style={{
+                minHeight: '60vh',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+            }}
+        >
+            <div
+                style={{
+                    background: 'var(--color-surface)',
+                    border: '1px solid var(--color-border)',
+                    borderRadius: '16px',
+                    padding: '3rem',
+                    width: '100%',
+                    maxWidth: '500px',
+                    textAlign: 'center',
+                }}
+            >
                 {status === 'processing' && (
                     <>
                         <div className="spinner" style={{ margin: '0 auto 1.5rem auto' }}></div>
-                        <h2 style={{ color: 'var(--color-text-primary)', marginBottom: '1rem' }}>Processing Invitation...</h2>
-                        <p style={{ color: 'var(--color-text-secondary)' }}>Please wait while we link your account to the corporate tenant.</p>
+                        <h2 style={{ color: 'var(--color-text-primary)', marginBottom: '1rem' }}>
+                            Processing Invitation...
+                        </h2>
+                        <p style={{ color: 'var(--color-text-secondary)' }}>
+                            Please wait while we link your account to the corporate tenant.
+                        </p>
                     </>
                 )}
 
                 {status === 'success' && (
                     <>
                         <div style={{ fontSize: '4rem', marginBottom: '1rem' }}>🎉</div>
-                        <h2 style={{ color: 'var(--color-success)', marginBottom: '1rem' }}>Welcome Aboard!</h2>
+                        <h2 style={{ color: 'var(--color-success)', marginBottom: '1rem' }}>
+                            Welcome Aboard!
+                        </h2>
                         <p style={{ color: 'var(--color-text-secondary)', marginBottom: '2rem' }}>
-                            Your corporate invitation has been accepted. You will be taken to the corporate dashboard shortly.
+                            Your corporate invitation has been accepted. You will be taken to the
+                            corporate dashboard shortly.
                         </p>
-                        <p style={{ color: 'var(--color-text-muted)', fontSize: '0.85rem' }}>Redirecting to dashboard...</p>
+                        <p style={{ color: 'var(--color-text-muted)', fontSize: '0.85rem' }}>
+                            Redirecting to dashboard...
+                        </p>
                     </>
                 )}
 
                 {status === 'error' && (
                     <>
                         <div style={{ fontSize: '4rem', marginBottom: '1rem' }}>❌</div>
-                        <h2 style={{ color: 'var(--color-error)', marginBottom: '1rem' }}>Invitation Failed</h2>
-                        <p style={{ color: 'var(--color-text-secondary)', marginBottom: '2rem' }}>{errorMessage}</p>
-                        <button 
+                        <h2 style={{ color: 'var(--color-error)', marginBottom: '1rem' }}>
+                            Invitation Failed
+                        </h2>
+                        <p style={{ color: 'var(--color-text-secondary)', marginBottom: '2rem' }}>
+                            {errorMessage}
+                        </p>
+                        <button
                             className="btn btn-primary"
                             onClick={() => navigate('/dashboard')}
                         >

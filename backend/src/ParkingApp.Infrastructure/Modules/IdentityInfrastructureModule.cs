@@ -7,6 +7,7 @@ using ParkingApp.Infrastructure.Repositories;
 using ParkingApp.Infrastructure.Services;
 using ParkingApp.Identity.Infrastructure.Services;
 using ParkingApp.Identity.Application.Interfaces;
+using ParkingApp.Identity.Contracts;
 
 namespace ParkingApp.Infrastructure.Modules;
 
@@ -22,6 +23,7 @@ public static class IdentityInfrastructureModule
 
         services.AddScoped<ITokenService, JwtTokenService>();
         services.AddScoped<IPasswordHasher, BcryptPasswordHasher>();
+        services.AddScoped<ISessionRebindService, SessionRebindService>();
 
         ParkingApp.Identity.Infrastructure.IdentityInfrastructureModule.AddIdentityInfrastructure(services);
         return services;

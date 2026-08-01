@@ -18,6 +18,70 @@ public record LoginDto(
     [Required] string Password
 );
 
+
+/// <summary>Corporate product entry (KD-3 / KD-16). Optional companyId when user has multiple memberships.</summary>
+public record CorporateLoginDto(
+    [Required][EmailAddress] string Email,
+    [Required] string Password,
+    Guid? CompanyId = null
+);
+
+/// <summary>
+/// Authenticated channel switch / re-bind (POST /api/auth/channel).
+/// Bootstrap: Corporate with no company (zero memberships or explicit Bootstrap=true).
+/// </summary>
+public record SwitchChannelDto(
+    [Required] string Channel,
+    Guid? CompanyId = null,
+    bool Bootstrap = false
+);
+
+public record CompanyMembershipOptionDto(
+    Guid CompanyId,
+    string CompanyName,
+    string Role
+);
+
+/// <summary>Corporate login may return tokens or require company selection.</summary>
+public record CorporateLoginResponseDto
+{
+    public TokenDto? Session { get; init; }
+    public bool IsBootstrap { get; init; }
+    public bool RequiresCompanySelection { get; init; }
+    public IReadOnlyList<CompanyMembershipOptionDto>? Memberships { get; init; }
+}
+
+/// <summary>GET /api/auth/channel-context — runtime isolation signal + session bind (KD-23).</summary>
+public record ChannelContextDto
+{
+    public required string Channel { get; init; }
+    public Guid? CompanyId { get; init; }
+    public string? CompanyRole { get; init; }
+    public bool IsBootstrap { get; init; }
+    public bool IsolationEnabled { get; init; }
+    public IReadOnlyList<CompanyMembershipOptionDto> Memberships { get; init; } = Array.Empty<CompanyMembershipOptionDto>();
+}
+
+/// <summary>
+/// Property-init record (KD-24) so channel/session fields can grow without positional churn.
+/// </summary>
+public record TokenDto
+{
+    public required string AccessToken { get; init; }
+    public required string RefreshToken { get; init; }
+    public required DateTime ExpiresAt { get; init; }
+    public required UserDto User { get; init; }
+
+    /// <summary>Product channel name: Marketplace | Corporate | Admin.</summary>
+    public required string Channel { get; init; }
+
+    public Guid? CompanyId { get; init; }
+    public string? CompanyRole { get; init; }
+
+    /// <summary>True when Corporate channel without company_id (founder bootstrap).</summary>
+    public bool? IsBootstrap { get; init; }
+}
+
 /// <summary>
 /// Property-init record (KD-24) so channel/session fields can grow without positional churn.
 /// </summary>

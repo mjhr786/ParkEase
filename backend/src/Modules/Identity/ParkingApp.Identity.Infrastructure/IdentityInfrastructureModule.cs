@@ -9,6 +9,7 @@ namespace ParkingApp.Identity.Infrastructure;
 /// <summary>
 /// Identity module infrastructure registration (repos + outward contracts).
 /// Host must register <c>IIdentityDbContext</c> and <c>IIdentityUnitOfWork</c> facades.
+/// Host also registers <see cref="ISessionRebindService"/> (needs shared UoW + ITokenService).
 /// </summary>
 public static class IdentityInfrastructureModule
 {

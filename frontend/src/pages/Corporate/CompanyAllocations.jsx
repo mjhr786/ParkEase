@@ -88,6 +88,10 @@ const CompanyAllocations = () => {
     const [assigningSlot, setAssigningSlot] = useState(false);
     const [members, setMembers] = useState([]);
 
+    // Corporate book (employee/visitor) — moved off marketplace ParkingDetails (PR8)
+    const [bookModalObj, setBookModalObj] = useState(null);
+    const [bookingSubmitting, setBookingSubmitting] = useState(false);
+
     useEffect(() => {
         if (!isCorporateMode) {
             navigate('/dashboard', { replace: true });
@@ -270,6 +274,79 @@ const CompanyAllocations = () => {
         }
     };
 
+    const openBookModal = (alloc) => {
+        setBookModalObj({
+            allocationId: alloc.id,
+            parkingSpaceTitle: alloc.parkingSpaceTitle,
+            isVisitor: false,
+            startDateTime: '',
+            endDateTime: '',
+            vehicleType: 0,
+            vehicleNumber: '',
+            visitorName: '',
+            visitorPlate: '',
+        });
+    };
+
+    const handleCorporateBook = async (e) => {
+        e.preventDefault();
+        if (!bookModalObj) return;
+        if (!bookModalObj.startDateTime || !bookModalObj.endDateTime) {
+            toast.error('Select start and end date/time.');
+            return;
+        }
+        const startIso = new Date(bookModalObj.startDateTime).toISOString();
+        const endIso = new Date(bookModalObj.endDateTime).toISOString();
+        if (endIso <= startIso) {
+            toast.error('End must be after start.');
+            return;
+        }
+
+        setBookingSubmitting(true);
+        try {
+            let res;
+            if (bookModalObj.isVisitor) {
+                if (!bookModalObj.visitorName?.trim() || !bookModalObj.visitorPlate?.trim()) {
+                    toast.error('Visitor name and license plate are required.');
+                    setBookingSubmitting(false);
+                    return;
+                }
+                res = await corporateService.bookVisitorParking({
+                    allocationId: bookModalObj.allocationId,
+                    startDateTime: startIso,
+                    endDateTime: endIso,
+                    visitorName: bookModalObj.visitorName.trim(),
+                    visitorLicensePlate: bookModalObj.visitorPlate.trim(),
+                    accessExpiry: endIso,
+                });
+            } else {
+                res = await corporateService.bookEmployeeParking({
+                    allocationId: bookModalObj.allocationId,
+                    startDateTime: startIso,
+                    endDateTime: endIso,
+                    vehicleType: parseInt(bookModalObj.vehicleType, 10) || 0,
+                    vehicleNumber: bookModalObj.vehicleNumber || null,
+                });
+            }
+
+            if (res.success) {
+                toast.success(
+                    res.data?.waitlist
+                        ? 'Added to waitlist based on allocation policy.'
+                        : 'Corporate booking confirmed.'
+                );
+                setBookModalObj(null);
+                loadAllocations();
+            } else {
+                toast.error(res.message || 'Corporate booking failed');
+            }
+        } catch {
+            toast.error('An error occurred during corporate booking');
+        } finally {
+            setBookingSubmitting(false);
+        }
+    };
+
     if (!isCorporateMode) return null;
 
     return (
@@ -380,15 +457,27 @@ const CompanyAllocations = () => {
                                     <div style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)', marginBottom: '0.65rem' }}>
                                         {alloc.sharedSlots} Shared • {alloc.fixedSlots} Fixed
                                     </div>
-                                    {(alloc.status === 0 || alloc.status === 1) && (
-                                        <button
-                                            type="button"
-                                            onClick={() => openContractModal(alloc)}
-                                            style={{ background: 'transparent', border: 'none', color: 'var(--color-accent-light)', cursor: 'pointer', fontSize: '0.85rem', fontWeight: '600' }}
-                                        >
-                                            Edit Contract
-                                        </button>
-                                    )}
+                                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.35rem' }}>
+                                        {alloc.status === 1 && (
+                                            <button
+                                                type="button"
+                                                className="btn btn-primary"
+                                                onClick={() => openBookModal(alloc)}
+                                                style={{ padding: '0.4rem 0.85rem', fontSize: '0.85rem' }}
+                                            >
+                                                Book space
+                                            </button>
+                                        )}
+                                        {(alloc.status === 0 || alloc.status === 1) && (
+                                            <button
+                                                type="button"
+                                                onClick={() => openContractModal(alloc)}
+                                                style={{ background: 'transparent', border: 'none', color: 'var(--color-accent-light)', cursor: 'pointer', fontSize: '0.85rem', fontWeight: '600' }}
+                                            >
+                                                Edit Contract
+                                            </button>
+                                        )}
+                                    </div>
                                 </div>
                             </div>
 
@@ -477,7 +566,7 @@ const CompanyAllocations = () => {
                 ) : (
                     <div style={{ background: 'var(--color-surface)', borderRadius: '12px', padding: '3rem', textAlign: 'center', color: 'var(--color-text-secondary)', border: '1px solid var(--color-border)' }}>
                         <p style={{ marginBottom: '1rem' }}>No parking allocations found for your company.</p>
-                        <button onClick={() => navigate('/search')} className="btn btn-primary" style={{ padding: '0.5rem 1rem' }}>Find Parking Spaces</button>
+                        <button onClick={() => navigate('/corporate/lease-browse')} className="btn btn-primary" style={{ padding: '0.5rem 1rem' }}>Browse vendor lots to lease</button>
                     </div>
                 )}
             </div>
@@ -503,11 +592,11 @@ const CompanyAllocations = () => {
                             </button>
                             <button
                                 type="button"
-                                onClick={() => navigate('/search')}
+                                onClick={() => navigate('/corporate/lease-browse')}
                                 style={{ textAlign: 'left', background: 'var(--color-bg-primary)', border: '1px solid rgba(56, 189, 248, 0.35)', borderRadius: '8px', padding: '1rem', color: 'var(--color-text-primary)', cursor: 'pointer' }}
                             >
                                 <div style={{ fontWeight: 700, marginBottom: '0.35rem' }}>Request Leased Parking</div>
-                                <div style={{ color: 'var(--color-text-secondary)', fontSize: '0.9rem' }}>Browse vendor spaces and submit a lease request for owner approval.</div>
+                                <div style={{ color: 'var(--color-text-secondary)', fontSize: '0.9rem' }}>Browse vendor spaces (Admin) and submit a lease request for owner approval.</div>
                             </button>
                         </div>
                     </div>
@@ -656,6 +745,105 @@ const CompanyAllocations = () => {
                                 <button type="button" onClick={() => setContractModalObj(null)} className="btn btn-secondary">Cancel</button>
                                 <button type="submit" className="btn btn-primary" disabled={updatingContract}>
                                     {updatingContract ? 'Saving...' : 'Save Contract'}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {/* Corporate Book Modal (employee / visitor) */}
+            {bookModalObj && (
+                <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
+                    <div style={{ background: 'var(--color-surface)', width: '100%', maxWidth: '480px', borderRadius: '12px', padding: '2rem', border: '1px solid var(--color-border)', maxHeight: '90vh', overflowY: 'auto' }}>
+                        <h2 style={{ marginBottom: '0.35rem', color: 'var(--color-text-primary)' }}>Book corporate space</h2>
+                        <p style={{ color: 'var(--color-text-secondary)', fontSize: '0.9rem', marginBottom: '1.25rem' }}>{bookModalObj.parkingSpaceTitle}</p>
+                        <form onSubmit={handleCorporateBook}>
+                            <div className="form-group" style={{ marginBottom: '1rem' }}>
+                                <label style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', cursor: 'pointer', color: 'var(--color-text-primary)' }}>
+                                    <input
+                                        type="checkbox"
+                                        checked={bookModalObj.isVisitor}
+                                        onChange={(e) => setBookModalObj({ ...bookModalObj, isVisitor: e.target.checked })}
+                                    />
+                                    This is for a visitor
+                                </label>
+                            </div>
+                            <div className="form-group" style={{ marginBottom: '1rem' }}>
+                                <label style={{ display: 'block', marginBottom: 8, color: 'var(--color-text-secondary)', fontSize: '0.9rem' }}>Start</label>
+                                <input
+                                    type="datetime-local"
+                                    required
+                                    value={bookModalObj.startDateTime}
+                                    onChange={(e) => setBookModalObj({ ...bookModalObj, startDateTime: e.target.value })}
+                                    style={{ width: '100%', padding: 10, background: 'var(--color-bg-primary)', border: '1px solid var(--color-border)', borderRadius: 6, color: 'var(--color-text-primary)' }}
+                                />
+                            </div>
+                            <div className="form-group" style={{ marginBottom: '1rem' }}>
+                                <label style={{ display: 'block', marginBottom: 8, color: 'var(--color-text-secondary)', fontSize: '0.9rem' }}>End</label>
+                                <input
+                                    type="datetime-local"
+                                    required
+                                    value={bookModalObj.endDateTime}
+                                    onChange={(e) => setBookModalObj({ ...bookModalObj, endDateTime: e.target.value })}
+                                    style={{ width: '100%', padding: 10, background: 'var(--color-bg-primary)', border: '1px solid var(--color-border)', borderRadius: 6, color: 'var(--color-text-primary)' }}
+                                />
+                            </div>
+                            {bookModalObj.isVisitor ? (
+                                <>
+                                    <div className="form-group" style={{ marginBottom: '1rem' }}>
+                                        <label style={{ display: 'block', marginBottom: 8, color: 'var(--color-text-secondary)', fontSize: '0.9rem' }}>Visitor name</label>
+                                        <input
+                                            type="text"
+                                            required
+                                            value={bookModalObj.visitorName}
+                                            onChange={(e) => setBookModalObj({ ...bookModalObj, visitorName: e.target.value })}
+                                            style={{ width: '100%', padding: 10, background: 'var(--color-bg-primary)', border: '1px solid var(--color-border)', borderRadius: 6, color: 'var(--color-text-primary)' }}
+                                        />
+                                    </div>
+                                    <div className="form-group" style={{ marginBottom: '1.5rem' }}>
+                                        <label style={{ display: 'block', marginBottom: 8, color: 'var(--color-text-secondary)', fontSize: '0.9rem' }}>Visitor license plate</label>
+                                        <input
+                                            type="text"
+                                            required
+                                            value={bookModalObj.visitorPlate}
+                                            onChange={(e) => setBookModalObj({ ...bookModalObj, visitorPlate: e.target.value })}
+                                            style={{ width: '100%', padding: 10, background: 'var(--color-bg-primary)', border: '1px solid var(--color-border)', borderRadius: 6, color: 'var(--color-text-primary)' }}
+                                        />
+                                    </div>
+                                </>
+                            ) : (
+                                <>
+                                    <div className="form-group" style={{ marginBottom: '1rem' }}>
+                                        <label style={{ display: 'block', marginBottom: 8, color: 'var(--color-text-secondary)', fontSize: '0.9rem' }}>Vehicle type</label>
+                                        <select
+                                            value={bookModalObj.vehicleType}
+                                            onChange={(e) => setBookModalObj({ ...bookModalObj, vehicleType: e.target.value })}
+                                            style={{ width: '100%', padding: 10, background: 'var(--color-bg-primary)', border: '1px solid var(--color-border)', borderRadius: 6, color: 'var(--color-text-primary)' }}
+                                        >
+                                            <option value={0}>Car</option>
+                                            <option value={1}>Motorcycle</option>
+                                            <option value={2}>SUV</option>
+                                            <option value={3}>Truck</option>
+                                            <option value={4}>Van</option>
+                                            <option value={5}>Electric</option>
+                                        </select>
+                                    </div>
+                                    <div className="form-group" style={{ marginBottom: '1.5rem' }}>
+                                        <label style={{ display: 'block', marginBottom: 8, color: 'var(--color-text-secondary)', fontSize: '0.9rem' }}>Vehicle number (optional)</label>
+                                        <input
+                                            type="text"
+                                            value={bookModalObj.vehicleNumber}
+                                            onChange={(e) => setBookModalObj({ ...bookModalObj, vehicleNumber: e.target.value })}
+                                            style={{ width: '100%', padding: 10, background: 'var(--color-bg-primary)', border: '1px solid var(--color-border)', borderRadius: 6, color: 'var(--color-text-primary)' }}
+                                        />
+                                    </div>
+                                </>
+                            )}
+                            <div style={{ display: 'flex', gap: '1rem', justifyContent: 'flex-end' }}>
+                                <button type="button" onClick={() => setBookModalObj(null)} className="btn btn-secondary">Cancel</button>
+                                <button type="submit" className="btn btn-primary" disabled={bookingSubmitting}>
+                                    {bookingSubmitting ? 'Booking…' : 'Confirm booking'}
                                 </button>
                             </div>
                         </form>

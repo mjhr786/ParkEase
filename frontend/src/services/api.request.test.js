@@ -83,6 +83,63 @@ describe('ApiService request / refresh / handleResponse', () => {
     expect(store.get('refreshToken')).toBe('new-r');
   });
 
+  it('refreshToken sends stored channel and companyId', async () => {
+    store.set('refreshToken', 'old-refresh');
+    store.set('channel', 'Corporate');
+    store.set('companyId', 'co-9');
+    fetch.mockResolvedValueOnce(
+      jsonResponse({
+        success: true,
+        data: {
+          accessToken: 'new-a',
+          refreshToken: 'new-r',
+          channel: 'Corporate',
+          companyId: 'co-9',
+        },
+      })
+    );
+
+    const { default: api } = await import('./api.js');
+    await expect(api.refreshToken()).resolves.toBe(true);
+    const [, opts] = fetch.mock.calls[0];
+    const body = JSON.parse(opts.body);
+    expect(body.refreshToken).toBe('old-refresh');
+    expect(body.channel).toBe('Corporate');
+    expect(body.companyId).toBe('co-9');
+    expect(store.get('channel')).toBe('Corporate');
+  });
+
+  it('loginCorporate posts to /auth/login/corporate', async () => {
+    fetch.mockResolvedValueOnce(jsonResponse({ success: true }));
+    const { default: api } = await import('./api.js');
+    await api.loginCorporate({ email: 'c@b.com', password: 'x', companyId: 'c1' });
+    const [url, opts] = fetch.mock.calls[0];
+    expect(url).toContain('/auth/login/corporate');
+    expect(opts.method).toBe('POST');
+    expect(JSON.parse(opts.body)).toEqual({
+      email: 'c@b.com',
+      password: 'x',
+      companyId: 'c1',
+    });
+  });
+
+  it('handleResponse marks channelForbidden on 403 code', async () => {
+    fetch.mockResolvedValueOnce(
+      jsonResponse(
+        { message: 'denied', code: 'channel_forbidden', errors: ['channel_forbidden'] },
+        { status: 403 }
+      )
+    );
+
+    const { default: api } = await import('./api.js');
+    await expect(api.request('/v1/corporate/me/companies')).rejects.toMatchObject({
+      channelForbidden: true,
+      code: 'channel_forbidden',
+      response: { status: 403 },
+    });
+  });
+
+
   it('refreshToken returns false when response not ok', async () => {
     store.set('refreshToken', 'old-refresh');
     fetch.mockResolvedValueOnce(jsonResponse({}, { status: 401 }));

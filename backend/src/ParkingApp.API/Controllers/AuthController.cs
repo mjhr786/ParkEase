@@ -2,10 +2,13 @@ using System.Security.Claims;
 using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Options;
+using ParkingApp.API.Options;
 using ParkingApp.Application.CQRS;
 using ParkingApp.Identity.Application.Commands.Auth;
 using ParkingApp.Identity.Application.Commands.Users;
 using ParkingApp.Application.DTOs;
+using ParkingApp.BuildingBlocks.Security;
 using ParkingApp.Identity.Application.DTOs;
 using ParkingApp.Marketplace.Contracts.DTOs;
 using ParkingApp.Messaging.Application.DTOs;
@@ -22,12 +25,18 @@ public class AuthController : ControllerBase
     private readonly IDispatcher _dispatcher;
     private readonly IValidator<RegisterDto> _registerValidator;
     private readonly IValidator<LoginDto> _loginValidator;
+    private readonly ChannelIsolationOptions _isolationOptions;
 
-    public AuthController(IDispatcher dispatcher, IValidator<RegisterDto> registerValidator, IValidator<LoginDto> loginValidator)
+    public AuthController(
+        IDispatcher dispatcher,
+        IValidator<RegisterDto> registerValidator,
+        IValidator<LoginDto> loginValidator,
+        IOptions<ChannelIsolationOptions> isolationOptions)
     {
         _dispatcher = dispatcher;
         _registerValidator = registerValidator;
         _loginValidator = loginValidator;
+        _isolationOptions = isolationOptions.Value;
     }
 
     [HttpPost("register")]
@@ -56,6 +65,66 @@ public class AuthController : ControllerBase
 
         var result = await _dispatcher.SendAsync(new LoginCommand(dto), cancellationToken);
         return result.Success ? Ok(result) : Unauthorized(result);
+    }
+
+    /// <summary>Corporate product entry — bootstrap or bound company session (KD-3 / KD-16).</summary>
+    [HttpPost("login/corporate")]
+    [ProducesResponseType(typeof(ApiResponse<CorporateLoginResponseDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<CorporateLoginResponseDto>), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ApiResponse<CorporateLoginResponseDto>), StatusCodes.Status401Unauthorized)]
+    public async Task<IActionResult> CorporateLogin([FromBody] CorporateLoginDto dto, CancellationToken cancellationToken)
+    {
+        var result = await _dispatcher.SendAsync(new CorporateLoginCommand(dto), cancellationToken);
+        if (result.Success)
+            return Ok(result);
+
+        if (result.Code is "company_selection_required" or "membership_required")
+            return BadRequest(result);
+
+        return Unauthorized(result);
+    }
+
+    /// <summary>Authenticated channel switch / re-bind (including bootstrap → company).</summary>
+    [Authorize]
+    [HttpPost("channel")]
+    [ProducesResponseType(typeof(ApiResponse<TokenDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<TokenDto>), StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> SwitchChannel([FromBody] SwitchChannelDto dto, CancellationToken cancellationToken)
+    {
+        var userId = GetUserId();
+        if (userId == null) return Unauthorized();
+
+        var result = await _dispatcher.SendAsync(new SwitchChannelCommand(userId.Value, dto), cancellationToken);
+        if (result.Success)
+            return Ok(result);
+
+        if (result.Code is "invalid_channel" or "channel_rebind_forbidden" or "membership_required" or "company_selection_required")
+            return BadRequest(result);
+
+        return BadRequest(result);
+    }
+
+    /// <summary>Runtime channel context for SPA shells (includes isolationEnabled).</summary>
+    [Authorize]
+    [HttpGet("channel-context")]
+    [ProducesResponseType(typeof(ApiResponse<ChannelContextDto>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetChannelContext(CancellationToken cancellationToken)
+    {
+        var userId = GetUserId();
+        if (userId == null) return Unauthorized();
+
+        var channelClaim = User.FindFirst(ParkEaseClaimTypes.Channel)?.Value;
+        Guid? companyId = null;
+        var companyRaw = User.FindFirst(ParkEaseClaimTypes.CompanyId)?.Value;
+        if (Guid.TryParse(companyRaw, out var parsedCompany))
+            companyId = parsedCompany;
+        var companyRole = User.FindFirst(ParkEaseClaimTypes.CompanyRole)?.Value;
+
+        var result = await _dispatcher.QueryAsync(
+            new GetChannelContextQuery(userId.Value, channelClaim, companyId, companyRole, _isolationOptions.Enabled),
+            cancellationToken);
+
+        return result.Success ? Ok(result) : BadRequest(result);
     }
 
     [HttpPost("refresh")]

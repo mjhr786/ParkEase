@@ -2,10 +2,11 @@ import { BrowserRouter, Routes, Route, Navigate, Link, useNavigate, useLocation,
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { ChatProvider, useChatContext } from './contexts/ChatContext';
 import { NotificationProvider, useNotificationContext } from './context/NotificationContext';
-import { CompanyProvider, useCompany } from './contexts/CompanyContext';
+import { CompanyProvider } from './contexts/CompanyContext';
 import { useTheme } from './contexts/ThemeContext';
 import NotificationDropdown from './components/NotificationDropdown';
 import CompanySwitcher from './components/CompanySwitcher';
+import CorporateChannelRoute from './components/CorporateChannelRoute';
 import ThemeToggle from './components/ThemeToggle';
 import toast, { Toaster } from 'react-hot-toast';
 import React, { Suspense } from 'react';
@@ -35,6 +36,9 @@ const CompanyBookings = React.lazy(() => import('./pages/Corporate/CompanyBookin
 const CompanyInvoices = React.lazy(() => import('./pages/Corporate/CompanyInvoices'));
 const CompanySettings = React.lazy(() => import('./pages/Corporate/CompanySettings'));
 const AcceptInvitation = React.lazy(() => import('./pages/Corporate/AcceptInvitation'));
+const CorporateLogin = React.lazy(() => import('./pages/Corporate/CorporateLogin'));
+const CreateCompany = React.lazy(() => import('./pages/Corporate/CreateCompany'));
+const LeaseBrowse = React.lazy(() => import('./pages/Corporate/LeaseBrowse'));
 const OutboxAdmin = React.lazy(() => import('./pages/Admin/OutboxAdmin'));
 const LprSimulator = React.lazy(() => import('./pages/Admin/LprSimulator'));
 const EvChargeSimulator = React.lazy(() => import('./pages/Admin/EvChargeSimulator'));
@@ -64,8 +68,7 @@ function Loading() {
 }
 
 function Header() {
-  const { isAuthenticated, user, logout, isAdmin } = useAuth();
-  const { isCorporateMode } = useCompany();
+  const { isAuthenticated, user, logout, isAdmin, channel, isCorporateChannel } = useAuth();
   const { unreadCount } = useChatContext();
   const navigate = useNavigate();
   const location = useLocation();
@@ -73,10 +76,14 @@ function Header() {
   const profileRef = React.useRef(null);
   const [pendingRequests, setPendingRequests] = React.useState(0);
 
+  // PR10b: JWT channel alone drives chrome (soft isCorporateMode toggle removed)
+  const showCorporateChrome = isCorporateChannel;
+  const homePath = showCorporateChrome ? '/corporate/dashboard' : '/';
+
   const handleLogout = async () => {
     setProfileOpen(false);
     await logout();
-    navigate('/login');
+    navigate(channel === 'Corporate' ? '/corporate/login' : '/login');
   };
 
   // Close dropdown on outside click
@@ -174,12 +181,29 @@ function Header() {
     : '';
 
   return (
-    <header className="header">
+    <header className="header" data-shell={showCorporateChrome ? 'corporate' : 'marketplace'}>
       <div className="container header-content">
-        <Link to="/" className="logo">ParkEase</Link>
+        <Link to={isAuthenticated ? homePath : '/'} className="logo">
+          ParkEase
+          {showCorporateChrome && (
+            <span style={{ fontWeight: 500, fontSize: '0.75rem', marginLeft: '8px', opacity: 0.85 }}>
+              Corporate
+            </span>
+          )}
+        </Link>
         <nav className="nav">
-          <Link to="/search" className="nav-link">Find Parking</Link>
-          <Link to="/events" className="nav-link">Events</Link>
+          {showCorporateChrome ? (
+            <>
+              <Link to="/corporate/dashboard" className="nav-link">Dashboard</Link>
+              <Link to="/corporate/parking-spaces" className="nav-link">Inventory</Link>
+              <Link to="/corporate/bookings" className="nav-link">Bookings</Link>
+            </>
+          ) : (
+            <>
+              <Link to="/search" className="nav-link">Find Parking</Link>
+              <Link to="/events" className="nav-link">Events</Link>
+            </>
+          )}
 
           <ThemeToggle />
 
@@ -215,7 +239,7 @@ function Header() {
               {/* Notification Bell */}
               <NotificationDropdown />
               
-              {/* Company Switcher */}
+              {/* Company Switcher / corporate workspace CTA */}
               <CompanySwitcher />
 
               {/* Profile Avatar Dropdown */}
@@ -291,6 +315,7 @@ function Header() {
                     </div>
 
                     {/* Links — platform admins get admin entry points only (not consumer/vendor menus) */}
+                    {/* showCorporateChrome: JWT channel === Corporate */}
                     {(isAdmin ? [
                       { to: '/admin', icon: '🛡️', label: 'Admin Panel' },
                       { to: '/admin/users', icon: '👥', label: 'Manage Users' },
@@ -298,11 +323,12 @@ function Header() {
                       { to: '/admin/outbox', icon: '📬', label: 'Outbox' },
                       { to: '/tools/lpr-simulator', icon: '📷', label: 'LPR Simulator' },
                       { to: '/tools/ev-charge-simulator', icon: '⚡', label: 'EV Charge Simulator' },
-                    ] : isCorporateMode ? [
+                    ] : showCorporateChrome ? [
                       { to: '/corporate/dashboard', icon: '🏢', label: 'Corporate Dash' },
                       { to: '/corporate/parking-spaces', icon: '🏗️', label: 'Parking Inventory' },
                       { to: '/corporate/members', icon: '👥', label: 'Members' },
                       { to: '/corporate/allocations', icon: '🅿️', label: 'Allocations' },
+                      { to: '/corporate/lease-browse', icon: '🔍', label: 'Lease Browse' },
                       { to: '/corporate/bookings', icon: '📅', label: 'Corp Bookings' },
                       { to: '/corporate/invoices', icon: '🧾', label: 'Invoices' },
                       { to: '/corporate/settings', icon: '⚙️', label: 'Company Settings' },
@@ -436,10 +462,15 @@ function safeReturnPath(raw) {
 }
 
 function AppRoutes() {
-  const { isAuthenticated, isAdmin } = useAuth();
+  const { isAuthenticated, isAdmin, isCorporateChannel } = useAuth();
   const [searchParams] = useSearchParams();
   const returnPath = safeReturnPath(searchParams.get('returnUrl'));
-  const authedHome = returnPath || (isAdmin ? '/admin' : '/dashboard');
+  const defaultHome = isAdmin
+    ? '/admin'
+    : isCorporateChannel
+      ? '/corporate/dashboard'
+      : '/dashboard';
+  const authedHome = returnPath || defaultHome;
 
   return (
     <Suspense fallback={<Loading />}>
@@ -536,60 +567,77 @@ function AppRoutes() {
             </ProtectedRoute>
           }
         />
+        <Route path="/corporate/login" element={<CorporateLogin />} />
+        <Route
+          path="/corporate/create-company"
+          element={
+            <CorporateChannelRoute allowBootstrap>
+              <CreateCompany />
+            </CorporateChannelRoute>
+          }
+        />
         <Route
           path="/corporate/dashboard"
           element={
-            <ProtectedRoute>
+            <CorporateChannelRoute>
               <CorporateDashboard />
-            </ProtectedRoute>
+            </CorporateChannelRoute>
           }
         />
         <Route
           path="/corporate/parking-spaces"
           element={
-            <ProtectedRoute>
+            <CorporateChannelRoute>
               <CorporateParkingSpaces />
-            </ProtectedRoute>
+            </CorporateChannelRoute>
           }
         />
         <Route
           path="/corporate/members"
           element={
-            <ProtectedRoute>
+            <CorporateChannelRoute>
               <CompanyMembers />
-            </ProtectedRoute>
+            </CorporateChannelRoute>
           }
         />
         <Route
           path="/corporate/allocations"
           element={
-            <ProtectedRoute>
+            <CorporateChannelRoute>
               <CompanyAllocations />
-            </ProtectedRoute>
+            </CorporateChannelRoute>
+          }
+        />
+        <Route
+          path="/corporate/lease-browse"
+          element={
+            <CorporateChannelRoute>
+              <LeaseBrowse />
+            </CorporateChannelRoute>
           }
         />
         <Route
           path="/corporate/bookings"
           element={
-            <ProtectedRoute>
+            <CorporateChannelRoute>
               <CompanyBookings />
-            </ProtectedRoute>
+            </CorporateChannelRoute>
           }
         />
         <Route
           path="/corporate/invoices"
           element={
-            <ProtectedRoute>
+            <CorporateChannelRoute>
               <CompanyInvoices />
-            </ProtectedRoute>
+            </CorporateChannelRoute>
           }
         />
         <Route
           path="/corporate/settings"
           element={
-            <ProtectedRoute>
+            <CorporateChannelRoute>
               <CompanySettings />
-            </ProtectedRoute>
+            </CorporateChannelRoute>
           }
         />
         <Route

@@ -21,6 +21,8 @@ using ParkingApp.Messaging.Application.DTOs;
 using ParkingApp.Notifications.Application.DTOs;
 using ParkingApp.Corporate.Application.DTOs;
 using ParkingApp.BuildingBlocks.Common;
+using Microsoft.Extensions.Options;
+using ParkingApp.API.Options;
 using Xunit;
 
 namespace ParkingApp.UnitTests.API;
@@ -38,10 +40,12 @@ public class AuthControllerTests
         _registerValidatorMock = new Mock<IValidator<RegisterDto>>();
         _loginValidatorMock = new Mock<IValidator<LoginDto>>();
 
+        var isolation = Options.Create(new ChannelIsolationOptions { Enabled = false });
         _controller = new AuthController(
             _dispatcherMock.Object, 
             _registerValidatorMock.Object, 
-            _loginValidatorMock.Object);
+            _loginValidatorMock.Object,
+            isolation);
     }
 
     [Fact]

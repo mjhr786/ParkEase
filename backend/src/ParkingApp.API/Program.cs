@@ -228,7 +228,24 @@ try
         };
     });
 
-    builder.Services.AddAuthorization();
+    // Channel policies are optional documentation / defense-in-depth only (KD-5).
+    // ChannelAuthorizationMiddleware is the authoritative allowlist enforcer.
+    // Do not put [Authorize(Policy = "Channel*")] on controllers until soft-mode is removed (PR10b),
+    // or soft Marketplace→corporate API access with flag off will break via UseAuthorization.
+    builder.Services.AddAuthorization(options =>
+    {
+        options.AddPolicy("ChannelMarketplace", policy =>
+            policy.RequireClaim(
+                ParkingApp.BuildingBlocks.Security.ParkEaseClaimTypes.Channel,
+                "Marketplace",
+                "Admin"));
+        options.AddPolicy("ChannelCorporate", policy =>
+            policy.RequireClaim(
+                ParkingApp.BuildingBlocks.Security.ParkEaseClaimTypes.Channel,
+                "Corporate",
+                "Admin"));
+        // Admin APIs keep [Authorize(Roles = "Admin")] — do not require Admin channel (KD-13).
+    });
 
     var app = builder.Build();
 
