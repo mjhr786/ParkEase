@@ -2,20 +2,31 @@ import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useCompany } from '../contexts/CompanyContext';
 import { useAuth } from '../contexts/AuthContext';
-import { useNavigate } from 'react-router-dom';
-import api from '../services/api';
+import { useNavigate, Link } from 'react-router-dom';
 import corporateService from '../services/corporateService';
 import showToast from '../utils/toast.jsx';
 
+/**
+ * Account/company switcher (PR10b).
+ * Marketplace: CTA into Corporate login.
+ * Corporate: switch companies via POST /auth/channel; exit via Marketplace channel re-mint.
+ * Soft Personal Mode toggle was removed — UX rollback = prior frontend artifact.
+ */
 const CompanySwitcher = () => {
     const { activeCompanyId, companyDetails, isCorporateMode, switchCompany } = useCompany();
-    const { isAuthenticated } = useAuth();
+    const {
+        isAuthenticated,
+        applySession,
+        channel,
+        switchChannel,
+        companyId: jwtCompanyId,
+    } = useAuth();
     const navigate = useNavigate();
     const [isOpen, setIsOpen] = useState(false);
     const [myCompanies, setMyCompanies] = useState([]);
     const [loading, setLoading] = useState(false);
-    
-    // Create Company Modal State
+    const [switching, setSwitching] = useState(false);
+
     const [showCreateModal, setShowCreateModal] = useState(false);
     const [createLoading, setCreateLoading] = useState(false);
     const [formData, setFormData] = useState({
@@ -24,12 +35,11 @@ const CompanySwitcher = () => {
         contactEmail: '',
         contactPhone: '',
         billingAddress: '',
-        billingType: 0 // 0 = Invoice, 1 = CreditCard
+        billingType: 0,
     });
 
     const dropdownRef = useRef(null);
 
-    // Close on click outside
     useEffect(() => {
         const handleClickOutside = (event) => {
             if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
@@ -40,11 +50,11 @@ const CompanySwitcher = () => {
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
 
-    // Fetch user profile companies when dropdown opens
     useEffect(() => {
         if (isOpen && isAuthenticated && myCompanies.length === 0) {
             fetchMyCompanies();
         }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isOpen]);
 
     const fetchMyCompanies = async () => {
@@ -54,25 +64,55 @@ const CompanySwitcher = () => {
             if (res.success && res.data) {
                 setMyCompanies(res.data);
             } else {
-                setMyCompanies([]); 
+                setMyCompanies([]);
             }
         } catch (error) {
-            console.error("Failed to load companies", error);
+            console.error('Failed to load companies', error);
         } finally {
             setLoading(false);
         }
     };
 
-    const handleSwitchToPersonal = () => {
-        setIsOpen(false);
-        navigate('/dashboard', { replace: true });
-        switchCompany(null);
+    const handleSwitchCompany = async (companyId) => {
+        setSwitching(true);
+        try {
+            const result = await switchChannel({
+                channel: 'Corporate',
+                companyId,
+            });
+            setIsOpen(false);
+            if (result.success) {
+                switchCompany(companyId);
+                showToast.success('Switched company workspace');
+                navigate('/corporate/dashboard', { replace: true });
+            } else {
+                showToast.error(result.message || 'Could not switch company');
+            }
+        } catch (error) {
+            console.error('switchChannel failed', error);
+            showToast.error('Could not switch company');
+        } finally {
+            setSwitching(false);
+        }
     };
 
-    const handleSwitchToCorporate = (companyId) => {
-        setIsOpen(false);
-        navigate('/corporate/dashboard', { replace: true });
-        switchCompany(companyId);
+    const handleSwitchToMarketplaceChannel = async () => {
+        setSwitching(true);
+        try {
+            const result = await switchChannel({ channel: 'Marketplace' });
+            setIsOpen(false);
+            if (result.success) {
+                switchCompany(null);
+                navigate('/dashboard', { replace: true });
+            } else {
+                showToast.error(result.message || 'Could not switch to marketplace');
+            }
+        } catch (error) {
+            console.error('switchChannel marketplace failed', error);
+            showToast.error('Could not switch to marketplace');
+        } finally {
+            setSwitching(false);
+        }
     };
 
     const handleCreateCompany = async (e) => {
@@ -81,6 +121,16 @@ const CompanySwitcher = () => {
         try {
             const res = await corporateService.createCompany(formData);
             if (res.success) {
+                const company = res.data?.company || res.data;
+                const session = res.data?.session;
+                const newId = company?.id || res.data?.id;
+
+                if (session?.accessToken && session?.refreshToken && applySession) {
+                    applySession(session);
+                } else if (newId && switchChannel) {
+                    await switchChannel({ channel: 'Corporate', companyId: newId });
+                }
+
                 showToast.success('Corporate account created successfully!');
                 setShowCreateModal(false);
                 setFormData({
@@ -89,12 +139,12 @@ const CompanySwitcher = () => {
                     contactEmail: '',
                     contactPhone: '',
                     billingAddress: '',
-                    billingType: 0
+                    billingType: 0,
                 });
-                // Switch to the newly created company if IDs are returned, otherwise just refetch
                 fetchMyCompanies();
-                if (res.data && res.data.id) {
-                    handleSwitchToCorporate(res.data.id);
+                if (newId) {
+                    switchCompany(newId);
+                    navigate('/corporate/dashboard', { replace: true });
                 }
             } else {
                 showToast.error(res.message || 'Failed to create corporate account');
@@ -109,7 +159,37 @@ const CompanySwitcher = () => {
 
     if (!isAuthenticated) return null;
 
-    const currentName = isCorporateMode && companyDetails ? companyDetails.name : 'Personal Mode';
+    // Marketplace (or non-Corporate) shell: CTA into corporate product
+    if (channel !== 'Corporate') {
+        return (
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+                <Link
+                    to="/corporate/login"
+                    className="btn btn-secondary"
+                    style={{
+                        padding: '8px 14px',
+                        fontSize: '0.85rem',
+                        fontWeight: 600,
+                        textDecoration: 'none',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                    }}
+                >
+                    <span role="img" aria-label="building">
+                        🏢
+                    </span>
+                    Corporate workspace
+                </Link>
+            </div>
+        );
+    }
+
+    const effectiveCompanyId = jwtCompanyId || activeCompanyId;
+    const currentName =
+        isCorporateMode && companyDetails
+            ? companyDetails.name
+            : 'Corporate workspace';
 
     return (
         <div ref={dropdownRef} style={{ position: 'relative', display: 'inline-block' }}>
@@ -120,96 +200,146 @@ const CompanySwitcher = () => {
                     alignItems: 'center',
                     gap: '8px',
                     padding: '8px 16px',
-                    background: isCorporateMode ? 'linear-gradient(135deg, var(--color-success) 0%, color-mix(in srgb, var(--color-success) 80%, black) 100%)' : 'var(--color-bg-glass)',
-                    color: isCorporateMode ? 'white' : 'var(--color-text-primary)',
+                    background:
+                        'linear-gradient(135deg, var(--color-success) 0%, color-mix(in srgb, var(--color-success) 80%, black) 100%)',
+                    color: 'white',
                     border: '1px solid var(--control-border)',
                     borderRadius: '8px',
                     cursor: 'pointer',
                     fontSize: '0.9rem',
                     fontWeight: '600',
                     transition: 'all 0.2s',
-                    boxShadow: isCorporateMode ? '0 4px 12px rgba(16, 185, 129, 0.3)' : 'none'
+                    boxShadow: '0 4px 12px rgba(16, 185, 129, 0.3)',
                 }}
             >
                 <span role="img" aria-label="building" style={{ fontSize: '1.1rem' }}>
-                    {isCorporateMode ? '🏢' : '👤'}
+                    🏢
                 </span>
                 {currentName}
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ transform: isOpen ? 'rotate(180deg)' : 'rotate(0)' }}>
+                <svg
+                    width="12"
+                    height="12"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    style={{ transform: isOpen ? 'rotate(180deg)' : 'rotate(0)' }}
+                >
                     <polyline points="6 9 12 15 18 9"></polyline>
                 </svg>
             </button>
 
             {isOpen && (
-                <div style={{
-                    position: 'absolute',
-                    top: '100%',
-                    right: 0,
-                    marginTop: '8px',
-                    background: 'var(--dropdown-bg)',
-                    border: '1px solid var(--dropdown-border)',
-                    borderRadius: '8px',
-                    boxShadow: 'var(--shadow-dropdown)',
-                    minWidth: '220px',
-                    zIndex: 9999,
-                    overflow: 'hidden'
-                }}>
+                <div
+                    style={{
+                        position: 'absolute',
+                        top: '100%',
+                        right: 0,
+                        marginTop: '8px',
+                        background: 'var(--dropdown-bg)',
+                        border: '1px solid var(--dropdown-border)',
+                        borderRadius: '8px',
+                        boxShadow: 'var(--shadow-dropdown)',
+                        minWidth: '240px',
+                        zIndex: 9999,
+                        overflow: 'hidden',
+                    }}
+                >
                     <div style={{ padding: '8px', borderBottom: '1px solid var(--dropdown-border)' }}>
-                        <span style={{ fontSize: '0.8rem', color: 'var(--dropdown-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Switch Account Context</span>
+                        <span
+                            style={{
+                                fontSize: '0.8rem',
+                                color: 'var(--dropdown-muted)',
+                                textTransform: 'uppercase',
+                                letterSpacing: '0.05em',
+                            }}
+                        >
+                            Company workspace
+                        </span>
                     </div>
-                    
+
                     <button
-                        onClick={handleSwitchToPersonal}
+                        onClick={handleSwitchToMarketplaceChannel}
+                        disabled={switching}
                         style={{
                             display: 'flex',
                             alignItems: 'center',
                             width: '100%',
                             padding: '12px 16px',
-                            background: !isCorporateMode ? 'var(--dropdown-item-hover-bg)' : 'transparent',
+                            background: 'transparent',
                             border: 'none',
                             color: 'var(--color-text-primary)',
                             textAlign: 'left',
-                            cursor: 'pointer',
-                            fontSize: '0.9rem'
+                            cursor: switching ? 'wait' : 'pointer',
+                            fontSize: '0.9rem',
                         }}
                     >
-                        <span style={{ marginRight: '8px' }}>👤</span> Personal Mode
+                        <span style={{ marginRight: '8px' }}>🛒</span> Marketplace account
                     </button>
 
-                    {loading ? (
-                        <div style={{ padding: '12px', textAlign: 'center', color: 'var(--dropdown-muted)', fontSize: '0.8rem' }}>Loading...</div>
+                    {loading || switching ? (
+                        <div
+                            style={{
+                                padding: '12px',
+                                textAlign: 'center',
+                                color: 'var(--dropdown-muted)',
+                                fontSize: '0.8rem',
+                            }}
+                        >
+                            {switching ? 'Switching…' : 'Loading...'}
+                        </div>
                     ) : (
                         myCompanies.map((company) => (
                             <button
                                 key={company.id}
-                                onClick={() => handleSwitchToCorporate(company.id)}
+                                onClick={() => handleSwitchCompany(company.id)}
                                 style={{
                                     display: 'flex',
                                     alignItems: 'center',
                                     width: '100%',
                                     padding: '12px 16px',
-                                    background: activeCompanyId === company.id ? 'rgba(16, 185, 129, 0.1)' : 'transparent',
+                                    background:
+                                        String(effectiveCompanyId) === String(company.id)
+                                            ? 'rgba(16, 185, 129, 0.1)'
+                                            : 'transparent',
                                     border: 'none',
-                                    color: activeCompanyId === company.id ? 'var(--color-success)' : 'var(--color-text-primary)',
+                                    color:
+                                        String(effectiveCompanyId) === String(company.id)
+                                            ? 'var(--color-success)'
+                                            : 'var(--color-text-primary)',
                                     textAlign: 'left',
                                     cursor: 'pointer',
                                     fontSize: '0.9rem',
-                                    borderTop: '1px solid var(--dropdown-border)'
+                                    borderTop: '1px solid var(--dropdown-border)',
                                 }}
                             >
-                                <span style={{ marginRight: '8px' }}>🏢</span> {company.name || 'Corporate Account'}
+                                <span style={{ marginRight: '8px' }}>🏢</span>{' '}
+                                {company.name || 'Corporate Account'}
                             </button>
                         ))
                     )}
-                    
-                    {!loading && myCompanies.length === 0 && (
-                        <div style={{ padding: '12px 16px', color: 'var(--dropdown-muted)', fontSize: '0.85rem', fontStyle: 'italic', borderTop: '1px solid var(--dropdown-border)' }}>
+
+                    {!loading && !switching && myCompanies.length === 0 && (
+                        <div
+                            style={{
+                                padding: '12px 16px',
+                                color: 'var(--dropdown-muted)',
+                                fontSize: '0.85rem',
+                                fontStyle: 'italic',
+                                borderTop: '1px solid var(--dropdown-border)',
+                            }}
+                        >
                             No corporate accounts found.
                         </div>
                     )}
-                    
+
                     <button
-                        onClick={() => { setShowCreateModal(true); setIsOpen(false); }}
+                        onClick={() => {
+                            setShowCreateModal(true);
+                            setIsOpen(false);
+                        }}
                         style={{
                             display: 'flex',
                             alignItems: 'center',
@@ -221,131 +351,176 @@ const CompanySwitcher = () => {
                             textAlign: 'left',
                             cursor: 'pointer',
                             fontSize: '0.9rem',
-                            borderTop: '1px solid var(--dropdown-border)'
+                            borderTop: '1px solid var(--dropdown-border)',
                         }}
                     >
-                        <span style={{ marginRight: '8px', fontSize: '1.2rem' }}>+</span> Create Corporate Account
+                        <span style={{ marginRight: '8px', fontSize: '1.2rem' }}>+</span> Create
+                        Corporate Account
                     </button>
                 </div>
             )}
 
-            {/* Create Company Modal — rendered via portal to escape header stacking context */}
-            {showCreateModal && createPortal(
-                <div style={{
-                    position: 'fixed',
-                    top: 0, left: 0, right: 0, bottom: 0,
-                    background: 'var(--overlay-bg)',
-                    backdropFilter: 'blur(4px)',
-                    display: 'flex',
-                    alignItems: 'flex-start',
-                    justifyContent: 'center',
-                    zIndex: 100000,
-                    overflowY: 'auto',
-                    padding: '40px 16px'
-                }}
-                    onClick={(e) => { if (e.target === e.currentTarget) setShowCreateModal(false); }}
-                >
-                    <div style={{
-                        background: 'var(--dropdown-bg)',
-                        border: '1px solid var(--dropdown-border)',
-                        borderRadius: '12px',
-                        padding: '24px',
-                        width: '100%',
-                        maxWidth: '500px',
-                        boxShadow: 'var(--shadow-dropdown)',
-                        margin: 'auto 0'
-                    }}>
-                        <h2 style={{ margin: '0 0 16px 0', fontSize: '1.25rem', color: 'var(--color-text-primary)' }}>Create Corporate Account</h2>
-                        
-                        <form onSubmit={handleCreateCompany}>
-                            <div className="grid grid-2" style={{ gap: '12px', marginBottom: '12px' }}>
-                                <div className="form-group" style={{ margin: 0 }}>
-                                    <label className="form-label">Company Name *</label>
-                                    <input 
-                                        type="text" 
-                                        className="form-input" 
-                                        required 
-                                        value={formData.name}
-                                        onChange={e => setFormData({...formData, name: e.target.value})}
-                                    />
-                                </div>
-                                <div className="form-group" style={{ margin: 0 }}>
-                                    <label className="form-label">Registration No. *</label>
-                                    <input 
-                                        type="text" 
-                                        className="form-input" 
-                                        required 
-                                        value={formData.registrationNumber}
-                                        onChange={e => setFormData({...formData, registrationNumber: e.target.value})}
-                                    />
-                                </div>
-                                <div className="form-group" style={{ margin: 0 }}>
-                                    <label className="form-label">Contact Email *</label>
-                                    <input 
-                                        type="email" 
-                                        className="form-input" 
-                                        required 
-                                        value={formData.contactEmail}
-                                        onChange={e => setFormData({...formData, contactEmail: e.target.value})}
-                                    />
-                                </div>
-                                <div className="form-group" style={{ margin: 0 }}>
-                                    <label className="form-label">Contact Phone *</label>
-                                    <input 
-                                        type="text" 
-                                        className="form-input" 
-                                        required 
-                                        value={formData.contactPhone}
-                                        onChange={e => setFormData({...formData, contactPhone: e.target.value})}
-                                    />
-                                </div>
-                            </div>
-                            
-                            <div className="form-group">
-                                <label className="form-label">Billing Address *</label>
-                                <textarea 
-                                    className="form-input" 
-                                    required 
-                                    rows="2"
-                                    value={formData.billingAddress}
-                                    onChange={e => setFormData({...formData, billingAddress: e.target.value})}
-                                ></textarea>
-                            </div>
-                            
-                            <div className="form-group">
-                                <label className="form-label">Billing Type</label>
-                                <select 
-                                    className="form-select"
-                                    value={formData.billingType}
-                                    onChange={e => setFormData({...formData, billingType: parseInt(e.target.value)})}
-                                >
-                                    <option value={0}>Reserved Slots</option>
-                                    <option value={1}>Usage Based</option>
-                                </select>
-                            </div>
+            {showCreateModal &&
+                createPortal(
+                    <div
+                        style={{
+                            position: 'fixed',
+                            top: 0,
+                            left: 0,
+                            right: 0,
+                            bottom: 0,
+                            background: 'var(--overlay-bg)',
+                            backdropFilter: 'blur(4px)',
+                            display: 'flex',
+                            alignItems: 'flex-start',
+                            justifyContent: 'center',
+                            zIndex: 100000,
+                            overflowY: 'auto',
+                            padding: '40px 16px',
+                        }}
+                        onClick={(e) => {
+                            if (e.target === e.currentTarget) setShowCreateModal(false);
+                        }}
+                    >
+                        <div
+                            style={{
+                                background: 'var(--dropdown-bg)',
+                                border: '1px solid var(--dropdown-border)',
+                                borderRadius: '12px',
+                                padding: '24px',
+                                width: '100%',
+                                maxWidth: '500px',
+                                boxShadow: 'var(--shadow-dropdown)',
+                                margin: 'auto 0',
+                            }}
+                        >
+                            <h2
+                                style={{
+                                    margin: '0 0 16px 0',
+                                    fontSize: '1.25rem',
+                                    color: 'var(--color-text-primary)',
+                                }}
+                            >
+                                Create Corporate Account
+                            </h2>
 
-                            <div style={{ display: 'flex', gap: '12px', marginTop: '24px' }}>
-                                <button 
-                                    type="button" 
-                                    className="btn btn-secondary" 
-                                    style={{ flex: 1 }}
-                                    onClick={() => setShowCreateModal(false)}
-                                >
-                                    Cancel
-                                </button>
-                                <button 
-                                    type="submit" 
-                                    className="btn btn-primary" 
-                                    style={{ flex: 2 }}
-                                    disabled={createLoading}
-                                >
-                                    {createLoading ? 'Creating...' : 'Create Account'}
-                                </button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-            , document.body)}
+                            <form onSubmit={handleCreateCompany}>
+                                <div className="grid grid-2" style={{ gap: '12px', marginBottom: '12px' }}>
+                                    <div className="form-group" style={{ margin: 0 }}>
+                                        <label className="form-label">Company Name *</label>
+                                        <input
+                                            type="text"
+                                            className="form-input"
+                                            required
+                                            value={formData.name}
+                                            onChange={(e) =>
+                                                setFormData({ ...formData, name: e.target.value })
+                                            }
+                                        />
+                                    </div>
+                                    <div className="form-group" style={{ margin: 0 }}>
+                                        <label className="form-label">Registration No. *</label>
+                                        <input
+                                            type="text"
+                                            className="form-input"
+                                            required
+                                            value={formData.registrationNumber}
+                                            onChange={(e) =>
+                                                setFormData({
+                                                    ...formData,
+                                                    registrationNumber: e.target.value,
+                                                })
+                                            }
+                                        />
+                                    </div>
+                                    <div className="form-group" style={{ margin: 0 }}>
+                                        <label className="form-label">Contact Email *</label>
+                                        <input
+                                            type="email"
+                                            className="form-input"
+                                            required
+                                            value={formData.contactEmail}
+                                            onChange={(e) =>
+                                                setFormData({
+                                                    ...formData,
+                                                    contactEmail: e.target.value,
+                                                })
+                                            }
+                                        />
+                                    </div>
+                                    <div className="form-group" style={{ margin: 0 }}>
+                                        <label className="form-label">Contact Phone *</label>
+                                        <input
+                                            type="text"
+                                            className="form-input"
+                                            required
+                                            value={formData.contactPhone}
+                                            onChange={(e) =>
+                                                setFormData({
+                                                    ...formData,
+                                                    contactPhone: e.target.value,
+                                                })
+                                            }
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="form-group">
+                                    <label className="form-label">Billing Address *</label>
+                                    <textarea
+                                        className="form-input"
+                                        required
+                                        rows="2"
+                                        value={formData.billingAddress}
+                                        onChange={(e) =>
+                                            setFormData({
+                                                ...formData,
+                                                billingAddress: e.target.value,
+                                            })
+                                        }
+                                    ></textarea>
+                                </div>
+
+                                <div className="form-group">
+                                    <label className="form-label">Billing Type</label>
+                                    <select
+                                        className="form-select"
+                                        value={formData.billingType}
+                                        onChange={(e) =>
+                                            setFormData({
+                                                ...formData,
+                                                billingType: parseInt(e.target.value),
+                                            })
+                                        }
+                                    >
+                                        <option value={0}>Reserved slots</option>
+                                        <option value={1}>Usage based</option>
+                                    </select>
+                                </div>
+
+                                <div style={{ display: 'flex', gap: '12px', marginTop: '24px' }}>
+                                    <button
+                                        type="button"
+                                        className="btn btn-secondary"
+                                        style={{ flex: 1 }}
+                                        onClick={() => setShowCreateModal(false)}
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        type="submit"
+                                        className="btn btn-primary"
+                                        style={{ flex: 2 }}
+                                        disabled={createLoading}
+                                    >
+                                        {createLoading ? 'Creating...' : 'Create Account'}
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>,
+                    document.body
+                )}
         </div>
     );
 };

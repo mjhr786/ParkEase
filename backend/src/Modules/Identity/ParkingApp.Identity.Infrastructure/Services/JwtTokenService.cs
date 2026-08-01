@@ -4,8 +4,8 @@ using System.Security.Cryptography;
 using System.Text;
 using Microsoft.Extensions.Configuration;
 using Microsoft.IdentityModel.Tokens;
+using ParkingApp.BuildingBlocks.Security;
 using ParkingApp.Identity.Application.Interfaces;
-
 using ParkingApp.Identity.Domain.Entities;
 
 namespace ParkingApp.Identity.Infrastructure.Services;
@@ -27,20 +27,35 @@ internal class JwtTokenService : ITokenService
         _accessTokenExpirationMinutes = int.Parse(_configuration["Jwt:AccessTokenExpirationMinutes"] ?? "15");
     }
 
-    public string GenerateAccessToken(User user)
+    public string GenerateAccessToken(
+        User user,
+        ProductChannel channel,
+        Guid? companyId = null,
+        string? companyRole = null)
     {
         var securityKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_secretKey));
         var credentials = new SigningCredentials(securityKey, SecurityAlgorithms.HmacSha256);
 
-        var claims = new[]
+        var claims = new List<Claim>
         {
             new Claim(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
             new Claim(JwtRegisteredClaimNames.Email, user.Email),
             new Claim(ClaimTypes.Role, user.Role.ToString()),
             new Claim("firstName", user.FirstName),
             new Claim("lastName", user.LastName),
-            new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
+            new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
+            new Claim(ParkEaseClaimTypes.Channel, channel.ToString())
         };
+
+        // Company claims only when Corporate channel (documented mint invariant).
+        if (channel == ProductChannel.Corporate)
+        {
+            if (companyId.HasValue)
+                claims.Add(new Claim(ParkEaseClaimTypes.CompanyId, companyId.Value.ToString()));
+
+            if (!string.IsNullOrWhiteSpace(companyRole))
+                claims.Add(new Claim(ParkEaseClaimTypes.CompanyRole, companyRole));
+        }
 
         var token = new JwtSecurityToken(
             issuer: _issuer,
@@ -72,4 +87,3 @@ internal class JwtTokenService : ITokenService
         return true;
     }
 }
-

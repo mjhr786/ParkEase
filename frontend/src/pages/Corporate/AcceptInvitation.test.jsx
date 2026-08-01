@@ -7,10 +7,14 @@ import AcceptInvitation from './AcceptInvitation';
 const mockNavigate = vi.fn();
 const mockAcceptInvitation = vi.fn();
 const mockSwitchCompany = vi.fn();
+const mockSwitchChannel = vi.fn();
 const mockToastError = vi.fn();
 const mockToastSuccess = vi.fn();
 
-let authState = { isAuthenticated: true };
+let authState = {
+  isAuthenticated: true,
+  switchChannel: (...args) => mockSwitchChannel(...args),
+};
 
 vi.mock('../../contexts/AuthContext', () => ({
   useAuth: () => authState,
@@ -54,7 +58,11 @@ function renderInvite(token = 'inv-tok') {
 describe('AcceptInvitation', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    authState = { isAuthenticated: true };
+    authState = {
+      isAuthenticated: true,
+      switchChannel: (...args) => mockSwitchChannel(...args),
+    };
+    mockSwitchChannel.mockResolvedValue({ success: true });
     vi.useFakeTimers({ shouldAdvanceTime: true });
   });
 
@@ -63,33 +71,56 @@ describe('AcceptInvitation', () => {
     vi.useRealTimers();
   });
 
-  it('redirects unauthenticated users to login with returnUrl', async () => {
-    authState = { isAuthenticated: false };
+  it('redirects unauthenticated users to corporate login with returnUrl', async () => {
+    authState = {
+      isAuthenticated: false,
+      switchChannel: mockSwitchChannel,
+    };
     renderInvite('abc');
 
     await waitFor(() => {
       expect(mockToastError).toHaveBeenCalledWith('Please login to accept the invitation.');
       expect(mockNavigate).toHaveBeenCalledWith(
-        expect.stringContaining('/login?returnUrl=')
+        expect.stringContaining('/corporate/login?returnUrl=')
       );
     });
     expect(mockNavigate.mock.calls[0][0]).toContain(encodeURIComponent('/invite/accept/abc'));
   });
 
-  it('shows success and switches company on accept', async () => {
+  it('uses switchChannel after accept (no soft-only path)', async () => {
     mockAcceptInvitation.mockResolvedValue({
       success: true,
-      data: { companyId: 'co-9' },
+      data: { companyId: 'co-iso' },
     });
+    mockSwitchChannel.mockResolvedValue({ success: true });
 
-    renderInvite('good-tok');
+    renderInvite('iso-tok');
 
     await waitFor(() => {
       expect(screen.getByRole('heading', { name: /welcome aboard/i })).toBeInTheDocument();
     });
-    expect(mockAcceptInvitation).toHaveBeenCalledWith('good-tok');
-    expect(mockSwitchCompany).toHaveBeenCalledWith('co-9');
+    expect(mockSwitchChannel).toHaveBeenCalledWith({
+      channel: 'Corporate',
+      companyId: 'co-iso',
+    });
+    expect(mockSwitchCompany).toHaveBeenCalledWith('co-iso');
     expect(mockToastSuccess).toHaveBeenCalled();
+  });
+
+  it('when switchChannel fails, redirects to corporate login with companyId', async () => {
+    mockAcceptInvitation.mockResolvedValue({
+      success: true,
+      data: { companyId: 'co-fail' },
+    });
+    mockSwitchChannel.mockResolvedValue({ success: false, message: 'membership_required' });
+
+    renderInvite('fail-tok');
+
+    await waitFor(() => {
+      expect(mockNavigate).toHaveBeenCalledWith(
+        expect.stringContaining('/corporate/login?companyId=co-fail')
+      );
+    });
   });
 
   it('shows error when invitation is invalid', async () => {
@@ -107,21 +138,27 @@ describe('AcceptInvitation', () => {
   });
 
   it('shows error on network failure', async () => {
-    mockAcceptInvitation.mockRejectedValue(new Error('offline'));
+    mockAcceptInvitation.mockRejectedValue(new Error('network'));
 
-    renderInvite('tok');
+    renderInvite('net-tok');
 
     await waitFor(() => {
-      expect(screen.getByText(/unexpected error/i)).toBeInTheDocument();
+      expect(screen.getByRole('heading', { name: /invitation failed/i })).toBeInTheDocument();
     });
   });
 
-  it('return to dashboard from error state', async () => {
+  it('return to dashboard button navigates home', async () => {
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
-    mockAcceptInvitation.mockResolvedValue({ success: false, message: 'Nope' });
+    mockAcceptInvitation.mockResolvedValue({
+      success: false,
+      message: 'Token expired',
+    });
 
-    renderInvite('tok');
-    await waitFor(() => expect(screen.getByRole('button', { name: /return to dashboard/i })).toBeInTheDocument());
+    renderInvite('bad-tok');
+
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: /invitation failed/i })).toBeInTheDocument();
+    });
 
     await user.click(screen.getByRole('button', { name: /return to dashboard/i }));
     expect(mockNavigate).toHaveBeenCalledWith('/dashboard');

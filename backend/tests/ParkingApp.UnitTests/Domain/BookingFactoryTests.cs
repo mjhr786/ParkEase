@@ -53,6 +53,7 @@ public class BookingFactoryTests
 
         booking.Status.Should().Be(BookingStatus.Confirmed);
         booking.QRCode.Should().NotBeNullOrWhiteSpace();
+        booking.IsCorporateStaged.Should().BeTrue();
         booking.DomainEvents.Should().ContainSingle(e => e is BookingConfirmedEvent);
     }
 
@@ -64,7 +65,18 @@ public class BookingFactoryTests
 
         booking.Status.Should().Be(BookingStatus.Confirmed);
         booking.VehicleNumber.Should().Be("VISITOR1");
+        booking.IsCorporateStaged.Should().BeTrue();
         booking.DomainEvents.Should().ContainSingle(e => e is BookingConfirmedEvent);
+    }
+
+    [Fact]
+    public void CreateMarketplace_IsNotCorporateStaged()
+    {
+        var booking = Booking.CreateMarketplace(
+            UserId, ParkingId, Start, End, PricingType.Hourly, VehicleType.Car,
+            100, 10, 5, 0, 115);
+
+        booking.IsCorporateStaged.Should().BeFalse();
     }
 
     [Fact]

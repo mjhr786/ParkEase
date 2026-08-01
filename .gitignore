@@ -428,12 +428,14 @@ coveragereport/
 # wwwroot assets
 backend/src/ParkingApp.API/wwwroot/assets/
 
-# Production secrets
+# Production / Development secrets (ignore local copies; keep API versions tracked)
 appsettings.Production.json
+!backend/src/ParkingApp.API/appsettings.Production.json
 
 # Development secrets
 appsettings.Development.json
 appsettings.Development.*.json
+!backend/src/ParkingApp.API/appsettings.Development.json
 
 # Deployment artifacts / scripts
 deploy-monsterapp/
@@ -451,11 +453,21 @@ RecoveredFiles/
 # CI + documented test helpers (must be committed; see unit-tests.yml)
 !backend/tests/assert-corporate-coverage.ps1
 !backend/tests/run-coverage.ps1
+# Channel isolation staging smoke (PR9)
+!scripts/
+!scripts/smoke-channel-isolation.ps1
 *.txt
 *.patch
 
-# Docs folder
-docs/
+# Docs folder (ignore contents; allowlisted runbooks/QA docs below)
+docs/*
+# Channel isolation runbook / QA / API notes (PR9) — tracked
+!docs/channel-isolation-runbook.md
+!docs/channel-isolation-qa-matrix.md
+!docs/channel-isolation-prod-cutover.md
+!docs/channel-isolation-implementation-status.md
+!docs/API_ENDPOINTS_CHANNEL_ISOLATION.md
+!docs/corporate-parking-flow.md
 
 # Local tools / one-off utilities
 ResetOutbox/

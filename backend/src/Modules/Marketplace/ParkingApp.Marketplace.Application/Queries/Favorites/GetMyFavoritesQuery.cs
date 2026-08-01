@@ -21,9 +21,12 @@ internal sealed class GetMyFavoritesQueryHandler : IQueryHandler<GetMyFavoritesQ
     public async Task<ApiResponse<IEnumerable<ParkingSpaceDto>>> HandleAsync(GetMyFavoritesQuery query, CancellationToken cancellationToken = default)
     {
         var favorites = await _unitOfWork.Favorites.GetByUserIdAsync(query.UserId, cancellationToken);
-        
-        var dtos = favorites.Select(f => f.ParkingSpace.ToDto());
-        
+
+        // KD-9: never surface corporate-only spaces on marketplace favorites list.
+        var dtos = favorites
+            .Where(f => f.ParkingSpace is { IsCorporateOnly: false })
+            .Select(f => f.ParkingSpace.ToDto());
+
         return new ApiResponse<IEnumerable<ParkingSpaceDto>>(true, "Favorites retrieved successfully", dtos);
     }
 }

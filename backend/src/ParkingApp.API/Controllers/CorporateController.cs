@@ -7,7 +7,10 @@ using ParkingApp.Application.CQRS;
 using ParkingApp.Application.CQRS.Commands.Corporate;
 using ParkingApp.Application.CQRS.Queries.Corporate;
 using ParkingApp.Application.DTOs;
+using ParkingApp.BuildingBlocks.Security;
 using ParkingApp.Identity.Application.DTOs;
+using ParkingApp.Identity.Contracts;
+using ParkingApp.Identity.Domain.Enums;
 using ParkingApp.Marketplace.Contracts.DTOs;
 using ParkingApp.Messaging.Application.DTOs;
 using ParkingApp.Notifications.Application.DTOs;
@@ -18,16 +21,27 @@ using ParkingApp.Marketplace.Contracts.Enums;
 
 namespace ParkingApp.API.Controllers;
 
+/// <summary>
+/// Corporate product APIs. Channel matrix is enforced by <c>ChannelAuthorizationMiddleware</c> (KD-5 authoritative).
+/// Optional ASP.NET policies (registered, not applied here until soft-mode removal):
+/// <list type="bullet">
+/// <item><c>ChannelCorporate</c> — company-scoped routes, me/companies, invitations accept, bootstrap create.</item>
+/// <item><c>ChannelMarketplace</c> — vendor allocation list/approve/reject (Marketplace owners; matrix vendor allowlist).</item>
+/// </list>
+/// Do not add [Authorize(Policy=...)] attributes that diverge from the middleware matrix.
+/// </summary>
 [ApiController]
 [Route("api/v1/corporate")]
-[Authorize] // Enforce JWT auth
+[Authorize] // JWT required; channel allow/deny is middleware (not ChannelCorporate policy)
 public class CorporateController : ControllerBase
 {
     private readonly IDispatcher _dispatcher;
+    private readonly ISessionRebindService _sessionRebind;
 
-    public CorporateController(IDispatcher dispatcher)
+    public CorporateController(IDispatcher dispatcher, ISessionRebindService sessionRebind)
     {
         _dispatcher = dispatcher;
+        _sessionRebind = sessionRebind;
     }
 
     private Guid GetUserId()
@@ -36,18 +50,83 @@ public class CorporateController : ControllerBase
         return Guid.TryParse(idStr, out var id) ? id : Guid.Empty;
     }
 
-    // ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
-    // COMPANIES
-    // ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
-
-    [HttpPost("companies")]
-    [ProducesResponseType(typeof(ApiResponse<CompanyDto>), StatusCodes.Status201Created)]
-    [ProducesResponseType(typeof(ApiResponse<CompanyDto>), StatusCodes.Status400BadRequest)]
-    public async Task<IActionResult> CreateCompany([FromBody] CreateCompanyDto dto)
+    private bool IsCorporateBootstrapCaller()
     {
-        var result = await _dispatcher.SendAsync(new CreateCompanyCommand(GetUserId(), dto));
-            
-        return result.Success ? Created($"/api/v1/corporate/companies/{result.Data?.Id}", result) : BadRequest(result);
+        var channel = User.FindFirst(ParkEaseClaimTypes.Channel)?.Value;
+        if (!string.Equals(channel, nameof(ProductChannel.Corporate), StringComparison.OrdinalIgnoreCase))
+            return false;
+        var companyClaim = User.FindFirst(ParkEaseClaimTypes.CompanyId)?.Value;
+        return string.IsNullOrWhiteSpace(companyClaim);
+    }
+
+    // COMPANIES
+
+    /// <summary>
+    /// Create company. When caller is Corporate bootstrap, host re-mints Session via ISessionRebindService (KD-16a).
+    /// </summary>
+    [HttpPost("companies")]
+    [ProducesResponseType(typeof(ApiResponse<CreateCompanyResultDto>), StatusCodes.Status201Created)]
+    [ProducesResponseType(typeof(ApiResponse<CreateCompanyResultDto>), StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> CreateCompany([FromBody] CreateCompanyDto dto, CancellationToken cancellationToken = default)
+    {
+        var userId = GetUserId();
+        var result = await _dispatcher.SendAsync(new CreateCompanyCommand(userId, dto), cancellationToken);
+        if (!result.Success || result.Data is null)
+        {
+            return BadRequest(new ApiResponse<CreateCompanyResultDto>(
+                false, result.Message, null, result.Errors, result.Code));
+        }
+
+        TokenDto? session = null;
+        // Preferred handoff: bootstrap (or first company) → re-mint Corporate + company + Admin role
+        if (IsCorporateBootstrapCaller())
+        {
+            var rebind = await _sessionRebind.RebindAndMintAsync(
+                userId,
+                nameof(ProductChannel.Corporate),
+                result.Data.Id,
+                "Admin",
+                cancellationToken);
+
+            if (rebind is not null)
+            {
+                session = MapSession(rebind);
+            }
+            // If rebind fails after company exists, client uses POST /api/auth/channel fallback (Session null).
+        }
+
+        var payload = new CreateCompanyResultDto(result.Data, session);
+        var envelope = new ApiResponse<CreateCompanyResultDto>(
+            true,
+            result.Message ?? "Company created successfully.",
+            payload);
+
+        return Created($"/api/v1/corporate/companies/{result.Data.Id}", envelope);
+    }
+
+    private static TokenDto MapSession(SessionRebindResult rebind)
+    {
+        Enum.TryParse<UserRole>(rebind.PlatformRole, out var role);
+        return new TokenDto
+        {
+            AccessToken = rebind.AccessToken,
+            RefreshToken = rebind.RefreshToken,
+            ExpiresAt = rebind.ExpiresAt,
+            Channel = rebind.Channel,
+            CompanyId = rebind.CompanyId,
+            CompanyRole = rebind.CompanyRole,
+            IsBootstrap = rebind.IsBootstrap,
+            User = new UserDto(
+                rebind.UserId,
+                rebind.Email,
+                rebind.FirstName,
+                rebind.LastName,
+                rebind.PhoneNumber,
+                role,
+                rebind.IsEmailVerified,
+                rebind.IsPhoneVerified,
+                rebind.UserCreatedAt)
+        };
     }
 
     [HttpGet("me/companies")]
@@ -207,6 +286,7 @@ public class CorporateController : ControllerBase
         return result.Success ? Ok(result) : BadRequest(result);
     }
 
+    /// <summary>Vendor-side list — matrix: Marketplace channel (not Corporate). Middleware authoritative.</summary>
     [HttpGet("vendor/allocations")]
     [ProducesResponseType(typeof(ApiResponse<List<VendorParkingAllocationDto>>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetVendorAllocations()
@@ -280,7 +360,7 @@ public class CorporateController : ControllerBase
         return result.Success ? Ok(result) : BadRequest(result);
     }
 
-    // Usually called by Parking Space Owner (vendor side, but grouped here for convenience)
+    /// <summary>Vendor approve — matrix: Marketplace channel. Middleware authoritative (not ChannelCorporate).</summary>
     [HttpPost("allocations/{allocationId}/approve")]
     [ProducesResponseType(typeof(ApiResponse<ParkingAllocationDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> ApproveAllocation([FromRoute] Guid allocationId)
@@ -290,6 +370,7 @@ public class CorporateController : ControllerBase
         return result.Success ? Ok(result) : BadRequest(result);
     }
 
+    /// <summary>Vendor reject — matrix: Marketplace channel. Middleware authoritative (not ChannelCorporate).</summary>
     [HttpPost("allocations/{allocationId}/reject")]
     [ProducesResponseType(typeof(ApiResponse<ParkingAllocationDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> RejectAllocation([FromRoute] Guid allocationId, [FromBody] string reason)

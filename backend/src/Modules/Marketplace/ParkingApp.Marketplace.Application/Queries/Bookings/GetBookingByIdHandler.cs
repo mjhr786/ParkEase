@@ -34,6 +34,12 @@ internal sealed class GetBookingByIdHandler : IQueryHandler<GetBookingByIdQuery,
             return new ApiResponse<BookingDto>(false, "Booking not found", null);
         }
 
+        // KD-19: corporate-staged bookings are hidden from consumer detail; vendor owners may still view.
+        if (booking.IsCorporateStaged && booking.ParkingSpace.OwnerId != query.UserId)
+        {
+            return new ApiResponse<BookingDto>(false, "Booking not found", null);
+        }
+
         // Verify user has access
         if (booking.UserId != query.UserId && booking.ParkingSpace.OwnerId != query.UserId)
         {
@@ -59,6 +65,18 @@ internal sealed class GetBookingByReferenceHandler : IQueryHandler<GetBookingByR
         if (booking == null)
         {
             return new ApiResponse<BookingDto>(false, "Booking not found", null);
+        }
+
+        // KD-19: corporate-staged bookings are hidden from consumer detail; vendor owners may still view.
+        if (booking.IsCorporateStaged && booking.ParkingSpace.OwnerId != query.UserId)
+        {
+            return new ApiResponse<BookingDto>(false, "Booking not found", null);
+        }
+
+        // Verify user has access (guest or parking owner) - same surface as GetById.
+        if (booking.UserId != query.UserId && booking.ParkingSpace.OwnerId != query.UserId)
+        {
+            return new ApiResponse<BookingDto>(false, "Unauthorized", null);
         }
 
         return new ApiResponse<BookingDto>(true, null, booking.ToDto());
@@ -116,7 +134,8 @@ internal sealed class CalculatePriceHandler : IQueryHandler<CalculatePriceQuery,
     public async Task<ApiResponse<PriceBreakdownDto>> HandleAsync(CalculatePriceQuery query, CancellationToken cancellationToken = default)
     {
         var parking = await _unitOfWork.ParkingSpaces.GetByIdAsync(query.ParkingSpaceId, cancellationToken);
-        if (parking == null)
+        // KD-9: do not quote marketplace prices for corporate-only inventory.
+        if (parking == null || parking.IsCorporateOnly)
         {
             return new ApiResponse<PriceBreakdownDto>(false, "Parking space not found", null);
         }

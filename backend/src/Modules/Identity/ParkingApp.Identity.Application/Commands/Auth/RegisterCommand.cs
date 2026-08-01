@@ -3,21 +3,19 @@ using ParkingApp.Identity.Application.Interfaces;
 using ParkingApp.Application.DTOs;
 using ParkingApp.Identity.Application.DTOs;
 using TokenDto = ParkingApp.Identity.Application.DTOs.TokenDto;
-using UserDto = ParkingApp.Identity.Application.DTOs.UserDto;
 
-using ParkingApp.Application.Interfaces;
-
-using ParkingApp.Identity.Application.Mappings;
-using ParkingApp.BuildingBlocks.Domain;
+using ParkingApp.BuildingBlocks.Security;
+using ParkingApp.Corporate.Contracts;
 using ParkingApp.Identity.Domain.Entities;
+using ParkingApp.Identity.Domain.Enums;
 using ParkingApp.Identity.Domain.Interfaces;
 using Microsoft.Extensions.Logging;
 
 namespace ParkingApp.Identity.Application.Commands.Auth;
 
-// ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+// ═══════════════════════════════════════════════════════════════════════════════
 // Commands
-// ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+// ═══════════════════════════════════════════════════════════════════════════════
 
 public sealed record RegisterCommand(RegisterDto Dto) : ICommand<ApiResponse<TokenDto>>;
 public sealed record LoginCommand(LoginDto Dto) : ICommand<ApiResponse<TokenDto>>;
@@ -25,9 +23,9 @@ public sealed record RefreshTokenCommand(RefreshTokenDto Dto) : ICommand<ApiResp
 public sealed record LogoutCommand(Guid UserId) : ICommand<ApiResponse<bool>>;
 public sealed record ChangePasswordCommand(Guid UserId, ChangePasswordDto Dto) : ICommand<ApiResponse<bool>>;
 
-// ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+// ═══════════════════════════════════════════════════════════════════════════════
 // Handlers
-// ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+// ═══════════════════════════════════════════════════════════════════════════════
 
 internal sealed class RegisterHandler : ICommandHandler<RegisterCommand, ApiResponse<TokenDto>>
 {
@@ -65,9 +63,12 @@ internal sealed class RegisterHandler : ICommandHandler<RegisterCommand, ApiResp
             command.Dto.LastName,
             command.Dto.PhoneNumber);
 
-        var accessToken = _tokenService.GenerateAccessToken(user);
+        // KD-3: register always mints Marketplace
+        var channel = ProductChannel.Marketplace;
+        var accessToken = _tokenService.GenerateAccessToken(user, channel);
         var refreshToken = _tokenService.GenerateRefreshToken();
         user.RotateRefreshToken(refreshToken, DateTime.UtcNow.AddDays(RefreshTokenExpirationDays));
+        user.BindSession(channel);
 
         await _unitOfWork.Users.AddAsync(user, cancellationToken);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
@@ -75,7 +76,7 @@ internal sealed class RegisterHandler : ICommandHandler<RegisterCommand, ApiResp
         _logger.LogInformation("User registered: {Email}, Role: {Role}", user.Email, user.Role);
 
         return new ApiResponse<TokenDto>(true, "Registration successful",
-            new TokenDto(accessToken, refreshToken, DateTime.UtcNow.AddMinutes(15), user.ToDto()));
+            AuthTokenDtoFactory.Create(accessToken, refreshToken, user, channel));
     }
 }
 
@@ -111,17 +112,20 @@ internal sealed class LoginHandler : ICommandHandler<LoginCommand, ApiResponse<T
         if (!user.IsActive)
             return new ApiResponse<TokenDto>(false, "Account disabled", null, new List<string> { "Your account has been disabled" });
 
-        var accessToken = _tokenService.GenerateAccessToken(user);
+        // KD-3: default login → Marketplace for User; Admin for UserRole.Admin. Corporate is PR3.
+        var channel = user.Role == UserRole.Admin ? ProductChannel.Admin : ProductChannel.Marketplace;
+        var accessToken = _tokenService.GenerateAccessToken(user, channel);
         var refreshToken = _tokenService.GenerateRefreshToken();
         user.RecordLogin(refreshToken, DateTime.UtcNow.AddDays(RefreshTokenExpirationDays));
+        user.BindSession(channel);
 
         _unitOfWork.Users.Update(user);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
-        _logger.LogInformation("User logged in: {Email}, UserId: {UserId}", user.Email, user.Id);
+        _logger.LogInformation("User logged in: {Email}, UserId: {UserId}, Channel: {Channel}", user.Email, user.Id, channel);
 
         return new ApiResponse<TokenDto>(true, "Login successful",
-            new TokenDto(accessToken, refreshToken, DateTime.UtcNow.AddMinutes(15), user.ToDto()));
+            AuthTokenDtoFactory.Create(accessToken, refreshToken, user, channel));
     }
 }
 
@@ -129,12 +133,17 @@ internal sealed class RefreshTokenHandler : ICommandHandler<RefreshTokenCommand,
 {
     private readonly IIdentityUnitOfWork _unitOfWork;
     private readonly ITokenService _tokenService;
+    private readonly ICompanyMembershipLookup _memberships;
     private const int RefreshTokenExpirationDays = 7;
 
-    public RefreshTokenHandler(IIdentityUnitOfWork unitOfWork, ITokenService tokenService)
+    public RefreshTokenHandler(
+        IIdentityUnitOfWork unitOfWork,
+        ITokenService tokenService,
+        ICompanyMembershipLookup memberships)
     {
         _unitOfWork = unitOfWork;
         _tokenService = tokenService;
+        _memberships = memberships;
     }
 
     public async Task<ApiResponse<TokenDto>> HandleAsync(RefreshTokenCommand command, CancellationToken cancellationToken = default)
@@ -143,15 +152,152 @@ internal sealed class RefreshTokenHandler : ICommandHandler<RefreshTokenCommand,
         if (user == null || !_tokenService.ValidateRefreshToken(user, command.Dto.RefreshToken))
             return new ApiResponse<TokenDto>(false, "Invalid refresh token", null, new List<string> { "Refresh token is invalid or expired" });
 
-        var accessToken = _tokenService.GenerateAccessToken(user);
+        // C5 / KD-2: non-null channel → validated re-bind; null/omit → Session*; legacy → Marketplace/Admin.
+        ProductChannel channel;
+        Guid? companyId;
+        string? companyRole;
+
+        if (!string.IsNullOrWhiteSpace(command.Dto.Channel))
+        {
+            if (!TryParseChannelName(command.Dto.Channel, out channel))
+            {
+                return new ApiResponse<TokenDto>(
+                    false,
+                    "Invalid channel",
+                    null,
+                    new List<string> { "Channel must be Marketplace, Corporate, or Admin" },
+                    "invalid_channel");
+            }
+
+            switch (channel)
+            {
+                case ProductChannel.Marketplace:
+                    companyId = null;
+                    companyRole = null;
+                    break;
+
+                case ProductChannel.Admin:
+                    if (user.Role != UserRole.Admin)
+                    {
+                        return new ApiResponse<TokenDto>(
+                            false,
+                            "Admin channel requires Admin role",
+                            null,
+                            new List<string> { "Admin channel re-bind is not allowed for this user" },
+                            "channel_rebind_forbidden");
+                    }
+                    companyId = null;
+                    companyRole = null;
+                    break;
+
+                case ProductChannel.Corporate:
+                {
+                    // PR3: validated Corporate re-bind via membership lookup
+                    var memberships = await _memberships.GetActiveMembershipsAsync(user.Id, cancellationToken);
+                    if (command.Dto.CompanyId is Guid requestedCompanyId)
+                    {
+                        var match = memberships.FirstOrDefault(m => m.CompanyId == requestedCompanyId);
+                        if (match is null)
+                        {
+                            return new ApiResponse<TokenDto>(
+                                false,
+                                "Not a member of the selected company",
+                                null,
+                                new List<string> { "Active membership required for companyId" },
+                                "membership_required");
+                        }
+
+                        companyId = match.CompanyId;
+                        companyRole = match.Role;
+                    }
+                    else if (memberships.Count == 1)
+                    {
+                        companyId = memberships[0].CompanyId;
+                        companyRole = memberships[0].Role;
+                    }
+                    else if (memberships.Count == 0)
+                    {
+                        // Bootstrap corporate refresh re-bind
+                        companyId = null;
+                        companyRole = null;
+                    }
+                    else
+                    {
+                        return new ApiResponse<TokenDto>(
+                            false,
+                            "Company selection required",
+                            null,
+                            new List<string> { "Provide companyId for Corporate channel refresh re-bind" },
+                            "company_selection_required");
+                    }
+
+                    break;
+                }
+
+                default:
+                    return new ApiResponse<TokenDto>(
+                        false,
+                        "Invalid channel",
+                        null,
+                        new List<string> { "Channel must be Marketplace, Corporate, or Admin" },
+                        "invalid_channel");
+            }
+        }
+        else
+        {
+            // Omitted or explicit null → preserve server session bind
+            if (user.SessionChannel is null)
+            {
+                channel = user.Role == UserRole.Admin ? ProductChannel.Admin : ProductChannel.Marketplace;
+                companyId = null;
+                companyRole = null;
+            }
+            else
+            {
+                channel = user.SessionChannel.Value;
+                companyId = user.SessionCompanyId;
+                companyRole = user.SessionCompanyRole;
+            }
+        }
+
+        var accessToken = _tokenService.GenerateAccessToken(user, channel, companyId, companyRole);
         var refreshToken = _tokenService.GenerateRefreshToken();
         user.RotateRefreshToken(refreshToken, DateTime.UtcNow.AddDays(RefreshTokenExpirationDays));
+        user.BindSession(channel, companyId, companyRole);
 
         _unitOfWork.Users.Update(user);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         return new ApiResponse<TokenDto>(true, "Token refreshed",
-            new TokenDto(accessToken, refreshToken, DateTime.UtcNow.AddMinutes(15), user.ToDto()));
+            AuthTokenDtoFactory.Create(accessToken, refreshToken, user, channel, companyId, companyRole));
+    }
+
+    /// <summary>
+    /// Accept only named enum values (Marketplace|Corporate|Admin), case-insensitive.
+    /// Rejects numeric enum strings ("1","2","3") and unknown names.
+    /// </summary>
+    internal static bool TryParseChannelName(string? value, out ProductChannel channel)
+    {
+        channel = default;
+        if (string.IsNullOrWhiteSpace(value))
+            return false;
+
+        var trimmed = value.Trim();
+        // Reject pure numeric (Enum.TryParse would accept "1"/"2"/"3")
+        if (int.TryParse(trimmed, out _))
+            return false;
+
+        foreach (var name in Enum.GetNames<ProductChannel>())
+        {
+            if (string.Equals(name, trimmed, StringComparison.OrdinalIgnoreCase)
+                && Enum.TryParse(name, ignoreCase: false, out channel)
+                && Enum.IsDefined(channel))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 }
 
@@ -213,4 +359,3 @@ internal sealed class ChangePasswordHandler : ICommandHandler<ChangePasswordComm
         return new ApiResponse<bool>(true, "Password changed successfully", true);
     }
 }
-

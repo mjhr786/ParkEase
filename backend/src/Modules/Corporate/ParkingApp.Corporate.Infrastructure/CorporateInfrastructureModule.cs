@@ -2,6 +2,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using ParkingApp.Corporate.Contracts;
 using ParkingApp.Corporate.Application.Interfaces;
+using ParkingApp.Corporate.Infrastructure.ModuleAdapters;
 using ParkingApp.Corporate.Infrastructure.ReadStores;
 using ParkingApp.Corporate.Infrastructure.Services;
 
@@ -15,6 +16,7 @@ public static class CorporateInfrastructureModule
     public static IServiceCollection AddCorporateInfrastructure(this IServiceCollection services, IConfiguration configuration)
     {
         services.AddScoped<ICompanyReadStore, CompanyReadStore>();
+        services.AddScoped<ICompanyMembershipLookup, CompanyMembershipLookup>();
         services.AddScoped<ICorporateTenantContext, CorporateTenantContext>();
         services.AddScoped<ICompanyQuotaCache, CompanyQuotaCache>();
         services.AddSingleton<ICorporateWebLinkBuilder, CorporateWebLinkBuilder>();

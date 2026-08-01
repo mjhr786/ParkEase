@@ -34,6 +34,11 @@ entity.HasKey(e => e.Id);
             entity.Property(e => e.BayLabel).HasMaxLength(32);
             entity.Property(e => e.ValetStatus).HasConversion<int>();
             entity.Property(e => e.ValetNotes).HasMaxLength(500);
+            // KD-19: corporate-staged bookings excluded from consumer lists via this Marketplace-owned flag
+            entity.Property(e => e.IsCorporateStaged).HasDefaultValue(false);
+            // Composite aligns with GetUserBookings filter (UserId + staged); boolean-only index is low selectivity.
+            entity.HasIndex(e => new { e.UserId, e.IsCorporateStaged })
+                .HasDatabaseName("IX_Bookings_UserId_IsCorporateStaged");
             entity.HasIndex(e => e.ValetStatus);
             entity.HasIndex(e => e.BookingReference).IsUnique();
             entity.HasIndex(e => e.UserId);

@@ -98,6 +98,46 @@ public class ParkingSpaceRepositoryTests
         (await _repository.ExistsWithZoneCodeAsync("ZONE-B")).Should().BeFalse();
         (await _repository.ExistsWithZoneCodeAsync("")).Should().BeFalse();
     }
+
+    [Fact]
+    public async Task GetByOwnerIdAsync_ExcludesCorporateOnly()
+    {
+        var owner = AddOwner();
+        var publicSpace = new ParkingSpace
+        {
+            Id = Guid.NewGuid(),
+            Title = "Public",
+            Description = "D",
+            Address = "A",
+            City = "C",
+            State = "S",
+            Country = "Cu",
+            PostalCode = "P",
+            OwnerId = owner.Id,
+            IsCorporateOnly = false
+        };
+        var corporateSpace = new ParkingSpace
+        {
+            Id = Guid.NewGuid(),
+            Title = "Corporate",
+            Description = "D",
+            Address = "A",
+            City = "C",
+            State = "S",
+            Country = "Cu",
+            PostalCode = "P",
+            OwnerId = owner.Id,
+            IsCorporateOnly = true
+        };
+        _context.ParkingSpaces.AddRange(publicSpace, corporateSpace);
+        await _context.SaveChangesAsync();
+
+        var result = (await _repository.GetByOwnerIdAsync(owner.Id)).ToList();
+
+        result.Should().HaveCount(1);
+        result[0].Id.Should().Be(publicSpace.Id);
+        result[0].IsCorporateOnly.Should().BeFalse();
+    }
 }
 
 

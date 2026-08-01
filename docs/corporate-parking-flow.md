@@ -48,12 +48,13 @@ flowchart TD
 | Allocation owner approval/rejection API | Implemented in backend | `POST /allocations/{allocationId}/approve`, `POST /allocations/{allocationId}/reject` |
 | Vendor allocation request list | Implemented | `GET /vendor/allocations`, `GetVendorAllocationsHandler`, `VendorBookings.jsx` |
 | Allocation list for company admin | Implemented | `GetCompanyAllocationsHandler`, `CompanyAllocations.jsx` |
-| Allocation request UI | Implemented | `ParkingDetails.jsx`, `corporateService.requestAllocation()` |
+| Allocation request UI | Implemented | **Lease Browse** (`/corporate/lease-browse`) + `corporateService.requestAllocation()` — not dual UI on marketplace `ParkingDetails` |
 | Booking policy update | Implemented | `UpdateBookingPolicyHandler`, `CompanyAllocations.jsx` |
 | Fixed slot assignment | Implemented | `AssignFixedSlotHandler`, `ParkingAllocation.AssignFixedSlot`, `CompanyAllocations.jsx` |
 | Fixed slot removal | Implemented | `RemoveFixedSlotHandler`, `ParkingAllocation.RemoveFixedAssignment`, `CompanyAllocations.jsx` |
-| Employee corporate booking | Implemented | `BookCorporateParkingHandler`, `Company.ReserveEmployeeParking`, `ParkingDetails.jsx` |
-| Visitor corporate booking | Implemented | `BookVisitorParkingHandler`, `Company.ReserveVisitorParking`, `ParkingDetails.jsx` |
+| Employee corporate booking | Implemented | `BookCorporateParkingHandler`, `Company.ReserveEmployeeParking`, **Company Allocations** book modal |
+| Visitor corporate booking | Implemented | `BookVisitorParkingHandler`, `Company.ReserveVisitorParking`, **Company Allocations** book modal |
+| Channel isolation (staging) | PR9 | `ChannelIsolation:Enabled` on Staging; see `docs/channel-isolation-runbook.md` |
 | Shared slot assignment | Implemented | `ParkingAllocation.ResolveSharedSlotReservation` |
 | Waitlist creation and ordering | Implemented in domain and booking handlers | `CorporateWaitlistEntry`, `Company.GetWaitlistPosition` |
 | Waitlist list/cancel | Implemented | `GET /companies/{companyId}/waitlist`, `DELETE /companies/{companyId}/waitlist/{waitlistEntryId}`, `CompanyAllocations.jsx` |

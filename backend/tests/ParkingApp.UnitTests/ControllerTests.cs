@@ -16,6 +16,8 @@ using ParkingApp.Identity.Application.Commands.Auth;
 using ParkingApp.Identity.Application.Commands.Users;
 using ParkingApp.Domain.Enums;
 using FluentValidation;
+using Microsoft.Extensions.Options;
+using ParkingApp.API.Options;
 using System.Security.Claims;
 using FluentValidation.Results;
 using ParkingApp.Messaging.Application.Commands.Chat;
@@ -40,7 +42,7 @@ public class ControllerTests
     public async Task AuthController_Login_WithInvalidDto_ShouldReturnBadRequest()
     {
         // Arrange
-        var controller = new AuthController(_mockDispatcher.Object, _mockRegisterValidator.Object, _mockLoginValidator.Object);
+        var controller = new AuthController(_mockDispatcher.Object, _mockRegisterValidator.Object, _mockLoginValidator.Object, Options.Create(new ChannelIsolationOptions()));
         var dto = new LoginDto("invalid", "");
         
         _mockLoginValidator.Setup(v => v.ValidateAsync(dto, It.IsAny<CancellationToken>()))
@@ -57,9 +59,16 @@ public class ControllerTests
     public async Task AuthController_Login_WhenSuccessful_ShouldReturnOk()
     {
         // Arrange
-        var controller = new AuthController(_mockDispatcher.Object, _mockRegisterValidator.Object, _mockLoginValidator.Object);
+        var controller = new AuthController(_mockDispatcher.Object, _mockRegisterValidator.Object, _mockLoginValidator.Object, Options.Create(new ChannelIsolationOptions()));
         var dto = new LoginDto("test@test.com", "Password123!");
-        var tokenDto = new TokenDto("access", "refresh", DateTime.UtcNow.AddHours(1), new UserDto(Guid.NewGuid(), "test@test.com", "John", "Doe", "123", ParkingApp.Identity.Domain.Enums.UserRole.User, true, true, DateTime.UtcNow));
+        var tokenDto = new TokenDto
+        {
+            AccessToken = "access",
+            RefreshToken = "refresh",
+            ExpiresAt = DateTime.UtcNow.AddHours(1),
+            User = new UserDto(Guid.NewGuid(), "test@test.com", "John", "Doe", "123", ParkingApp.Identity.Domain.Enums.UserRole.User, true, true, DateTime.UtcNow),
+            Channel = "Marketplace"
+        };
         var apiResponse = new ApiResponse<TokenDto>(true, "Success", tokenDto);
 
         _mockLoginValidator.Setup(v => v.ValidateAsync(dto, It.IsAny<CancellationToken>()))

@@ -13,19 +13,21 @@ using ParkingApp.Corporate.Application.DTOs;
 using ParkingApp.Domain.Enums;
 using ParkingApp.Marketplace.Contracts.DTOs;
 using ParkingApp.Marketplace.Contracts.Enums;
+using ParkingApp.Identity.Contracts;
 
 namespace ParkingApp.UnitTests.API;
 
 public class CorporateControllerTests
 {
     private readonly Mock<IDispatcher> _dispatcher = new();
+    private readonly Mock<ISessionRebindService> _sessionRebind = new();
     private readonly CorporateController _controller;
     private readonly Guid _userId = Guid.NewGuid();
     private readonly Guid _companyId = Guid.NewGuid();
 
     public CorporateControllerTests()
     {
-        _controller = new CorporateController(_dispatcher.Object);
+        _controller = new CorporateController(_dispatcher.Object, _sessionRebind.Object);
         SetUser(_userId);
     }
 
@@ -48,15 +50,18 @@ public class CorporateControllerTests
     {
         var company = new CompanyDto(
             _companyId, "Acme", "REG-1", "a@acme.com", "555", "Addr", BillingType.UsageBased, true, 0, 0, DateTime.UtcNow);
-        var response = new ApiResponse<CompanyDto>(true, null, company);
         _dispatcher
             .Setup(d => d.SendAsync(It.IsAny<CreateCompanyCommand>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(response);
+            .ReturnsAsync(new ApiResponse<CompanyDto>(true, null, company));
 
         var dto = new CreateCompanyDto("Acme", "REG-1", "a@acme.com", "555", "Addr", BillingType.UsageBased);
         var result = await _controller.CreateCompany(dto);
 
-        result.Should().BeOfType<CreatedResult>().Which.Value.Should().Be(response);
+        result.Should().BeOfType<CreatedResult>();
+        var created = result.As<CreatedResult>().Value.As<ApiResponse<CreateCompanyResultDto>>();
+        created.Success.Should().BeTrue();
+        created.Data!.Company.Id.Should().Be(_companyId);
+        created.Data.Session.Should().BeNull(); // non-bootstrap caller
         _dispatcher.Verify(d => d.SendAsync(
             It.Is<CreateCompanyCommand>(c => c.UserId == _userId),
             It.IsAny<CancellationToken>()), Times.Once);

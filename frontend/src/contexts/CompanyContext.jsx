@@ -4,21 +4,46 @@ import { useAuth } from './AuthContext';
 
 const CompanyContext = createContext(null);
 
+/**
+ * Company workspace state bound to JWT Corporate channel (PR10b / KD-7).
+ *
+ * - isCorporateMode === channel === 'Corporate' (never bare localStorage)
+ * - activeCompanyId mirrors JWT company_id for corporateService path helpers
+ * Soft Personal Mode / activeCompanyId-driven chrome was removed in PR10b.
+ * UX rollback after this change = redeploy a prior frontend artifact.
+ */
 export function CompanyProvider({ children }) {
-    const { isAuthenticated } = useAuth();
-    const [activeCompanyId, setActiveCompanyId] = useState(() => {
-        return localStorage.getItem('activeCompanyId') || null;
-    });
+    const { isAuthenticated, channel, companyId: jwtCompanyId } = useAuth();
+    const [activeCompanyId, setActiveCompanyId] = useState(null);
     const [companyDetails, setCompanyDetails] = useState(null);
     const [loadingCompany, setLoadingCompany] = useState(false);
 
+    // Keep company cache aligned with JWT bind — never drive chrome from storage alone
     useEffect(() => {
-        if (activeCompanyId && isAuthenticated) {
+        if (channel === 'Corporate' && jwtCompanyId) {
+            const id = String(jwtCompanyId);
+            if (activeCompanyId !== id) {
+                localStorage.setItem('activeCompanyId', id);
+                setActiveCompanyId(id);
+            }
+            return;
+        }
+
+        if (activeCompanyId) {
+            localStorage.removeItem('activeCompanyId');
+            setActiveCompanyId(null);
+            setCompanyDetails(null);
+        }
+    }, [channel, jwtCompanyId, activeCompanyId]);
+
+    useEffect(() => {
+        if (activeCompanyId && isAuthenticated && channel === 'Corporate') {
             fetchCompanyDetails();
         } else {
             setCompanyDetails(null);
         }
-    }, [activeCompanyId, isAuthenticated]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- fetch on id/auth/channel only
+    }, [activeCompanyId, isAuthenticated, channel]);
 
     const fetchCompanyDetails = async () => {
         setLoadingCompany(true);
@@ -27,16 +52,16 @@ export function CompanyProvider({ children }) {
             if (res.success) {
                 setCompanyDetails(res.data);
             } else {
-                // Invalid or removed from company
                 clearActiveCompany();
             }
         } catch (error) {
-            console.error("Failed to fetch company details", error);
+            console.error('Failed to fetch company details', error);
         } finally {
             setLoadingCompany(false);
         }
     };
 
+    /** Cache helper after channel re-mint — does not change product channel by itself. */
     const switchCompany = (companyId) => {
         if (companyId) {
             localStorage.setItem('activeCompanyId', companyId);
@@ -52,16 +77,20 @@ export function CompanyProvider({ children }) {
         setCompanyDetails(null);
     };
 
+    const isCorporateMode = channel === 'Corporate';
+
     return (
-        <CompanyContext.Provider value={{
-            activeCompanyId,
-            companyDetails,
-            isCorporateMode: !!activeCompanyId,
-            loadingCompany,
-            switchCompany,
-            clearActiveCompany,
-            refreshCompanyDetails: fetchCompanyDetails
-        }}>
+        <CompanyContext.Provider
+            value={{
+                activeCompanyId,
+                companyDetails,
+                isCorporateMode,
+                loadingCompany,
+                switchCompany,
+                clearActiveCompany,
+                refreshCompanyDetails: fetchCompanyDetails,
+            }}
+        >
             {children}
         </CompanyContext.Provider>
     );

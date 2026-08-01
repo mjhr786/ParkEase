@@ -79,6 +79,8 @@ try
         builder.Configuration.GetSection(MediaOptions.SectionName));
     builder.Services.Configure<IotLprOptions>(
         builder.Configuration.GetSection(IotLprOptions.SectionName));
+    builder.Services.Configure<ChannelIsolationOptions>(
+        builder.Configuration.GetSection(ChannelIsolationOptions.SectionName));
 
     builder.Services.AddInfrastructure(builder.Configuration);
     builder.Services.AddNotificationServices(builder.Configuration);
@@ -226,7 +228,24 @@ try
         };
     });
 
-    builder.Services.AddAuthorization();
+    // Channel policies are optional documentation / defense-in-depth only (KD-5).
+    // ChannelAuthorizationMiddleware is the authoritative allowlist enforcer.
+    // Do not put [Authorize(Policy = "Channel*")] on controllers until soft-mode is removed (PR10b),
+    // or soft Marketplace→corporate API access with flag off will break via UseAuthorization.
+    builder.Services.AddAuthorization(options =>
+    {
+        options.AddPolicy("ChannelMarketplace", policy =>
+            policy.RequireClaim(
+                ParkingApp.BuildingBlocks.Security.ParkEaseClaimTypes.Channel,
+                "Marketplace",
+                "Admin"));
+        options.AddPolicy("ChannelCorporate", policy =>
+            policy.RequireClaim(
+                ParkingApp.BuildingBlocks.Security.ParkEaseClaimTypes.Channel,
+                "Corporate",
+                "Admin"));
+        // Admin APIs keep [Authorize(Roles = "Admin")] — do not require Admin channel (KD-13).
+    });
 
     var app = builder.Build();
 
@@ -322,7 +341,9 @@ try
 
     app.UseAuthentication();
     app.UseAuthorization();
+    // Corporate tenant context first; channel matrix is authoritative allow/deny (KD-5).
     app.UseMiddleware<CorporateTenantMiddleware>();
+    app.UseMiddleware<ChannelAuthorizationMiddleware>();
 
     app.MapControllers().RequireCors("AllowFrontend");
 

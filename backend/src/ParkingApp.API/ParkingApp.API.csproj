@@ -24,6 +24,9 @@
     <PackageReference Include="Serilog.Sinks.File" Version="7.0.0" />
     <PackageReference Include="SkiaSharp" Version="3.119.2" />
   </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="ParkingApp.UnitTests" />
+  </ItemGroup>
   <PropertyGroup>
     <TargetFramework>net9.0</TargetFramework>
     <Nullable>enable</Nullable>

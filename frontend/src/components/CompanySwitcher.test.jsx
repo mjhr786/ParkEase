@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, waitFor, cleanup } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { MemoryRouter } from 'react-router-dom';
 import CompanySwitcher from './CompanySwitcher';
 
 const mockSwitchCompany = vi.fn();
@@ -9,6 +10,8 @@ const mockGetMyCompanies = vi.fn();
 const mockCreateCompany = vi.fn();
 const mockToastSuccess = vi.fn();
 const mockToastError = vi.fn();
+const mockSwitchChannel = vi.fn();
+const mockApplySession = vi.fn();
 
 vi.mock('../contexts/CompanyContext', () => ({
   useCompany: () => mockUseCompany(),
@@ -18,9 +21,13 @@ vi.mock('../contexts/AuthContext', () => ({
   useAuth: () => mockUseAuth(),
 }));
 
-vi.mock('react-router-dom', () => ({
-  useNavigate: () => mockNavigate,
-}));
+vi.mock('react-router-dom', async () => {
+  const actual = await vi.importActual('react-router-dom');
+  return {
+    ...actual,
+    useNavigate: () => mockNavigate,
+  };
+});
 
 vi.mock('../services/api', () => ({
   default: {},
@@ -51,10 +58,24 @@ function mockUseAuth() {
   return authState;
 }
 
+function renderSwitcher() {
+  return render(
+    <MemoryRouter>
+      <CompanySwitcher />
+    </MemoryRouter>
+  );
+}
+
 describe('CompanySwitcher', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    authState = { isAuthenticated: true };
+    authState = {
+      isAuthenticated: true,
+      applySession: mockApplySession,
+      channel: 'Marketplace',
+      switchChannel: mockSwitchChannel,
+      companyId: null,
+    };
     companyState = {
       activeCompanyId: null,
       companyDetails: null,
@@ -69,70 +90,129 @@ describe('CompanySwitcher', () => {
   });
 
   it('renders nothing when not authenticated', () => {
-    authState = { isAuthenticated: false };
-    const { container } = render(<CompanySwitcher />);
+    authState = { ...authState, isAuthenticated: false };
+    const { container } = renderSwitcher();
     expect(container).toBeEmptyDOMElement();
   });
 
-  it('shows Personal Mode by default', () => {
-    render(<CompanySwitcher />);
-    expect(screen.getByRole('button', { name: /personal mode/i })).toBeInTheDocument();
+  it('shows Corporate workspace CTA on Marketplace channel (no Personal Mode)', () => {
+    renderSwitcher();
+    expect(screen.getByRole('link', { name: /corporate workspace/i })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /personal mode/i })).not.toBeInTheDocument();
   });
 
-  it('shows company name in corporate mode', () => {
+  it('shows company dropdown on Corporate channel without Personal Mode', async () => {
+    const user = userEvent.setup();
+    authState = {
+      ...authState,
+      channel: 'Corporate',
+      companyId: 'c1',
+    };
     companyState = {
       activeCompanyId: 'c1',
       companyDetails: { name: 'Acme Corp' },
       isCorporateMode: true,
       switchCompany: mockSwitchCompany,
     };
-    render(<CompanySwitcher />);
-    expect(screen.getByRole('button', { name: /acme corp/i })).toBeInTheDocument();
-  });
-
-  it('opens dropdown, loads companies, and switches to corporate', async () => {
-    const user = userEvent.setup();
     mockGetMyCompanies.mockResolvedValue({
       success: true,
       data: [{ id: 'c1', name: 'Acme Corp' }],
     });
 
-    render(<CompanySwitcher />);
-    await user.click(screen.getByRole('button', { name: /personal mode/i }));
+    renderSwitcher();
+    await user.click(screen.getByRole('button', { name: /acme corp/i }));
 
-    await waitFor(() => {
-      expect(mockGetMyCompanies).toHaveBeenCalled();
-      expect(screen.getByText('Acme Corp')).toBeInTheDocument();
-    });
-
-    await user.click(screen.getByText('Acme Corp'));
-    expect(mockNavigate).toHaveBeenCalledWith('/corporate/dashboard', { replace: true });
-    expect(mockSwitchCompany).toHaveBeenCalledWith('c1');
+    expect(screen.queryByRole('button', { name: /^personal mode$/i })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /marketplace account/i })).toBeInTheDocument();
   });
 
-  it('switches back to personal mode', async () => {
-    const user = userEvent.setup();
+  it('shows company name in corporate mode', () => {
+    authState = { ...authState, channel: 'Corporate', companyId: 'c1' };
     companyState = {
       activeCompanyId: 'c1',
       companyDetails: { name: 'Acme Corp' },
       isCorporateMode: true,
       switchCompany: mockSwitchCompany,
     };
+    renderSwitcher();
+    expect(screen.getByRole('button', { name: /acme corp/i })).toBeInTheDocument();
+  });
 
-    render(<CompanySwitcher />);
+  it('corporate company switch uses switchChannel', async () => {
+    const user = userEvent.setup();
+    authState = {
+      ...authState,
+      channel: 'Corporate',
+      companyId: 'c1',
+    };
+    companyState = {
+      activeCompanyId: 'c1',
+      companyDetails: { name: 'Acme Corp' },
+      isCorporateMode: true,
+      switchCompany: mockSwitchCompany,
+    };
+    mockGetMyCompanies.mockResolvedValue({
+      success: true,
+      data: [
+        { id: 'c1', name: 'Acme Corp' },
+        { id: 'c2', name: 'Beta Inc' },
+      ],
+    });
+    mockSwitchChannel.mockResolvedValue({ success: true, channel: 'Corporate', companyId: 'c2' });
+
+    renderSwitcher();
     await user.click(screen.getByRole('button', { name: /acme corp/i }));
-    await user.click(screen.getByRole('button', { name: /personal mode/i }));
+    await waitFor(() => expect(screen.getByText('Beta Inc')).toBeInTheDocument());
+    await user.click(screen.getByText('Beta Inc'));
 
-    expect(mockNavigate).toHaveBeenCalledWith('/dashboard', { replace: true });
-    expect(mockSwitchCompany).toHaveBeenCalledWith(null);
+    await waitFor(() => {
+      expect(mockSwitchChannel).toHaveBeenCalledWith({
+        channel: 'Corporate',
+        companyId: 'c2',
+      });
+      expect(mockNavigate).toHaveBeenCalledWith('/corporate/dashboard', { replace: true });
+    });
+  });
+
+  it('Marketplace account exit uses switchChannel', async () => {
+    const user = userEvent.setup();
+    authState = {
+      ...authState,
+      channel: 'Corporate',
+      companyId: 'c1',
+    };
+    companyState = {
+      activeCompanyId: 'c1',
+      companyDetails: { name: 'Acme Corp' },
+      isCorporateMode: true,
+      switchCompany: mockSwitchCompany,
+    };
+    mockSwitchChannel.mockResolvedValue({ success: true, channel: 'Marketplace' });
+
+    renderSwitcher();
+    await user.click(screen.getByRole('button', { name: /acme corp/i }));
+    await user.click(screen.getByRole('button', { name: /marketplace account/i }));
+
+    await waitFor(() => {
+      expect(mockSwitchChannel).toHaveBeenCalledWith({ channel: 'Marketplace' });
+      expect(mockNavigate).toHaveBeenCalledWith('/dashboard', { replace: true });
+      expect(mockSwitchCompany).toHaveBeenCalledWith(null);
+    });
   });
 
   it('shows empty companies message when none returned', async () => {
     const user = userEvent.setup();
+    authState = { ...authState, channel: 'Corporate', companyId: 'c1' };
+    companyState = {
+      activeCompanyId: 'c1',
+      companyDetails: { name: 'Acme Corp' },
+      isCorporateMode: true,
+      switchCompany: mockSwitchCompany,
+    };
     mockGetMyCompanies.mockResolvedValue({ success: true, data: [] });
 
-    render(<CompanySwitcher />);
-    await user.click(screen.getByRole('button', { name: /personal mode/i }));
+    renderSwitcher();
+    await user.click(screen.getByRole('button', { name: /acme corp/i }));
 
     await waitFor(() => {
       expect(screen.getByText(/no corporate accounts found/i)).toBeInTheDocument();
@@ -143,7 +223,6 @@ describe('CompanySwitcher', () => {
     const textInputs = document.querySelectorAll(
       'form input.form-input[type="text"], form input.form-input[type="email"]'
     );
-    // name, registration, email, phone
     await user.type(textInputs[0], 'NewCo');
     await user.type(textInputs[1], 'REG-9');
     await user.type(textInputs[2], 'ops@new.co');
@@ -153,14 +232,22 @@ describe('CompanySwitcher', () => {
 
   it('opens create modal and creates company on success', async () => {
     const user = userEvent.setup();
+    authState = { ...authState, channel: 'Corporate', companyId: 'c1' };
+    companyState = {
+      activeCompanyId: 'c1',
+      companyDetails: { name: 'Acme Corp' },
+      isCorporateMode: true,
+      switchCompany: mockSwitchCompany,
+    };
     mockCreateCompany.mockResolvedValue({
       success: true,
-      data: { id: 'new-c' },
+      data: { company: { id: 'new-c' }, session: null },
     });
+    mockSwitchChannel.mockResolvedValue({ success: true });
     mockGetMyCompanies.mockResolvedValue({ success: true, data: [] });
 
-    render(<CompanySwitcher />);
-    await user.click(screen.getByRole('button', { name: /personal mode/i }));
+    renderSwitcher();
+    await user.click(screen.getByRole('button', { name: /acme corp/i }));
     await user.click(screen.getByRole('button', { name: /create corporate account/i }));
 
     expect(screen.getByRole('heading', { name: /create corporate account/i })).toBeInTheDocument();
@@ -171,6 +258,10 @@ describe('CompanySwitcher', () => {
     await waitFor(() => {
       expect(mockCreateCompany).toHaveBeenCalled();
       expect(mockToastSuccess).toHaveBeenCalled();
+      expect(mockSwitchChannel).toHaveBeenCalledWith({
+        channel: 'Corporate',
+        companyId: 'new-c',
+      });
       expect(mockSwitchCompany).toHaveBeenCalledWith('new-c');
       expect(mockNavigate).toHaveBeenCalledWith('/corporate/dashboard', { replace: true });
     });
@@ -178,13 +269,20 @@ describe('CompanySwitcher', () => {
 
   it('toasts error when create company fails', async () => {
     const user = userEvent.setup();
+    authState = { ...authState, channel: 'Corporate', companyId: 'c1' };
+    companyState = {
+      activeCompanyId: 'c1',
+      companyDetails: { name: 'Acme Corp' },
+      isCorporateMode: true,
+      switchCompany: mockSwitchCompany,
+    };
     mockCreateCompany.mockResolvedValue({
       success: false,
       message: 'Name taken',
     });
 
-    render(<CompanySwitcher />);
-    await user.click(screen.getByRole('button', { name: /personal mode/i }));
+    renderSwitcher();
+    await user.click(screen.getByRole('button', { name: /acme corp/i }));
     await user.click(screen.getByRole('button', { name: /create corporate account/i }));
 
     await fillCreateForm(user);
