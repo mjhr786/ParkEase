@@ -15,6 +15,22 @@ using ParkingApp.BuildingBlocks.Enums;
 
 namespace ParkingApp.Marketplace.Infrastructure.ReadModel.Bookings;
 
+/// <summary>
+/// SQL base-where fragments for booking list queries.
+/// Extracted for unit coverage of KD-19 consumer exclusion vs vendor inclusion
+/// (full Dapper integration would require a live PostgreSQL connection).
+/// </summary>
+internal static class BookingListSqlFilters
+{
+    /// <summary>Consumer My Bookings: exclude corporate-staged rows (Marketplace-owned flag; no Corporate table SQL).</summary>
+    public const string ConsumerUserBookings =
+        """b."UserId" = @UserId AND b."IsDeleted" = FALSE AND b."IsCorporateStaged" = FALSE""";
+
+    /// <summary>Vendor owner list: may include corporate-staged rows for the vendor's spaces.</summary>
+    public const string VendorBookings =
+        """ps."OwnerId" = @VendorId AND b."IsDeleted" = FALSE AND ps."IsDeleted" = FALSE""";
+}
+
 internal sealed class BookingReadStore : IBookingReadStore
 {
     private readonly ISqlConnectionFactory _sql;
@@ -31,8 +47,7 @@ internal sealed class BookingReadStore : IBookingReadStore
     {
         var (page, pageSize, offset) = NormalizePaging(filter, defaultPageSize: 10);
         return QueryPagedAsync(
-            // KD-19: exclude corporate-staged rows from consumer My Bookings (Marketplace-owned flag; no Corporate table SQL).
-            baseWhere: """b."UserId" = @UserId AND b."IsDeleted" = FALSE AND b."IsCorporateStaged" = FALSE""",
+            baseWhere: BookingListSqlFilters.ConsumerUserBookings,
             extraJoins: null,
             parameters: new DynamicParameters(new { UserId = userId }),
             filter,
@@ -49,7 +64,7 @@ internal sealed class BookingReadStore : IBookingReadStore
     {
         var (page, pageSize, offset) = NormalizePaging(filter, defaultPageSize: 10);
         return QueryPagedAsync(
-            baseWhere: """ps."OwnerId" = @VendorId AND b."IsDeleted" = FALSE AND ps."IsDeleted" = FALSE""",
+            baseWhere: BookingListSqlFilters.VendorBookings,
             extraJoins: null,
             parameters: new DynamicParameters(new { VendorId = vendorId }),
             filter,

@@ -1103,13 +1103,14 @@ namespace ParkingApp.Infrastructure.Migrations
 
                     b.HasIndex("EventParkingPackageId");
 
-                    b.HasIndex("IsCorporateStaged");
-
                     b.HasIndex("ParkingPassId");
 
                     b.HasIndex("ParkingSpaceId");
 
                     b.HasIndex("UserId");
+
+                    b.HasIndex("UserId", "IsCorporateStaged")
+                        .HasDatabaseName("IX_Bookings_UserId_IsCorporateStaged");
 
                     b.HasIndex("ValetStatus");
 

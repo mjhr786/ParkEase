@@ -67,6 +67,18 @@ internal sealed class GetBookingByReferenceHandler : IQueryHandler<GetBookingByR
             return new ApiResponse<BookingDto>(false, "Booking not found", null);
         }
 
+        // KD-19: corporate-staged bookings are hidden from consumer detail; vendor owners may still view.
+        if (booking.IsCorporateStaged && booking.ParkingSpace.OwnerId != query.UserId)
+        {
+            return new ApiResponse<BookingDto>(false, "Booking not found", null);
+        }
+
+        // Verify user has access (guest or parking owner) - same surface as GetById.
+        if (booking.UserId != query.UserId && booking.ParkingSpace.OwnerId != query.UserId)
+        {
+            return new ApiResponse<BookingDto>(false, "Unauthorized", null);
+        }
+
         return new ApiResponse<BookingDto>(true, null, booking.ToDto());
     }
 }

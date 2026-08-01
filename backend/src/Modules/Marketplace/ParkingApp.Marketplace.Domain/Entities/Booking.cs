@@ -113,7 +113,7 @@ public class Booking : BaseEntity
     /// <summary>
     /// When true, this marketplace booking row was staged by Corporate (via Contracts).
     /// Consumer My Bookings list/detail/cancel must exclude these; vendor owner views may include them.
-    /// Marketplace-owned flag — avoids SQL anti-join against CorporateBookings (KD-19).
+    /// Marketplace-owned flag - avoids SQL anti-join against CorporateBookings (KD-19).
     /// </summary>
     public bool IsCorporateStaged { get; internal set; }
 

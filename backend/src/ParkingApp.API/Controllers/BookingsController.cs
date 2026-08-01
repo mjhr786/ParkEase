@@ -57,7 +57,10 @@ public class BookingsController : ControllerBase
     [ProducesResponseType(typeof(ApiResponse<BookingDto>), StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetByReference(string reference, CancellationToken cancellationToken)
     {
-        var query = new GetBookingByReferenceQuery(reference);
+        var userId = GetUserId();
+        if (userId == null) return Unauthorized();
+
+        var query = new GetBookingByReferenceQuery(reference, userId.Value);
         var result = await _dispatcher.QueryAsync(query, cancellationToken);
 
         return result.Success ? Ok(result) : NotFound(result);

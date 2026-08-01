@@ -307,14 +307,13 @@ public class LayeringArchitectureTests
             "..", "..", "..", "..", "..",
             "src", "Modules", "Marketplace", "ParkingApp.Marketplace.Infrastructure", "ReadModel", "Bookings"));
         var readStorePath = Path.Combine(moduleDir, "BookingReadStore.cs");
-        if (!File.Exists(readStorePath))
-        {
-            return;
-        }
+        File.Exists(readStorePath).Should().BeTrue(
+            because: $"BookingReadStore source must be discoverable for KD-19 SQL guard (tried: {readStorePath})");
 
         var source = File.ReadAllText(readStorePath);
         source.Should().NotContain("CorporateBookings");
         source.Should().Contain("IsCorporateStaged");
+        source.Should().Contain("BookingListSqlFilters.ConsumerUserBookings");
     }
 
     [Fact]
