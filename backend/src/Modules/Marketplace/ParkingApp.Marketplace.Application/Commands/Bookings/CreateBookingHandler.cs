@@ -63,7 +63,8 @@ internal sealed class CreateBookingHandler : ICommandHandler<CreateBookingComman
         var endDateTimeUtc = command.EndDateTime.ToUtc();
 
         var parking = await _unitOfWork.ParkingSpaces.GetByIdAsync(command.ParkingSpaceId, cancellationToken);
-        if (parking == null)
+        // KD-9: corporate-only inventory is not bookable via marketplace product APIs.
+        if (parking == null || parking.IsCorporateOnly)
         {
             return new ApiResponse<BookingDto>(false, "Parking space is not available", null);
         }
@@ -206,6 +207,12 @@ internal sealed class CancelBookingHandler : ICommandHandler<CancelBookingComman
     {
         var booking = await _unitOfWork.Bookings.GetByIdWithDetailsAsync(command.BookingId, cancellationToken);
         if (booking == null)
+        {
+            return new ApiResponse<BookingDto>(false, "Booking not found", null);
+        }
+
+        // KD-19: corporate-staged bookings are cancelled via Corporate channel, not consumer marketplace cancel.
+        if (booking.IsCorporateStaged)
         {
             return new ApiResponse<BookingDto>(false, "Booking not found", null);
         }

@@ -28,10 +28,15 @@ public interface IParkingSpaceRepository : IRepository<ParkingSpace>
         int pageSize = 20,
         CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Marketplace owner/vendor listings for the given owner.
+    /// Excludes company-owned (<c>IsCorporateOnly</c>) inventory — those are served via corporate company APIs.
+    /// Platform admin listing uses <see cref="SearchForAdminAsync"/> (unfiltered by <c>IsCorporateOnly</c>).
+    /// </summary>
     Task<IEnumerable<ParkingSpace>> GetByOwnerIdAsync(Guid ownerId, CancellationToken cancellationToken = default);
     Task<bool> ExistsWithZoneCodeAsync(string zoneCode, CancellationToken cancellationToken = default);
 
-    /// <summary>Platform-admin listing search (includes inactive; soft-deleted still filtered by EF).</summary>
+    /// <summary>Platform-admin listing search (includes inactive; soft-deleted still filtered by EF). Does not exclude IsCorporateOnly.</summary>
     Task<(IReadOnlyList<ParkingSpace> Items, int TotalCount)> SearchForAdminAsync(
         string? search,
         bool? isActive,

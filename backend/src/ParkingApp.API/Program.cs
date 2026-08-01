@@ -79,6 +79,8 @@ try
         builder.Configuration.GetSection(MediaOptions.SectionName));
     builder.Services.Configure<IotLprOptions>(
         builder.Configuration.GetSection(IotLprOptions.SectionName));
+    builder.Services.Configure<ChannelIsolationOptions>(
+        builder.Configuration.GetSection(ChannelIsolationOptions.SectionName));
 
     builder.Services.AddInfrastructure(builder.Configuration);
     builder.Services.AddNotificationServices(builder.Configuration);
@@ -322,7 +324,9 @@ try
 
     app.UseAuthentication();
     app.UseAuthorization();
+    // Corporate tenant context first; channel matrix is authoritative allow/deny (KD-5).
     app.UseMiddleware<CorporateTenantMiddleware>();
+    app.UseMiddleware<ChannelAuthorizationMiddleware>();
 
     app.MapControllers().RequireCors("AllowFrontend");
 

@@ -15,10 +15,11 @@ public record GetBookingByIdQuery(
 ) : IQuery<ApiResponse<BookingDto>>;
 
 /// <summary>
-/// Query to get a booking by reference number
+/// Query to get a booking by reference number (caller must be guest or parking owner).
 /// </summary>
 public record GetBookingByReferenceQuery(
-    string Reference
+    string Reference,
+    Guid UserId
 ) : IQuery<ApiResponse<BookingDto>>;
 
 /// <summary>

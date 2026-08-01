@@ -76,6 +76,7 @@ public class MarketplaceDomainTests
         booking.VehicleNumber.Should().NotBeNullOrWhiteSpace();
         booking.BookingReference.Should().StartWith("CORP");
         booking.QRCode.Should().StartWith("CORP-");
+        booking.IsCorporateStaged.Should().BeTrue();
     }
 
     [Fact]
@@ -91,6 +92,23 @@ public class MarketplaceDomainTests
 
         booking.Status.Should().Be(BookingStatus.Confirmed);
         booking.VehicleNumber.Should().Be("KA-01 AB 99"); // uppercased; spaces retained by factory
+        booking.IsCorporateStaged.Should().BeTrue();
+    }
+
+    [Fact]
+    public void Booking_CreateMarketplace_IsNotCorporateStaged()
+    {
+        var booking = Booking.CreateMarketplace(
+            Guid.NewGuid(),
+            Guid.NewGuid(),
+            DateTime.UtcNow.AddHours(1),
+            DateTime.UtcNow.AddHours(3),
+            PricingType.Hourly,
+            VehicleType.Car,
+            100m, 10m, 5m, 0m, 115m);
+
+        booking.IsCorporateStaged.Should().BeFalse();
+        booking.Status.Should().Be(BookingStatus.Pending);
     }
 
     [Fact]

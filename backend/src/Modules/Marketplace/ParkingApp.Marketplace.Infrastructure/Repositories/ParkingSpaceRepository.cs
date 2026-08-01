@@ -208,8 +208,10 @@ internal sealed class ParkingSpaceRepository : MarketplaceRepository<ParkingSpac
 
     public async Task<IEnumerable<ParkingSpace>> GetByOwnerIdAsync(Guid ownerId, CancellationToken cancellationToken = default)
     {
+        // KD-9: marketplace owner/vendor listings exclude company-owned (corporate-only) inventory.
+        // Admin listing APIs use SearchForAdminAsync (unfiltered by IsCorporateOnly).
         return await _dbSet
-            .Where(p => p.OwnerId == ownerId)
+            .Where(p => p.OwnerId == ownerId && !p.IsCorporateOnly)
             .OrderByDescending(p => p.CreatedAt)
             .ToListAsync(cancellationToken);
     }

@@ -17,17 +17,26 @@ internal sealed class GetEventPackagesForParkingHandler
         GetEventPackagesForParkingQuery query,
         CancellationToken cancellationToken = default)
     {
+        var parking = await _unitOfWork.ParkingSpaces.GetByIdAsync(query.ParkingSpaceId, cancellationToken);
+        // KD-9: corporate-only inventory is not lease-browse / marketplace package surface.
+        if (parking == null || parking.IsCorporateOnly)
+        {
+            return new ApiResponse<List<EventParkingPackageDto>>(
+                false,
+                "Parking space not found",
+                null);
+        }
+
         var packages = await _unitOfWork.EventParkingPackages.GetByParkingSpaceIdAsync(
             query.ParkingSpaceId,
             query.ActiveOnly,
             cancellationToken);
 
-        var parking = await _unitOfWork.ParkingSpaces.GetByIdAsync(query.ParkingSpaceId, cancellationToken);
         var now = DateTime.UtcNow;
         var list = packages.Select(p =>
         {
             var dto = EventPackageMapper.ToDto(p, now);
-            if (parking is not null && string.Equals(dto.ParkingSpaceTitle, "Parking", StringComparison.Ordinal))
+            if (string.Equals(dto.ParkingSpaceTitle, "Parking", StringComparison.Ordinal))
             {
                 dto = dto with
                 {
