@@ -110,6 +110,13 @@ public class Booking : BaseEntity
     public DateTime? CancelledAt { get; internal set; }
     public decimal? RefundAmount { get; internal set; }
 
+    /// <summary>
+    /// When true, this marketplace booking row was staged by Corporate (via Contracts).
+    /// Consumer My Bookings list/detail/cancel must exclude these; vendor owner views may include them.
+    /// Marketplace-owned flag - avoids SQL anti-join against CorporateBookings (KD-19).
+    /// </summary>
+    public bool IsCorporateStaged { get; internal set; }
+
     public DateTime? PendingExtensionEndDateTime { get; internal set; }
     public decimal? PendingExtensionAmount { get; internal set; }
     public bool HasPendingExtension => PendingExtensionEndDateTime.HasValue;
@@ -308,6 +315,7 @@ public class Booking : BaseEntity
             DiscountAmount = 0,
             TotalAmount = totalAmount,
             Status = BookingStatus.Confirmed,
+            IsCorporateStaged = true,
             BookingReference = string.IsNullOrWhiteSpace(bookingReference)
                 ? GenerateReference("CORP")
                 : bookingReference.Trim(),
@@ -352,6 +360,7 @@ public class Booking : BaseEntity
             DiscountAmount = 0,
             TotalAmount = totalAmount,
             Status = BookingStatus.Confirmed,
+            IsCorporateStaged = true,
             BookingReference = string.IsNullOrWhiteSpace(bookingReference)
                 ? GenerateReference("VIS")
                 : bookingReference.Trim()
