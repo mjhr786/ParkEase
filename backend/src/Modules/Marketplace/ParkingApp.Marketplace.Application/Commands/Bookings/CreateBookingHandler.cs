@@ -210,6 +210,12 @@ internal sealed class CancelBookingHandler : ICommandHandler<CancelBookingComman
             return new ApiResponse<BookingDto>(false, "Booking not found", null);
         }
 
+        // KD-19: corporate-staged bookings are cancelled via Corporate channel, not consumer marketplace cancel.
+        if (booking.IsCorporateStaged)
+        {
+            return new ApiResponse<BookingDto>(false, "Booking not found", null);
+        }
+
         if (booking.UserId != command.UserId)
         {
             return new ApiResponse<BookingDto>(false, "You can only cancel your own bookings", null);

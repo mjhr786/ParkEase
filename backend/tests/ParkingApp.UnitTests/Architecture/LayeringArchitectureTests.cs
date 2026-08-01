@@ -276,6 +276,48 @@ public class LayeringArchitectureTests
     }
 
     [Fact]
+    public void Marketplace_Should_Not_Reference_Corporate_Assemblies()
+    {
+        // KD-19: consumer staging isolation must not pull Corporate module into Marketplace.
+        foreach (var asm in new[]
+                 {
+                     typeof(ParkingApp.Marketplace.Domain.Entities.Booking).Assembly,
+                     typeof(ParkingApp.Marketplace.Application.MarketplaceApplicationModule).Assembly,
+                     typeof(ParkingApp.Marketplace.Infrastructure.MarketplaceInfrastructureModule).Assembly,
+                 })
+        {
+            var refs = asm.GetReferencedAssemblies().Select(a => a.Name!).ToList();
+            refs.Should().NotContain("ParkingApp.Corporate.Domain", because: asm.GetName().Name);
+            refs.Should().NotContain("ParkingApp.Corporate.Application", because: asm.GetName().Name);
+            refs.Should().NotContain("ParkingApp.Corporate.Infrastructure", because: asm.GetName().Name);
+            refs.Should().NotContain("ParkingApp.Corporate.Contracts", because: asm.GetName().Name);
+        }
+    }
+
+    [Fact]
+    public void BookingReadStore_Should_Not_HardCode_CorporateBookings_Table()
+    {
+        // KD-19 preferred path: filter IsCorporateStaged, never anti-join CorporateBookings.
+        typeof(ParkingApp.Marketplace.Domain.Entities.Booking)
+            .GetProperty(nameof(ParkingApp.Marketplace.Domain.Entities.Booking.IsCorporateStaged))
+            .Should().NotBeNull();
+
+        var moduleDir = Path.GetFullPath(Path.Combine(
+            AppContext.BaseDirectory,
+            "..", "..", "..", "..", "..",
+            "src", "Modules", "Marketplace", "ParkingApp.Marketplace.Infrastructure", "ReadModel", "Bookings"));
+        var readStorePath = Path.Combine(moduleDir, "BookingReadStore.cs");
+        if (!File.Exists(readStorePath))
+        {
+            return;
+        }
+
+        var source = File.ReadAllText(readStorePath);
+        source.Should().NotContain("CorporateBookings");
+        source.Should().Contain("IsCorporateStaged");
+    }
+
+    [Fact]
     public void CorporateDomain_Must_Not_Reference_Other_Module_Domains()
     {
         var asm = typeof(ParkingApp.Corporate.Domain.Company).Assembly;

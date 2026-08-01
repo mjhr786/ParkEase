@@ -34,6 +34,12 @@ internal sealed class GetBookingByIdHandler : IQueryHandler<GetBookingByIdQuery,
             return new ApiResponse<BookingDto>(false, "Booking not found", null);
         }
 
+        // KD-19: corporate-staged bookings are hidden from consumer detail; vendor owners may still view.
+        if (booking.IsCorporateStaged && booking.ParkingSpace.OwnerId != query.UserId)
+        {
+            return new ApiResponse<BookingDto>(false, "Booking not found", null);
+        }
+
         // Verify user has access
         if (booking.UserId != query.UserId && booking.ParkingSpace.OwnerId != query.UserId)
         {

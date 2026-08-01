@@ -31,7 +31,8 @@ internal sealed class BookingReadStore : IBookingReadStore
     {
         var (page, pageSize, offset) = NormalizePaging(filter, defaultPageSize: 10);
         return QueryPagedAsync(
-            baseWhere: """b."UserId" = @UserId AND b."IsDeleted" = FALSE""",
+            // KD-19: exclude corporate-staged rows from consumer My Bookings (Marketplace-owned flag; no Corporate table SQL).
+            baseWhere: """b."UserId" = @UserId AND b."IsDeleted" = FALSE AND b."IsCorporateStaged" = FALSE""",
             extraJoins: null,
             parameters: new DynamicParameters(new { UserId = userId }),
             filter,

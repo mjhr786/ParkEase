@@ -974,6 +974,11 @@ namespace ParkingApp.Infrastructure.Migrations
                     b.Property<bool>("IncludeEvCharging")
                         .HasColumnType("boolean");
 
+                    b.Property<bool>("IsCorporateStaged")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
+
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("boolean");
 
@@ -1097,6 +1102,8 @@ namespace ParkingApp.Infrastructure.Migrations
                         .IsUnique();
 
                     b.HasIndex("EventParkingPackageId");
+
+                    b.HasIndex("IsCorporateStaged");
 
                     b.HasIndex("ParkingPassId");
 
