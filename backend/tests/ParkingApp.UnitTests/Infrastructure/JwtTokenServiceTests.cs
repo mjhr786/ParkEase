@@ -88,6 +88,20 @@ public class JwtTokenServiceTests
     }
 
     [Fact]
+    public void GenerateAccessToken_Marketplace_IgnoresCompanyArgs()
+    {
+        var user = new User { Id = Guid.NewGuid(), Email = "m@example.com", PasswordHash = "hash", FirstName = "M", LastName = "U", PhoneNumber = "1", IsActive = true };
+        var companyId = Guid.NewGuid();
+
+        var token = _service.GenerateAccessToken(user, ProductChannel.Marketplace, companyId, "Admin");
+        var jwtToken = new JwtSecurityTokenHandler().ReadJwtToken(token);
+
+        jwtToken.Claims.First(c => c.Type == ParkEaseClaimTypes.Channel).Value.Should().Be(nameof(ProductChannel.Marketplace));
+        jwtToken.Claims.Any(c => c.Type == ParkEaseClaimTypes.CompanyId).Should().BeFalse();
+        jwtToken.Claims.Any(c => c.Type == ParkEaseClaimTypes.CompanyRole).Should().BeFalse();
+    }
+
+    [Fact]
     public void GenerateRefreshToken_ShouldReturnString()
     {
         var token = _service.GenerateRefreshToken();

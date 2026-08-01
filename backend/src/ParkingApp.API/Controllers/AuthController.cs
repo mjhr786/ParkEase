@@ -60,10 +60,19 @@ public class AuthController : ControllerBase
 
     [HttpPost("refresh")]
     [ProducesResponseType(typeof(ApiResponse<TokenDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<TokenDto>), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ApiResponse<TokenDto>), StatusCodes.Status401Unauthorized)]
     public async Task<IActionResult> RefreshToken([FromBody] RefreshTokenDto dto, CancellationToken cancellationToken)
     {
         var result = await _dispatcher.SendAsync(new RefreshTokenCommand(dto), cancellationToken);
-        return result.Success ? Ok(result) : Unauthorized(result);
+        if (result.Success)
+            return Ok(result);
+
+        // Client input / re-bind policy failures → 400; invalid/expired refresh → 401.
+        if (result.Code is "invalid_channel" or "channel_rebind_forbidden")
+            return BadRequest(result);
+
+        return Unauthorized(result);
     }
 
     [Authorize]

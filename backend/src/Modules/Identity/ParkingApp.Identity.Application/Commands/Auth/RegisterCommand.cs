@@ -4,7 +4,6 @@ using ParkingApp.Application.DTOs;
 using ParkingApp.Identity.Application.DTOs;
 using TokenDto = ParkingApp.Identity.Application.DTOs.TokenDto;
 
-using ParkingApp.Identity.Application.Mappings;
 using ParkingApp.BuildingBlocks.Security;
 using ParkingApp.Identity.Domain.Entities;
 using ParkingApp.Identity.Domain.Enums;
@@ -76,27 +75,8 @@ internal sealed class RegisterHandler : ICommandHandler<RegisterCommand, ApiResp
         _logger.LogInformation("User registered: {Email}, Role: {Role}", user.Email, user.Role);
 
         return new ApiResponse<TokenDto>(true, "Registration successful",
-            BuildTokenDto(accessToken, refreshToken, user, channel));
+            AuthTokenDtoFactory.Create(accessToken, refreshToken, user, channel));
     }
-
-    internal static TokenDto BuildTokenDto(
-        string accessToken,
-        string refreshToken,
-        User user,
-        ProductChannel channel,
-        Guid? companyId = null,
-        string? companyRole = null) =>
-        new()
-        {
-            AccessToken = accessToken,
-            RefreshToken = refreshToken,
-            ExpiresAt = DateTime.UtcNow.AddMinutes(15),
-            User = user.ToDto(),
-            Channel = channel.ToString(),
-            CompanyId = companyId,
-            CompanyRole = companyRole,
-            IsBootstrap = channel == ProductChannel.Corporate && companyId is null
-        };
 }
 
 internal sealed class LoginHandler : ICommandHandler<LoginCommand, ApiResponse<TokenDto>>
@@ -144,7 +124,7 @@ internal sealed class LoginHandler : ICommandHandler<LoginCommand, ApiResponse<T
         _logger.LogInformation("User logged in: {Email}, UserId: {UserId}, Channel: {Channel}", user.Email, user.Id, channel);
 
         return new ApiResponse<TokenDto>(true, "Login successful",
-            RegisterHandler.BuildTokenDto(accessToken, refreshToken, user, channel));
+            AuthTokenDtoFactory.Create(accessToken, refreshToken, user, channel));
     }
 }
 
@@ -167,7 +147,7 @@ internal sealed class RefreshTokenHandler : ICommandHandler<RefreshTokenCommand,
             return new ApiResponse<TokenDto>(false, "Invalid refresh token", null, new List<string> { "Refresh token is invalid or expired" });
 
         // C5 / KD-2 refresh algorithm:
-        // 1. Non-null channel in body → request re-bind (full membership validation is PR3).
+        // 1. Non-null channel in body → limited re-bind (PR1: Marketplace demotion; Admin if role; Corporate deferred to PR3).
         // 2. Null / omit → use User.Session*.
         // 3. Session null (legacy) → Marketplace (or Admin by role), then persist.
         ProductChannel channel;
@@ -176,28 +156,54 @@ internal sealed class RefreshTokenHandler : ICommandHandler<RefreshTokenCommand,
 
         if (!string.IsNullOrWhiteSpace(command.Dto.Channel))
         {
-            if (!Enum.TryParse<ProductChannel>(command.Dto.Channel.Trim(), ignoreCase: true, out channel)
-                || !Enum.IsDefined(channel))
+            if (!TryParseChannelName(command.Dto.Channel, out channel))
             {
                 return new ApiResponse<TokenDto>(
                     false,
                     "Invalid channel",
                     null,
-                    new List<string> { "Channel must be Marketplace, Corporate, or Admin" });
+                    new List<string> { "Channel must be Marketplace, Corporate, or Admin" },
+                    "invalid_channel");
             }
 
-            // PR3 will fully validate membership/role. PR1: accept requested channel + optional companyId.
-            if (channel == ProductChannel.Corporate)
+            switch (channel)
             {
-                companyId = command.Dto.CompanyId ?? user.SessionCompanyId;
-                companyRole = companyId.HasValue
-                    ? (companyId == user.SessionCompanyId ? user.SessionCompanyRole : null)
-                    : null;
-            }
-            else
-            {
-                companyId = null;
-                companyRole = null;
+                case ProductChannel.Marketplace:
+                    // Demotion / marketplace re-bind: clear company session fields.
+                    companyId = null;
+                    companyRole = null;
+                    break;
+
+                case ProductChannel.Admin:
+                    if (user.Role != UserRole.Admin)
+                    {
+                        return new ApiResponse<TokenDto>(
+                            false,
+                            "Admin channel requires Admin role",
+                            null,
+                            new List<string> { "Admin channel re-bind is not allowed for this user" },
+                            "channel_rebind_forbidden");
+                    }
+                    companyId = null;
+                    companyRole = null;
+                    break;
+
+                case ProductChannel.Corporate:
+                    // Full membership validation lands in PR3 — do not poison Session* with unvalidated companyId.
+                    return new ApiResponse<TokenDto>(
+                        false,
+                        "Corporate channel re-bind is not available yet",
+                        null,
+                        new List<string> { "Use corporate login/switch (PR3); refresh may only preserve an existing Corporate session when channel is omitted or null" },
+                        "channel_rebind_forbidden");
+
+                default:
+                    return new ApiResponse<TokenDto>(
+                        false,
+                        "Invalid channel",
+                        null,
+                        new List<string> { "Channel must be Marketplace, Corporate, or Admin" },
+                        "invalid_channel");
             }
         }
         else
@@ -226,7 +232,35 @@ internal sealed class RefreshTokenHandler : ICommandHandler<RefreshTokenCommand,
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         return new ApiResponse<TokenDto>(true, "Token refreshed",
-            RegisterHandler.BuildTokenDto(accessToken, refreshToken, user, channel, companyId, companyRole));
+            AuthTokenDtoFactory.Create(accessToken, refreshToken, user, channel, companyId, companyRole));
+    }
+
+    /// <summary>
+    /// Accept only named enum values (Marketplace|Corporate|Admin), case-insensitive.
+    /// Rejects numeric enum strings ("1","2","3") and unknown names.
+    /// </summary>
+    internal static bool TryParseChannelName(string? value, out ProductChannel channel)
+    {
+        channel = default;
+        if (string.IsNullOrWhiteSpace(value))
+            return false;
+
+        var trimmed = value.Trim();
+        // Reject pure numeric (Enum.TryParse would accept "1"/"2"/"3")
+        if (int.TryParse(trimmed, out _))
+            return false;
+
+        foreach (var name in Enum.GetNames<ProductChannel>())
+        {
+            if (string.Equals(name, trimmed, StringComparison.OrdinalIgnoreCase)
+                && Enum.TryParse(name, ignoreCase: false, out channel)
+                && Enum.IsDefined(channel))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 }
 

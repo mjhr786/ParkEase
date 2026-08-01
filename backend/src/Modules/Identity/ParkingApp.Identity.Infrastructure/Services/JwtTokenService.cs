@@ -47,11 +47,15 @@ internal class JwtTokenService : ITokenService
             new Claim(ParkEaseClaimTypes.Channel, channel.ToString())
         };
 
-        if (companyId.HasValue)
-            claims.Add(new Claim(ParkEaseClaimTypes.CompanyId, companyId.Value.ToString()));
+        // Company claims only when Corporate channel (documented mint invariant).
+        if (channel == ProductChannel.Corporate)
+        {
+            if (companyId.HasValue)
+                claims.Add(new Claim(ParkEaseClaimTypes.CompanyId, companyId.Value.ToString()));
 
-        if (!string.IsNullOrWhiteSpace(companyRole))
-            claims.Add(new Claim(ParkEaseClaimTypes.CompanyRole, companyRole));
+            if (!string.IsNullOrWhiteSpace(companyRole))
+                claims.Add(new Claim(ParkEaseClaimTypes.CompanyRole, companyRole));
+        }
 
         var token = new JwtSecurityToken(
             issuer: _issuer,

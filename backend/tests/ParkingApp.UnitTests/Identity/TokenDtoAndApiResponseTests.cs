@@ -77,6 +77,29 @@ public class TokenDtoAndApiResponseTests
     }
 
     [Fact]
+    public void AuthTokenDtoFactory_Marketplace_OmitsBootstrapFlag()
+    {
+        var user = new ParkingApp.Identity.Domain.Entities.User
+        {
+            Id = Guid.NewGuid(),
+            Email = "a@b.com",
+            PasswordHash = "h",
+            FirstName = "A",
+            LastName = "B",
+            PhoneNumber = "1",
+            IsActive = true,
+            Role = UserRole.User
+        };
+
+        var dto = ParkingApp.Identity.Application.Commands.Auth.AuthTokenDtoFactory.Create(
+            "at", "rt", user, ParkingApp.BuildingBlocks.Security.ProductChannel.Marketplace);
+
+        dto.Channel.Should().Be("Marketplace");
+        dto.IsBootstrap.Should().BeNull();
+        dto.CompanyId.Should().BeNull();
+    }
+
+    [Fact]
     public void ApiResponse_Code_Optional_PositionalFourArgsRemainValid()
     {
         var withoutCode = new ApiResponse<string>(true, "ok", "data", null);

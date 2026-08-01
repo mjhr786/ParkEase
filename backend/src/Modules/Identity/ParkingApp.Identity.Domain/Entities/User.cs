@@ -113,12 +113,21 @@ public class User : BaseEntity
 
     /// <summary>
     /// Persist product-channel session bind (KD-2). Call after every successful mint.
+    /// Company fields are only stored when <paramref name="channel"/> is Corporate; otherwise forced null.
     /// </summary>
     public void BindSession(ProductChannel channel, Guid? companyId = null, string? companyRole = null)
     {
         SessionChannel = channel;
-        SessionCompanyId = companyId;
-        SessionCompanyRole = companyRole;
+        if (channel == ProductChannel.Corporate)
+        {
+            SessionCompanyId = companyId;
+            SessionCompanyRole = companyRole;
+        }
+        else
+        {
+            SessionCompanyId = null;
+            SessionCompanyRole = null;
+        }
         UpdatedAt = DateTime.UtcNow;
     }
 

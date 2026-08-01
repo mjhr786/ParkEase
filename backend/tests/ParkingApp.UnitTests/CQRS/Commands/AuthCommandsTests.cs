@@ -277,6 +277,183 @@ public class AuthCommandsTests
     }
 
     [Fact]
+    public async Task RefreshTokenHandler_WhenSessionCorporate_RebindMarketplace_DemotesAndClearsCompany()
+    {
+        var handler = new RefreshTokenHandler(_mockUow.Object, _mockTokenService.Object);
+        var companyId = Guid.NewGuid();
+        var user = new User
+        {
+            Id = Guid.NewGuid(),
+            Email = "corp@example.com",
+            PasswordHash = "hash",
+            FirstName = "C",
+            LastName = "U",
+            PhoneNumber = "1",
+            IsActive = true,
+            Role = UserRole.User
+        };
+        user.BindSession(ProductChannel.Corporate, companyId, "Admin");
+        _mockUserRepo.Setup(r => r.GetByRefreshTokenAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(user);
+        _mockTokenService.Setup(t => t.ValidateRefreshToken(user, It.IsAny<string>())).Returns(true);
+        _mockTokenService.Setup(t => t.GenerateAccessToken(It.IsAny<User>(), It.IsAny<ProductChannel>(), It.IsAny<Guid?>(), It.IsAny<string?>())).Returns("token2");
+        _mockTokenService.Setup(t => t.GenerateRefreshToken()).Returns("refresh2");
+
+        var res = await handler.HandleAsync(new RefreshTokenCommand(new RefreshTokenDto("token1", Channel: "Marketplace")));
+
+        res.Success.Should().BeTrue();
+        res.Data!.Channel.Should().Be(nameof(ProductChannel.Marketplace));
+        res.Data.CompanyId.Should().BeNull();
+        res.Data.CompanyRole.Should().BeNull();
+        res.Data.IsBootstrap.Should().BeNull();
+        user.SessionChannel.Should().Be(ProductChannel.Marketplace);
+        user.SessionCompanyId.Should().BeNull();
+        user.SessionCompanyRole.Should().BeNull();
+        _mockTokenService.Verify(t => t.GenerateAccessToken(user, ProductChannel.Marketplace, null, null), Times.Once);
+        _mockUow.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task RefreshTokenHandler_WhenChannelCorporate_RejectsUnvalidatedRebind()
+    {
+        var handler = new RefreshTokenHandler(_mockUow.Object, _mockTokenService.Object);
+        var user = new User
+        {
+            Id = Guid.NewGuid(),
+            Email = "u@example.com",
+            PasswordHash = "hash",
+            FirstName = "U",
+            LastName = "S",
+            PhoneNumber = "1",
+            IsActive = true,
+            Role = UserRole.User
+        };
+        user.BindSession(ProductChannel.Marketplace);
+        _mockUserRepo.Setup(r => r.GetByRefreshTokenAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(user);
+        _mockTokenService.Setup(t => t.ValidateRefreshToken(user, It.IsAny<string>())).Returns(true);
+
+        var companyId = Guid.NewGuid();
+        var res = await handler.HandleAsync(new RefreshTokenCommand(
+            new RefreshTokenDto("token1", Channel: "Corporate", CompanyId: companyId)));
+
+        res.Success.Should().BeFalse();
+        res.Code.Should().Be("channel_rebind_forbidden");
+        user.SessionChannel.Should().Be(ProductChannel.Marketplace);
+        user.SessionCompanyId.Should().BeNull();
+        _mockTokenService.Verify(t => t.GenerateAccessToken(It.IsAny<User>(), It.IsAny<ProductChannel>(), It.IsAny<Guid?>(), It.IsAny<string?>()), Times.Never);
+        _mockUow.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task RefreshTokenHandler_WhenChannelAdmin_AndUserNotAdmin_Rejects()
+    {
+        var handler = new RefreshTokenHandler(_mockUow.Object, _mockTokenService.Object);
+        var user = new User
+        {
+            Id = Guid.NewGuid(),
+            Email = "u@example.com",
+            PasswordHash = "hash",
+            FirstName = "U",
+            LastName = "S",
+            PhoneNumber = "1",
+            IsActive = true,
+            Role = UserRole.User
+        };
+        user.BindSession(ProductChannel.Marketplace);
+        _mockUserRepo.Setup(r => r.GetByRefreshTokenAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(user);
+        _mockTokenService.Setup(t => t.ValidateRefreshToken(user, It.IsAny<string>())).Returns(true);
+
+        var res = await handler.HandleAsync(new RefreshTokenCommand(new RefreshTokenDto("token1", Channel: "Admin")));
+
+        res.Success.Should().BeFalse();
+        res.Code.Should().Be("channel_rebind_forbidden");
+        _mockTokenService.Verify(t => t.GenerateAccessToken(It.IsAny<User>(), It.IsAny<ProductChannel>(), It.IsAny<Guid?>(), It.IsAny<string?>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task RefreshTokenHandler_WhenChannelAdmin_AndUserIsAdmin_RebindsAdmin()
+    {
+        var handler = new RefreshTokenHandler(_mockUow.Object, _mockTokenService.Object);
+        var user = new User
+        {
+            Id = Guid.NewGuid(),
+            Email = "admin@example.com",
+            PasswordHash = "hash",
+            FirstName = "A",
+            LastName = "D",
+            PhoneNumber = "1",
+            IsActive = true,
+            Role = UserRole.Admin
+        };
+        user.BindSession(ProductChannel.Marketplace);
+        _mockUserRepo.Setup(r => r.GetByRefreshTokenAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(user);
+        _mockTokenService.Setup(t => t.ValidateRefreshToken(user, It.IsAny<string>())).Returns(true);
+        _mockTokenService.Setup(t => t.GenerateAccessToken(It.IsAny<User>(), It.IsAny<ProductChannel>(), It.IsAny<Guid?>(), It.IsAny<string?>())).Returns("token2");
+        _mockTokenService.Setup(t => t.GenerateRefreshToken()).Returns("refresh2");
+
+        var res = await handler.HandleAsync(new RefreshTokenCommand(new RefreshTokenDto("token1", Channel: "Admin")));
+
+        res.Success.Should().BeTrue();
+        res.Data!.Channel.Should().Be(nameof(ProductChannel.Admin));
+        user.SessionChannel.Should().Be(ProductChannel.Admin);
+        _mockTokenService.Verify(t => t.GenerateAccessToken(user, ProductChannel.Admin, null, null), Times.Once);
+    }
+
+    [Fact]
+    public async Task RefreshTokenHandler_WhenChannelInvalid_ReturnsInvalidChannelCode()
+    {
+        var handler = new RefreshTokenHandler(_mockUow.Object, _mockTokenService.Object);
+        var user = new User
+        {
+            Id = Guid.NewGuid(),
+            Email = "u@example.com",
+            PasswordHash = "hash",
+            FirstName = "U",
+            LastName = "S",
+            PhoneNumber = "1",
+            IsActive = true,
+            Role = UserRole.User
+        };
+        user.BindSession(ProductChannel.Marketplace);
+        _mockUserRepo.Setup(r => r.GetByRefreshTokenAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(user);
+        _mockTokenService.Setup(t => t.ValidateRefreshToken(user, It.IsAny<string>())).Returns(true);
+
+        var res = await handler.HandleAsync(new RefreshTokenCommand(new RefreshTokenDto("token1", Channel: "Foo")));
+
+        res.Success.Should().BeFalse();
+        res.Code.Should().Be("invalid_channel");
+        res.Message.Should().Contain("Invalid channel");
+        user.SessionChannel.Should().Be(ProductChannel.Marketplace);
+        _mockTokenService.Verify(t => t.GenerateAccessToken(It.IsAny<User>(), It.IsAny<ProductChannel>(), It.IsAny<Guid?>(), It.IsAny<string?>()), Times.Never);
+        _mockUow.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task RefreshTokenHandler_WhenChannelNumeric_Rejects()
+    {
+        var handler = new RefreshTokenHandler(_mockUow.Object, _mockTokenService.Object);
+        var user = new User
+        {
+            Id = Guid.NewGuid(),
+            Email = "u@example.com",
+            PasswordHash = "hash",
+            FirstName = "U",
+            LastName = "S",
+            PhoneNumber = "1",
+            IsActive = true,
+            Role = UserRole.User
+        };
+        user.BindSession(ProductChannel.Marketplace);
+        _mockUserRepo.Setup(r => r.GetByRefreshTokenAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(user);
+        _mockTokenService.Setup(t => t.ValidateRefreshToken(user, It.IsAny<string>())).Returns(true);
+
+        var res = await handler.HandleAsync(new RefreshTokenCommand(new RefreshTokenDto("token1", Channel: "2")));
+
+        res.Success.Should().BeFalse();
+        res.Code.Should().Be("invalid_channel");
+        _mockTokenService.Verify(t => t.GenerateAccessToken(It.IsAny<User>(), It.IsAny<ProductChannel>(), It.IsAny<Guid?>(), It.IsAny<string?>()), Times.Never);
+    }
+
+    [Fact]
     public async Task LogoutHandler_ShouldSucceed_AndClearSession()
     {
         var handler = new LogoutHandler(_mockUow.Object, _mockLogoutLogger.Object);

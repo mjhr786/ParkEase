@@ -174,6 +174,45 @@ public class AuthControllerTests
     }
 
     [Fact]
+    public async Task RefreshToken_WhenInvalidChannel_ReturnsBadRequest()
+    {
+        var dto = new RefreshTokenDto("refresh", Channel: "Foo");
+        var result = new ApiResponse<TokenDto>(
+            false,
+            "Invalid channel",
+            null,
+            new List<string> { "Channel must be Marketplace, Corporate, or Admin" },
+            "invalid_channel");
+
+        _dispatcherMock
+            .Setup(d => d.SendAsync(It.IsAny<RefreshTokenCommand>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.FromResult(result));
+
+        var actionResult = await _controller.RefreshToken(dto, CancellationToken.None);
+
+        actionResult.Should().BeOfType<BadRequestObjectResult>();
+    }
+
+    [Fact]
+    public async Task RefreshToken_WhenInvalidRefresh_ReturnsUnauthorized()
+    {
+        var dto = new RefreshTokenDto("bad");
+        var result = new ApiResponse<TokenDto>(
+            false,
+            "Invalid refresh token",
+            null,
+            new List<string> { "Refresh token is invalid or expired" });
+
+        _dispatcherMock
+            .Setup(d => d.SendAsync(It.IsAny<RefreshTokenCommand>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.FromResult(result));
+
+        var actionResult = await _controller.RefreshToken(dto, CancellationToken.None);
+
+        actionResult.Should().BeOfType<UnauthorizedObjectResult>();
+    }
+
+    [Fact]
     public async Task Logout_WhenAuthenticated_ReturnsOk()
     {
         // Arrange
