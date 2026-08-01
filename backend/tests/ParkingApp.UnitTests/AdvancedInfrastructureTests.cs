@@ -39,7 +39,7 @@ public class AdvancedInfrastructureTests
         var user = new User { Id = Guid.NewGuid(), Email = "test@example.com", PasswordHash = "hash", FirstName = "Test", LastName = "User", PhoneNumber = "1", IsActive = true };
 
         // Act
-        var token = service.GenerateAccessToken(user);
+        var token = service.GenerateAccessToken(user, ParkingApp.BuildingBlocks.Security.ProductChannel.Marketplace);
 
         // Assert
         token.Should().NotBeNullOrEmpty();

@@ -22,6 +22,8 @@ internal sealed class UserConfiguration : IEntityTypeConfiguration<User>
         entity.Property(e => e.LastName).HasMaxLength(100).IsRequired();
         entity.Property(e => e.PhoneNumber).HasMaxLength(20).IsRequired();
         entity.Property(e => e.RefreshToken).HasMaxLength(500);
+        entity.Property(e => e.SessionChannel).HasConversion<int?>();
+        entity.Property(e => e.SessionCompanyRole).HasMaxLength(32);
         entity.HasQueryFilter(e => !e.IsDeleted);
     }
 }
