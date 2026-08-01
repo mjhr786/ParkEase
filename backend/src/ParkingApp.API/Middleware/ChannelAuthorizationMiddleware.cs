@@ -92,17 +92,20 @@ public sealed class ChannelAuthorizationMiddleware
             return;
         }
 
-        // Corporate + company_id: enforce match with route / X-Company-Id when present (KD-4)
+        // Corporate + company_id: enforce match with route / X-Company-Id when present (KD-4).
+        // Any request-side company id that disagrees with the claim is a mismatch.
         if (options.EnforceCompanyClaimMatch
             && channel == ProductChannel.Corporate
             && companyIdClaim.HasValue
             && (rule.EnforceCompanyIdMatch || RequestHasCompanyHint(context)))
         {
-            var requestCompanyId = ResolveRequestCompanyId(context);
-            if (requestCompanyId.HasValue && requestCompanyId.Value != companyIdClaim.Value)
+            foreach (var requestCompanyId in ResolveAllRequestCompanyIds(context))
             {
-                await DenyAsync(context, method, path, channel, "company_mismatch", rule.Id);
-                return;
+                if (requestCompanyId != companyIdClaim.Value)
+                {
+                    await DenyAsync(context, method, path, channel, "company_mismatch", rule.Id);
+                    return;
+                }
             }
         }
 
@@ -172,20 +175,25 @@ public sealed class ChannelAuthorizationMiddleware
     }
 
     private static bool RequestHasCompanyHint(HttpContext context) =>
-        ResolveRequestCompanyId(context).HasValue;
+        ResolveAllRequestCompanyIds(context).Count > 0;
 
-    private static Guid? ResolveRequestCompanyId(HttpContext context)
+    /// <summary>
+    /// Collects all company identifiers present on the request (route, header, path).
+    /// </summary>
+    private static List<Guid> ResolveAllRequestCompanyIds(HttpContext context)
     {
+        var ids = new List<Guid>();
+
         if (context.Request.RouteValues.TryGetValue("companyId", out var routeVal)
             && routeVal is not null
             && Guid.TryParse(routeVal.ToString(), out var fromRoute))
         {
-            return fromRoute;
+            ids.Add(fromRoute);
         }
 
         var header = context.Request.Headers["X-Company-Id"].FirstOrDefault();
-        if (Guid.TryParse(header, out var fromHeader))
-            return fromHeader;
+        if (Guid.TryParse(header, out var fromHeader) && !ids.Contains(fromHeader))
+            ids.Add(fromHeader);
 
         // Path fallback: /api/v1/corporate/companies/{guid}/...
         var path = context.Request.Path.Value ?? "";
@@ -195,11 +203,11 @@ public sealed class ChannelAuthorizationMiddleware
         {
             var rest = path[(idx + marker.Length)..];
             var segment = rest.Split('/', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault();
-            if (Guid.TryParse(segment, out var fromPath))
-                return fromPath;
+            if (Guid.TryParse(segment, out var fromPath) && !ids.Contains(fromPath))
+                ids.Add(fromPath);
         }
 
-        return null;
+        return ids;
     }
 
     private async Task DenyAsync(
