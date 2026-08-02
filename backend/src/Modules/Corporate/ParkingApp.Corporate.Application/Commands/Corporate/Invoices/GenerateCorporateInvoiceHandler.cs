@@ -3,7 +3,6 @@ using ParkingApp.Application.DTOs;
 using ParkingApp.Marketplace.Contracts.DTOs;
 using ParkingApp.Corporate.Application.DTOs;
 using ParkingApp.Corporate.Application.Services;
-using ParkingApp.Corporate.Application.Services;
 using ParkingApp.BuildingBlocks.Exceptions;
 using ParkingApp.Corporate.Domain;
 using ParkingApp.Domain.Enums;

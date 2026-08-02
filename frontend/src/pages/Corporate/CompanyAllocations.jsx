@@ -463,6 +463,56 @@ const CompanyAllocations = () => {
                                     <div style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)', marginBottom: '0.35rem' }}>
                                         {alloc.sharedSlots} Shared • {alloc.fixedSlots} Fixed
                                     </div>
+                                    {(alloc.fourWheeler || alloc.twoWheeler) && (
+                                        <div
+                                            style={{
+                                                display: 'flex',
+                                                flexWrap: 'wrap',
+                                                justifyContent: 'flex-end',
+                                                gap: '0.4rem',
+                                                marginBottom: '0.45rem',
+                                                fontSize: '0.8rem',
+                                                color: 'var(--color-text-secondary)',
+                                            }}
+                                        >
+                                            {alloc.fourWheeler && (
+                                                <span
+                                                    title={`4W: ${alloc.fourWheeler.sharedSlots ?? 0} shared · ${alloc.fourWheeler.fixedSlots ?? 0} fixed`}
+                                                    style={{
+                                                        background: 'rgba(56, 189, 248, 0.1)',
+                                                        border: '1px solid rgba(56, 189, 248, 0.25)',
+                                                        padding: '2px 8px',
+                                                        borderRadius: '12px',
+                                                    }}
+                                                >
+                                                    4W: {alloc.fourWheeler.totalSlots ?? 0}
+                                                    {(alloc.fourWheeler.sharedSlots != null || alloc.fourWheeler.fixedSlots != null) && (
+                                                        <span style={{ opacity: 0.85 }}>
+                                                            {' '}({alloc.fourWheeler.sharedSlots ?? 0} shared · {alloc.fourWheeler.fixedSlots ?? 0} fixed)
+                                                        </span>
+                                                    )}
+                                                </span>
+                                            )}
+                                            {alloc.twoWheeler && (
+                                                <span
+                                                    title={`2W: ${alloc.twoWheeler.sharedSlots ?? 0} shared · ${alloc.twoWheeler.fixedSlots ?? 0} fixed`}
+                                                    style={{
+                                                        background: 'rgba(52, 211, 153, 0.1)',
+                                                        border: '1px solid rgba(52, 211, 153, 0.25)',
+                                                        padding: '2px 8px',
+                                                        borderRadius: '12px',
+                                                    }}
+                                                >
+                                                    2W: {alloc.twoWheeler.totalSlots ?? 0}
+                                                    {(alloc.twoWheeler.sharedSlots != null || alloc.twoWheeler.fixedSlots != null) && (
+                                                        <span style={{ opacity: 0.85 }}>
+                                                            {' '}({alloc.twoWheeler.sharedSlots ?? 0} shared · {alloc.twoWheeler.fixedSlots ?? 0} fixed)
+                                                        </span>
+                                                    )}
+                                                </span>
+                                            )}
+                                        </div>
+                                    )}
                                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.35rem' }}>
                                         {alloc.status === 1 && (
                                             <button

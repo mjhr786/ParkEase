@@ -5,7 +5,6 @@ using ParkingApp.Corporate.Application.DTOs;
 using ParkingApp.Application.Interfaces;
 using ParkingApp.Corporate.Application.Interfaces;
 using ParkingApp.Corporate.Application.Services;
-using ParkingApp.Corporate.Application.Services;
 using ParkingApp.BuildingBlocks.Exceptions;
 using ParkingApp.Corporate.Domain.Interfaces;
 

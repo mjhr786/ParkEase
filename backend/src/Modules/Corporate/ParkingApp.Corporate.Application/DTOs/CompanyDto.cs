@@ -104,6 +104,9 @@ public record InvitationDto(
 // ALLOCATION DTOs
 // G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��
 
+/// <summary>Per vehicle-class slot pool (two-wheeler / four-wheeler).</summary>
+public record SlotPoolDto(int TotalSlots, int FixedSlots, int SharedSlots);
+
 public record ParkingAllocationDto(
     Guid Id,
     Guid CompanyId,

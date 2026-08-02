@@ -220,31 +220,27 @@ internal sealed class CorporateBookingRepository : Repository<CorporateBooking>,
             .ToListAsync(cancellationToken);
     }
 
-    public async Task<int> GetMembershipBookingCountForDateAsync(Guid companyId, Guid membershipId, DateOnly date, CancellationToken cancellationToken = default)
-    {
-        return 0;
-    }
+    // Stub counters (booking occupancy paths use GetReservationPreCheckAsync / SQL IT for real checks).
+    public Task<int> GetMembershipBookingCountForDateAsync(Guid companyId, Guid membershipId, DateOnly date, CancellationToken cancellationToken = default)
+        => Task.FromResult(0);
 
-    public async Task<int> GetMembershipBookingCountForWeekAsync(Guid companyId, Guid membershipId, DateOnly weekStart, CancellationToken cancellationToken = default)
-    {
-        return 0;
-    }
+    public Task<int> GetMembershipBookingCountForWeekAsync(Guid companyId, Guid membershipId, DateOnly weekStart, CancellationToken cancellationToken = default)
+        => Task.FromResult(0);
 
-    public async Task<int> GetActiveSharedBookingsCountAsync(Guid companyId, Guid allocationId, DateTime start, DateTime end, CancellationToken cancellationToken = default)
-    {
-        return 0;
-    }
+    public Task<int> GetActiveSharedBookingsCountAsync(Guid companyId, Guid allocationId, DateTime start, DateTime end, CancellationToken cancellationToken = default)
+        => Task.FromResult(0);
 
-    public async Task<IReadOnlyList<int>> GetOccupiedSharedSlotNumbersAsync(Guid companyId, Guid allocationId, DateTime start, DateTime end, CancellationToken cancellationToken = default)
-    {
-        return new System.Collections.Generic.List<int>();
-    }
+    public Task<IReadOnlyList<int>> GetOccupiedSharedSlotNumbersAsync(Guid companyId, Guid allocationId, DateTime start, DateTime end, CancellationToken cancellationToken = default)
+        => Task.FromResult<IReadOnlyList<int>>(new System.Collections.Generic.List<int>());
 
-    public async Task<IReadOnlyDictionary<int, int>> GetSharedSlotUsageCountsAsync(Guid companyId, Guid allocationId, DateTime sinceUtc, CancellationToken cancellationToken = default) { return new System.Collections.Generic.Dictionary<int, int>(); }
+    public Task<IReadOnlyDictionary<int, int>> GetSharedSlotUsageCountsAsync(Guid companyId, Guid allocationId, DateTime sinceUtc, CancellationToken cancellationToken = default)
+        => Task.FromResult<IReadOnlyDictionary<int, int>>(new System.Collections.Generic.Dictionary<int, int>());
 
-    public async Task<bool> HasOverlappingBookingAsync(Guid companyId, Guid membershipId, DateTime start, DateTime end, CancellationToken cancellationToken = default) { return false; }
+    public Task<bool> HasOverlappingBookingAsync(Guid companyId, Guid membershipId, DateTime start, DateTime end, CancellationToken cancellationToken = default)
+        => Task.FromResult(false);
 
-    public async Task<bool> HasOverlappingVehicleBookingAsync(Guid companyId, Guid allocationId, string vehicleNumber, DateTime start, DateTime end, CancellationToken cancellationToken = default) { return false; }
+    public Task<bool> HasOverlappingVehicleBookingAsync(Guid companyId, Guid allocationId, string vehicleNumber, DateTime start, DateTime end, CancellationToken cancellationToken = default)
+        => Task.FromResult(false);
 
     public async Task<int> GetRecentBookingCreateCountAsync(Guid companyId, Guid membershipId, DateTime sinceUtc, CancellationToken cancellationToken = default)
     {

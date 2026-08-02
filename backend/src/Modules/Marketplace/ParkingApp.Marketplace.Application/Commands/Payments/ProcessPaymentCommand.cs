@@ -276,6 +276,13 @@ internal sealed class VerifyPaymentHandler : ICommandHandler<VerifyPaymentComman
                 true, existingPayment.TransactionId, PaymentStatus.Completed, "Payment already completed", existingPayment.ReceiptUrl));
         }
 
+        if (string.IsNullOrWhiteSpace(command.Dto.RazorpayPaymentId)
+            || string.IsNullOrWhiteSpace(command.Dto.RazorpayOrderId)
+            || string.IsNullOrWhiteSpace(command.Dto.RazorpaySignature))
+        {
+            return new ApiResponse<PaymentResultDto>(false, "Payment verification fields are required", null);
+        }
+
         var isValid = await _paymentService.VerifyPaymentSignatureAsync(
             command.Dto.RazorpayPaymentId, command.Dto.RazorpayOrderId, command.Dto.RazorpaySignature, cancellationToken);
         if (!isValid)
