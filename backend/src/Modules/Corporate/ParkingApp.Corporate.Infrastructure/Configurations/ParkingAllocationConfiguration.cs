@@ -17,12 +17,28 @@ entity.HasKey(e => e.Id);
             entity.Property(e => e.SourceType).HasConversion<int>();
             entity.Property(e => e.LeaseReference).HasMaxLength(100);
 
-            // Owned: Quota
+            // Owned: combined Quota (legacy mirror columns)
             entity.OwnsOne(e => e.Quota, q =>
             {
                 q.Property(p => p.TotalSlots).HasColumnName("TotalSlots").IsRequired();
                 q.Property(p => p.FixedSlots).HasColumnName("FixedSlots").IsRequired();
                 q.Property(p => p.SharedSlots).HasColumnName("SharedSlots").IsRequired();
+            });
+
+            // Owned: 2-wheeler pool
+            entity.OwnsOne(e => e.TwoWheelerQuota, q =>
+            {
+                q.Property(p => p.TotalSlots).HasColumnName("TwoWheelerTotalSlots").IsRequired();
+                q.Property(p => p.FixedSlots).HasColumnName("TwoWheelerFixedSlots").IsRequired();
+                q.Property(p => p.SharedSlots).HasColumnName("TwoWheelerSharedSlots").IsRequired();
+            });
+
+            // Owned: 4-wheeler pool
+            entity.OwnsOne(e => e.FourWheelerQuota, q =>
+            {
+                q.Property(p => p.TotalSlots).HasColumnName("FourWheelerTotalSlots").IsRequired();
+                q.Property(p => p.FixedSlots).HasColumnName("FourWheelerFixedSlots").IsRequired();
+                q.Property(p => p.SharedSlots).HasColumnName("FourWheelerSharedSlots").IsRequired();
             });
 
             // Owned: BookingPolicy

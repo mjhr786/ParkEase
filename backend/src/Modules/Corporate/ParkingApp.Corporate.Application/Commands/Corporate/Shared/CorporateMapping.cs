@@ -59,10 +59,19 @@ internal static class CorporateMapping
                 allocation.BookingPolicy.AllowWeekends),
             allocation.FixedAssignments
                 .Where(f => !f.IsDeleted)
-                .Select(f => new FixedSlotAssignmentDto(f.MembershipId, string.Empty, f.SlotNumber, f.AssignedAt))
+                .Select(f => new FixedSlotAssignmentDto(
+                    f.MembershipId, string.Empty, f.SlotNumber, f.AssignedAt, f.VehicleClass))
                 .ToList(),
             allocation.CreatedAt,
-            vendorName);
+            vendorName,
+            new SlotPoolDto(
+                allocation.TwoWheelerQuota.TotalSlots,
+                allocation.TwoWheelerQuota.FixedSlots,
+                allocation.TwoWheelerQuota.SharedSlots),
+            new SlotPoolDto(
+                allocation.FourWheelerQuota.TotalSlots,
+                allocation.FourWheelerQuota.FixedSlots,
+                allocation.FourWheelerQuota.SharedSlots));
     }
 
     public static CorporateBookingDto ToCorporateBookingDto(

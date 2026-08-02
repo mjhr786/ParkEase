@@ -26,6 +26,7 @@
   </ItemGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="ParkingApp.UnitTests" />
+    <InternalsVisibleTo Include="ParkingApp.IntegrationTests" />
   </ItemGroup>
   <PropertyGroup>
     <TargetFramework>net9.0</TargetFramework>

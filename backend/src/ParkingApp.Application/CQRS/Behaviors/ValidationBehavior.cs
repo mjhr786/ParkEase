@@ -94,13 +94,15 @@ public sealed class ValidationBehavior : IDispatcherBehavior
         if (!resultType.IsGenericType || resultType.GetGenericTypeDefinition() != typeof(ApiResponse<>))
             return false;
 
-        // ApiResponse<T>(bool Success, string? Message, T? Data, List<string>? Errors = null)
+        // ApiResponse<T>(bool Success, string? Message, T? Data, List<string>? Errors = null, string? Code = null)
+        // Activator requires all primary-ctor args; optional params are not separate overloads.
         var created = Activator.CreateInstance(
             resultType,
             false,
             "Validation failed",
             null,
-            errors);
+            errors,
+            null);
 
         if (created is not TResult typed)
             return false;

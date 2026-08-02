@@ -1,6 +1,7 @@
 // Navigation properties removed for strict module isolation
 using System.Diagnostics.CodeAnalysis;
 using ParkingApp.BuildingBlocks.Domain;
+using ParkingApp.BuildingBlocks.Enums;
 using ParkingApp.Domain.Enums;
 using ParkingApp.Domain.ValueObjects;
 using ParkingApp.BuildingBlocks.ValueObjects;
@@ -8,16 +9,23 @@ using ParkingApp.BuildingBlocks.ValueObjects;
 namespace ParkingApp.Corporate.Domain;
 
 /// <summary>
-/// ParkingAllocation Aggregate ΓÇö represents a company's parking contract at a specific location.
-/// Owns fixed slot assignments. Contains BookingPolicy for per-location rules.
-/// Requires parking space owner approval before activation.
+/// ParkingAllocation Aggregate — a company's parking contract at a specific location.
+/// Owns fixed slot assignments and dual capacity pools (2W / 4W).
+/// Contains BookingPolicy for per-location rules.
+/// Requires parking space owner approval before activation (vendor lease).
 /// </summary>
 public class ParkingAllocation : BaseEntity
 {
     public Guid CompanyId { get; private set; }
 
-    // Quota (owned value object)
+    /// <summary>Combined mirror (TwoWheeler + FourWheeler) for legacy columns and reporting.</summary>
     public Quota Quota { get; private set; } = Quota.Create(1, 0, 1);
+
+    /// <summary>2-wheeler capacity pool (bike/scooter). May be empty.</summary>
+    public Quota TwoWheelerQuota { get; private set; } = Quota.None;
+
+    /// <summary>4-wheeler capacity pool (car/SUV/etc). May be empty only if 2W has capacity.</summary>
+    public Quota FourWheelerQuota { get; private set; } = Quota.Create(1, 0, 1);
 
     // Contract
     public ParkingAllocationSource SourceType { get; private set; } = ParkingAllocationSource.VendorLease;
@@ -33,7 +41,7 @@ public class ParkingAllocation : BaseEntity
     public DateTime? ApprovedAt { get; private set; }
     public string? RejectionReason { get; private set; }
 
-    // Rules (owned value object ΓÇö per-allocation)
+    // Rules (owned value object — per-allocation)
     public BookingPolicy BookingPolicy { get; private set; } = BookingPolicy.Default();
 
     // External Aggregate IDs
@@ -51,7 +59,8 @@ public class ParkingAllocation : BaseEntity
     private ParkingAllocation(
         Guid companyId,
         Guid parkingSpaceId,
-        Quota quota,
+        Quota twoWheelerQuota,
+        Quota fourWheelerQuota,
         decimal monthlyRate,
         DateTime startDate,
         DateTime endDate,
@@ -82,13 +91,16 @@ public class ParkingAllocation : BaseEntity
 
         CompanyId = companyId;
         ParkingSpaceId = parkingSpaceId;
-        Quota = quota ?? throw new ArgumentNullException(nameof(quota));
+        SetClassQuotas(twoWheelerQuota, fourWheelerQuota);
         MonthlyRate = Math.Round(monthlyRate, 2, MidpointRounding.AwayFromZero);
         StartDate = normalizedStart;
         EndDate = normalizedEnd;
         BookingPolicy = bookingPolicy ?? BookingPolicy.Default();
     }
 
+    /// <summary>
+    /// Legacy single-pool factory: treats the quota as FourWheeler-only (2W empty).
+    /// </summary>
     public static ParkingAllocation Create(
         Guid companyId,
         Guid parkingSpaceId,
@@ -98,7 +110,26 @@ public class ParkingAllocation : BaseEntity
         DateTime endDate,
         BookingPolicy? bookingPolicy = null)
     {
-        var allocation = new ParkingAllocation(companyId, parkingSpaceId, quota, monthlyRate, startDate, endDate, bookingPolicy);
+        ArgumentNullException.ThrowIfNull(quota);
+        var allocation = new ParkingAllocation(
+            companyId, parkingSpaceId, Quota.None, quota, monthlyRate, startDate, endDate, bookingPolicy);
+        allocation.SourceType = ParkingAllocationSource.VendorLease;
+        return allocation;
+    }
+
+    /// <summary>Dual-pool vendor lease allocation.</summary>
+    public static ParkingAllocation Create(
+        Guid companyId,
+        Guid parkingSpaceId,
+        Quota twoWheelerQuota,
+        Quota fourWheelerQuota,
+        decimal monthlyRate,
+        DateTime startDate,
+        DateTime endDate,
+        BookingPolicy? bookingPolicy = null)
+    {
+        var allocation = new ParkingAllocation(
+            companyId, parkingSpaceId, twoWheelerQuota, fourWheelerQuota, monthlyRate, startDate, endDate, bookingPolicy);
         allocation.SourceType = ParkingAllocationSource.VendorLease;
         return allocation;
     }
@@ -119,6 +150,9 @@ public class ParkingAllocation : BaseEntity
         LeaseReference = string.IsNullOrWhiteSpace(leaseReference) ? null : leaseReference.Trim();
     }
 
+    /// <summary>
+    /// Legacy single-pool factory: treats the quota as FourWheeler-only.
+    /// </summary>
     public static ParkingAllocation CreateCompanyOwned(
         Guid companyId,
         Guid parkingSpaceId,
@@ -129,7 +163,29 @@ public class ParkingAllocation : BaseEntity
         Guid approvedByUserId,
         BookingPolicy? bookingPolicy = null)
     {
-        var allocation = new ParkingAllocation(companyId, parkingSpaceId, quota, monthlyRate, startDate, endDate, bookingPolicy);
+        ArgumentNullException.ThrowIfNull(quota);
+        var allocation = new ParkingAllocation(
+            companyId, parkingSpaceId, Quota.None, quota, monthlyRate, startDate, endDate, bookingPolicy);
+        allocation.SourceType = ParkingAllocationSource.CompanyOwned;
+        allocation.Status = AllocationStatus.Active;
+        allocation.ApprovedByUserId = approvedByUserId;
+        allocation.ApprovedAt = DateTime.UtcNow;
+        return allocation;
+    }
+
+    public static ParkingAllocation CreateCompanyOwned(
+        Guid companyId,
+        Guid parkingSpaceId,
+        Quota twoWheelerQuota,
+        Quota fourWheelerQuota,
+        decimal monthlyRate,
+        DateTime startDate,
+        DateTime endDate,
+        Guid approvedByUserId,
+        BookingPolicy? bookingPolicy = null)
+    {
+        var allocation = new ParkingAllocation(
+            companyId, parkingSpaceId, twoWheelerQuota, fourWheelerQuota, monthlyRate, startDate, endDate, bookingPolicy);
         allocation.SourceType = ParkingAllocationSource.CompanyOwned;
         allocation.Status = AllocationStatus.Active;
         allocation.ApprovedByUserId = approvedByUserId;
@@ -170,7 +226,29 @@ public class ParkingAllocation : BaseEntity
         Status = AllocationStatus.Expired;
     }
 
+    public Quota GetQuota(VehicleClass vehicleClass) => vehicleClass switch
+    {
+        VehicleClass.TwoWheeler => TwoWheelerQuota,
+        VehicleClass.FourWheeler => FourWheelerQuota,
+        _ => throw new ArgumentOutOfRangeException(nameof(vehicleClass))
+    };
+
+    public void EnsureClassOffered(VehicleClass vehicleClass)
+    {
+        if (GetQuota(vehicleClass).IsEmpty)
+        {
+            var label = vehicleClass == VehicleClass.TwoWheeler ? "2-wheeler" : "4-wheeler";
+            throw new InvalidOperationException($"This allocation does not offer {label} parking.");
+        }
+    }
+
+    /// <summary>
+    /// Assign fixed slot for a vehicle class (default FourWheeler for legacy callers).
+    /// </summary>
     public void AssignFixedSlot(UserCompanyMembership membership, int slotNumber)
+        => AssignFixedSlot(membership, VehicleClass.FourWheeler, slotNumber);
+
+    public void AssignFixedSlot(UserCompanyMembership membership, VehicleClass vehicleClass, int slotNumber)
     {
         if (membership == null)
         {
@@ -192,31 +270,54 @@ public class ParkingAllocation : BaseEntity
             throw new InvalidOperationException("Only active company members can receive fixed slots.");
         }
 
-        if (slotNumber < 1 || slotNumber > Quota.FixedSlots)
+        var pool = GetQuota(vehicleClass);
+        if (pool.FixedSlots <= 0)
         {
-            throw new ArgumentOutOfRangeException(nameof(slotNumber), $"Slot number must be between 1 and {Quota.FixedSlots}.");
+            throw new InvalidOperationException("This allocation has no fixed slots for the selected vehicle class.");
         }
 
-        if (FixedAssignments.Any(a => a.SlotNumber == slotNumber && !a.IsDeleted))
+        if (slotNumber < 1 || slotNumber > pool.FixedSlots)
         {
-            throw new InvalidOperationException($"Slot {slotNumber} is already assigned.");
+            throw new ArgumentOutOfRangeException(
+                nameof(slotNumber),
+                $"Slot number must be between 1 and {pool.FixedSlots} for {vehicleClass}.");
         }
 
-        if (FixedAssignments.Any(a => a.MembershipId == membership.Id && !a.IsDeleted))
+        if (FixedAssignments.Any(a => a.VehicleClass == vehicleClass && a.SlotNumber == slotNumber && !a.IsDeleted))
         {
-            throw new InvalidOperationException("This member already has a fixed slot assignment.");
+            throw new InvalidOperationException($"Slot {slotNumber} is already assigned for {vehicleClass}.");
         }
 
-        var assignment = FixedSlotAssignment.Create(CompanyId, Id, membership.Id, slotNumber);
+        if (FixedAssignments.Any(a => a.MembershipId == membership.Id && a.VehicleClass == vehicleClass && !a.IsDeleted))
+        {
+            throw new InvalidOperationException("This member already has a fixed slot assignment for this vehicle class.");
+        }
+
+        var assignment = FixedSlotAssignment.Create(CompanyId, Id, membership.Id, vehicleClass, slotNumber);
         FixedAssignments.Add(assignment);
     }
 
     public void RemoveFixedAssignment(Guid membershipId)
     {
-        var assignment = FixedAssignments.FirstOrDefault(a => a.MembershipId == membershipId && !a.IsDeleted);
-        if (assignment == null)
+        var assignments = FixedAssignments.Where(a => a.MembershipId == membershipId && !a.IsDeleted).ToList();
+        if (assignments.Count == 0)
         {
             throw new InvalidOperationException("No fixed slot assignment found for this member.");
+        }
+
+        foreach (var assignment in assignments)
+        {
+            assignment.IsDeleted = true;
+        }
+    }
+
+    public void RemoveFixedAssignment(Guid membershipId, VehicleClass vehicleClass)
+    {
+        var assignment = FixedAssignments.FirstOrDefault(
+            a => a.MembershipId == membershipId && a.VehicleClass == vehicleClass && !a.IsDeleted);
+        if (assignment == null)
+        {
+            throw new InvalidOperationException("No fixed slot assignment found for this member and vehicle class.");
         }
 
         assignment.IsDeleted = true;
@@ -232,20 +333,46 @@ public class ParkingAllocation : BaseEntity
         return FixedAssignments.Any(a => a.MembershipId == membershipId && !a.IsDeleted);
     }
 
+    public bool HasFixedSlotAssignment(Guid membershipId, VehicleClass vehicleClass)
+    {
+        if (membershipId == Guid.Empty)
+        {
+            throw new ArgumentException("Membership ID is required.", nameof(membershipId));
+        }
+
+        return FixedAssignments.Any(
+            a => a.MembershipId == membershipId && a.VehicleClass == vehicleClass && !a.IsDeleted);
+    }
+
     /// <summary>
-    /// Calculate available shared slots given the current occupancy footprint.
+    /// Calculate available shared slots for a vehicle class given occupancy.
     /// </summary>
-    public int GetAvailableSharedSlots(IReadOnlyCollection<int> occupiedSharedSlotNumbers, int anonymousOccupiedSharedBookings = 0)
+    public int GetAvailableSharedSlots(
+        VehicleClass vehicleClass,
+        IReadOnlyCollection<int> occupiedSharedSlotNumbers,
+        int anonymousOccupiedSharedBookings = 0)
     {
         if (Status != AllocationStatus.Active)
         {
             return 0;
         }
 
+        var pool = GetQuota(vehicleClass);
+        if (pool.SharedSlots <= 0)
+        {
+            return 0;
+        }
+
         var explicitOccupancy = occupiedSharedSlotNumbers?.Count ?? 0;
         var currentOccupancy = explicitOccupancy + Math.Max(0, anonymousOccupiedSharedBookings);
-        return Math.Max(0, Quota.SharedSlots - currentOccupancy);
+        return Math.Max(0, pool.SharedSlots - currentOccupancy);
     }
+
+    /// <summary>Legacy helper: uses FourWheeler pool.</summary>
+    public int GetAvailableSharedSlots(
+        IReadOnlyCollection<int> occupiedSharedSlotNumbers,
+        int anonymousOccupiedSharedBookings = 0)
+        => GetAvailableSharedSlots(VehicleClass.FourWheeler, occupiedSharedSlotNumbers, anonymousOccupiedSharedBookings);
 
     public void EnsureEmployeeBookingAllowed(
         int memberPriority,
@@ -279,6 +406,7 @@ public class ParkingAllocation : BaseEntity
 
     public CorporateSlotReservation ResolveSlotReservation(
         Guid membershipId,
+        VehicleClass vehicleClass,
         IReadOnlyCollection<int> occupiedSharedSlotNumbers,
         IReadOnlyDictionary<int, int> sharedSlotUsageBySlot,
         int anonymousOccupiedSharedBookings = 0)
@@ -288,16 +416,34 @@ public class ParkingAllocation : BaseEntity
             throw new ArgumentException("Membership ID is required.", nameof(membershipId));
         }
 
-        var fixedAssignment = FixedAssignments.FirstOrDefault(a => a.MembershipId == membershipId && !a.IsDeleted);
+        EnsureClassOffered(vehicleClass);
+
+        var fixedAssignment = FixedAssignments.FirstOrDefault(
+            a => a.MembershipId == membershipId && a.VehicleClass == vehicleClass && !a.IsDeleted);
         if (fixedAssignment != null)
         {
             return CorporateSlotReservation.Fixed(fixedAssignment.SlotNumber);
         }
 
-        return ResolveSharedSlotReservation(occupiedSharedSlotNumbers, sharedSlotUsageBySlot, anonymousOccupiedSharedBookings);
+        return ResolveSharedSlotReservation(
+            vehicleClass, occupiedSharedSlotNumbers, sharedSlotUsageBySlot, anonymousOccupiedSharedBookings);
     }
 
+    /// <summary>Legacy helper: FourWheeler pool.</summary>
+    public CorporateSlotReservation ResolveSlotReservation(
+        Guid membershipId,
+        IReadOnlyCollection<int> occupiedSharedSlotNumbers,
+        IReadOnlyDictionary<int, int> sharedSlotUsageBySlot,
+        int anonymousOccupiedSharedBookings = 0)
+        => ResolveSlotReservation(
+            membershipId,
+            VehicleClass.FourWheeler,
+            occupiedSharedSlotNumbers,
+            sharedSlotUsageBySlot,
+            anonymousOccupiedSharedBookings);
+
     public CorporateSlotReservation ResolveSharedSlotReservation(
+        VehicleClass vehicleClass,
         IReadOnlyCollection<int> occupiedSharedSlotNumbers,
         IReadOnlyDictionary<int, int> sharedSlotUsageBySlot,
         int anonymousOccupiedSharedBookings = 0)
@@ -307,10 +453,15 @@ public class ParkingAllocation : BaseEntity
             throw new InvalidOperationException("Can only book against an active allocation.");
         }
 
-        var candidateSlots = GetSharedSlotNumbers().Except(occupiedSharedSlotNumbers ?? Array.Empty<int>()).ToList();
+        EnsureClassOffered(vehicleClass);
+
+        var candidateSlots = GetSharedSlotNumbers(vehicleClass)
+            .Except(occupiedSharedSlotNumbers ?? Array.Empty<int>())
+            .ToList();
         if (candidateSlots.Count <= Math.Max(0, anonymousOccupiedSharedBookings))
         {
-            throw new InvalidOperationException("No shared parking slots available for the requested time.");
+            throw new InvalidOperationException(
+                $"No shared {vehicleClass} parking slots available for the requested time.");
         }
 
         var usageBySlot = sharedSlotUsageBySlot ?? new Dictionary<int, int>();
@@ -323,10 +474,17 @@ public class ParkingAllocation : BaseEntity
         return CorporateSlotReservation.Shared(selectedSlot);
     }
 
-    /// <summary>
-    /// Validate whether a booking is allowed based on the allocation's BookingPolicy.
-    /// All business rules enforced in domain.
-    /// </summary>
+    /// <summary>Legacy helper: FourWheeler pool.</summary>
+    public CorporateSlotReservation ResolveSharedSlotReservation(
+        IReadOnlyCollection<int> occupiedSharedSlotNumbers,
+        IReadOnlyDictionary<int, int> sharedSlotUsageBySlot,
+        int anonymousOccupiedSharedBookings = 0)
+        => ResolveSharedSlotReservation(
+            VehicleClass.FourWheeler,
+            occupiedSharedSlotNumbers,
+            sharedSlotUsageBySlot,
+            anonymousOccupiedSharedBookings);
+
     public bool IsBookingAllowed(
         int memberPriority,
         DateTime bookingStart,
@@ -354,10 +512,6 @@ public class ParkingAllocation : BaseEntity
         BookingPolicy = policy ?? throw new ArgumentNullException(nameof(policy));
     }
 
-    /// <summary>
-    /// Update lease / contract terms (rate, window, optional reference).
-    /// Allowed for pending or active allocations only.
-    /// </summary>
     public void UpdateContractTerms(
         decimal monthlyRate,
         DateTime startDate,
@@ -390,14 +544,30 @@ public class ParkingAllocation : BaseEntity
 
     public bool IsActiveAllocation => Status == AllocationStatus.Active && !IsDeleted;
 
-    private IEnumerable<int> GetSharedSlotNumbers()
+    private void SetClassQuotas(Quota twoWheelerQuota, Quota fourWheelerQuota)
     {
-        if (Quota.SharedSlots <= 0)
+        ArgumentNullException.ThrowIfNull(twoWheelerQuota);
+        ArgumentNullException.ThrowIfNull(fourWheelerQuota);
+
+        if (twoWheelerQuota.IsEmpty && fourWheelerQuota.IsEmpty)
+        {
+            throw new ArgumentException("At least one vehicle class pool must have capacity.");
+        }
+
+        TwoWheelerQuota = twoWheelerQuota;
+        FourWheelerQuota = fourWheelerQuota;
+        Quota = Quota.Combine(twoWheelerQuota, fourWheelerQuota);
+    }
+
+    private IEnumerable<int> GetSharedSlotNumbers(VehicleClass vehicleClass)
+    {
+        var pool = GetQuota(vehicleClass);
+        if (pool.SharedSlots <= 0)
         {
             return Enumerable.Empty<int>();
         }
 
-        return Enumerable.Range(Quota.FixedSlots + 1, Quota.SharedSlots);
+        return Enumerable.Range(pool.FixedSlots + 1, pool.SharedSlots);
     }
 
     private void EnsureBookingWindow(DateTime bookingStart, DateTime bookingEnd)
@@ -441,4 +611,3 @@ public class ParkingAllocation : BaseEntity
         };
     }
 }
-

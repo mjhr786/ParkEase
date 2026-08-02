@@ -81,6 +81,7 @@ internal sealed class BookCorporateParkingHandler
         {
             var usageDate = DateOnly.FromDateTime(command.Dto.StartDateTime);
             var weekStart = CorporateCommandHelpers.GetWeekStart(usageDate);
+            var vehicleClass = VehicleClassMapper.ToVehicleClass(command.Dto.VehicleType);
             var preCheck = await _corporate.CorporateBookings.GetReservationPreCheckAsync(
                 command.CompanyId,
                 membership.Id,
@@ -92,6 +93,7 @@ internal sealed class BookCorporateParkingHandler
                 DateTime.UtcNow.AddHours(-24),
                 DateTime.UtcNow.AddDays(-30),
                 command.Dto.VehicleNumber,
+                vehicleClass,
                 ct);
 
             var duration = command.Dto.EndDateTime - command.Dto.StartDateTime;
@@ -105,7 +107,8 @@ internal sealed class BookCorporateParkingHandler
                     command.Dto.EndDateTime,
                     amount,
                     command.Dto.VehicleNumber,
-                    IsVisitor: false),
+                    IsVisitor: false,
+                    VehicleType: command.Dto.VehicleType),
                 ct);
 
             draft = new CorporateBookingDraft(

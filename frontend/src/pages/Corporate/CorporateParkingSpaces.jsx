@@ -32,9 +32,8 @@ const defaultSpace = {
 
 const defaultAllocation = {
     parkingSpaceId: '',
-    totalSlots: 1,
-    fixedSlots: 0,
-    sharedSlots: 1,
+    fourWheeler: { totalSlots: 1, fixedSlots: 0, sharedSlots: 1 },
+    twoWheeler: { totalSlots: 0, fixedSlots: 0, sharedSlots: 0 },
     monthlyRate: 0,
     startDate: '',
     endDate: '',
@@ -198,21 +197,48 @@ const CorporateParkingSpaces = () => {
     };
 
     const openAllocation = (space) => {
+        const fourTotal = space.totalSpots || 1;
         setAllocationForm({
             ...defaultAllocation,
             parkingSpaceId: space.id,
-            totalSlots: space.totalSpots,
-            sharedSlots: space.totalSpots,
+            fourWheeler: { totalSlots: fourTotal, fixedSlots: 0, sharedSlots: fourTotal },
+            twoWheeler: { totalSlots: 0, fixedSlots: 0, sharedSlots: 0 },
             monthlyRate: space.monthlyRate || 0,
             startDate: new Date().toISOString().slice(0, 10),
             endDate: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
         });
     };
 
+    const updatePool = (poolKey, field, value) => {
+        setAllocationForm(prev => {
+            const pool = { ...prev[poolKey], [field]: value };
+            const total = Math.max(0, parseInt(pool.totalSlots, 10) || 0);
+            const fixed = Math.min(Math.max(0, parseInt(pool.fixedSlots, 10) || 0), total);
+            const shared = Math.min(Math.max(0, parseInt(pool.sharedSlots, 10) || 0), total - fixed);
+            return { ...prev, [poolKey]: { totalSlots: total, fixedSlots: fixed, sharedSlots: shared } };
+        });
+    };
+
     const handleCreateAllocation = async (event) => {
         event.preventDefault();
-        if (parseInt(allocationForm.fixedSlots) + parseInt(allocationForm.sharedSlots) !== parseInt(allocationForm.totalSlots)) {
-            toast.error('Fixed plus shared slots must equal total slots.');
+        const fourWheeler = {
+            totalSlots: parseInt(allocationForm.fourWheeler.totalSlots, 10) || 0,
+            fixedSlots: parseInt(allocationForm.fourWheeler.fixedSlots, 10) || 0,
+            sharedSlots: parseInt(allocationForm.fourWheeler.sharedSlots, 10) || 0
+        };
+        const twoWheeler = {
+            totalSlots: parseInt(allocationForm.twoWheeler.totalSlots, 10) || 0,
+            fixedSlots: parseInt(allocationForm.twoWheeler.fixedSlots, 10) || 0,
+            sharedSlots: parseInt(allocationForm.twoWheeler.sharedSlots, 10) || 0
+        };
+        const combined = fourWheeler.totalSlots + twoWheeler.totalSlots;
+        if (combined <= 0) {
+            toast.error('At least one vehicle class pool must have capacity.');
+            return;
+        }
+        if (fourWheeler.fixedSlots + fourWheeler.sharedSlots > fourWheeler.totalSlots
+            || twoWheeler.fixedSlots + twoWheeler.sharedSlots > twoWheeler.totalSlots) {
+            toast.error('Fixed plus shared cannot exceed total for each vehicle class.');
             return;
         }
 
@@ -220,9 +246,8 @@ const CorporateParkingSpaces = () => {
         try {
             const payload = {
                 parkingSpaceId: allocationForm.parkingSpaceId,
-                totalSlots: parseInt(allocationForm.totalSlots),
-                fixedSlots: parseInt(allocationForm.fixedSlots),
-                sharedSlots: parseInt(allocationForm.sharedSlots),
+                fourWheeler,
+                twoWheeler,
                 monthlyRate: parseFloat(allocationForm.monthlyRate) || 0,
                 startDate: toDateTime(allocationForm.startDate),
                 endDate: toDateTime(allocationForm.endDate),
@@ -350,10 +375,17 @@ const CorporateParkingSpaces = () => {
                 <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
                     <form onSubmit={handleCreateAllocation} style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '12px', padding: '1.5rem', width: '100%', maxWidth: '520px' }}>
                         <h2 style={{ color: 'var(--color-text-primary)', margin: '0 0 1rem 0' }}>Activate Internal Allocation</h2>
+                        <p style={{ margin: '0 0 0.5rem', fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>4-Wheeler (Car / SUV)</p>
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.75rem' }}>
-                            <Field label="Total" type="number" min="1" value={allocationForm.totalSlots} onChange={value => setAllocationForm(prev => ({ ...prev, totalSlots: value }))} />
-                            <Field label="Fixed" type="number" min="0" value={allocationForm.fixedSlots} onChange={value => setAllocationForm(prev => ({ ...prev, fixedSlots: value }))} />
-                            <Field label="Shared" type="number" min="0" value={allocationForm.sharedSlots} onChange={value => setAllocationForm(prev => ({ ...prev, sharedSlots: value }))} />
+                            <Field label="4W Total" type="number" min="0" value={allocationForm.fourWheeler.totalSlots} onChange={value => updatePool('fourWheeler', 'totalSlots', value)} />
+                            <Field label="4W Fixed" type="number" min="0" value={allocationForm.fourWheeler.fixedSlots} onChange={value => updatePool('fourWheeler', 'fixedSlots', value)} />
+                            <Field label="4W Shared" type="number" min="0" value={allocationForm.fourWheeler.sharedSlots} onChange={value => updatePool('fourWheeler', 'sharedSlots', value)} />
+                        </div>
+                        <p style={{ margin: '0.75rem 0 0.5rem', fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>2-Wheeler (Bike / Scooter)</p>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.75rem' }}>
+                            <Field label="2W Total" type="number" min="0" value={allocationForm.twoWheeler.totalSlots} onChange={value => updatePool('twoWheeler', 'totalSlots', value)} />
+                            <Field label="2W Fixed" type="number" min="0" value={allocationForm.twoWheeler.fixedSlots} onChange={value => updatePool('twoWheeler', 'fixedSlots', value)} />
+                            <Field label="2W Shared" type="number" min="0" value={allocationForm.twoWheeler.sharedSlots} onChange={value => updatePool('twoWheeler', 'sharedSlots', value)} />
                         </div>
                         <Field label="Monthly Rate" type="number" min="0" value={allocationForm.monthlyRate} onChange={value => setAllocationForm(prev => ({ ...prev, monthlyRate: value }))} />
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>

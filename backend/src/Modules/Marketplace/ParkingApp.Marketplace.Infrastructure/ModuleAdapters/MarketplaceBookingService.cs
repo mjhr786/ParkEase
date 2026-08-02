@@ -81,17 +81,17 @@ internal sealed class MarketplaceBookingService : IMarketplaceBookingService, IM
                 request.StartUtc,
                 request.EndUtc,
                 request.Amount,
-                request.VehicleNumber);
+                request.VehicleNumber,
+                vehicleType: request.VehicleType);
         }
         else
         {
-            // Default to Car if not specified; ideally passed in if known, but for backward compat we use Car.
             booking = Booking.CreateCorporateEmployee(
                 request.UserId,
                 request.ParkingSpaceId,
                 request.StartUtc,
                 request.EndUtc,
-                VehicleType.Car,
+                request.VehicleType,
                 request.Amount,
                 request.VehicleNumber);
         }

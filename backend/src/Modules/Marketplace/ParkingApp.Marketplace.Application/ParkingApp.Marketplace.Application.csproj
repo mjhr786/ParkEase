@@ -24,6 +24,7 @@
   <ItemGroup>
     <InternalsVisibleTo Include="ParkingApp.UnitTests" />
     <InternalsVisibleTo Include="ParkingApp.Marketplace.UnitTests" />
+    <InternalsVisibleTo Include="ParkingApp.IntegrationTests" />
     <InternalsVisibleTo Include="DynamicProxyGenAssembly2" />
   </ItemGroup>
 </Project>

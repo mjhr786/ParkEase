@@ -14,18 +14,18 @@ using Microsoft.Extensions.Logging;
 
 namespace ParkingApp.Marketplace.Application.Commands.Reviews;
 
-// GöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇ
+// Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½
 // Commands
-// GöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇ
+// Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½
 
 public sealed record CreateReviewCommand(Guid UserId, CreateReviewDto Dto) : ICommand<ApiResponse<ReviewDto>>;
 public sealed record UpdateReviewCommand(Guid ReviewId, Guid UserId, UpdateReviewDto Dto) : ICommand<ApiResponse<ReviewDto>>;
 public sealed record DeleteReviewCommand(Guid ReviewId, Guid UserId) : ICommand<ApiResponse<bool>>;
 public sealed record AddOwnerResponseCommand(Guid ReviewId, Guid OwnerId, OwnerResponseDto Dto) : ICommand<ApiResponse<ReviewDto>>;
 
-// GöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇ
+// Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½
 // Handlers
-// GöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇ
+// Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½
 
 internal sealed class CreateReviewHandler : ICommandHandler<CreateReviewCommand, ApiResponse<ReviewDto>>
 {
@@ -43,13 +43,19 @@ internal sealed class CreateReviewHandler : ICommandHandler<CreateReviewCommand,
     public async Task<ApiResponse<ReviewDto>> HandleAsync(CreateReviewCommand command, CancellationToken cancellationToken = default)
     {
         var parking = await _unitOfWork.ParkingSpaces.GetByIdAsync(command.Dto.ParkingSpaceId, cancellationToken);
-        if (parking == null)
+        // KD-9: corporate-only inventory is company surface only â€” do not leak via marketplace reviews.
+        if (parking == null || parking.IsCorporateOnly)
             return new ApiResponse<ReviewDto>(false, "Parking space not found", null);
 
         if (command.Dto.BookingId.HasValue)
         {
             var booking = await _unitOfWork.Bookings.GetByIdAsync(command.Dto.BookingId.Value, cancellationToken);
-            if (booking == null || booking.UserId != command.UserId || booking.Status != BookingStatus.Completed)
+            // Reject foreign, incomplete, or corporate-staged bookings (corporate product surface).
+            if (booking == null
+                || booking.UserId != command.UserId
+                || booking.Status != BookingStatus.Completed
+                || booking.IsCorporateStaged
+                || booking.ParkingSpaceId != command.Dto.ParkingSpaceId)
                 return new ApiResponse<ReviewDto>(false, "Invalid booking reference", null);
         }
 
@@ -105,6 +111,11 @@ internal sealed class UpdateReviewHandler : ICommandHandler<UpdateReviewCommand,
         if (review == null) return new ApiResponse<ReviewDto>(false, "Review not found", null);
         if (review.UserId != command.UserId) return new ApiResponse<ReviewDto>(false, "Unauthorized", null);
 
+        var parking = await _unitOfWork.ParkingSpaces.GetByIdAsync(review.ParkingSpaceId, cancellationToken);
+        // KD-9: hide corporate-only inventory from marketplace review mutations.
+        if (parking == null || parking.IsCorporateOnly)
+            return new ApiResponse<ReviewDto>(false, "Review not found", null);
+
         var oldRating = review.Rating;
         if (command.Dto.Rating.HasValue) review.Rating = command.Dto.Rating.Value;
         if (command.Dto.Title != null) review.Title = command.Dto.Title.Trim();
@@ -112,9 +123,8 @@ internal sealed class UpdateReviewHandler : ICommandHandler<UpdateReviewCommand,
 
         _unitOfWork.Reviews.Update(review);
 
-        var parking = await _unitOfWork.ParkingSpaces.GetByIdAsync(review.ParkingSpaceId, cancellationToken);
         if (command.Dto.Rating.HasValue && command.Dto.Rating.Value != oldRating
-            && parking != null && parking.TotalReviews > 0)
+            && parking.TotalReviews > 0)
         {
             parking.ReplaceReviewRating(oldRating, command.Dto.Rating.Value);
             _unitOfWork.ParkingSpaces.Update(parking);
@@ -189,7 +199,8 @@ internal sealed class AddOwnerResponseHandler : ICommandHandler<AddOwnerResponse
         if (review == null) return new ApiResponse<ReviewDto>(false, "Review not found", null);
 
         var parking = await _unitOfWork.ParkingSpaces.GetByIdAsync(review.ParkingSpaceId, cancellationToken);
-        if (parking == null || parking.OwnerId != command.OwnerId)
+        // KD-9: corporate-only inventory is not managed via marketplace owner responses.
+        if (parking == null || parking.IsCorporateOnly || parking.OwnerId != command.OwnerId)
             return new ApiResponse<ReviewDto>(false, "Unauthorized", null);
 
         review.OwnerResponse = command.Dto.Response.Trim();

@@ -104,6 +104,12 @@ public record InvitationDto(
 // ALLOCATION DTOs
 // G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��
 
+/// <summary>Per vehicle-class capacity pool (total / fixed / shared).</summary>
+public record SlotPoolDto(
+    [Range(0, 1000)] int TotalSlots,
+    [Range(0, 1000)] int FixedSlots = 0,
+    [Range(0, 1000)] int SharedSlots = 0);
+
 public record ParkingAllocationDto(
     Guid Id,
     Guid CompanyId,
@@ -124,7 +130,9 @@ public record ParkingAllocationDto(
     BookingPolicyDto? Policy,
     List<FixedSlotAssignmentDto> FixedAssignments,
     DateTime CreatedAt,
-    string? VendorName = null);
+    string? VendorName = null,
+    SlotPoolDto? TwoWheeler = null,
+    SlotPoolDto? FourWheeler = null);
 
 public record UpdateAllocationContractDto(
     [Required][Range(0, 999999.99)] decimal MonthlyRate,
@@ -151,28 +159,35 @@ public record VendorParkingAllocationDto(
     Guid? ApprovedByUserId,
     DateTime? ApprovedAt,
     BookingPolicyDto? Policy,
-    DateTime CreatedAt);
+    DateTime CreatedAt,
+    SlotPoolDto? TwoWheeler = null,
+    SlotPoolDto? FourWheeler = null);
 
 public record AllocateParkingSlotsDto(
     [Required] Guid ParkingSpaceId,
-    [Required][Range(1, 1000)] int TotalSlots,
-    [Range(0, 1000)] int FixedSlots,
-    [Range(0, 1000)] int SharedSlots,
-    [Required][Range(0, 999999.99)] decimal MonthlyRate,
-    [Required] DateTime StartDate,
-    [Required] DateTime EndDate,
-    [StringLength(100)] string? LeaseReference,
-    BookingPolicyDto? Policy);
+    /// <summary>Legacy single pool (maps to FourWheeler when class pools omitted).</summary>
+    [Range(0, 1000)] int TotalSlots = 0,
+    [Range(0, 1000)] int FixedSlots = 0,
+    [Range(0, 1000)] int SharedSlots = 0,
+    [Required][Range(0, 999999.99)] decimal MonthlyRate = 0,
+    [Required] DateTime StartDate = default,
+    [Required] DateTime EndDate = default,
+    [StringLength(100)] string? LeaseReference = null,
+    BookingPolicyDto? Policy = null,
+    SlotPoolDto? TwoWheeler = null,
+    SlotPoolDto? FourWheeler = null);
 
 public record CreateOwnedParkingAllocationDto(
     [Required] Guid ParkingSpaceId,
-    [Required][Range(1, 1000)] int TotalSlots,
-    [Range(0, 1000)] int FixedSlots,
-    [Range(0, 1000)] int SharedSlots,
-    [Required][Range(0, 999999.99)] decimal MonthlyRate,
-    [Required] DateTime StartDate,
-    [Required] DateTime EndDate,
-    BookingPolicyDto? Policy);
+    [Range(0, 1000)] int TotalSlots = 0,
+    [Range(0, 1000)] int FixedSlots = 0,
+    [Range(0, 1000)] int SharedSlots = 0,
+    [Required][Range(0, 999999.99)] decimal MonthlyRate = 0,
+    [Required] DateTime StartDate = default,
+    [Required] DateTime EndDate = default,
+    BookingPolicyDto? Policy = null,
+    SlotPoolDto? TwoWheeler = null,
+    SlotPoolDto? FourWheeler = null);
 
 public record CorporateParkingSpaceDto(
     Guid Id,
@@ -242,11 +257,13 @@ public record FixedSlotAssignmentDto(
     Guid MembershipId,
     string UserName,
     int SlotNumber,
-    DateTime AssignedAt);
+    DateTime AssignedAt,
+    VehicleClass VehicleClass = VehicleClass.FourWheeler);
 
 public record AssignFixedSlotDto(
     [Required] Guid MembershipId,
-    [Required][Range(1, 1000)] int SlotNumber);
+    [Required][Range(1, 1000)] int SlotNumber,
+    VehicleClass VehicleClass = VehicleClass.FourWheeler);
 
 // G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��
 // CORPORATE BOOKING DTOs
@@ -318,7 +335,8 @@ public record BookVisitorParkingDto(
     [Required] DateTime EndDateTime,
     [Required][StringLength(200, MinimumLength = 2)] string VisitorName = "",
     [Required][StringLength(20, MinimumLength = 3)] string VisitorLicensePlate = "",
-    [Required] DateTime AccessExpiry = default);
+    [Required] DateTime AccessExpiry = default,
+    VehicleType VehicleType = VehicleType.Car);
 
 // G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��
 // DASHBOARD DTOs

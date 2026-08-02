@@ -339,7 +339,8 @@ public class Booking : BaseEntity
         DateTime endDateTimeUtc,
         decimal totalAmount,
         string? visitorLicensePlate = null,
-        string? bookingReference = null)
+        string? bookingReference = null,
+        VehicleType vehicleType = VehicleType.Car)
     {
         ValidatePartyAndWindow(userId, parkingSpaceId, startDateTimeUtc, endDateTimeUtc);
         if (totalAmount < 0)
@@ -352,7 +353,7 @@ public class Booking : BaseEntity
             StartDateTime = startDateTimeUtc,
             EndDateTime = endDateTimeUtc,
             PricingType = PricingType.Hourly,
-            VehicleType = VehicleType.Car,
+            VehicleType = vehicleType,
             VehicleNumber = NormalizeOptional(visitorLicensePlate)?.ToUpperInvariant(),
             BaseAmount = totalAmount,
             TaxAmount = 0,

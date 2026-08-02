@@ -47,7 +47,8 @@ public class DomainResidualWave15Tests
         var allocationId = Guid.NewGuid();
         var membershipId = Guid.NewGuid();
 
-        var assignment = FixedSlotAssignment.Create(companyId, allocationId, membershipId, 2);
+        var assignment = FixedSlotAssignment.Create(
+            companyId, allocationId, membershipId, ParkingApp.BuildingBlocks.Enums.VehicleClass.FourWheeler, 2);
 
         assignment.CompanyId.Should().Be(companyId);
         assignment.AllocationId.Should().Be(allocationId);
@@ -66,6 +67,7 @@ public class DomainResidualWave15Tests
             emptyCompany ? Guid.Empty : Guid.NewGuid(),
             emptyAllocation ? Guid.Empty : Guid.NewGuid(),
             emptyMembership ? Guid.Empty : Guid.NewGuid(),
+            ParkingApp.BuildingBlocks.Enums.VehicleClass.FourWheeler,
             1);
 
         act.Should().Throw<ArgumentException>();
@@ -74,7 +76,9 @@ public class DomainResidualWave15Tests
     [Fact]
     public void FixedSlotAssignment_Create_NonPositiveSlot_Throws()
     {
-        var act = () => FixedSlotAssignment.Create(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), 0);
+        var act = () => FixedSlotAssignment.Create(
+            Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(),
+            ParkingApp.BuildingBlocks.Enums.VehicleClass.FourWheeler, 0);
         act.Should().Throw<ArgumentOutOfRangeException>().WithParameterName("slotNumber");
     }
 

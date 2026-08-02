@@ -17,6 +17,7 @@
     <InternalsVisibleTo Include="ParkingApp.UnitTests" />
     <InternalsVisibleTo Include="ParkingApp.Marketplace.UnitTests" />
     <InternalsVisibleTo Include="ParkingApp.Corporate.UnitTests" />
+    <InternalsVisibleTo Include="ParkingApp.IntegrationTests" />
     <InternalsVisibleTo Include="ParkingApp.Marketplace.Application" />
     <InternalsVisibleTo Include="ParkingApp.Marketplace.Infrastructure" />
     <InternalsVisibleTo Include="ParkingApp.Infrastructure" />

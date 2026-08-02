@@ -73,7 +73,8 @@ public class CorporateWaitlistEntry : BaseEntity
         string visitorName,
         string visitorLicensePlate,
         DateTime accessExpiryUtc,
-        int priorityAtRequest)
+        int priorityAtRequest,
+        VehicleType vehicleType = VehicleType.Car)
     {
         ValidateRequiredIds(companyId, membershipId, allocationId);
         ValidateRequestedWindow(requestedStartDateTime, requestedEndDateTime);
@@ -104,7 +105,7 @@ public class CorporateWaitlistEntry : BaseEntity
             AllocationId = allocationId,
             RequestedStartDateTime = normalizedStart,
             RequestedEndDateTime = normalizedEnd,
-            VehicleType = VehicleType.Car,
+            VehicleType = vehicleType,
             VehicleNumber = NormalizeVehicleNumber(visitorLicensePlate),
             VisitorName = visitorName.Trim(),
             VisitorLicensePlate = NormalizeVehicleNumber(visitorLicensePlate),

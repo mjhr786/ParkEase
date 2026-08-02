@@ -1,5 +1,6 @@
 using FluentAssertions;
 using FluentValidation.TestHelper;
+using ParkingApp.BuildingBlocks.Enums;
 using ParkingApp.Corporate.Application.DTOs;
 using ParkingApp.Corporate.Application.Validators;
 using ParkingApp.Domain.Enums;
@@ -69,6 +70,74 @@ public class CorporateDtoValidatorTests
         var result = validator.TestValidate(new AllocateParkingSlotsDto(
             Guid.NewGuid(), 5, 2, 3, 1000m, start, start.AddMonths(1), null, null));
         result.ShouldNotHaveAnyValidationErrors();
+    }
+
+    [Fact]
+    [Trait("Feature", "VehicleClassPools")]
+    public void AllocateParkingSlotsDto_DualPools_Valid_Passes()
+    {
+        var validator = new AllocateParkingSlotsDtoValidator();
+        var start = DateTime.UtcNow.Date;
+        var result = validator.TestValidate(new AllocateParkingSlotsDto(
+            ParkingSpaceId: Guid.NewGuid(),
+            MonthlyRate: 1000m,
+            StartDate: start,
+            EndDate: start.AddMonths(1),
+            TwoWheeler: new SlotPoolDto(10, 2, 8),
+            FourWheeler: new SlotPoolDto(20, 5, 15)));
+        result.ShouldNotHaveAnyValidationErrors();
+    }
+
+    [Fact]
+    [Trait("Feature", "VehicleClassPools")]
+    public void AllocateParkingSlotsDto_DualPools_FixedExceedsTotal_Fails()
+    {
+        var validator = new AllocateParkingSlotsDtoValidator();
+        var start = DateTime.UtcNow.Date;
+        var result = validator.TestValidate(new AllocateParkingSlotsDto(
+            ParkingSpaceId: Guid.NewGuid(),
+            MonthlyRate: 1000m,
+            StartDate: start,
+            EndDate: start.AddMonths(1),
+            TwoWheeler: new SlotPoolDto(5, 4, 3),
+            FourWheeler: new SlotPoolDto(5, 0, 5)));
+        result.IsValid.Should().BeFalse();
+    }
+
+    [Fact]
+    [Trait("Feature", "VehicleClassPools")]
+    public void AllocateParkingSlotsDto_DualPools_BothZero_Fails()
+    {
+        var validator = new AllocateParkingSlotsDtoValidator();
+        var start = DateTime.UtcNow.Date;
+        var result = validator.TestValidate(new AllocateParkingSlotsDto(
+            ParkingSpaceId: Guid.NewGuid(),
+            MonthlyRate: 1000m,
+            StartDate: start,
+            EndDate: start.AddMonths(1),
+            TwoWheeler: new SlotPoolDto(0, 0, 0),
+            FourWheeler: new SlotPoolDto(0, 0, 0)));
+        result.IsValid.Should().BeFalse();
+    }
+
+    [Fact]
+    [Trait("Feature", "VehicleClassPools")]
+    public void AssignFixedSlotDto_ValidVehicleClass_Passes()
+    {
+        var validator = new AssignFixedSlotDtoValidator();
+        validator.TestValidate(new AssignFixedSlotDto(Guid.NewGuid(), 1, VehicleClass.TwoWheeler))
+            .ShouldNotHaveAnyValidationErrors();
+        validator.TestValidate(new AssignFixedSlotDto(Guid.NewGuid(), 2, VehicleClass.FourWheeler))
+            .ShouldNotHaveAnyValidationErrors();
+    }
+
+    [Fact]
+    [Trait("Feature", "VehicleClassPools")]
+    public void AssignFixedSlotDto_InvalidVehicleClass_Fails()
+    {
+        var validator = new AssignFixedSlotDtoValidator();
+        var result = validator.TestValidate(new AssignFixedSlotDto(Guid.NewGuid(), 1, (VehicleClass)99));
+        result.ShouldHaveValidationErrorFor(x => x.VehicleClass);
     }
 
     [Fact]

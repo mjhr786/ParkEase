@@ -73,19 +73,9 @@ internal class AllocateParkingSlotsDtoValidator : AbstractValidator<AllocatePark
         RuleFor(x => x.ParkingSpaceId)
             .NotEmpty().WithMessage("Parking space ID is required.");
 
-        RuleFor(x => x.TotalSlots)
-            .GreaterThan(0).WithMessage("Total slots must be greater than 0.")
-            .LessThanOrEqualTo(1000).WithMessage("Total slots cannot exceed 1000.");
-
-        RuleFor(x => x.FixedSlots)
-            .GreaterThanOrEqualTo(0).WithMessage("Fixed slots cannot be negative.");
-
-        RuleFor(x => x.SharedSlots)
-            .GreaterThanOrEqualTo(0).WithMessage("Shared slots cannot be negative.");
-
         RuleFor(x => x)
-            .Must(x => x.FixedSlots + x.SharedSlots <= x.TotalSlots)
-            .WithMessage("Sum of fixed and shared slots cannot exceed total slots.");
+            .Must(HasValidCapacity)
+            .WithMessage("Provide TwoWheeler/FourWheeler pools with capacity, or legacy totalSlots > 0; fixed+shared cannot exceed each pool total.");
 
         RuleFor(x => x.MonthlyRate)
             .GreaterThanOrEqualTo(0).WithMessage("Monthly rate cannot be negative.");
@@ -96,6 +86,34 @@ internal class AllocateParkingSlotsDtoValidator : AbstractValidator<AllocatePark
         RuleFor(x => x.EndDate)
             .NotEmpty().WithMessage("End date is required.")
             .GreaterThan(x => x.StartDate).WithMessage("End date must be after start date.");
+    }
+
+    private static bool HasValidCapacity(AllocateParkingSlotsDto x)
+    {
+        if (x.TwoWheeler is not null || x.FourWheeler is not null)
+        {
+            if (!IsValidPool(x.TwoWheeler) || !IsValidPool(x.FourWheeler))
+                return false;
+            var combined = (x.TwoWheeler?.TotalSlots ?? 0) + (x.FourWheeler?.TotalSlots ?? 0);
+            return combined > 0 && combined <= 1000;
+        }
+
+        return x.TotalSlots > 0
+            && x.TotalSlots <= 1000
+            && x.FixedSlots >= 0
+            && x.SharedSlots >= 0
+            && x.FixedSlots + x.SharedSlots <= x.TotalSlots;
+    }
+
+    private static bool IsValidPool(SlotPoolDto? pool)
+    {
+        if (pool is null)
+            return true;
+        if (pool.TotalSlots < 0 || pool.FixedSlots < 0 || pool.SharedSlots < 0)
+            return false;
+        if (pool.TotalSlots > 1000)
+            return false;
+        return pool.FixedSlots + pool.SharedSlots <= pool.TotalSlots;
     }
 }
 
@@ -129,6 +147,12 @@ internal class AssignFixedSlotDtoValidator : AbstractValidator<AssignFixedSlotDt
 
         RuleFor(x => x.SlotNumber)
             .GreaterThan(0).WithMessage("Slot number must be greater than 0.");
+
+        RuleFor(x => x.VehicleClass)
+            .IsInEnum().WithMessage("Vehicle class must be TwoWheeler or FourWheeler.")
+            .Must(c => c is ParkingApp.BuildingBlocks.Enums.VehicleClass.TwoWheeler
+                or ParkingApp.BuildingBlocks.Enums.VehicleClass.FourWheeler)
+            .WithMessage("Vehicle class must be TwoWheeler or FourWheeler.");
     }
 }
 

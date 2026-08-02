@@ -7,10 +7,11 @@ import corporateService from '../../services/corporateService';
 import { handleApiError } from '../../utils/errorHandler';
 import showToast from '../../utils/toast.jsx';
 
+const emptyPool = { totalSlots: 0, fixedSlots: 0, sharedSlots: 0 };
+
 const defaultAllocationRequest = {
-  totalSlots: 1,
-  fixedSlots: 0,
-  sharedSlots: 1,
+  fourWheeler: { totalSlots: 1, fixedSlots: 0, sharedSlots: 1 },
+  twoWheeler: { ...emptyPool },
   monthlyRate: 0,
   startDate: '',
   endDate: '',
@@ -22,6 +23,13 @@ const defaultAllocationRequest = {
   allowWeekends: false,
   leaseReference: '',
 };
+
+function clampPool(pool) {
+  const total = Math.max(0, parseInt(pool.totalSlots, 10) || 0);
+  const fixed = Math.min(Math.max(0, parseInt(pool.fixedSlots, 10) || 0), total);
+  const shared = Math.min(Math.max(0, parseInt(pool.sharedSlots, 10) || 0), total - fixed);
+  return { totalSlots: total, fixedSlots: fixed, sharedSlots: shared };
+}
 
 function isCompanyAdminRole(role) {
   return role === 'Admin' || role === 0 || role === '0';
@@ -96,10 +104,11 @@ export default function LeaseBrowse() {
   const openLot = async (space) => {
     setDetailLoading(true);
     setSelected(null);
+    const fourTotal = Math.min(space.totalSpots || 1, 10);
     setAllocationRequest({
       ...defaultAllocationRequest,
-      totalSlots: Math.min(space.totalSpots || 1, 10),
-      sharedSlots: Math.min(space.totalSpots || 1, 10),
+      fourWheeler: { totalSlots: fourTotal, fixedSlots: 0, sharedSlots: fourTotal },
+      twoWheeler: { ...emptyPool },
       monthlyRate: space.monthlyRate ?? space.hourlyRate ?? 0,
     });
     try {
@@ -117,18 +126,13 @@ export default function LeaseBrowse() {
   };
 
   const handleAllocationRequestChange = (field, value) => {
+    setAllocationRequest((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const handlePoolChange = (poolKey, field, value) => {
     setAllocationRequest((prev) => {
-      const next = { ...prev, [field]: value };
-      if (field === 'totalSlots') {
-        const total = Math.max(1, parseInt(value, 10) || 1);
-        next.totalSlots = total;
-        next.fixedSlots = Math.min(parseInt(next.fixedSlots, 10) || 0, total);
-        next.sharedSlots = Math.min(parseInt(next.sharedSlots, 10) || 0, total - next.fixedSlots);
-      }
-      if (field === 'fixedSlots' || field === 'sharedSlots') {
-        next[field] = Math.max(0, parseInt(value, 10) || 0);
-      }
-      return next;
+      const nextPool = clampPool({ ...prev[poolKey], [field]: value });
+      return { ...prev, [poolKey]: nextPool };
     });
   };
 
@@ -136,12 +140,17 @@ export default function LeaseBrowse() {
     e.preventDefault();
     if (!selected?.id) return;
 
-    const totalSlots = parseInt(allocationRequest.totalSlots, 10);
-    const fixedSlots = parseInt(allocationRequest.fixedSlots, 10);
-    const sharedSlots = parseInt(allocationRequest.sharedSlots, 10);
+    const fourWheeler = clampPool(allocationRequest.fourWheeler);
+    const twoWheeler = clampPool(allocationRequest.twoWheeler);
+    const combined = fourWheeler.totalSlots + twoWheeler.totalSlots;
+    const capacity = selected.totalSpots || 0;
 
-    if (fixedSlots + sharedSlots > totalSlots) {
-      showToast.error('Fixed and shared slots cannot exceed total slots.');
+    if (combined <= 0) {
+      showToast.error('At least one of 2-wheeler or 4-wheeler pools must have capacity.');
+      return;
+    }
+    if (capacity > 0 && combined > capacity) {
+      showToast.error(`Combined slots (${combined}) cannot exceed facility capacity (${capacity}).`);
       return;
     }
     if (allocationRequest.allowedEndTime <= allocationRequest.allowedStartTime) {
@@ -161,9 +170,8 @@ export default function LeaseBrowse() {
     try {
       const response = await corporateService.requestAllocation({
         parkingSpaceId: selected.id,
-        totalSlots,
-        fixedSlots,
-        sharedSlots,
+        twoWheeler,
+        fourWheeler,
         monthlyRate: parseFloat(allocationRequest.monthlyRate) || 0,
         startDate: new Date(`${allocationRequest.startDate}T00:00:00.000Z`).toISOString(),
         endDate: new Date(`${allocationRequest.endDate}T23:59:59.000Z`).toISOString(),
@@ -352,18 +360,40 @@ export default function LeaseBrowse() {
                   <h3 style={{ margin: '0 0 1rem', fontSize: '1rem', color: 'var(--color-text-primary)' }}>
                     Request corporate allocation
                   </h3>
+                  <p style={{ margin: '0 0 0.75rem', fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>
+                    Combined 2W + 4W slots cannot exceed facility capacity ({selected.totalSpots || '—'}).
+                    Current combined:{' '}
+                    {(parseInt(allocationRequest.fourWheeler.totalSlots, 10) || 0)
+                      + (parseInt(allocationRequest.twoWheeler.totalSlots, 10) || 0)}
+                  </p>
+                  <h4 style={{ margin: '0 0 0.5rem', fontSize: '0.95rem', color: 'var(--color-text-primary)' }}>4-Wheeler (Car / SUV)</h4>
+                  <div className="grid grid-3" style={{ gap: '1rem', marginBottom: '1rem' }}>
+                    <div className="form-group">
+                      <label className="form-label" htmlFor="lb-4w-total">Total</label>
+                      <input id="lb-4w-total" type="number" min="0" max={selected.totalSpots || 1000} className="form-input" value={allocationRequest.fourWheeler.totalSlots} onChange={(e) => handlePoolChange('fourWheeler', 'totalSlots', e.target.value)} />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label" htmlFor="lb-4w-fixed">Fixed</label>
+                      <input id="lb-4w-fixed" type="number" min="0" className="form-input" value={allocationRequest.fourWheeler.fixedSlots} onChange={(e) => handlePoolChange('fourWheeler', 'fixedSlots', e.target.value)} />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label" htmlFor="lb-4w-shared">Shared</label>
+                      <input id="lb-4w-shared" type="number" min="0" className="form-input" value={allocationRequest.fourWheeler.sharedSlots} onChange={(e) => handlePoolChange('fourWheeler', 'sharedSlots', e.target.value)} />
+                    </div>
+                  </div>
+                  <h4 style={{ margin: '0 0 0.5rem', fontSize: '0.95rem', color: 'var(--color-text-primary)' }}>2-Wheeler (Bike / Scooter)</h4>
                   <div className="grid grid-3" style={{ gap: '1rem' }}>
                     <div className="form-group">
-                      <label className="form-label" htmlFor="lb-total">Total slots</label>
-                      <input id="lb-total" type="number" min="1" max={selected.totalSpots || 1000} className="form-input" value={allocationRequest.totalSlots} onChange={(e) => handleAllocationRequestChange('totalSlots', e.target.value)} required />
+                      <label className="form-label" htmlFor="lb-2w-total">Total</label>
+                      <input id="lb-2w-total" type="number" min="0" max={selected.totalSpots || 1000} className="form-input" value={allocationRequest.twoWheeler.totalSlots} onChange={(e) => handlePoolChange('twoWheeler', 'totalSlots', e.target.value)} />
                     </div>
                     <div className="form-group">
-                      <label className="form-label" htmlFor="lb-fixed">Fixed slots</label>
-                      <input id="lb-fixed" type="number" min="0" className="form-input" value={allocationRequest.fixedSlots} onChange={(e) => handleAllocationRequestChange('fixedSlots', e.target.value)} required />
+                      <label className="form-label" htmlFor="lb-2w-fixed">Fixed</label>
+                      <input id="lb-2w-fixed" type="number" min="0" className="form-input" value={allocationRequest.twoWheeler.fixedSlots} onChange={(e) => handlePoolChange('twoWheeler', 'fixedSlots', e.target.value)} />
                     </div>
                     <div className="form-group">
-                      <label className="form-label" htmlFor="lb-shared">Shared slots</label>
-                      <input id="lb-shared" type="number" min="0" className="form-input" value={allocationRequest.sharedSlots} onChange={(e) => handleAllocationRequestChange('sharedSlots', e.target.value)} required />
+                      <label className="form-label" htmlFor="lb-2w-shared">Shared</label>
+                      <input id="lb-2w-shared" type="number" min="0" className="form-input" value={allocationRequest.twoWheeler.sharedSlots} onChange={(e) => handlePoolChange('twoWheeler', 'sharedSlots', e.target.value)} />
                     </div>
                   </div>
 

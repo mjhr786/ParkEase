@@ -45,7 +45,11 @@ internal sealed class AssignFixedSlotHandler
         try
         {
             company.AssignFixedSlot(
-                command.AdminUserId, command.AllocationId, command.Dto.MembershipId, command.Dto.SlotNumber);
+                command.AdminUserId,
+                command.AllocationId,
+                command.Dto.MembershipId,
+                command.Dto.VehicleClass,
+                command.Dto.SlotNumber);
             await _corporate.SaveChangesAsync(ct);
             await _quotaCache.InvalidateCompanyAsync(command.CompanyId, ct);
             await CacheInvalidation.ForCompanyDashboardAsync(_cache, command.CompanyId, ct);

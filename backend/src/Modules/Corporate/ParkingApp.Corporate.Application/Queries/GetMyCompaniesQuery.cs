@@ -235,7 +235,9 @@ internal sealed class GetCompanyAllocationsHandler : IQueryHandler<GetCompanyAll
                 q.AllowWeekends),
             assignmentsByAllocation.GetValueOrDefault(q.AllocationId) ?? new List<FixedSlotAssignmentDto>(),
             q.CreatedAt,
-            q.VendorName)).ToList();
+            q.VendorName,
+            q.TwoWheeler is null ? null : new SlotPoolDto(q.TwoWheeler.TotalSlots, q.TwoWheeler.FixedSlots, q.TwoWheeler.SharedSlots),
+            q.FourWheeler is null ? null : new SlotPoolDto(q.FourWheeler.TotalSlots, q.FourWheeler.FixedSlots, q.FourWheeler.SharedSlots))).ToList();
 
         return new ApiResponse<List<ParkingAllocationDto>>(true, null, allocations);
     }

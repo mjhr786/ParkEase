@@ -9,6 +9,8 @@ public interface ICompanyQuotaCache
     Task InvalidateCompanyAsync(Guid companyId, CancellationToken cancellationToken = default);
 }
 
+public sealed record ClassPoolSnapshot(int TotalSlots, int FixedSlots, int SharedSlots);
+
 public sealed record CompanyQuotaCacheEntry(
     Guid CompanyId,
     Guid AllocationId,
@@ -36,7 +38,9 @@ public sealed record CompanyQuotaCacheEntry(
     TimeSpan AllowedStartTime,
     TimeSpan AllowedEndTime,
     bool AllowWeekends,
-    string? VendorName = null)
+    string? VendorName = null,
+    ClassPoolSnapshot? TwoWheeler = null,
+    ClassPoolSnapshot? FourWheeler = null)
 {
     public bool IsBookable => Status == AllocationStatus.Active && ParkingSpaceIsActive;
 }

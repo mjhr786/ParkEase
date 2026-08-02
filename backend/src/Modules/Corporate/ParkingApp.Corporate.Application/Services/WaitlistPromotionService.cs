@@ -130,7 +130,8 @@ internal sealed class WaitlistPromotionService : IWaitlistPromotionService
                 waitlistEntry.RequestedEndDateTime,
                 amount,
                 vehicleNumber,
-                waitlistEntry.IsVisitorBooking
+                waitlistEntry.IsVisitorBooking,
+                waitlistEntry.VehicleType
             ), cancellationToken);
 
             var draft = new CorporateBookingDraft(
@@ -139,7 +140,7 @@ internal sealed class WaitlistPromotionService : IWaitlistPromotionService
                 waitlistEntry.RequestedStartDateTime,
                 waitlistEntry.RequestedEndDateTime,
                 BookingStatus.Confirmed,
-                waitlistEntry.IsVisitorBooking ? VehicleType.Car : waitlistEntry.VehicleType,
+                waitlistEntry.VehicleType,
                 vehicleNumber
             );
 

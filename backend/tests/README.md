@@ -5,6 +5,7 @@
 | Project | Purpose |
 | --- | --- |
 | `ParkingApp.UnitTests` | Host / cross-cutting / architecture / legacy integration-style unit tests |
+| `ParkingApp.IntegrationTests` | Application-layer + SQL/HTTP integration: payment lifecycle, reviews isolation, **corporate 2W/4W dual pools** (L2 in-memory lifecycle, **Testcontainers Postgres occupancy/read-store SQL**, **WebApplicationFactory HTTP smoke**) |
 | `Modules/Identity/ParkingApp.Identity.UnitTests` | Identity module isolation tests |
 | `Modules/Marketplace/ParkingApp.Marketplace.UnitTests` | Marketplace module isolation tests |
 | `Modules/Corporate/ParkingApp.Corporate.UnitTests` | Corporate module tests (pilot migration from monolithic suite) |
@@ -79,9 +80,24 @@ dotnet test tests/Modules/Corporate/ParkingApp.Corporate.UnitTests/ParkingApp.Co
 powershell -File ./tests/assert-corporate-coverage.ps1 -ResultsDirectory ./TestResults-corp
 ```
 
+## Dual-pool (2W/4W) test layers
+
+```bash
+# All dual-pool tagged tests (unit + IT; SQL needs Docker)
+dotnet test ParkingApp.sln --filter "Feature=VehicleClassPools"
+
+# Postgres SQL only (Testcontainers — Docker required)
+dotnet test tests/ParkingApp.IntegrationTests/ParkingApp.IntegrationTests.csproj --filter "Layer=Sql"
+
+# HTTP smoke only (WebApplicationFactory; no Docker)
+dotnet test tests/ParkingApp.IntegrationTests/ParkingApp.IntegrationTests.csproj --filter "Layer=Http"
+```
+
+Frontend dual-pool UI: `CorporateParkingSpaces.test.jsx`, `CompanyAllocations.test.jsx`, `LeaseBrowse.test.jsx` (Vitest).
+
 ## Guidance
 
 - Prefer **module** test projects for pure Domain/Application tests of that BC.
 - Keep architecture ProjectReference rules in `ParkingApp.UnitTests/Architecture`.
 - Module projects should reference that module’s Domain/Application/Contracts/Infrastructure (+ Contracts of collaborators only when needed).
-- Avoid referencing host `ParkingApp.API` from module tests.
+- Avoid referencing host `ParkingApp.API` from module tests (except `ParkingApp.IntegrationTests` L4 HTTP smoke).
