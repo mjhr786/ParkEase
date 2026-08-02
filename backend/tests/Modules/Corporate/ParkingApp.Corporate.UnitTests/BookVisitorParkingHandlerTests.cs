@@ -3,6 +3,7 @@ using Moq;
 using ParkingApp.Application.CQRS.Commands.Corporate;
 using ParkingApp.Application.CQRS.Commands.Corporate.Bookings;
 using ParkingApp.Application.Interfaces;
+using ParkingApp.BuildingBlocks.Enums;
 using ParkingApp.Corporate.Application.DTOs;
 using ParkingApp.Corporate.Application.Interfaces;
 using ParkingApp.Corporate.Domain;
@@ -10,6 +11,7 @@ using ParkingApp.Corporate.Domain.Interfaces;
 using ParkingApp.Domain.Enums;
 using ParkingApp.Domain.ValueObjects;
 using ParkingApp.Marketplace.Contracts;
+using Xunit;
 
 namespace ParkingApp.Corporate.UnitTests;
 
@@ -184,7 +186,7 @@ public class BookVisitorParkingHandlerTests
         _bookings.Setup(x => x.GetReservationPreCheckAsync(
                 company.Id, It.IsAny<Guid>(), allocation.Id, start, end,
                 It.IsAny<DateOnly>(), It.IsAny<DateOnly>(), It.IsAny<DateTime>(), It.IsAny<DateTime>(),
-                It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+                It.IsAny<string?>(), It.IsAny<ParkingApp.BuildingBlocks.Enums.VehicleClass>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new CorporateReservationPreCheck
             {
                 DayBookingCount = 0,
@@ -239,7 +241,7 @@ public class BookVisitorParkingHandlerTests
         _bookings.Setup(x => x.GetReservationPreCheckAsync(
                 company.Id, It.IsAny<Guid>(), allocation.Id, start, end,
                 It.IsAny<DateOnly>(), It.IsAny<DateOnly>(), It.IsAny<DateTime>(), It.IsAny<DateTime>(),
-                It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+                It.IsAny<string?>(), It.IsAny<ParkingApp.BuildingBlocks.Enums.VehicleClass>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new CorporateReservationPreCheck
             {
                 DayBookingCount = 0,
@@ -260,6 +262,121 @@ public class BookVisitorParkingHandlerTests
         var result = await handler.HandleAsync(new BookVisitorParkingCommand(
             company.Id, _employeeId,
             new BookVisitorParkingDto(allocation.Id, start, end, "Wait Guest", "MH12AB1234", end.AddHours(1))));
+
+        result.Success.Should().BeTrue(result.Message);
+        result.Message.Should().Contain("waitlist");
+        result.Data!.Waitlist.Should().NotBeNull();
+        result.Data.Booking.Should().BeNull();
+    }
+
+    [Fact]
+    [Trait("Feature", "VehicleClassPools")]
+    public async Task Visitor_Motorcycle_ConsumesTwoWheelerShared()
+    {
+        var company = Company.Create("Acme", "REG-V-2W", "a@acme.com", "555", "Addr", BillingType.UsageBased, _adminId);
+        company.AddMember(_adminId, _employeeId, CompanyRole.Employee);
+        var spaceId = Guid.NewGuid();
+        var policy = BookingPolicy.Create(5, 20, 1, TimeSpan.FromHours(0), TimeSpan.FromHours(23), allowWeekends: true);
+        var allocation = company.CreateOwnedParkingAllocation(
+            _adminId, spaceId,
+            Quota.CreatePool(2, 0, 2),
+            Quota.CreatePool(5, 0, 5),
+            0m,
+            new DateTime(2026, 7, 1, 0, 0, 0, DateTimeKind.Utc),
+            new DateTime(2026, 12, 31, 0, 0, 0, DateTimeKind.Utc),
+            parkingCapacity: 10, bookingPolicy: policy);
+
+        var (start, end) = WeekdayWindow();
+        var bookingId = Guid.NewGuid();
+        _quotaCache.Setup(x => x.GetAllocationAsync(company.Id, allocation.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(BookableQuota(company, allocation, spaceId));
+        _companies.Setup(x => x.GetAggregateForBookingAsync(
+                company.Id, _employeeId, allocation.Id, start, end, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(company);
+        _bookings.Setup(x => x.GetReservationPreCheckAsync(
+                company.Id, It.IsAny<Guid>(), allocation.Id, start, end,
+                It.IsAny<DateOnly>(), It.IsAny<DateOnly>(), It.IsAny<DateTime>(), It.IsAny<DateTime>(),
+                It.IsAny<string?>(), VehicleClass.TwoWheeler, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new CorporateReservationPreCheck
+            {
+                DayBookingCount = 0,
+                WeekBookingCount = 0,
+                ActiveSharedBookingCount = 0,
+                OccupiedSharedSlotNumbers = Array.Empty<int>(),
+                SharedSlotUsageBySlot = new Dictionary<int, int>(),
+                HasOverlappingMemberBooking = false,
+                HasOverlappingVehicleBooking = false,
+                RecentBookingCreateCount = 0
+            });
+        _marketplace.Setup(x => x.StageCorporateBookingAsync(
+                It.Is<StageCorporateBookingRequest>(r => r.VehicleType == VehicleType.Motorcycle),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new MarketplaceBookingCreateResult(bookingId, "QR-2W"));
+
+        var handler = new BookVisitorParkingHandler(
+            _corporate.Object, _marketplace.Object, _cache.Object, _quotaCache.Object);
+
+        var result = await handler.HandleAsync(new BookVisitorParkingCommand(
+            company.Id, _employeeId,
+            new BookVisitorParkingDto(
+                allocation.Id, start, end, "Bike Guest", "KA09BIKE1", end.AddHours(1),
+                VehicleType.Motorcycle)));
+
+        result.Success.Should().BeTrue(result.Message);
+        result.Data!.Booking.Should().NotBeNull();
+        result.Data.Waitlist.Should().BeNull();
+        company.CorporateBookings.Should().ContainSingle();
+    }
+
+    [Fact]
+    [Trait("Feature", "VehicleClassPools")]
+    public async Task Visitor_Motorcycle_WhenTwoWheelerFull_Waitlists_DespiteFourWheelerFree()
+    {
+        var company = Company.Create("Acme", "REG-V-2WF", "a@acme.com", "555", "Addr", BillingType.UsageBased, _adminId);
+        company.AddMember(_adminId, _employeeId, CompanyRole.Employee);
+        var spaceId = Guid.NewGuid();
+        var policy = BookingPolicy.Create(5, 20, 1, TimeSpan.FromHours(0), TimeSpan.FromHours(23), allowWeekends: true);
+        var allocation = company.CreateOwnedParkingAllocation(
+            _adminId, spaceId,
+            Quota.CreatePool(1, 0, 1),
+            Quota.CreatePool(5, 0, 5),
+            0m,
+            new DateTime(2026, 7, 1, 0, 0, 0, DateTimeKind.Utc),
+            new DateTime(2026, 12, 31, 0, 0, 0, DateTimeKind.Utc),
+            parkingCapacity: 10, bookingPolicy: policy);
+
+        var (start, end) = WeekdayWindow();
+        _quotaCache.Setup(x => x.GetAllocationAsync(company.Id, allocation.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(BookableQuota(company, allocation, spaceId));
+        _companies.Setup(x => x.GetAggregateForBookingAsync(
+                company.Id, _employeeId, allocation.Id, start, end, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(company);
+        _bookings.Setup(x => x.GetReservationPreCheckAsync(
+                company.Id, It.IsAny<Guid>(), allocation.Id, start, end,
+                It.IsAny<DateOnly>(), It.IsAny<DateOnly>(), It.IsAny<DateTime>(), It.IsAny<DateTime>(),
+                It.IsAny<string?>(), VehicleClass.TwoWheeler, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new CorporateReservationPreCheck
+            {
+                DayBookingCount = 0,
+                WeekBookingCount = 0,
+                ActiveSharedBookingCount = 1,
+                OccupiedSharedSlotNumbers = new[] { 1 },
+                SharedSlotUsageBySlot = new Dictionary<int, int> { [1] = 1 },
+                HasOverlappingMemberBooking = false,
+                HasOverlappingVehicleBooking = false,
+                RecentBookingCreateCount = 0
+            });
+        _marketplace.Setup(x => x.StageCorporateBookingAsync(It.IsAny<StageCorporateBookingRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new MarketplaceBookingCreateResult(Guid.NewGuid(), null));
+
+        var handler = new BookVisitorParkingHandler(
+            _corporate.Object, _marketplace.Object, _cache.Object, _quotaCache.Object);
+
+        var result = await handler.HandleAsync(new BookVisitorParkingCommand(
+            company.Id, _employeeId,
+            new BookVisitorParkingDto(
+                allocation.Id, start, end, "Bike Guest", "KA09BIKE2", end.AddHours(1),
+                VehicleType.Motorcycle)));
 
         result.Success.Should().BeTrue(result.Message);
         result.Message.Should().Contain("waitlist");

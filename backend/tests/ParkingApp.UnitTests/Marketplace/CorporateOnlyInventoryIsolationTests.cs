@@ -8,11 +8,14 @@ using ParkingApp.Marketplace.Application.Commands.Bookings;
 using ParkingApp.Marketplace.Application.Commands.EventPackages;
 using ParkingApp.Marketplace.Application.Commands.Favorites;
 using ParkingApp.Marketplace.Application.Commands.FileUpload;
+using ParkingApp.Marketplace.Application.Commands.Reviews;
+using ParkingApp.Marketplace.Application.Interfaces;
 using ParkingApp.Marketplace.Application.Queries.Bookings;
 using ParkingApp.Marketplace.Application.Queries.EventPackages;
 using ParkingApp.Marketplace.Application.Queries.Favorites;
 using ParkingApp.Marketplace.Application.Queries.FileUpload;
 using ParkingApp.Marketplace.Application.Queries.Parking;
+using ParkingApp.Marketplace.Application.Queries.Reviews;
 using ParkingApp.Marketplace.Contracts.DTOs;
 using ParkingApp.Marketplace.Contracts.Enums;
 using ParkingApp.Marketplace.Domain.Entities;
@@ -33,6 +36,8 @@ public class CorporateOnlyInventoryIsolationTests
     private readonly Mock<IBookingRepository> _bookingRepo = new();
     private readonly Mock<IFavoriteRepository> _favoriteRepo = new();
     private readonly Mock<IEventParkingPackageRepository> _eventPackageRepo = new();
+    private readonly Mock<IReviewRepository> _reviewRepo = new();
+    private readonly Mock<IReviewReadStore> _reviewReadStore = new();
     private readonly Mock<ICacheService> _cache = new();
 
     public CorporateOnlyInventoryIsolationTests()
@@ -41,6 +46,7 @@ public class CorporateOnlyInventoryIsolationTests
         _uow.Setup(u => u.Bookings).Returns(_bookingRepo.Object);
         _uow.Setup(u => u.Favorites).Returns(_favoriteRepo.Object);
         _uow.Setup(u => u.EventParkingPackages).Returns(_eventPackageRepo.Object);
+        _uow.Setup(u => u.Reviews).Returns(_reviewRepo.Object);
     }
 
     private static ParkingSpaceDto PublicDto(Guid id) =>
@@ -412,5 +418,148 @@ public class CorporateOnlyInventoryIsolationTests
         _eventPackageRepo.Verify(
             r => r.GetByParkingSpaceIdAsync(It.IsAny<Guid>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()),
             Times.Never);
+    }
+
+    // ── Reviews (KD-9 residual) ─────────────────────────────────────────────
+
+    [Fact]
+    public async Task CreateReview_WhenCorporateOnly_ReturnsNotFound()
+    {
+        var logger = new Mock<ILogger<CreateReviewHandler>>();
+        var handler = new CreateReviewHandler(_uow.Object, _cache.Object, logger.Object);
+        var parkingId = Guid.NewGuid();
+        _parkingRepo
+            .Setup(r => r.GetByIdAsync(parkingId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ParkingSpace { Id = parkingId, IsCorporateOnly = true, Title = "HQ Lot" });
+
+        var result = await handler.HandleAsync(new CreateReviewCommand(
+            Guid.NewGuid(),
+            new CreateReviewDto(parkingId, null, 5, "Great", "Nice")));
+
+        result.Success.Should().BeFalse();
+        result.Message.Should().Be("Parking space not found");
+        result.Data.Should().BeNull();
+        _reviewRepo.Verify(r => r.AddAsync(It.IsAny<Review>(), It.IsAny<CancellationToken>()), Times.Never);
+        _uow.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task CreateReview_WhenCorporateStagedBooking_ReturnsInvalidBookingReference()
+    {
+        var logger = new Mock<ILogger<CreateReviewHandler>>();
+        var handler = new CreateReviewHandler(_uow.Object, _cache.Object, logger.Object);
+        var userId = Guid.NewGuid();
+        var parkingId = Guid.NewGuid();
+        var bookingId = Guid.NewGuid();
+
+        _parkingRepo
+            .Setup(r => r.GetByIdAsync(parkingId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ParkingSpace { Id = parkingId, IsCorporateOnly = false });
+        _bookingRepo
+            .Setup(r => r.GetByIdAsync(bookingId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Booking
+            {
+                Id = bookingId,
+                UserId = userId,
+                ParkingSpaceId = parkingId,
+                Status = BookingStatus.Completed,
+                IsCorporateStaged = true
+            });
+
+        var result = await handler.HandleAsync(new CreateReviewCommand(
+            userId,
+            new CreateReviewDto(parkingId, bookingId, 5, "Ok", "Comment")));
+
+        result.Success.Should().BeFalse();
+        result.Message.Should().Be("Invalid booking reference");
+        _reviewRepo.Verify(r => r.AddAsync(It.IsAny<Review>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task GetReviewsByParkingSpace_WhenCorporateOnly_ReturnsEmptyWithoutReadStoreOrCache()
+    {
+        var handler = new GetReviewsByParkingSpaceHandler(_uow.Object, _reviewReadStore.Object, _cache.Object);
+        var parkingId = Guid.NewGuid();
+        _parkingRepo
+            .Setup(r => r.GetByIdAsync(parkingId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ParkingSpace { Id = parkingId, IsCorporateOnly = true });
+
+        var result = await handler.HandleAsync(new GetReviewsByParkingSpaceQuery(parkingId));
+
+        result.Success.Should().BeTrue();
+        result.Data.Should().NotBeNull().And.BeEmpty();
+        _reviewReadStore.Verify(
+            r => r.GetByParkingSpaceAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+        _cache.Verify(
+            c => c.GetAsync<List<ReviewDto>>(It.IsAny<string>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+        _cache.Verify(
+            c => c.SetAsync(It.IsAny<string>(), It.IsAny<List<ReviewDto>>(), It.IsAny<TimeSpan>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [Fact]
+    public async Task GetReviewById_WhenParkingIsCorporateOnly_ReturnsNotFound()
+    {
+        var handler = new GetReviewByIdHandler(_uow.Object);
+        var reviewId = Guid.NewGuid();
+        var parkingId = Guid.NewGuid();
+        _reviewRepo
+            .Setup(r => r.GetByIdAsync(reviewId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Review { Id = reviewId, ParkingSpaceId = parkingId, Title = "Secret" });
+        _parkingRepo
+            .Setup(r => r.GetByIdAsync(parkingId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ParkingSpace { Id = parkingId, IsCorporateOnly = true });
+
+        var result = await handler.HandleAsync(new GetReviewByIdQuery(reviewId));
+
+        result.Success.Should().BeFalse();
+        result.Message.Should().Be("Review not found");
+        result.Data.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task UpdateReview_WhenParkingIsCorporateOnly_ReturnsNotFound()
+    {
+        var handler = new UpdateReviewHandler(_uow.Object, _cache.Object);
+        var userId = Guid.NewGuid();
+        var reviewId = Guid.NewGuid();
+        var parkingId = Guid.NewGuid();
+        _reviewRepo
+            .Setup(r => r.GetByIdAsync(reviewId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Review { Id = reviewId, UserId = userId, ParkingSpaceId = parkingId, Rating = 4 });
+        _parkingRepo
+            .Setup(r => r.GetByIdAsync(parkingId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ParkingSpace { Id = parkingId, IsCorporateOnly = true });
+
+        var result = await handler.HandleAsync(
+            new UpdateReviewCommand(reviewId, userId, new UpdateReviewDto(5, "Nope", "Nope")));
+
+        result.Success.Should().BeFalse();
+        result.Message.Should().Be("Review not found");
+        _uow.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task AddOwnerResponse_WhenParkingIsCorporateOnly_ReturnsUnauthorized()
+    {
+        var handler = new AddOwnerResponseHandler(_uow.Object, _cache.Object);
+        var ownerId = Guid.NewGuid();
+        var reviewId = Guid.NewGuid();
+        var parkingId = Guid.NewGuid();
+        _reviewRepo
+            .Setup(r => r.GetByIdAsync(reviewId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Review { Id = reviewId, ParkingSpaceId = parkingId });
+        _parkingRepo
+            .Setup(r => r.GetByIdAsync(parkingId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ParkingSpace { Id = parkingId, OwnerId = ownerId, IsCorporateOnly = true });
+
+        var result = await handler.HandleAsync(
+            new AddOwnerResponseCommand(reviewId, ownerId, new OwnerResponseDto("Thanks")));
+
+        result.Success.Should().BeFalse();
+        result.Message.Should().Be("Unauthorized");
+        _uow.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
     }
 }

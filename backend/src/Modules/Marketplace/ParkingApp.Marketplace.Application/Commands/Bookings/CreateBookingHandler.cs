@@ -531,15 +531,39 @@ internal sealed class RequestExtensionHandler : ICommandHandler<RequestExtension
         if (!availability.IsAllowed)
             return new ApiResponse<BookingDto>(false, availability.ErrorMessage ?? "Extension not available", null);
 
-        // Price only the extended window (current end → new end), matching the member UI quote.
+        // Price only the extended window, matching the member UI quote.
         // Full-booking reprice often yields 0 extra (daily/weekly unit ceilings or pass covering
         // the original period), which skipped AwaitingExtensionPayment and hid the pay button.
         // Member may choose a different unit for the extension (e.g. hourly booking + daily extension).
+        // Day-based: start at next local calendar day after the already-paid end day so inclusive
+        // day counting does not double-bill the current end date (4 Aug → 5 Aug = 1 day).
         var extensionPricingType = command.PricingType ?? booking.PricingType;
+        var extensionPricingStart = ParkingPassPricingService.GetExtensionPricingStartUtc(
+            booking.EndDateTime,
+            extensionPricingType,
+            parking.TimeZoneId);
+
+        if (ParkingPassPricingService.IsDayBasedPricing(extensionPricingType))
+        {
+            var currentEndLocal = DynamicPricingCalculator.ToLocalClock(booking.EndDateTime, parking.TimeZoneId);
+            var newEndLocal = DynamicPricingCalculator.ToLocalClock(newEndDateTime, parking.TimeZoneId);
+            if (newEndLocal.Date <= currentEndLocal.Date)
+            {
+                return new ApiResponse<BookingDto>(
+                    false,
+                    "New end date must be after the current booking end date for daily/weekly/monthly pricing.",
+                    null);
+            }
+        }
+        else if (newEndDateTime <= extensionPricingStart)
+        {
+            return new ApiResponse<BookingDto>(false, "New end time must be after the current booking end.", null);
+        }
+
         var extensionPricing = await _pricingService.CalculateAsync(
             command.UserId,
             parking,
-            booking.EndDateTime,
+            extensionPricingStart,
             newEndDateTime,
             extensionPricingType,
             booking.DiscountCode,

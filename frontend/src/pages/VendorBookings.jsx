@@ -639,6 +639,11 @@ export default function VendorBookings() {
                                                 <div>
                                                     <small style={{ color: 'var(--color-text-muted)' }}>Total slots</small>
                                                     <div style={{ fontWeight: 'bold' }}>{allocation.totalSlots}</div>
+                                                    {(allocation.fourWheeler || allocation.twoWheeler) && (
+                                                        <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginTop: 4 }}>
+                                                            4W {allocation.fourWheeler?.totalSlots ?? 0} · 2W {allocation.twoWheeler?.totalSlots ?? 0}
+                                                        </div>
+                                                    )}
                                                 </div>
                                                 <div>
                                                     <small style={{ color: 'var(--color-text-muted)' }}>Fixed / Shared</small>

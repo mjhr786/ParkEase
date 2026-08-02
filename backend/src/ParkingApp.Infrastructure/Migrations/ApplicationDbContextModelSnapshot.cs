@@ -552,6 +552,9 @@ namespace ParkingApp.Infrastructure.Migrations
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<int>("VehicleClass")
+                        .HasColumnType("integer");
+
                     b.HasKey("Id");
 
                     b.HasIndex("AllocationId");
@@ -560,7 +563,7 @@ namespace ParkingApp.Infrastructure.Migrations
 
                     b.HasIndex("CompanyId", "MembershipId");
 
-                    b.HasIndex("CompanyId", "AllocationId", "SlotNumber")
+                    b.HasIndex("CompanyId", "AllocationId", "VehicleClass", "SlotNumber")
                         .IsUnique();
 
                     b.ToTable("FixedSlotAssignments");
@@ -2483,12 +2486,68 @@ namespace ParkingApp.Infrastructure.Migrations
                                 .HasForeignKey("ParkingAllocationId");
                         });
 
+                    b.OwnsOne("ParkingApp.Domain.ValueObjects.Quota", "TwoWheelerQuota", b1 =>
+                        {
+                            b1.Property<Guid>("ParkingAllocationId")
+                                .HasColumnType("uuid");
+
+                            b1.Property<int>("FixedSlots")
+                                .HasColumnType("integer")
+                                .HasColumnName("TwoWheelerFixedSlots");
+
+                            b1.Property<int>("SharedSlots")
+                                .HasColumnType("integer")
+                                .HasColumnName("TwoWheelerSharedSlots");
+
+                            b1.Property<int>("TotalSlots")
+                                .HasColumnType("integer")
+                                .HasColumnName("TwoWheelerTotalSlots");
+
+                            b1.HasKey("ParkingAllocationId");
+
+                            b1.ToTable("ParkingAllocations");
+
+                            b1.WithOwner()
+                                .HasForeignKey("ParkingAllocationId");
+                        });
+
+                    b.OwnsOne("ParkingApp.Domain.ValueObjects.Quota", "FourWheelerQuota", b1 =>
+                        {
+                            b1.Property<Guid>("ParkingAllocationId")
+                                .HasColumnType("uuid");
+
+                            b1.Property<int>("FixedSlots")
+                                .HasColumnType("integer")
+                                .HasColumnName("FourWheelerFixedSlots");
+
+                            b1.Property<int>("SharedSlots")
+                                .HasColumnType("integer")
+                                .HasColumnName("FourWheelerSharedSlots");
+
+                            b1.Property<int>("TotalSlots")
+                                .HasColumnType("integer")
+                                .HasColumnName("FourWheelerTotalSlots");
+
+                            b1.HasKey("ParkingAllocationId");
+
+                            b1.ToTable("ParkingAllocations");
+
+                            b1.WithOwner()
+                                .HasForeignKey("ParkingAllocationId");
+                        });
+
                     b.Navigation("BookingPolicy")
                         .IsRequired();
 
                     b.Navigation("Company");
 
+                    b.Navigation("FourWheelerQuota")
+                        .IsRequired();
+
                     b.Navigation("Quota")
+                        .IsRequired();
+
+                    b.Navigation("TwoWheelerQuota")
                         .IsRequired();
                 });
 

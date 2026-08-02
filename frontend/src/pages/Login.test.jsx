@@ -5,11 +5,17 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import Login from './Login';
 
 const mockLogin = vi.fn();
+const mockLoginCorporate = vi.fn();
 const mockNavigate = vi.fn();
 const mockToastError = vi.fn();
+const mockToastSuccess = vi.fn();
 
 vi.mock('../contexts/AuthContext', () => ({
-  useAuth: () => ({ login: mockLogin }),
+  useAuth: () => ({
+    login: mockLogin,
+    loginCorporate: mockLoginCorporate,
+    isAdmin: false,
+  }),
 }));
 
 vi.mock('react-router-dom', async () => {
@@ -23,7 +29,7 @@ vi.mock('react-router-dom', async () => {
 vi.mock('../utils/toast.jsx', () => ({
   default: {
     error: (...args) => mockToastError(...args),
-    success: vi.fn(),
+    success: (...args) => mockToastSuccess(...args),
   },
 }));
 
@@ -37,8 +43,8 @@ function renderLogin(initialEntry = '/login') {
   );
 }
 
-function emailInput() {
-  return screen.getByPlaceholderText(/enter your email/i);
+function emailInput(isCorporate = false) {
+  return screen.getByPlaceholderText(isCorporate ? /work email/i : /enter your email/i);
 }
 
 function passwordInput() {
@@ -59,7 +65,7 @@ describe('Login page', () => {
     expect(screen.getByRole('heading', { name: /welcome back/i })).toBeInTheDocument();
     expect(emailInput()).toBeInTheDocument();
     expect(passwordInput()).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /sign in/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^sign in$/i })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /sign up/i })).toHaveAttribute('href', '/register');
   });
 
@@ -74,14 +80,14 @@ describe('Login page', () => {
     );
   });
 
-  it('navigates to dashboard on successful login', async () => {
+  it('navigates to marketplace dashboard on successful marketplace login', async () => {
     const user = userEvent.setup();
     mockLogin.mockResolvedValue({ success: true });
 
     renderLogin();
     await user.type(emailInput(), 'user@test.com');
     await user.type(passwordInput(), 'secret');
-    await user.click(screen.getByRole('button', { name: /sign in/i }));
+    await user.click(screen.getByRole('button', { name: /^sign in$/i }));
 
     await waitFor(() => {
       expect(mockLogin).toHaveBeenCalledWith('user@test.com', 'secret');
@@ -89,17 +95,60 @@ describe('Login page', () => {
     });
   });
 
-  it('navigates to safe returnUrl after success', async () => {
+  it('navigates to corporate dashboard on successful corporate login', async () => {
+    const user = userEvent.setup();
+    mockLoginCorporate.mockResolvedValue({ success: true, isBootstrap: false });
+
+    renderLogin('/login?channel=corporate');
+    await user.type(emailInput(true), 'corp@test.com');
+    await user.type(passwordInput(), 'secret');
+    await user.click(screen.getByRole('button', { name: /sign in to corporate/i }));
+
+    await waitFor(() => {
+      expect(mockLoginCorporate).toHaveBeenCalledWith('corp@test.com', 'secret', null);
+      expect(mockNavigate).toHaveBeenCalledWith('/corporate/dashboard');
+    });
+  });
+
+  it('navigates to create-company when corporate bootstrap', async () => {
+    const user = userEvent.setup();
+    mockLoginCorporate.mockResolvedValue({ success: true, isBootstrap: true });
+
+    renderLogin('/login?channel=corporate');
+    await user.type(emailInput(true), 'new@test.com');
+    await user.type(passwordInput(), 'secret');
+    await user.click(screen.getByRole('button', { name: /sign in to corporate/i }));
+
+    await waitFor(() => {
+      expect(mockNavigate).toHaveBeenCalledWith('/corporate/create-company');
+    });
+  });
+
+  it('honors marketplace-compatible returnUrl after marketplace login', async () => {
+    const user = userEvent.setup();
+    mockLogin.mockResolvedValue({ success: true });
+
+    renderLogin('/login?returnUrl=%2Fbookings');
+    await user.type(emailInput(), 'user@test.com');
+    await user.type(passwordInput(), 'secret');
+    await user.click(screen.getByRole('button', { name: /^sign in$/i }));
+
+    await waitFor(() => {
+      expect(mockNavigate).toHaveBeenCalledWith('/bookings');
+    });
+  });
+
+  it('ignores corporate returnUrl after marketplace login and uses dashboard', async () => {
     const user = userEvent.setup();
     mockLogin.mockResolvedValue({ success: true });
 
     renderLogin('/login?returnUrl=%2Fcorporate%2Fdashboard');
     await user.type(emailInput(), 'user@test.com');
     await user.type(passwordInput(), 'secret');
-    await user.click(screen.getByRole('button', { name: /sign in/i }));
+    await user.click(screen.getByRole('button', { name: /^sign in$/i }));
 
     await waitFor(() => {
-      expect(mockNavigate).toHaveBeenCalledWith('/corporate/dashboard');
+      expect(mockNavigate).toHaveBeenCalledWith('/dashboard');
     });
   });
 
@@ -110,7 +159,7 @@ describe('Login page', () => {
     renderLogin('/login?returnUrl=https%3A%2F%2Fevil.com');
     await user.type(emailInput(), 'user@test.com');
     await user.type(passwordInput(), 'secret');
-    await user.click(screen.getByRole('button', { name: /sign in/i }));
+    await user.click(screen.getByRole('button', { name: /^sign in$/i }));
 
     await waitFor(() => {
       expect(mockNavigate).toHaveBeenCalledWith('/dashboard');
@@ -124,7 +173,7 @@ describe('Login page', () => {
     renderLogin();
     await user.type(emailInput(), 'user@test.com');
     await user.type(passwordInput(), 'wrong');
-    await user.click(screen.getByRole('button', { name: /sign in/i }));
+    await user.click(screen.getByRole('button', { name: /^sign in$/i }));
 
     await waitFor(() => {
       expect(mockToastError).toHaveBeenCalledWith('Bad password');

@@ -204,13 +204,19 @@ const CompanyAllocations = () => {
         }
     };
 
+    const vehicleClassLabel = (vc) => {
+        if (vc === 1 || vc === '1' || vc === 'TwoWheeler') return '2W';
+        return '4W';
+    };
+
     const handleAssignFixedSlot = async (e) => {
         e.preventDefault();
         setAssigningSlot(true);
         try {
             const payload = {
                 membershipId: fixedSlotModalObj.membershipId,
-                slotNumber: parseInt(fixedSlotModalObj.slotNumber)
+                slotNumber: parseInt(fixedSlotModalObj.slotNumber, 10),
+                vehicleClass: parseInt(fixedSlotModalObj.vehicleClass, 10) || 2
             };
             const response = await corporateService.assignFixedSlot(fixedSlotModalObj.allocationId, payload);
             
@@ -454,7 +460,7 @@ const CompanyAllocations = () => {
                                 </div>
                                 <div style={{ textAlign: 'right' }}>
                                     <div style={{ fontSize: '1.5rem', fontWeight: 'bold', color: 'var(--color-text-primary)' }}>{alloc.totalSlots} Slots</div>
-                                    <div style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)', marginBottom: '0.65rem' }}>
+                                    <div style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)', marginBottom: '0.35rem' }}>
                                         {alloc.sharedSlots} Shared • {alloc.fixedSlots} Fixed
                                     </div>
                                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.35rem' }}>
@@ -531,7 +537,7 @@ const CompanyAllocations = () => {
                                         <h3 style={{ fontSize: '1rem', color: 'var(--color-text-secondary)', margin: 0 }}>Fixed Assignments</h3>
                                         {alloc.status === 1 && (
                                             <button 
-                                                onClick={() => setFixedSlotModalObj({ allocationId: alloc.id, allocationTitle: alloc.parkingSpaceTitle, membershipId: '', slotNumber: '' })}
+                                                onClick={() => setFixedSlotModalObj({ allocationId: alloc.id, allocationTitle: alloc.parkingSpaceTitle, membershipId: '', slotNumber: '', vehicleClass: 2 })}
                                                 style={{ background: 'transparent', border: 'none', color: 'var(--color-accent-light)', cursor: 'pointer', fontSize: '0.85rem', fontWeight: '600' }}
                                             >
                                                 Assign Slot
@@ -542,7 +548,7 @@ const CompanyAllocations = () => {
                                         <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                                             {alloc.fixedAssignments.map((fa, idx) => (
                                                 <div key={idx} style={{ background: 'rgba(56, 189, 248, 0.1)', border: '1px solid rgba(56, 189, 248, 0.2)', padding: '6px 12px', borderRadius: '20px', fontSize: '0.8rem', color: 'var(--color-text-secondary)', display: 'inline-flex', gap: '8px', alignItems: 'center' }}>
-                                                    Slot <strong>{fa.slotNumber}</strong> · {fa.userName}
+                                                    {vehicleClassLabel(fa.vehicleClass)} Slot <strong>{fa.slotNumber}</strong> · {fa.userName}
                                                     {alloc.status === 1 && (
                                                         <button
                                                             type="button"
@@ -874,6 +880,18 @@ const CompanyAllocations = () => {
                                 </select>
                             </div>
                             
+                            <div className="form-group" style={{ marginBottom: '1.5rem' }}>
+                                <label style={{ display: 'block', marginBottom: '8px', color: 'var(--color-text-secondary)', fontSize: '0.9rem' }}>Vehicle class</label>
+                                <select
+                                    value={fixedSlotModalObj.vehicleClass ?? 2}
+                                    onChange={(e) => setFixedSlotModalObj({ ...fixedSlotModalObj, vehicleClass: e.target.value })}
+                                    style={{ width: '100%', padding: '10px', background: 'var(--color-bg-primary)', border: '1px solid var(--color-border)', borderRadius: '6px', color: 'var(--color-text-primary)' }}
+                                >
+                                    <option value={2}>4-Wheeler</option>
+                                    <option value={1}>2-Wheeler</option>
+                                </select>
+                            </div>
+
                             <div className="form-group" style={{ marginBottom: '2rem' }}>
                                 <label style={{ display: 'block', marginBottom: '8px', color: 'var(--color-text-secondary)', fontSize: '0.9rem' }}>Slot Number</label>
                                 <input 

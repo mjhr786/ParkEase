@@ -12,7 +12,9 @@ internal sealed class FixedSlotAssignmentConfiguration : IEntityTypeConfiguratio
     {
 entity.HasKey(e => e.Id);
 
-            entity.HasIndex(e => new { e.CompanyId, e.AllocationId, e.SlotNumber }).IsUnique();
+            entity.Property(e => e.VehicleClass).HasConversion<int>().IsRequired();
+
+            entity.HasIndex(e => new { e.CompanyId, e.AllocationId, e.VehicleClass, e.SlotNumber }).IsUnique();
             entity.HasIndex(e => new { e.CompanyId, e.MembershipId });
 
             entity.HasOne(e => e.Allocation)

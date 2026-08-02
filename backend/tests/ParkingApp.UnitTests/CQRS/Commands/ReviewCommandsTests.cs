@@ -98,8 +98,11 @@ public class ReviewCommandsTests
     {
         var handler = new UpdateReviewHandler(_mockUow.Object, _mockCache.Object);
         var userId = Guid.NewGuid();
-        var review = new Review { Id = Guid.NewGuid(), UserId = userId, Rating = 3, ParkingSpaceId = Guid.NewGuid() };
+        var parkingId = Guid.NewGuid();
+        var review = new Review { Id = Guid.NewGuid(), UserId = userId, Rating = 3, ParkingSpaceId = parkingId };
         _mockReviewRepo.Setup(r => r.GetByIdAsync(review.Id, It.IsAny<CancellationToken>())).ReturnsAsync(review);
+        _mockParkingRepo.Setup(r => r.GetByIdAsync(parkingId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ParkingSpace { Id = parkingId, IsCorporateOnly = false, TotalReviews = 1, AverageRating = 3 });
 
         var res = await handler.HandleAsync(new UpdateReviewCommand(review.Id, userId, new UpdateReviewDto(5, "New T", "New C")));
 

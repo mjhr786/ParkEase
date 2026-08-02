@@ -9,6 +9,7 @@ using ParkingApp.Corporate.Domain.Interfaces;
 using ParkingApp.Domain.Enums;
 using ParkingApp.Domain.ValueObjects;
 using ParkingApp.Marketplace.Contracts;
+using Xunit;
 
 namespace ParkingApp.Corporate.UnitTests;
 
@@ -86,6 +87,90 @@ public class AllocationHandlerTests
         result.Data.ParkingSpaceId.Should().Be(spaceId);
         result.Data.VendorId.Should().Be(_ownerId);
         _quota.Verify(x => x.InvalidateCompanyAsync(company.Id, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    [Trait("Feature", "VehicleClassPools")]
+    public async Task Allocate_WithDualSlotPools_CreatesPendingWithBothQuotas()
+    {
+        var company = Company.Create("Acme", "REG-AL-2W4W", "a@acme.com", "555", "Addr", BillingType.ReservedSlots, _adminId);
+        var spaceId = Guid.NewGuid();
+        _companies.Setup(x => x.GetWithAllocationsAsync(company.Id, It.IsAny<CancellationToken>())).ReturnsAsync(company);
+        _parking.Setup(x => x.GetByIdAsync(spaceId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Space(spaceId, _ownerId, spots: 30));
+
+        var handler = new AllocateParkingSlotsHandler(_uow.Object, _parking.Object, _quota.Object);
+        var result = await handler.HandleAsync(new AllocateParkingSlotsCommand(
+            company.Id, _adminId,
+            new AllocateParkingSlotsDto(
+                ParkingSpaceId: spaceId,
+                MonthlyRate: 2500m,
+                StartDate: DateTime.UtcNow.Date,
+                EndDate: DateTime.UtcNow.Date.AddMonths(6),
+                LeaseReference: "LEASE-DUAL",
+                TwoWheeler: new SlotPoolDto(20, 0, 20),
+                FourWheeler: new SlotPoolDto(10, 2, 8))));
+
+        result.Success.Should().BeTrue(result.Message);
+        result.Data!.TwoWheeler.Should().NotBeNull();
+        result.Data.TwoWheeler!.TotalSlots.Should().Be(20);
+        result.Data.FourWheeler.Should().NotBeNull();
+        result.Data.FourWheeler!.TotalSlots.Should().Be(10);
+        result.Data.FourWheeler.FixedSlots.Should().Be(2);
+        result.Data.TotalSlots.Should().Be(30);
+        result.Data.Status.Should().Be(AllocationStatus.PendingApproval);
+    }
+
+    [Fact]
+    [Trait("Feature", "VehicleClassPools")]
+    public async Task Allocate_LegacyFlatBody_MapsToFourWheelerOnly()
+    {
+        var company = Company.Create("Acme", "REG-AL-LEG", "a@acme.com", "555", "Addr", BillingType.ReservedSlots, _adminId);
+        var spaceId = Guid.NewGuid();
+        _companies.Setup(x => x.GetWithAllocationsAsync(company.Id, It.IsAny<CancellationToken>())).ReturnsAsync(company);
+        _parking.Setup(x => x.GetByIdAsync(spaceId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Space(spaceId, _ownerId, spots: 20));
+
+        var handler = new AllocateParkingSlotsHandler(_uow.Object, _parking.Object, _quota.Object);
+        var result = await handler.HandleAsync(new AllocateParkingSlotsCommand(
+            company.Id, _adminId,
+            new AllocateParkingSlotsDto(
+                spaceId, 5, 1, 4, 1000m,
+                DateTime.UtcNow.Date, DateTime.UtcNow.Date.AddMonths(3), "L-LEG", null)));
+
+        result.Success.Should().BeTrue(result.Message);
+        result.Data!.FourWheeler.Should().NotBeNull();
+        result.Data.FourWheeler!.TotalSlots.Should().Be(5);
+        result.Data.FourWheeler.FixedSlots.Should().Be(1);
+        result.Data.FourWheeler.SharedSlots.Should().Be(4);
+        result.Data.TwoWheeler.Should().NotBeNull();
+        result.Data.TwoWheeler!.TotalSlots.Should().Be(0);
+        result.Data.TotalSlots.Should().Be(5);
+    }
+
+    [Fact]
+    [Trait("Feature", "VehicleClassPools")]
+    public async Task Allocate_CombinedExceedsSpace_Fails()
+    {
+        var company = Company.Create("Acme", "REG-AL-CAP", "a@acme.com", "555", "Addr", BillingType.ReservedSlots, _adminId);
+        var spaceId = Guid.NewGuid();
+        _companies.Setup(x => x.GetWithAllocationsAsync(company.Id, It.IsAny<CancellationToken>())).ReturnsAsync(company);
+        _parking.Setup(x => x.GetByIdAsync(spaceId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Space(spaceId, _ownerId, spots: 30));
+
+        var handler = new AllocateParkingSlotsHandler(_uow.Object, _parking.Object, _quota.Object);
+        var result = await handler.HandleAsync(new AllocateParkingSlotsCommand(
+            company.Id, _adminId,
+            new AllocateParkingSlotsDto(
+                ParkingSpaceId: spaceId,
+                MonthlyRate: 1000m,
+                StartDate: DateTime.UtcNow.Date,
+                EndDate: DateTime.UtcNow.Date.AddMonths(1),
+                TwoWheeler: new SlotPoolDto(20, 0, 20),
+                FourWheeler: new SlotPoolDto(20, 0, 20))));
+
+        result.Success.Should().BeFalse();
+        result.Message.Should().Contain("30");
     }
 
     [Fact]

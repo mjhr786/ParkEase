@@ -23,7 +23,7 @@ public sealed record GetReviewsByParkingSpaceQuery(Guid ParkingSpaceId) : IQuery
 // ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 
 /// <summary>
-/// Single-record lookup ΓÇö EF Core is fine here (simple key lookup).
+/// Single-record lookup — EF Core is fine here (simple key lookup).
 /// </summary>
 internal sealed class GetReviewByIdHandler : IQueryHandler<GetReviewByIdQuery, ApiResponse<ReviewDto>>
 {
@@ -34,9 +34,15 @@ internal sealed class GetReviewByIdHandler : IQueryHandler<GetReviewByIdQuery, A
     public async Task<ApiResponse<ReviewDto>> HandleAsync(GetReviewByIdQuery query, CancellationToken cancellationToken = default)
     {
         var review = await _unitOfWork.Reviews.GetByIdAsync(query.ReviewId, cancellationToken);
-        return review == null
-            ? new ApiResponse<ReviewDto>(false, "Review not found", null)
-            : new ApiResponse<ReviewDto>(true, null, review.ToDto());
+        if (review == null)
+            return new ApiResponse<ReviewDto>(false, "Review not found", null);
+
+        // KD-9: do not expose reviews for corporate-only inventory on marketplace product APIs.
+        var parking = await _unitOfWork.ParkingSpaces.GetByIdAsync(review.ParkingSpaceId, cancellationToken);
+        if (parking == null || parking.IsCorporateOnly)
+            return new ApiResponse<ReviewDto>(false, "Review not found", null);
+
+        return new ApiResponse<ReviewDto>(true, null, review.ToDto());
     }
 }
 
@@ -45,17 +51,27 @@ internal sealed class GetReviewByIdHandler : IQueryHandler<GetReviewByIdQuery, A
 /// </summary>
 internal sealed class GetReviewsByParkingSpaceHandler : IQueryHandler<GetReviewsByParkingSpaceQuery, ApiResponse<List<ReviewDto>>>
 {
+    private readonly IMarketplaceUnitOfWork _unitOfWork;
     private readonly IReviewReadStore _readStore;
     private readonly ICacheService _cache;
 
-    public GetReviewsByParkingSpaceHandler(IReviewReadStore readStore, ICacheService cache)
+    public GetReviewsByParkingSpaceHandler(
+        IMarketplaceUnitOfWork unitOfWork,
+        IReviewReadStore readStore,
+        ICacheService cache)
     {
+        _unitOfWork = unitOfWork;
         _readStore = readStore;
         _cache = cache;
     }
 
     public async Task<ApiResponse<List<ReviewDto>>> HandleAsync(GetReviewsByParkingSpaceQuery query, CancellationToken cancellationToken = default)
     {
+        // KD-9: hide reviews for corporate-only inventory (404-equivalent empty product surface).
+        var parking = await _unitOfWork.ParkingSpaces.GetByIdAsync(query.ParkingSpaceId, cancellationToken);
+        if (parking == null || parking.IsCorporateOnly)
+            return new ApiResponse<List<ReviewDto>>(true, null, new List<ReviewDto>());
+
         var cacheKey = CacheKeys.Reviews(query.ParkingSpaceId);
         var cached = await _cache.GetAsync<List<ReviewDto>>(cacheKey, cancellationToken);
         if (cached != null)

@@ -27,5 +27,6 @@
     <InternalsVisibleTo Include="ParkingApp.Infrastructure" />
     <InternalsVisibleTo Include="ParkingApp.UnitTests" />
     <InternalsVisibleTo Include="ParkingApp.Corporate.UnitTests" />
+    <InternalsVisibleTo Include="ParkingApp.IntegrationTests" />
   </ItemGroup>
 </Project>

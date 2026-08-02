@@ -33,6 +33,8 @@ public class ModuleProjectReferenceRules
                 "ParkingApp.Marketplace.Contracts",
                 "ParkingApp.Messaging.Contracts",
                 "ParkingApp.Admin.Contracts",
+                // Corporate login / channel re-bind membership lookup (ICorporateMembershipLookup etc.)
+                "ParkingApp.Corporate.Contracts",
             },
             ["ParkingApp.Admin.Domain"] = new(StringComparer.Ordinal)
             {

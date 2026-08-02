@@ -43,13 +43,19 @@ internal sealed class CreateOwnedParkingAllocationHandler
 
         try
         {
-            var quota = Quota.Create(command.Dto.TotalSlots, command.Dto.FixedSlots, command.Dto.SharedSlots);
+            var (twoWheeler, fourWheeler) = CorporateCommandHelpers.ResolveClassQuotas(
+                command.Dto.TwoWheeler,
+                command.Dto.FourWheeler,
+                command.Dto.TotalSlots,
+                command.Dto.FixedSlots,
+                command.Dto.SharedSlots);
             var policy = CorporateCommandHelpers.CreateBookingPolicy(command.Dto.Policy);
 
             var allocation = company.CreateOwnedParkingAllocation(
                 command.AdminUserId,
                 command.Dto.ParkingSpaceId,
-                quota,
+                twoWheeler,
+                fourWheeler,
                 command.Dto.MonthlyRate,
                 command.Dto.StartDate,
                 command.Dto.EndDate,

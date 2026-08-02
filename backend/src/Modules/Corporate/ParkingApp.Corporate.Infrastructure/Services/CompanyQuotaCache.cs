@@ -45,6 +45,12 @@ internal sealed class CompanyQuotaCache : ICompanyQuotaCache
                         pa."TotalSlots" AS TotalSlots,
                         pa."FixedSlots" AS FixedSlots,
                         pa."SharedSlots" AS SharedSlots,
+                        pa."TwoWheelerTotalSlots" AS TwoWheelerTotalSlots,
+                        pa."TwoWheelerFixedSlots" AS TwoWheelerFixedSlots,
+                        pa."TwoWheelerSharedSlots" AS TwoWheelerSharedSlots,
+                        pa."FourWheelerTotalSlots" AS FourWheelerTotalSlots,
+                        pa."FourWheelerFixedSlots" AS FourWheelerFixedSlots,
+                        pa."FourWheelerSharedSlots" AS FourWheelerSharedSlots,
                         pa."MonthlyRate" AS MonthlyRate,
                         pa."StartDate" AS StartDate,
                         pa."EndDate" AS EndDate,
@@ -111,6 +117,12 @@ internal sealed class CompanyQuotaCache : ICompanyQuotaCache
         public int TotalSlots { get; set; }
         public int FixedSlots { get; set; }
         public int SharedSlots { get; set; }
+        public int TwoWheelerTotalSlots { get; set; }
+        public int TwoWheelerFixedSlots { get; set; }
+        public int TwoWheelerSharedSlots { get; set; }
+        public int FourWheelerTotalSlots { get; set; }
+        public int FourWheelerFixedSlots { get; set; }
+        public int FourWheelerSharedSlots { get; set; }
         public decimal MonthlyRate { get; set; }
         public DateTime StartDate { get; set; }
         public DateTime EndDate { get; set; }
@@ -150,7 +162,9 @@ internal sealed class CompanyQuotaCache : ICompanyQuotaCache
             AllowedStartTime,
             AllowedEndTime,
             AllowWeekends,
-            string.IsNullOrWhiteSpace(VendorName) ? null : VendorName.Trim());
+            string.IsNullOrWhiteSpace(VendorName) ? null : VendorName.Trim(),
+            new ClassPoolSnapshot(TwoWheelerTotalSlots, TwoWheelerFixedSlots, TwoWheelerSharedSlots),
+            new ClassPoolSnapshot(FourWheelerTotalSlots, FourWheelerFixedSlots, FourWheelerSharedSlots));
     }
 }
 

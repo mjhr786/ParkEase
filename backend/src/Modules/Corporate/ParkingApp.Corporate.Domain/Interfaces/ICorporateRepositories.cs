@@ -1,3 +1,4 @@
+using ParkingApp.BuildingBlocks.Enums;
 using ParkingApp.BuildingBlocks.Persistence;
 using ParkingApp.Corporate.Domain;
 
@@ -52,6 +53,7 @@ public interface ICorporateBookingRepository : IRepository<CorporateBooking>
         DateTime recentCreatesSinceUtc,
         DateTime sharedUsageSinceUtc,
         string? vehicleNumber,
+        VehicleClass vehicleClass,
         CancellationToken cancellationToken = default);
     Task<IReadOnlyList<CorporateBooking>> GetBillableBookingsForPeriodAsync(
         Guid companyId,

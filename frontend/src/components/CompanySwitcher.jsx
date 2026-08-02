@@ -157,7 +157,8 @@ const CompanySwitcher = () => {
         }
     };
 
-    if (!isAuthenticated) return null;
+    // Only show on Corporate product sessions — marketplace has no corporate entry point
+    if (!isAuthenticated || channel !== 'Corporate') return null;
 
     // Marketplace (or non-Corporate) shell: CTA into corporate product
     if (channel !== 'Corporate') {

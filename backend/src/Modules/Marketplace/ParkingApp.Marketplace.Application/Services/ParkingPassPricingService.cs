@@ -270,6 +270,38 @@ internal sealed class ParkingPassPricingService : IParkingPassPricingService
         return days < 1 ? 1 : days;
     }
 
+    /// <summary>
+    /// Whether the pricing unit bills whole calendar days (clock times ignored).
+    /// </summary>
+    internal static bool IsDayBasedPricing(PricingType pricingType) =>
+        pricingType is PricingType.Daily or PricingType.Weekly or PricingType.Monthly;
+
+    /// <summary>
+    /// Start of the billable extension window.
+    /// <list type="bullet">
+    /// <item>Hourly: continuous from the booking end instant.</item>
+    /// <item>Daily/Weekly/Monthly: midnight of the next local calendar day after the day
+    /// already covered by <paramref name="bookingEndUtc"/>. Inclusive day billing would
+    /// otherwise double-count the current end day (e.g. end 4 Aug → extend to 5 Aug must be 1 day, not 2).</item>
+    /// </list>
+    /// </summary>
+    internal static DateTime GetExtensionPricingStartUtc(
+        DateTime bookingEndUtc,
+        PricingType pricingType,
+        string? timeZoneId)
+    {
+        if (!IsDayBasedPricing(pricingType))
+        {
+            return bookingEndUtc.Kind == DateTimeKind.Utc
+                ? bookingEndUtc
+                : DateTime.SpecifyKind(bookingEndUtc, DateTimeKind.Utc);
+        }
+
+        var endLocal = DynamicPricingCalculator.ToLocalClock(bookingEndUtc, timeZoneId);
+        var nextDayLocalMidnight = endLocal.Date.AddDays(1);
+        return DynamicPricingCalculator.FromLocalClock(nextDayLocalMidnight, timeZoneId);
+    }
+
     private static string BuildPricingDescription(
         PricingType pricingType,
         string? discountCode,

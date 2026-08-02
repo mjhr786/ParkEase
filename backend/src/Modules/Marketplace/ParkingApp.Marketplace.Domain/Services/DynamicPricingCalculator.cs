@@ -98,6 +98,31 @@ public static class DynamicPricingCalculator
         return TimeZoneInfo.ConvertTimeFromUtc(utc, tz);
     }
 
+    /// <summary>
+    /// Convert a facility local wall-clock instant (Unspecified/Local) to UTC.
+    /// Ambiguous times use the standard (non-DST) offset; invalid times are advanced past the gap.
+    /// </summary>
+    public static DateTime FromLocalClock(DateTime localClock, string? timeZoneId)
+    {
+        var tz = ResolveTimeZone(timeZoneId);
+        var unspecified = localClock.Kind switch
+        {
+            DateTimeKind.Utc => TimeZoneInfo.ConvertTimeFromUtc(localClock, tz),
+            DateTimeKind.Local => DateTime.SpecifyKind(localClock.ToLocalTime(), DateTimeKind.Unspecified),
+            _ => DateTime.SpecifyKind(localClock, DateTimeKind.Unspecified)
+        };
+
+        if (tz.IsInvalidTime(unspecified))
+        {
+            // Skip forward through the DST spring-forward gap (max 2h).
+            unspecified = unspecified.AddHours(1);
+            if (tz.IsInvalidTime(unspecified))
+                unspecified = unspecified.AddHours(1);
+        }
+
+        return TimeZoneInfo.ConvertTimeToUtc(unspecified, tz);
+    }
+
     public static TimeZoneInfo ResolveTimeZone(string? timeZoneId)
     {
         if (string.IsNullOrWhiteSpace(timeZoneId)

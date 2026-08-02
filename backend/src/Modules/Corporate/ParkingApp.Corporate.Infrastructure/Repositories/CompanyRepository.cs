@@ -270,6 +270,7 @@ internal sealed class CorporateBookingRepository : Repository<CorporateBooking>,
         DateTime recentCreatesSinceUtc,
         DateTime sharedUsageSinceUtc,
         string? vehicleNumber,
+        ParkingApp.BuildingBlocks.Enums.VehicleClass vehicleClass,
         CancellationToken cancellationToken = default)
     {
         var dayStart = usageDate.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
@@ -279,8 +280,11 @@ internal sealed class CorporateBookingRepository : Repository<CorporateBooking>,
         var normalizedVehicle = string.IsNullOrWhiteSpace(vehicleNumber)
             ? null
             : vehicleNumber.Trim().ToUpperInvariant();
+        // TwoWheeler = Motorcycle (VehicleType = 1); FourWheeler = all other / null
+        var isTwoWheeler = vehicleClass == ParkingApp.BuildingBlocks.Enums.VehicleClass.TwoWheeler;
 
         // Terminal marketplace statuses excluded from capacity / overlap (Cancelled=4, Expired=5, Rejected=7)
+        // Shared occupancy is scoped to the requested vehicle class pool.
         const string sql = """
             SELECT
                 CAST((
@@ -319,6 +323,10 @@ internal sealed class CorporateBookingRepository : Repository<CorporateBooking>,
                       AND b."StartDateTime" < @WindowEnd
                       AND b."EndDateTime" > @WindowStart
                       AND b."Status" NOT IN (4, 5, 7)
+                      AND (
+                            (@IsTwoWheeler = TRUE AND b."VehicleType" = 1)
+                            OR (@IsTwoWheeler = FALSE AND (b."VehicleType" IS NULL OR b."VehicleType" <> 1))
+                      )
                 ) AS INTEGER) AS ActiveSharedBookingCount,
                 CAST((
                     SELECT CASE WHEN EXISTS (
@@ -372,7 +380,11 @@ internal sealed class CorporateBookingRepository : Repository<CorporateBooking>,
               AND b."SlotNumber" IS NOT NULL
               AND b."StartDateTime" < @WindowEnd
               AND b."EndDateTime" > @WindowStart
-              AND b."Status" NOT IN (4, 5, 7);
+              AND b."Status" NOT IN (4, 5, 7)
+              AND (
+                    (@IsTwoWheeler = TRUE AND b."VehicleType" = 1)
+                    OR (@IsTwoWheeler = FALSE AND (b."VehicleType" IS NULL OR b."VehicleType" <> 1))
+              );
 
             SELECT b."SlotNumber" AS SlotNumber, CAST(COUNT(*) AS INTEGER) AS UsageCount
             FROM "CorporateBookings" cb
@@ -385,6 +397,10 @@ internal sealed class CorporateBookingRepository : Repository<CorporateBooking>,
               AND b."SlotNumber" IS NOT NULL
               AND b."StartDateTime" >= @SharedUsageSince
               AND b."Status" NOT IN (4, 7)
+              AND (
+                    (@IsTwoWheeler = TRUE AND b."VehicleType" = 1)
+                    OR (@IsTwoWheeler = FALSE AND (b."VehicleType" IS NULL OR b."VehicleType" <> 1))
+              )
             GROUP BY b."SlotNumber";
             """;
 
@@ -409,7 +425,8 @@ internal sealed class CorporateBookingRepository : Repository<CorporateBooking>,
                 WeekEnd = weekEnd,
                 RecentCreatesSince = recentCreatesSinceUtc,
                 SharedUsageSince = sharedUsageSinceUtc,
-                VehicleNumber = normalizedVehicle
+                VehicleNumber = normalizedVehicle,
+                IsTwoWheeler = isTwoWheeler
             },
             cancellationToken: cancellationToken));
 

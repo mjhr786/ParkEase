@@ -81,6 +81,7 @@ internal sealed class BookVisitorParkingHandler
         {
             var usageDate = DateOnly.FromDateTime(command.Dto.StartDateTime);
             var weekStart = CorporateCommandHelpers.GetWeekStart(usageDate);
+            var vehicleClass = VehicleClassMapper.ToVehicleClass(command.Dto.VehicleType);
             var preCheck = await _corporate.CorporateBookings.GetReservationPreCheckAsync(
                 command.CompanyId,
                 membership.Id,
@@ -92,6 +93,7 @@ internal sealed class BookVisitorParkingHandler
                 DateTime.UtcNow.AddHours(-24),
                 DateTime.UtcNow.AddDays(-30),
                 command.Dto.VisitorLicensePlate,
+                vehicleClass,
                 ct);
 
             var duration = command.Dto.EndDateTime - command.Dto.StartDateTime;
@@ -105,7 +107,8 @@ internal sealed class BookVisitorParkingHandler
                     command.Dto.EndDateTime,
                     amount,
                     command.Dto.VisitorLicensePlate,
-                    IsVisitor: true),
+                    IsVisitor: true,
+                    VehicleType: command.Dto.VehicleType),
                 ct);
 
             draft = new CorporateBookingDraft(
@@ -114,7 +117,7 @@ internal sealed class BookVisitorParkingHandler
                 command.Dto.StartDateTime,
                 command.Dto.EndDateTime,
                 BookingStatus.Confirmed,
-                VehicleType.Car,
+                command.Dto.VehicleType,
                 command.Dto.VisitorLicensePlate);
 
             var fraudAssessment = company.AssessFraudRisk(

@@ -611,6 +611,40 @@ a:hover {
   margin-bottom: 2rem;
 }
 
+.auth-channel-selector {
+  display: flex;
+  gap: 0.25rem;
+  padding: 0.25rem;
+  margin-bottom: 1.5rem;
+  background: var(--color-surface-elevated, #f1f5f9);
+  border-radius: 0.75rem;
+  border: 1px solid var(--color-border, #e2e8f0);
+}
+
+.auth-channel-option {
+  flex: 1;
+  border: none;
+  background: transparent;
+  color: var(--color-text-secondary, #64748b);
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 600;
+  padding: 0.65rem 0.75rem;
+  border-radius: 0.55rem;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.auth-channel-option:hover {
+  color: var(--color-text, #0f172a);
+}
+
+.auth-channel-option.active {
+  background: var(--color-surface, #fff);
+  color: var(--color-text, #0f172a);
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.12);
+}
+
 .auth-footer {
   text-align: center;
   margin-top: 1.5rem;

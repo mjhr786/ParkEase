@@ -168,13 +168,14 @@ internal sealed class CompanyReadStore : ICompanyReadStore
                 f."MembershipId" AS MembershipId,
                 TRIM(COALESCE(u."FirstName", '') || ' ' || COALESCE(u."LastName", '')) AS UserName,
                 f."SlotNumber" AS SlotNumber,
-                f."AssignedAt" AS AssignedAt
+                f."AssignedAt" AS AssignedAt,
+                f."VehicleClass" AS VehicleClass
             FROM "FixedSlotAssignments" f
             LEFT JOIN "UserCompanyMemberships" m ON m."Id" = f."MembershipId" AND m."IsDeleted" = FALSE
             LEFT JOIN "Users" u ON u."Id" = m."UserId" AND u."IsDeleted" = FALSE
             WHERE f."CompanyId" = @CompanyId
                 AND f."IsDeleted" = FALSE
-            ORDER BY f."AllocationId", f."SlotNumber";
+            ORDER BY f."AllocationId", f."VehicleClass", f."SlotNumber";
             """;
 
         using var connection = _sql.CreateConnection();
@@ -185,7 +186,12 @@ internal sealed class CompanyReadStore : ICompanyReadStore
             .GroupBy(r => r.AllocationId)
             .ToDictionary(
                 g => g.Key,
-                g => g.Select(r => new FixedSlotAssignmentDto(r.MembershipId, r.UserName, r.SlotNumber, r.AssignedAt)).ToList());
+                g => g.Select(r => new FixedSlotAssignmentDto(
+                    r.MembershipId,
+                    r.UserName,
+                    r.SlotNumber,
+                    r.AssignedAt,
+                    (ParkingApp.BuildingBlocks.Enums.VehicleClass)r.VehicleClass)).ToList());
     }
 
     public async Task<IReadOnlyList<CorporateParkingSpaceDto>> GetCompanyOwnedParkingSpacesAsync(
@@ -393,6 +399,12 @@ internal sealed class CompanyReadStore : ICompanyReadStore
                 pa."TotalSlots" AS TotalSlots,
                 pa."FixedSlots" AS FixedSlots,
                 pa."SharedSlots" AS SharedSlots,
+                pa."TwoWheelerTotalSlots" AS TwoWheelerTotalSlots,
+                pa."TwoWheelerFixedSlots" AS TwoWheelerFixedSlots,
+                pa."TwoWheelerSharedSlots" AS TwoWheelerSharedSlots,
+                pa."FourWheelerTotalSlots" AS FourWheelerTotalSlots,
+                pa."FourWheelerFixedSlots" AS FourWheelerFixedSlots,
+                pa."FourWheelerSharedSlots" AS FourWheelerSharedSlots,
                 pa."MonthlyRate" AS MonthlyRate,
                 pa."StartDate" AS StartDate,
                 pa."EndDate" AS EndDate,
@@ -453,7 +465,9 @@ internal sealed class CompanyReadStore : ICompanyReadStore
                 r.AllowedStartTime,
                 r.AllowedEndTime,
                 r.AllowWeekends),
-            r.CreatedAt)).ToList();
+            r.CreatedAt,
+            new SlotPoolDto(r.TwoWheelerTotalSlots, r.TwoWheelerFixedSlots, r.TwoWheelerSharedSlots),
+            new SlotPoolDto(r.FourWheelerTotalSlots, r.FourWheelerFixedSlots, r.FourWheelerSharedSlots))).ToList();
     }
 
     public async Task<IReadOnlyList<CorporateWaitlistDto>> GetCompanyWaitlistAsync(
@@ -1079,7 +1093,7 @@ internal sealed class CompanyReadStore : ICompanyReadStore
             .ToList();
     }
 
-    // GöÇGöÇ Dapper row types GöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇ
+    // Gï¿½ï¿½Gï¿½ï¿½ Dapper row types Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½Gï¿½ï¿½
 
     private sealed class InvoiceSummaryRow
     {
@@ -1172,6 +1186,7 @@ internal sealed class CompanyReadStore : ICompanyReadStore
         public string UserName { get; set; } = string.Empty;
         public int SlotNumber { get; set; }
         public DateTime AssignedAt { get; set; }
+        public int VehicleClass { get; set; } = 2;
     }
 
     private sealed class MemberBookingRow
@@ -1241,6 +1256,12 @@ internal sealed class CompanyReadStore : ICompanyReadStore
         public int TotalSlots { get; set; }
         public int FixedSlots { get; set; }
         public int SharedSlots { get; set; }
+        public int TwoWheelerTotalSlots { get; set; }
+        public int TwoWheelerFixedSlots { get; set; }
+        public int TwoWheelerSharedSlots { get; set; }
+        public int FourWheelerTotalSlots { get; set; }
+        public int FourWheelerFixedSlots { get; set; }
+        public int FourWheelerSharedSlots { get; set; }
         public decimal MonthlyRate { get; set; }
         public DateTime StartDate { get; set; }
         public DateTime EndDate { get; set; }

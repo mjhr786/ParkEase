@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>ParkingApp.IntegrationTests</RootNamespace>
+    <AssemblyName>ParkingApp.IntegrationTests</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Modules\Marketplace\ParkingApp.Marketplace.Application\ParkingApp.Marketplace.Application.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Marketplace\ParkingApp.Marketplace.Domain\ParkingApp.Marketplace.Domain.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Marketplace\ParkingApp.Marketplace.Contracts\ParkingApp.Marketplace.Contracts.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Corporate\ParkingApp.Corporate.Application\ParkingApp.Corporate.Application.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Corporate\ParkingApp.Corporate.Domain\ParkingApp.Corporate.Domain.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Corporate\ParkingApp.Corporate.Contracts\ParkingApp.Corporate.Contracts.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Corporate\ParkingApp.Corporate.Infrastructure\ParkingApp.Corporate.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Identity\ParkingApp.Identity.Contracts\ParkingApp.Identity.Contracts.csproj" />
+    <ProjectReference Include="..\..\src\ParkingApp.BuildingBlocks\ParkingApp.BuildingBlocks.csproj" />
+    <ProjectReference Include="..\..\src\ParkingApp.Infrastructure\ParkingApp.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\src\ParkingApp.API\ParkingApp.API.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Dapper" Version="2.1.66" />
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" Version="9.0.0" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="9.0.1" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.3" />
+    <PackageReference Include="Npgsql" Version="9.0.3" />
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="9.0.4" />
+    <PackageReference Include="Testcontainers" Version="4.3.0" />
+    <PackageReference Include="Testcontainers.PostgreSql" Version="4.3.0" />
+  </ItemGroup>
+</Project>

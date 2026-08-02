@@ -7,6 +7,16 @@ import { handleApiError } from '../utils/errorHandler';
 import showToast from '../utils/toast.jsx';
 import StripeCheckout from '../components/StripeCheckout';
 import BookedSlots from '../components/BookedSlots';
+import {
+    isDayBasedPricing,
+    toDateOnly,
+    firstExtensionEndDateOnly,
+    extensionPricingStartIso,
+    extensionPricingEndIso,
+    defaultExtensionEnd,
+    resolveExtensionEndIso,
+    isValidExtensionDate as isValidExtensionDateValue,
+} from '../utils/extensionPricing';
 
 const formatDateTimeLocalInput = (date) => {
     const d = new Date(date);
@@ -19,64 +29,12 @@ const formatDateTimeLocalInput = (date) => {
     return `${yyyy}-${mm}-${dd}T${hh}:${min}`;
 };
 
-/** PricingType: 0=Hourly, 1=Daily, 2=Weekly, 3=Monthly — day-based ignore clock times in display. */
-const isDayBasedPricing = (pricingType) => Number(pricingType) > 0;
-
 const PRICING_TYPES = [
     { value: 0, label: 'Hourly' },
     { value: 1, label: 'Daily' },
     { value: 2, label: 'Weekly' },
     { value: 3, label: 'Monthly' },
 ];
-
-const toDateOnly = (value) => {
-    if (!value) return '';
-    if (value instanceof Date) {
-        const pad = (n) => String(n).padStart(2, '0');
-        return `${value.getFullYear()}-${pad(value.getMonth() + 1)}-${pad(value.getDate())}`;
-    }
-    return String(value).slice(0, 10);
-};
-
-/** Default new end based on pricing unit after the current booking end. */
-const defaultExtensionEnd = (currentEnd, pricingType) => {
-    const end = new Date(currentEnd);
-    const type = Number(pricingType);
-    if (type === 1) {
-        // Daily: end of next calendar day
-        const d = new Date(end);
-        d.setDate(d.getDate() + 1);
-        d.setHours(23, 59, 0, 0);
-        return d;
-    }
-    if (type === 2) {
-        const d = new Date(end);
-        d.setDate(d.getDate() + 7);
-        d.setHours(23, 59, 0, 0);
-        return d;
-    }
-    if (type === 3) {
-        const d = new Date(end);
-        d.setDate(d.getDate() + 30);
-        d.setHours(23, 59, 0, 0);
-        return d;
-    }
-    // Hourly: +1 hour
-    return new Date(end.getTime() + 60 * 60 * 1000);
-};
-
-/**
- * Resolve extension end ISO for quote/API.
- * Day-based: end of selected calendar day; hourly: exact datetime-local.
- */
-const resolveExtensionEndIso = (newEndValue, pricingType) => {
-    if (!newEndValue) return null;
-    if (isDayBasedPricing(pricingType)) {
-        const dateOnly = toDateOnly(newEndValue);
-        return new Date(`${dateOnly}T23:59:59`).toISOString();
-    }
-    return new Date(newEndValue).toISOString();
-};
 
 const formatBookingRangeValue = (dateTime, pricingType) => {
     const d = new Date(dateTime);
@@ -534,13 +492,8 @@ export default function MyBookings() {
     }, [bookings, loading, searchParams]);
 
     const isValidExtensionDate = (booking, newEnd, pricingType = 0) => {
-        if (!booking || !newEnd) return false;
-        const currentEnd = new Date(booking.endDateTime);
-        const proposedIso = resolveExtensionEndIso(newEnd, pricingType);
-        if (!proposedIso) return false;
-        const proposedEnd = new Date(proposedIso);
-        if (Number.isNaN(currentEnd.getTime()) || Number.isNaN(proposedEnd.getTime())) return false;
-        return proposedEnd > currentEnd;
+        if (!booking) return false;
+        return isValidExtensionDateValue(booking.endDateTime, newEnd, pricingType);
     };
 
     const calculateExtensionPrice = async (booking, newEnd, pricingType) => {
@@ -550,13 +503,17 @@ export default function MyBookings() {
             setExtensionPrice(null);
             return;
         }
-        const newEndUtc = resolveExtensionEndIso(newEnd, type);
+        // Day-based quotes use noon-UTC anchors on unpaid local calendar days so
+        // backend inclusive-day math does not double-count when facility TZ is UTC.
+        const pricingStartUtc = extensionPricingStartIso(booking.endDateTime, type);
+        const pricingEndUtc = extensionPricingEndIso(newEnd, type);
+        if (!pricingStartUtc || !pricingEndUtc) return;
         setCalculatingPrice(true);
         try {
             const res = await api.calculatePrice({
                 parkingSpaceId: booking.parkingSpaceId,
-                startDateTime: booking.endDateTime, // Calculate for the extra period
-                endDateTime: newEndUtc,
+                startDateTime: pricingStartUtc,
+                endDateTime: pricingEndUtc,
                 pricingType: type,
             });
             if (res.success) {
@@ -587,7 +544,7 @@ export default function MyBookings() {
         if (!extendingBooking) return;
         if (!isValidExtensionDate(extendingBooking, newEndDateTime, extensionPricingType)) {
             const msg = isDayBasedPricing(extensionPricingType)
-                ? 'New end date must be after the current booking end.'
+                ? 'New end date must be after the current booking end date.'
                 : 'New end time must be greater than current booking end time.';
             setExtensionValidationError(msg);
             showToast.error(msg);
@@ -1222,7 +1179,7 @@ export default function MyBookings() {
                                     }
                                     min={
                                         isDayBasedPricing(extensionPricingType)
-                                            ? toDateOnly(new Date(extendingBooking.endDateTime))
+                                            ? firstExtensionEndDateOnly(extendingBooking.endDateTime)
                                             : formatDateTimeLocalInput(new Date(new Date(extendingBooking.endDateTime).getTime() + 60 * 1000))
                                     }
                                     onChange={(e) => {
@@ -1231,7 +1188,7 @@ export default function MyBookings() {
                                         if (!isValidExtensionDate(extendingBooking, value, extensionPricingType)) {
                                             setExtensionValidationError(
                                                 isDayBasedPricing(extensionPricingType)
-                                                    ? 'New end date must be after the current booking end.'
+                                                    ? 'New end date must be after the current booking end date.'
                                                     : 'New end time must be greater than current booking end time.'
                                             );
                                             setExtensionPrice(null);

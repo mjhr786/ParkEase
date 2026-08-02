@@ -31,6 +31,7 @@ public class ReviewQueryHandlerTests
 {
     private readonly Mock<IUnitOfWork> _mockUow;
     private readonly Mock<IReviewRepository> _mockReviewRepo;
+    private readonly Mock<IParkingSpaceRepository> _mockParkingRepo;
     private readonly Mock<IReviewReadStore> _mockReadStore;
     private readonly Mock<ICacheService> _mockCache;
 
@@ -38,7 +39,9 @@ public class ReviewQueryHandlerTests
     {
         _mockUow = new Mock<IUnitOfWork>();
         _mockReviewRepo = new Mock<IReviewRepository>();
+        _mockParkingRepo = new Mock<IParkingSpaceRepository>();
         _mockUow.Setup(u => u.Reviews).Returns(_mockReviewRepo.Object);
+        _mockUow.Setup(u => u.ParkingSpaces).Returns(_mockParkingRepo.Object);
 
         _mockReadStore = new Mock<IReviewReadStore>();
         _mockCache = new Mock<ICacheService>();
@@ -61,8 +64,11 @@ public class ReviewQueryHandlerTests
     public async Task GetReviewByIdHandler_ShouldSucceed()
     {
         var handler = new GetReviewByIdHandler(_mockUow.Object);
-        var review = new Review { Id = Guid.NewGuid(), Title = "Good" };
+        var parkingId = Guid.NewGuid();
+        var review = new Review { Id = Guid.NewGuid(), Title = "Good", ParkingSpaceId = parkingId };
         _mockReviewRepo.Setup(r => r.GetByIdAsync(review.Id, It.IsAny<CancellationToken>())).ReturnsAsync(review);
+        _mockParkingRepo.Setup(r => r.GetByIdAsync(parkingId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ParkingSpace { Id = parkingId, IsCorporateOnly = false });
 
         var res = await handler.HandleAsync(new GetReviewByIdQuery(review.Id));
 
@@ -74,11 +80,13 @@ public class ReviewQueryHandlerTests
     [Fact]
     public async Task GetReviewsByParkingSpaceHandler_ShouldReturnFromCache()
     {
-        var handler = new GetReviewsByParkingSpaceHandler(_mockReadStore.Object, _mockCache.Object);
+        var handler = new GetReviewsByParkingSpaceHandler(_mockUow.Object, _mockReadStore.Object, _mockCache.Object);
         var spaceId = Guid.NewGuid();
         var cacheKey = $"reviews:parking:{spaceId}";
         var cachedList = new List<ReviewDto> { new ReviewDto(Guid.NewGuid(), Guid.NewGuid(), "T", Guid.NewGuid(), null, 5, "C", "C", 0, "N", DateTime.UtcNow, DateTime.UtcNow) };
-        
+
+        _mockParkingRepo.Setup(r => r.GetByIdAsync(spaceId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ParkingSpace { Id = spaceId, IsCorporateOnly = false });
         _mockCache.Setup(c => c.GetAsync<List<ReviewDto>>(cacheKey, It.IsAny<CancellationToken>())).ReturnsAsync(cachedList);
 
         var res = await handler.HandleAsync(new GetReviewsByParkingSpaceQuery(spaceId));
@@ -92,12 +100,14 @@ public class ReviewQueryHandlerTests
     [Fact]
     public async Task GetReviewsByParkingSpaceHandler_ShouldLoadFromReadStore_WhenNotCached()
     {
-        var handler = new GetReviewsByParkingSpaceHandler(_mockReadStore.Object, _mockCache.Object);
+        var handler = new GetReviewsByParkingSpaceHandler(_mockUow.Object, _mockReadStore.Object, _mockCache.Object);
         var spaceId = Guid.NewGuid();
         var list = new List<ReviewDto>
         {
             new(Guid.NewGuid(), Guid.NewGuid(), "User", spaceId, null, 4, "Nice", "Comment", 1, null, null, DateTime.UtcNow)
         };
+        _mockParkingRepo.Setup(r => r.GetByIdAsync(spaceId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ParkingSpace { Id = spaceId, IsCorporateOnly = false });
         _mockReadStore.Setup(r => r.GetByParkingSpaceAsync(spaceId, It.IsAny<CancellationToken>())).ReturnsAsync(list);
 
         var res = await handler.HandleAsync(new GetReviewsByParkingSpaceQuery(spaceId));

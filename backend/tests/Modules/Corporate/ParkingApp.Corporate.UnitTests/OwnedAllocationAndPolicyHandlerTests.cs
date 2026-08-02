@@ -3,6 +3,7 @@ using Moq;
 using ParkingApp.Application.CQRS.Commands.Corporate;
 using ParkingApp.Application.CQRS.Commands.Corporate.Allocations;
 using ParkingApp.Application.Interfaces;
+using ParkingApp.BuildingBlocks.Enums;
 using ParkingApp.Corporate.Application.DTOs;
 using ParkingApp.Corporate.Application.Interfaces;
 using ParkingApp.Corporate.Domain;
@@ -11,6 +12,7 @@ using ParkingApp.Domain.Enums;
 using ParkingApp.Domain.ValueObjects;
 using ParkingApp.Identity.Contracts;
 using ParkingApp.Marketplace.Contracts;
+using Xunit;
 
 namespace ParkingApp.Corporate.UnitTests;
 
@@ -155,6 +157,95 @@ public class OwnedAllocationAndPolicyHandlerTests
 
         result.Success.Should().BeTrue();
         result.Data!.FixedAssignments.Should().Contain(f => f.MembershipId == membership.Id && f.SlotNumber == 1);
+    }
+
+    [Fact]
+    [Trait("Feature", "VehicleClassPools")]
+    public async Task CreateOwned_DualPools_ActivatesWithBothQuotas()
+    {
+        var company = Company.Create("Acme", "REG-OA-DUAL", "a@acme.com", "555", "Addr", BillingType.UsageBased, _adminId);
+        var spaceId = Guid.NewGuid();
+        _companies.Setup(x => x.GetWithAllocationsAsync(company.Id, It.IsAny<CancellationToken>())).ReturnsAsync(company);
+        _parking.Setup(x => x.GetByIdAsync(spaceId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(OwnedSpace(spaceId, company.Id, spots: 30));
+
+        var handler = new CreateOwnedParkingAllocationHandler(_uow.Object, _parking.Object, _quota.Object);
+        var result = await handler.HandleAsync(new CreateOwnedParkingAllocationCommand(
+            company.Id, _adminId,
+            new CreateOwnedParkingAllocationDto(
+                ParkingSpaceId: spaceId,
+                MonthlyRate: 0m,
+                StartDate: DateTime.UtcNow.Date,
+                EndDate: DateTime.UtcNow.Date.AddMonths(6),
+                TwoWheeler: new SlotPoolDto(10, 1, 9),
+                FourWheeler: new SlotPoolDto(15, 2, 13))));
+
+        result.Success.Should().BeTrue(result.Message);
+        result.Data!.Status.Should().Be(AllocationStatus.Active);
+        result.Data.TwoWheeler!.TotalSlots.Should().Be(10);
+        result.Data.FourWheeler!.TotalSlots.Should().Be(15);
+        result.Data.TotalSlots.Should().Be(25);
+    }
+
+    [Fact]
+    [Trait("Feature", "VehicleClassPools")]
+    public async Task AssignFixed_TwoWheelerAndFourWheelerSlotOne_Ok()
+    {
+        var company = Company.Create("Acme", "REG-OA-FX2", "a@acme.com", "555", "Addr", BillingType.UsageBased, _adminId);
+        var membership = company.AddMember(_adminId, Guid.NewGuid(), CompanyRole.Employee);
+        var spaceId = Guid.NewGuid();
+        var allocation = company.CreateOwnedParkingAllocation(
+            _adminId, spaceId,
+            Quota.CreatePool(2, 1, 1),
+            Quota.CreatePool(2, 1, 1),
+            0m,
+            DateTime.UtcNow.Date, DateTime.UtcNow.Date.AddMonths(1),
+            parkingCapacity: 10);
+        _companies.Setup(x => x.GetWithAllocationsAsync(company.Id, It.IsAny<CancellationToken>())).ReturnsAsync(company);
+        _parking.Setup(x => x.GetByIdAsync(spaceId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(OwnedSpace(spaceId, company.Id, spots: 10));
+
+        var handler = new AssignFixedSlotHandler(_uow.Object, _parking.Object, _quota.Object, _cache.Object);
+
+        var r2w = await handler.HandleAsync(new AssignFixedSlotCommand(
+            company.Id, allocation.Id, _adminId,
+            new AssignFixedSlotDto(membership.Id, 1, VehicleClass.TwoWheeler)));
+        var r4w = await handler.HandleAsync(new AssignFixedSlotCommand(
+            company.Id, allocation.Id, _adminId,
+            new AssignFixedSlotDto(membership.Id, 1, VehicleClass.FourWheeler)));
+
+        r2w.Success.Should().BeTrue(r2w.Message);
+        r4w.Success.Should().BeTrue(r4w.Message);
+        r4w.Data!.FixedAssignments.Should().HaveCount(2);
+        r4w.Data.FixedAssignments.Should().Contain(f => f.VehicleClass == VehicleClass.TwoWheeler && f.SlotNumber == 1);
+        r4w.Data.FixedAssignments.Should().Contain(f => f.VehicleClass == VehicleClass.FourWheeler && f.SlotNumber == 1);
+    }
+
+    [Fact]
+    [Trait("Feature", "VehicleClassPools")]
+    public async Task AssignFixed_TwoWheelerOutOfRange_Fails()
+    {
+        var company = Company.Create("Acme", "REG-OA-FXO", "a@acme.com", "555", "Addr", BillingType.UsageBased, _adminId);
+        var membership = company.AddMember(_adminId, Guid.NewGuid(), CompanyRole.Employee);
+        var spaceId = Guid.NewGuid();
+        var allocation = company.CreateOwnedParkingAllocation(
+            _adminId, spaceId,
+            Quota.CreatePool(3, 1, 2),
+            Quota.CreatePool(3, 1, 2),
+            0m,
+            DateTime.UtcNow.Date, DateTime.UtcNow.Date.AddMonths(1),
+            parkingCapacity: 10);
+        _companies.Setup(x => x.GetWithAllocationsAsync(company.Id, It.IsAny<CancellationToken>())).ReturnsAsync(company);
+        _parking.Setup(x => x.GetByIdAsync(spaceId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(OwnedSpace(spaceId, company.Id, spots: 10));
+
+        var handler = new AssignFixedSlotHandler(_uow.Object, _parking.Object, _quota.Object, _cache.Object);
+        var result = await handler.HandleAsync(new AssignFixedSlotCommand(
+            company.Id, allocation.Id, _adminId,
+            new AssignFixedSlotDto(membership.Id, 2, VehicleClass.TwoWheeler)));
+
+        result.Success.Should().BeFalse();
+        result.Message.Should().NotBeNullOrWhiteSpace();
     }
 
     [Fact]

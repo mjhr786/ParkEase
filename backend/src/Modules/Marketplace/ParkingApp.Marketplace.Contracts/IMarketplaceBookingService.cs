@@ -1,3 +1,5 @@
+using ParkingApp.BuildingBlocks.Enums;
+
 namespace ParkingApp.Marketplace.Contracts;
 
 /// <summary>
@@ -36,7 +38,8 @@ public sealed record StageCorporateBookingRequest(
     DateTime EndUtc,
     decimal Amount,
     string? VehicleNumber,
-    bool IsVisitor);
+    bool IsVisitor,
+    VehicleType VehicleType = VehicleType.Car);
 
 public sealed record MarketplaceBookingCreateResult(
     Guid BookingId,
