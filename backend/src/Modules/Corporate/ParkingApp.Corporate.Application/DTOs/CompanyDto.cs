@@ -104,12 +104,6 @@ public record InvitationDto(
 // ALLOCATION DTOs
 // G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��
 
-/// <summary>Per vehicle-class capacity pool (total / fixed / shared).</summary>
-public record SlotPoolDto(
-    [Range(0, 1000)] int TotalSlots,
-    [Range(0, 1000)] int FixedSlots = 0,
-    [Range(0, 1000)] int SharedSlots = 0);
-
 public record ParkingAllocationDto(
     Guid Id,
     Guid CompanyId,

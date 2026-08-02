@@ -144,17 +144,6 @@ describe('LeaseBrowse (PR8 / KD-17)', () => {
 
     expect(await screen.findByRole('heading', { name: /request corporate allocation/i })).toBeInTheDocument();
     expect(screen.getByText(/allocation request only/i)).toBeInTheDocument();
-    expect(screen.getByText(/combined 2w \+ 4w/i)).toBeInTheDocument();
-    expect(screen.getByText(/4-wheeler/i)).toBeInTheDocument();
-    expect(screen.getByText(/2-wheeler/i)).toBeInTheDocument();
-
-    // Dual pool totals: 4W then 2W (ids lb-4w-total / lb-2w-total)
-    const fourTotal = screen.getByLabelText((_, el) => el?.id === 'lb-4w-total');
-    const twoTotal = screen.getByLabelText((_, el) => el?.id === 'lb-2w-total');
-    await user.clear(fourTotal);
-    await user.type(fourTotal, '12');
-    await user.clear(twoTotal);
-    await user.type(twoTotal, '5');
 
     await user.type(screen.getByLabelText(/start date/i), '2026-09-01');
     await user.type(screen.getByLabelText(/end date/i), '2026-12-01');
@@ -165,45 +154,9 @@ describe('LeaseBrowse (PR8 / KD-17)', () => {
     });
     const payload = mockRequestAllocation.mock.calls[0][0];
     expect(payload.parkingSpaceId).toBe('lot-1');
-    expect(payload.fourWheeler).toEqual(expect.objectContaining({ totalSlots: 12 }));
-    expect(payload.twoWheeler).toEqual(expect.objectContaining({ totalSlots: 5 }));
     expect(payload.policy).toBeTruthy();
     expect(mockToastSuccess).toHaveBeenCalled();
     expect(mockNavigate).toHaveBeenCalledWith('/corporate/allocations');
-  });
-
-  it('blocks dual-pool request when combined exceeds facility capacity', async () => {
-    const user = userEvent.setup();
-    mockGetParkingById.mockResolvedValue({
-      success: true,
-      data: {
-        id: 'lot-1',
-        title: 'Downtown Lot',
-        city: 'Mumbai',
-        address: '1 Main St',
-        totalSpots: 10,
-      },
-    });
-
-    renderPage();
-    expect(await screen.findByText('Downtown Lot')).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: /downtown lot/i }));
-    await screen.findByRole('heading', { name: /request corporate allocation/i });
-
-    const fourTotal = screen.getByLabelText((_, el) => el?.id === 'lb-4w-total');
-    const twoTotal = screen.getByLabelText((_, el) => el?.id === 'lb-2w-total');
-    await user.clear(fourTotal);
-    await user.type(fourTotal, '8');
-    await user.clear(twoTotal);
-    await user.type(twoTotal, '5');
-    await user.type(screen.getByLabelText(/start date/i), '2026-09-01');
-    await user.type(screen.getByLabelText(/end date/i), '2026-12-01');
-    await user.click(screen.getByRole('button', { name: /submit lease request/i }));
-
-    await waitFor(() => {
-      expect(mockToastError).toHaveBeenCalledWith(expect.stringMatching(/cannot exceed facility capacity/i));
-    });
-    expect(mockRequestAllocation).not.toHaveBeenCalled();
   });
 
   it('runs city search from the form', async () => {

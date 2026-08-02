@@ -181,20 +181,15 @@ function Header() {
     ];
   }, [isAdmin, showCorporateChrome, pendingRequests]);
 
+  // PR10b: JWT channel alone drives chrome (soft isCorporateMode toggle removed)
+  const showCorporateChrome = isCorporateChannel;
+  const homePath = showCorporateChrome ? '/corporate/dashboard' : '/';
+
   const handleLogout = async () => {
     setProfileOpen(false);
     setOpenMenuGroups(new Set());
     await logout();
     navigate(channel === 'Corporate' ? '/corporate/login' : '/login');
-  };
-
-  const toggleMenuGroup = (key) => {
-    setOpenMenuGroups((prev) => {
-      const next = new Set(prev);
-      if (next.has(key)) next.delete(key);
-      else next.add(key);
-      return next;
-    });
   };
 
   // Close dropdown on outside click
@@ -361,7 +356,7 @@ function Header() {
               {/* Notification Bell */}
               <NotificationDropdown />
               
-              {/* Corporate company switcher (Corporate channel only — no marketplace link) */}
+              {/* Company Switcher / corporate workspace CTA */}
               <CompanySwitcher />
 
               {/* Profile Avatar Dropdown */}
@@ -437,114 +432,80 @@ function Header() {
                       </div>
                     </div>
 
-                    {/* Grouped menus with collapsible submenus */}
-                    {profileMenuGroups.map((group) => {
-                      const isOpen = openMenuGroups.has(group.key);
-                      const groupBadge = group.badge != null ? group.badge : null;
-                      return (
-                        <div key={group.key}>
-                          <button
-                            type="button"
-                            onClick={() => toggleMenuGroup(group.key)}
-                            aria-expanded={isOpen}
-                            style={{
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: '10px',
-                              padding: '0.65rem 1.25rem',
-                              width: '100%',
-                              background: 'transparent',
-                              border: 'none',
-                              color: 'var(--color-text-primary)',
-                              fontSize: '0.8rem',
-                              fontWeight: 600,
-                              letterSpacing: '0.02em',
-                              cursor: 'pointer',
-                              textAlign: 'left',
-                              transition: 'background 0.15s',
-                            }}
-                            onMouseEnter={e => {
-                              e.currentTarget.style.background = 'var(--dropdown-item-hover-bg)';
-                            }}
-                            onMouseLeave={e => {
-                              e.currentTarget.style.background = 'transparent';
-                            }}
-                          >
-                            <span style={{ fontSize: '1rem', width: '20px', textAlign: 'center' }}>{group.icon}</span>
-                            <span style={{ flex: 1 }}>{group.label}</span>
-                            {groupBadge != null && (
-                              <span style={{
-                                background: 'var(--color-danger)',
-                                color: 'var(--color-text-on-accent)',
-                                borderRadius: '10px',
-                                padding: '2px 6px',
-                                fontSize: '0.7rem',
-                                fontWeight: '700',
-                              }}>
-                                {groupBadge > 99 ? '99+' : groupBadge}
-                              </span>
-                            )}
-                            <svg
-                              width="10"
-                              height="6"
-                              viewBox="0 0 10 6"
-                              fill="none"
-                              aria-hidden="true"
-                              style={{
-                                transition: 'transform 0.2s',
-                                transform: isOpen ? 'rotate(180deg)' : 'rotate(0)',
-                                opacity: 0.7,
-                                flexShrink: 0,
-                              }}
-                            >
-                              <path d="M1 1l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                            </svg>
-                          </button>
-
-                          {isOpen && group.items.map((item) => (
-                            <Link
-                              key={item.to}
-                              to={item.to}
-                              onClick={() => setProfileOpen(false)}
-                              style={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '10px',
-                                padding: '0.55rem 1.25rem 0.55rem 2.5rem',
-                                color: 'var(--dropdown-item)',
-                                textDecoration: 'none',
-                                fontSize: '0.875rem',
-                                transition: 'background 0.15s, color 0.15s',
-                              }}
-                              onMouseEnter={e => {
-                                e.currentTarget.style.background = 'var(--dropdown-item-hover-bg)';
-                                e.currentTarget.style.color = 'var(--color-text-primary)';
-                              }}
-                              onMouseLeave={e => {
-                                e.currentTarget.style.background = 'transparent';
-                                e.currentTarget.style.color = 'var(--dropdown-item)';
-                              }}
-                            >
-                              <span style={{ fontSize: '1rem', width: '20px', textAlign: 'center' }}>{item.icon}</span>
-                              {item.label}
-                              {item.badge != null && (
-                                <span style={{
-                                  marginLeft: 'auto',
-                                  background: 'var(--color-danger)',
-                                  color: 'var(--color-text-on-accent)',
-                                  borderRadius: '10px',
-                                  padding: '2px 6px',
-                                  fontSize: '0.7rem',
-                                  fontWeight: '700',
-                                }}>
-                                  {item.badge > 99 ? '99+' : item.badge}
-                                </span>
-                              )}
-                            </Link>
-                          ))}
-                        </div>
-                      );
-                    })}
+                    {/* Links — platform admins get admin entry points only (not consumer/vendor menus) */}
+                    {/* showCorporateChrome: JWT channel === Corporate */}
+                    {(isAdmin ? [
+                      { to: '/admin', icon: '🛡️', label: 'Admin Panel' },
+                      { to: '/admin/users', icon: '👥', label: 'Manage Users' },
+                      { to: '/admin/audit', icon: '📝', label: 'Audit Log' },
+                      { to: '/admin/outbox', icon: '📬', label: 'Outbox' },
+                      { to: '/tools/lpr-simulator', icon: '📷', label: 'LPR Simulator' },
+                      { to: '/tools/ev-charge-simulator', icon: '⚡', label: 'EV Charge Simulator' },
+                    ] : showCorporateChrome ? [
+                      { to: '/corporate/dashboard', icon: '🏢', label: 'Corporate Dash' },
+                      { to: '/corporate/parking-spaces', icon: '🏗️', label: 'Parking Inventory' },
+                      { to: '/corporate/members', icon: '👥', label: 'Members' },
+                      { to: '/corporate/allocations', icon: '🅿️', label: 'Allocations' },
+                      { to: '/corporate/lease-browse', icon: '🔍', label: 'Lease Browse' },
+                      { to: '/corporate/bookings', icon: '📅', label: 'Corp Bookings' },
+                      { to: '/corporate/invoices', icon: '🧾', label: 'Invoices' },
+                      { to: '/corporate/settings', icon: '⚙️', label: 'Company Settings' },
+                      { to: '/profile', icon: '👤', label: 'My Profile' },
+                      { to: '/tools/lpr-simulator', icon: '📷', label: 'LPR Simulator' },
+                      { to: '/tools/ev-charge-simulator', icon: '⚡', label: 'EV Charge Simulator' },
+                    ] : [
+                      { to: '/dashboard', icon: '🏠', label: 'Dashboard' },
+                      { to: '/bookings', icon: '📅', label: 'My Bookings' },
+                      { to: '/garage', icon: '🚗', label: 'My Garage' },
+                      { to: '/favorites', icon: '❤️', label: 'Favorites' },
+                      { to: '/profile', icon: '👤', label: 'My Profile' },
+                      { to: '/my/listings', icon: '💰', label: 'My Listings' },
+                      { to: '/my/event-packages', icon: '🎟️', label: 'Event packages' },
+                      { to: '/my/requests', icon: '📋', label: 'Vendor Inbox', badge: pendingRequests > 0 ? pendingRequests : null },
+                      { to: '/my/access-scan', icon: '📱', label: 'Scan access pass' },
+                      { to: '/tools/lpr-simulator', icon: '📷', label: 'LPR Simulator' },
+                      { to: '/tools/ev-charge-simulator', icon: '⚡', label: 'EV Charge Simulator' },
+                    ]).map(item => (
+                      <Link
+                        key={item.to}
+                        to={item.to}
+                        onClick={() => setProfileOpen(false)}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '10px',
+                          padding: '0.65rem 1.25rem',
+                          color: 'var(--dropdown-item)',
+                          textDecoration: 'none',
+                          fontSize: '0.875rem',
+                          transition: 'background 0.15s, color 0.15s',
+                        }}
+                        onMouseEnter={e => {
+                          e.currentTarget.style.background = 'var(--dropdown-item-hover-bg)';
+                          e.currentTarget.style.color = 'var(--color-text-primary)';
+                        }}
+                        onMouseLeave={e => {
+                          e.currentTarget.style.background = 'transparent';
+                          e.currentTarget.style.color = 'var(--dropdown-item)';
+                        }}
+                      >
+                        <span style={{ fontSize: '1rem', width: '20px', textAlign: 'center' }}>{item.icon}</span>
+                        {item.label}
+                        {item.badge != null && (
+                          <span style={{
+                            marginLeft: 'auto',
+                            background: 'var(--color-danger)',
+                            color: 'var(--color-text-on-accent)',
+                            borderRadius: '10px',
+                            padding: '2px 6px',
+                            fontSize: '0.7rem',
+                            fontWeight: '700',
+                          }}>
+                            {item.badge > 99 ? '99+' : item.badge}
+                          </span>
+                        )}
+                      </Link>
+                    ))}
 
                     {/* Divider + Logout */}
                     <div style={{ borderTop: '1px solid var(--dropdown-border)', margin: '4px 0' }} />
@@ -613,15 +574,15 @@ function ProtectedRoute({ children }) {
 }
 
 function AppRoutes() {
-  const { isAuthenticated, isAdmin, isCorporateChannel, isBootstrap } = useAuth();
+  const { isAuthenticated, isAdmin, isCorporateChannel } = useAuth();
   const [searchParams] = useSearchParams();
-  // Already-authenticated users hitting /login or /register land on the product dashboard
-  // for their JWT channel (marketplace → /dashboard, corporate → /corporate/dashboard).
-  const authedHome = postAuthDestination(isCorporateChannel ? 'corporate' : 'marketplace', {
-    returnUrl: searchParams.get('returnUrl'),
-    isAdmin,
-    isBootstrap,
-  });
+  const returnPath = safeReturnPath(searchParams.get('returnUrl'));
+  const defaultHome = isAdmin
+    ? '/admin'
+    : isCorporateChannel
+      ? '/corporate/dashboard'
+      : '/dashboard';
+  const authedHome = returnPath || defaultHome;
 
   return (
     <Suspense fallback={<Loading />}>

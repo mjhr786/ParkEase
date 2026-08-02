@@ -463,13 +463,6 @@ const CompanyAllocations = () => {
                                     <div style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)', marginBottom: '0.35rem' }}>
                                         {alloc.sharedSlots} Shared • {alloc.fixedSlots} Fixed
                                     </div>
-                                    {(alloc.fourWheeler || alloc.twoWheeler) && (
-                                        <div style={{ fontSize: '0.78rem', color: 'var(--color-text-muted)', marginBottom: '0.65rem', lineHeight: 1.4 }}>
-                                            4W: {alloc.fourWheeler?.totalSlots ?? 0} ({alloc.fourWheeler?.fixedSlots ?? 0}F / {alloc.fourWheeler?.sharedSlots ?? 0}S)
-                                            <br />
-                                            2W: {alloc.twoWheeler?.totalSlots ?? 0} ({alloc.twoWheeler?.fixedSlots ?? 0}F / {alloc.twoWheeler?.sharedSlots ?? 0}S)
-                                        </div>
-                                    )}
                                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.35rem' }}>
                                         {alloc.status === 1 && (
                                             <button

@@ -95,13 +95,13 @@ describe('CompanySwitcher', () => {
     expect(container).toBeEmptyDOMElement();
   });
 
-  it('renders nothing on Marketplace channel (no cross-product link)', () => {
-    const { container } = renderSwitcher();
-    expect(container).toBeEmptyDOMElement();
-    expect(screen.queryByRole('link', { name: /corporate workspace/i })).not.toBeInTheDocument();
+  it('shows Corporate workspace CTA on Marketplace channel (no Personal Mode)', () => {
+    renderSwitcher();
+    expect(screen.getByRole('link', { name: /corporate workspace/i })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /personal mode/i })).not.toBeInTheDocument();
   });
 
-  it('shows company dropdown on Corporate channel without marketplace exit', async () => {
+  it('shows company dropdown on Corporate channel without Personal Mode', async () => {
     const user = userEvent.setup();
     authState = {
       ...authState,
@@ -123,8 +123,7 @@ describe('CompanySwitcher', () => {
     await user.click(screen.getByRole('button', { name: /acme corp/i }));
 
     expect(screen.queryByRole('button', { name: /^personal mode$/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /marketplace account/i })).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /create corporate account/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /marketplace account/i })).toBeInTheDocument();
   });
 
   it('shows company name in corporate mode', () => {
@@ -172,6 +171,32 @@ describe('CompanySwitcher', () => {
         companyId: 'c2',
       });
       expect(mockNavigate).toHaveBeenCalledWith('/corporate/dashboard', { replace: true });
+    });
+  });
+
+  it('Marketplace account exit uses switchChannel', async () => {
+    const user = userEvent.setup();
+    authState = {
+      ...authState,
+      channel: 'Corporate',
+      companyId: 'c1',
+    };
+    companyState = {
+      activeCompanyId: 'c1',
+      companyDetails: { name: 'Acme Corp' },
+      isCorporateMode: true,
+      switchCompany: mockSwitchCompany,
+    };
+    mockSwitchChannel.mockResolvedValue({ success: true, channel: 'Marketplace' });
+
+    renderSwitcher();
+    await user.click(screen.getByRole('button', { name: /acme corp/i }));
+    await user.click(screen.getByRole('button', { name: /marketplace account/i }));
+
+    await waitFor(() => {
+      expect(mockSwitchChannel).toHaveBeenCalledWith({ channel: 'Marketplace' });
+      expect(mockNavigate).toHaveBeenCalledWith('/dashboard', { replace: true });
+      expect(mockSwitchCompany).toHaveBeenCalledWith(null);
     });
   });
 

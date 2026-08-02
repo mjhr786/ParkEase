@@ -83,6 +83,26 @@ public record TokenDto
 }
 
 /// <summary>
+/// Property-init record (KD-24) so channel/session fields can grow without positional churn.
+/// </summary>
+public record TokenDto
+{
+    public required string AccessToken { get; init; }
+    public required string RefreshToken { get; init; }
+    public required DateTime ExpiresAt { get; init; }
+    public required UserDto User { get; init; }
+
+    /// <summary>Product channel name: Marketplace | Corporate | Admin.</summary>
+    public required string Channel { get; init; }
+
+    public Guid? CompanyId { get; init; }
+    public string? CompanyRole { get; init; }
+
+    /// <summary>True when Corporate channel without company_id (founder bootstrap).</summary>
+    public bool? IsBootstrap { get; init; }
+}
+
+/// <summary>
 /// Refresh body. Omitted or null <see cref="Channel"/> means preserve server session bind (C5).
 /// Non-null channel requests a re-bind (full membership validation in PR3).
 /// </summary>
