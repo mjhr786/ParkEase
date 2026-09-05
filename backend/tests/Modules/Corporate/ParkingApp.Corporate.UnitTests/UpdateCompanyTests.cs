@@ -103,6 +103,54 @@ public class UpdateCompanyTests
         renewed.InvitationToken.Should().NotBe(oldToken);
         renewed.ExpiresAt.Should().BeAfter(DateTime.UtcNow.AddDays(6));
     }
+
+    [Fact]
+    public async Task UpdateCompanyHandler_ValidFields_UpdatesProfileAndSaves()
+    {
+        var companyId = Guid.NewGuid();
+        var adminId = Guid.NewGuid();
+        var company = Company.Create("Acme", "REG", "a@b.com", "9999999999", "Addr", BillingType.ReservedSlots, adminId);
+
+        var uow = new Mock<ICorporateUnitOfWork>();
+        var companies = new Mock<ICompanyRepository>();
+        uow.Setup(u => u.Companies).Returns(companies.Object);
+        companies.Setup(c => c.GetWithMembershipsAsync(companyId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(company);
+
+        var handler = new UpdateCompanyHandler(uow.Object);
+        var dto = new UpdateCompanyDto("New Acme", "new@acme.com", "1234567890", "New Address", BillingType.UsageBased);
+        var result = await handler.HandleAsync(new UpdateCompanyCommand(companyId, adminId, dto));
+
+        result.Success.Should().BeTrue();
+        company.Name.Should().Be("New Acme");
+        uow.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task UpdateMemberHandler_Valid_UpdatesRoleAndPriority()
+    {
+        var adminId = Guid.NewGuid();
+        var memberUserId = Guid.NewGuid();
+        var company = Company.Create("Acme", "REG", "a@b.com", "9999999999", "Addr", BillingType.ReservedSlots, adminId);
+        var membership = UserCompanyMembership.Create(company.Id, memberUserId, CompanyRole.Employee);
+        typeof(ParkingApp.BuildingBlocks.Domain.BaseEntity).GetProperty("Id")?.SetValue(membership, Guid.NewGuid());
+        company.Memberships.Add(membership);
+
+        var uow = new Mock<ICorporateUnitOfWork>();
+        var companies = new Mock<ICompanyRepository>();
+        uow.Setup(u => u.Companies).Returns(companies.Object);
+        companies.Setup(c => c.GetWithMembershipsAsync(company.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(company);
+
+        var handler = new UpdateMemberHandler(uow.Object);
+        var dto = new UpdateMemberDto(CompanyRole.Admin, 5, "EMP123", false);
+        var result = await handler.HandleAsync(new UpdateMemberCommand(company.Id, membership.Id, adminId, dto));
+
+        result.Success.Should().BeTrue();
+        membership.Role.Should().Be(CompanyRole.Admin);
+        membership.Priority.Should().Be(5);
+        uow.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
+    }
 }
 
 

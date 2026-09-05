@@ -211,13 +211,224 @@ public class CorporateInvoiceHandlerTests
     }
 
     [Fact]
-    public async Task Void_WhenDraft_Succeeds()
+    public async Task Generate_WhenCompanyInactive_ReturnsFailure()
+    {
+        var company = CreateCompany();
+        company.Deactivate();
+        _companies.Setup(x => x.GetWithAllocationsAsync(company.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(company);
+
+        var handler = new GenerateCorporateInvoiceHandler(_uow.Object, _calculator.Object);
+        var result = await handler.HandleAsync(new GenerateCorporateInvoiceCommand(
+            company.Id,
+            _adminId,
+            new GenerateCorporateInvoiceDto(new DateOnly(2026, 6, 1), new DateOnly(2026, 6, 30))));
+
+        result.Success.Should().BeFalse();
+        result.Message.Should().Contain("inactive");
+    }
+
+    [Fact]
+    public async Task Generate_UsageBased_WhenExceedsMaxLineItems_ReturnsFailure()
+    {
+        var company = CreateCompany(BillingType.UsageBased);
+        _companies.Setup(x => x.GetWithAllocationsAsync(company.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(company);
+        _invoices.Setup(x => x.ExistsNonVoidForPeriodAsync(company.Id, It.IsAny<DateOnly>(), It.IsAny<DateOnly>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(false);
+
+        // Create 1001 bookings to exceed MaxLineItems (1000)
+        IReadOnlyList<CorporateBooking> bookings = Enumerable.Range(1, 1001)
+            .Select(i => CorporateBooking.CreateEmployeeBooking(company.Id, Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), CorporateSlotType.Shared))
+            .ToList();
+        _bookings.Setup(x => x.GetBillableBookingsForPeriodAsync(
+                company.Id, It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(bookings);
+
+        var handler = new GenerateCorporateInvoiceHandler(_uow.Object, _calculator.Object);
+        var result = await handler.HandleAsync(new GenerateCorporateInvoiceCommand(
+            company.Id,
+            _adminId,
+            new GenerateCorporateInvoiceDto(new DateOnly(2026, 6, 1), new DateOnly(2026, 6, 30))));
+
+        result.Success.Should().BeFalse();
+        result.Message.Should().Contain("cannot exceed");
+    }
+
+    [Fact]
+    public async Task Generate_UsageBased_WithValidBookings_CreatesDraft()
+    {
+        var company = CreateCompany(BillingType.UsageBased);
+        _companies.Setup(x => x.GetWithAllocationsAsync(company.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(company);
+        _invoices.Setup(x => x.ExistsNonVoidForPeriodAsync(company.Id, It.IsAny<DateOnly>(), It.IsAny<DateOnly>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(false);
+
+        IReadOnlyList<CorporateBooking> bookings = new List<CorporateBooking>
+        {
+            CorporateBooking.CreateEmployeeBooking(company.Id, Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), CorporateSlotType.Shared)
+        };
+        _bookings.Setup(x => x.GetBillableBookingsForPeriodAsync(
+                company.Id, It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(bookings);
+
+        _calculator.Setup(x => x.BuildLines(
+                BillingType.UsageBased,
+                It.IsAny<DateOnly>(),
+                It.IsAny<DateOnly>(),
+                It.IsAny<IReadOnlyList<InvoiceAllocationChargeInput>>(),
+                It.IsAny<IReadOnlyList<InvoiceBookingChargeInput>>()))
+            .Returns(new[] { new CorporateInvoiceLineDraft(CorporateInvoiceLineType.Usage, "Usage Charge", 1m, 50m) });
+
+        var handler = new GenerateCorporateInvoiceHandler(_uow.Object, _calculator.Object);
+        var result = await handler.HandleAsync(new GenerateCorporateInvoiceCommand(
+            company.Id,
+            _adminId,
+            new GenerateCorporateInvoiceDto(new DateOnly(2026, 6, 1), new DateOnly(2026, 6, 30))));
+
+        result.Success.Should().BeTrue();
+        result.Data.Should().NotBeNull();
+        result.Data!.Status.Should().Be(CorporateInvoiceStatus.Draft);
+    }
+
+
+    [Fact]
+    public async Task Generate_WhenCalculatorThrowsException_ReturnsFailure()
+    {
+        var company = CreateCompany();
+        _companies.Setup(x => x.GetWithAllocationsAsync(company.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(company);
+        _invoices.Setup(x => x.ExistsNonVoidForPeriodAsync(company.Id, It.IsAny<DateOnly>(), It.IsAny<DateOnly>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(false);
+        _calculator.Setup(x => x.BuildLines(It.IsAny<BillingType>(), It.IsAny<DateOnly>(), It.IsAny<DateOnly>(), It.IsAny<IReadOnlyList<InvoiceAllocationChargeInput>>(), It.IsAny<IReadOnlyList<InvoiceBookingChargeInput>>()))
+            .Throws(new InvalidOperationException("Calculation error"));
+
+        var handler = new GenerateCorporateInvoiceHandler(_uow.Object, _calculator.Object);
+        var result = await handler.HandleAsync(new GenerateCorporateInvoiceCommand(
+            company.Id,
+            _adminId,
+            new GenerateCorporateInvoiceDto(new DateOnly(2026, 6, 1), new DateOnly(2026, 6, 30))));
+
+        result.Success.Should().BeFalse();
+        result.Message.Should().Be("Calculation error");
+    }
+
+    [Fact]
+    public async Task Issue_WhenDomainExceptionOccurs_ReturnsFailure()
+    {
+        var companyId = Guid.NewGuid();
+        var invoice = CorporateInvoice.Create(
+            companyId, BillingType.UsageBased,
+            new DateOnly(2026, 5, 1), new DateOnly(2026, 5, 31),
+            _adminId,
+            new[] { new CorporateInvoiceLineDraft(CorporateInvoiceLineType.Usage, "Usage", 1, 50m) });
+        invoice.Issue(_adminId); // Already issued
+
+        _companies.Setup(x => x.GetMembershipAsync(companyId, _adminId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(UserCompanyMembership.Create(companyId, _adminId, CompanyRole.Admin));
+        _invoices.Setup(x => x.GetByIdWithLinesAsync(companyId, invoice.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(invoice);
+
+        var handler = new IssueCorporateInvoiceHandler(_uow.Object);
+        var result = await handler.HandleAsync(new IssueCorporateInvoiceCommand(companyId, _adminId, invoice.Id));
+
+        result.Success.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task MarkPaid_WhenNotAdmin_ReturnsFailure()
+    {
+        _companies.Setup(x => x.GetMembershipAsync(It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(UserCompanyMembership.Create(Guid.NewGuid(), Guid.NewGuid(), CompanyRole.Employee));
+
+        var handler = new MarkCorporateInvoicePaidHandler(_uow.Object);
+        var result = await handler.HandleAsync(new MarkCorporateInvoicePaidCommand(
+            Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), new MarkInvoicePaidDto("REF", "notes")));
+
+        result.Success.Should().BeFalse();
+        result.Message.Should().Contain("admins");
+    }
+
+    [Fact]
+    public async Task MarkPaid_WhenNotFound_ReturnsFailure()
+    {
+        var companyId = Guid.NewGuid();
+        _companies.Setup(x => x.GetMembershipAsync(companyId, _adminId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(UserCompanyMembership.Create(companyId, _adminId, CompanyRole.Admin));
+        _invoices.Setup(x => x.GetByIdWithLinesAsync(companyId, It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((CorporateInvoice?)null);
+
+        var handler = new MarkCorporateInvoicePaidHandler(_uow.Object);
+        var result = await handler.HandleAsync(new MarkCorporateInvoicePaidCommand(
+            companyId, _adminId, Guid.NewGuid(), new MarkInvoicePaidDto("REF", "notes")));
+
+        result.Success.Should().BeFalse();
+        result.Message.Should().Contain("not found");
+    }
+
+    [Fact]
+    public async Task MarkPaid_WhenDomainException_ReturnsFailure()
+    {
+        var companyId = Guid.NewGuid();
+        var invoice = CorporateInvoice.Create(
+            companyId, BillingType.UsageBased,
+            new DateOnly(2026, 5, 1), new DateOnly(2026, 5, 31),
+            _adminId,
+            new[] { new CorporateInvoiceLineDraft(CorporateInvoiceLineType.Usage, "Usage", 1, 50m) });
+        // Invoice is in Draft, not Issued, so MarkPaid throws domain exception
+
+        _companies.Setup(x => x.GetMembershipAsync(companyId, _adminId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(UserCompanyMembership.Create(companyId, _adminId, CompanyRole.Admin));
+        _invoices.Setup(x => x.GetByIdWithLinesAsync(companyId, invoice.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(invoice);
+
+        var handler = new MarkCorporateInvoicePaidHandler(_uow.Object);
+        var result = await handler.HandleAsync(new MarkCorporateInvoicePaidCommand(
+            companyId, _adminId, invoice.Id, new MarkInvoicePaidDto("REF", "notes")));
+
+        result.Success.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Void_WhenNotAdmin_ReturnsFailure()
+    {
+        _companies.Setup(x => x.GetMembershipAsync(It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(UserCompanyMembership.Create(Guid.NewGuid(), Guid.NewGuid(), CompanyRole.Employee));
+
+        var handler = new VoidCorporateInvoiceHandler(_uow.Object);
+        var result = await handler.HandleAsync(new VoidCorporateInvoiceCommand(
+            Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), new VoidInvoiceDto("reason")));
+
+        result.Success.Should().BeFalse();
+        result.Message.Should().Contain("admins");
+    }
+
+    [Fact]
+    public async Task Void_WhenNotFound_ReturnsFailure()
+    {
+        var companyId = Guid.NewGuid();
+        _companies.Setup(x => x.GetMembershipAsync(companyId, _adminId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(UserCompanyMembership.Create(companyId, _adminId, CompanyRole.Admin));
+        _invoices.Setup(x => x.GetByIdWithLinesAsync(companyId, It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((CorporateInvoice?)null);
+
+        var handler = new VoidCorporateInvoiceHandler(_uow.Object);
+        var result = await handler.HandleAsync(new VoidCorporateInvoiceCommand(
+            companyId, _adminId, Guid.NewGuid(), new VoidInvoiceDto("reason")));
+
+        result.Success.Should().BeFalse();
+        result.Message.Should().Contain("not found");
+    }
+
+    [Fact]
+    public async Task Void_WhenDomainException_ReturnsFailure()
     {
         var companyId = Guid.NewGuid();
         var invoice = CorporateInvoice.Create(
             companyId, BillingType.ReservedSlots,
             new DateOnly(2026, 4, 1), new DateOnly(2026, 4, 30),
             _adminId, Array.Empty<CorporateInvoiceLineDraft>());
+        invoice.Void(_adminId, "already voided"); // Second void will throw domain exception
 
         _companies.Setup(x => x.GetMembershipAsync(companyId, _adminId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(UserCompanyMembership.Create(companyId, _adminId, CompanyRole.Admin));
@@ -226,9 +437,9 @@ public class CorporateInvoiceHandlerTests
 
         var handler = new VoidCorporateInvoiceHandler(_uow.Object);
         var result = await handler.HandleAsync(new VoidCorporateInvoiceCommand(
-            companyId, _adminId, invoice.Id, new VoidInvoiceDto("Wrong period")));
+            companyId, _adminId, invoice.Id, new VoidInvoiceDto("reason")));
 
-        result.Success.Should().BeTrue();
-        invoice.Status.Should().Be(CorporateInvoiceStatus.Void);
+        result.Success.Should().BeFalse();
     }
 }
+
