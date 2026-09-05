@@ -177,6 +177,22 @@ internal sealed class CompanyRepository : Repository<Company>, ICompanyRepositor
             .FirstOrDefaultAsync(m => m.CompanyId == companyId && m.UserId == userId && !m.IsDeleted, cancellationToken);
     }
 
+    public async Task<bool> ExistsBySlugAsync(
+        string slug,
+        Guid? excludeCompanyId = null,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(slug))
+            return false;
+
+        var normalized = slug.Trim().ToLowerInvariant();
+        return await _dbSet.AnyAsync(
+            c => !c.IsDeleted
+                 && c.Slug == normalized
+                 && (!excludeCompanyId.HasValue || c.Id != excludeCompanyId.Value),
+            cancellationToken);
+    }
+
     public async Task<bool> ExistsByRegistrationNumberAsync(string registrationNumber, CancellationToken cancellationToken = default)
     {
         var normalized = registrationNumber.Trim().ToUpperInvariant();

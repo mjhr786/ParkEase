@@ -1,18 +1,21 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
+using ParkingApp.Corporate.Contracts;
 using ParkingApp.Identity.Application.Interfaces;
 using ParkingApp.Identity.Contracts;
 using ParkingApp.Identity.Domain.Interfaces;
 using ParkingApp.Identity.Infrastructure.ModuleAdapters;
 using ParkingApp.Identity.Infrastructure.Repositories;
 using ParkingApp.Identity.Infrastructure.Services.ExternalAuth;
+using ParkingApp.Identity.Infrastructure.Services.Sso;
 
 namespace ParkingApp.Identity.Infrastructure;
 
 /// <summary>
-/// Identity module infrastructure registration (repos + outward contracts).
+/// Identity module infrastructure registration (repos + outward contracts + Corporate SSO infra).
 /// Host must register <c>IIdentityDbContext</c> and <c>IIdentityUnitOfWork</c> facades.
 /// Host also registers <see cref="ISessionRebindService"/> (needs shared UoW + ITokenService).
-/// Host binds <c>ExternalAuthOptions</c> from configuration.
+/// Host binds <c>ExternalAuthOptions</c> and <c>CorporateSsoOptions</c> from configuration.
+/// Host must call <c>AddDataProtection()</c> with a shared key ring for multi-node SSO secrets.
 /// </summary>
 public static class IdentityInfrastructureModule
 {
@@ -38,6 +41,21 @@ public static class IdentityInfrastructureModule
         services.AddScoped<IExternalTokenValidator, CompositeExternalTokenValidator>();
 
         services.AddSingleton<ILinkPasswordAttemptTracker, LinkPasswordAttemptTracker>();
+
+        // Corporate SSO (fail-closed stores + OIDC + secret protector)
+        services.AddSingleton<ISsoSecretProtector, SsoSecretProtector>();
+        services.AddSingleton<ISsoLoginStateStore, MemorySsoLoginStateStore>();
+        services.AddSingleton<ISsoExchangeCodeStore, MemorySsoExchangeCodeStore>();
+        services.AddHttpClient(OidcTokenService.HttpClientName, client =>
+        {
+            client.Timeout = TimeSpan.FromSeconds(15);
+            client.DefaultRequestHeaders.TryAddWithoutValidation(
+                "User-Agent",
+                "ParkEase-CorporateSso/1.0");
+        });
+        services.AddScoped<IOidcTokenService, OidcTokenService>();
+        services.AddScoped<ICorporateSsoLinkAdmin, CorporateSsoLinkAdmin>();
+
         return services;
     }
 }

@@ -42,6 +42,7 @@ public class User : BaseEntity
     public virtual ICollection<Vehicle> Vehicles { get; internal set; } = new List<Vehicle>();
     public virtual ICollection<DeviceToken> DeviceTokens { get; internal set; } = new List<DeviceToken>();
     public virtual ICollection<UserExternalLogin> ExternalLogins { get; internal set; } = new List<UserExternalLogin>();
+    public virtual ICollection<CorporateSsoIdentityLink> CorporateSsoLinks { get; internal set; } = new List<CorporateSsoIdentityLink>();
 
     public string FullName => $"{FirstName} {LastName}".Trim();
 
@@ -124,6 +125,63 @@ public class User : BaseEntity
             IsEmailVerified = emailVerified,
             IsActive = true
         };
+    }
+
+    /// <summary>
+    /// Creates a Corporate SSO user (null password). Distinct from Marketplace <see cref="RegisterFromExternal"/> (KD-CS-27).
+    /// Name policy matches social fallbacks — never fails solely for missing names.
+    /// Role is always User (never Admin via SSO).
+    /// </summary>
+    public static User RegisterFromCorporateSso(
+        string email,
+        string? firstName = null,
+        string? lastName = null,
+        bool emailVerified = false)
+    {
+        Email emailVo;
+        try
+        {
+            emailVo = new Email(email);
+        }
+        catch (ArgumentException ex)
+        {
+            throw new ValidationException("email", ex.Message);
+        }
+
+        var first = TrimOrNull(firstName) ?? DeriveFirstNameFromEmail(emailVo.Value) ?? "User";
+        var last = TrimOrNull(lastName) ?? "Account";
+
+        return new User
+        {
+            Email = emailVo,
+            PasswordHash = null,
+            FirstName = first,
+            LastName = last,
+            PhoneNumber = string.Empty,
+            Role = UserRole.User,
+            IsEmailVerified = emailVerified,
+            IsActive = true
+        };
+    }
+
+    /// <summary>
+    /// Links an enterprise IdP subject for a company. One active link per company per user (MVP).
+    /// </summary>
+    public CorporateSsoIdentityLink LinkCorporateSso(
+        Guid companyId,
+        SsoProtocol protocol,
+        string subject,
+        string idpIssuer,
+        string? providerEmail = null,
+        DateTime? linkedAtUtc = null)
+    {
+        if (CorporateSsoLinks.Any(l => l.CompanyId == companyId && !l.IsDeleted && !l.IsDisabled))
+            throw new BusinessRuleException("User.LinkCorporateSso", "An active Corporate SSO link already exists for this company");
+
+        var link = CorporateSsoIdentityLink.Create(companyId, Id, protocol, subject, idpIssuer, providerEmail, linkedAtUtc);
+        CorporateSsoLinks.Add(link);
+        UpdatedAt = DateTime.UtcNow;
+        return link;
     }
 
     /// <summary>

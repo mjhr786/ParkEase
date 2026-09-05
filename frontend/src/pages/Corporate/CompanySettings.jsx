@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { useCompany } from '../../contexts/CompanyContext';
 import corporateService from '../../services/corporateService';
+import CompanySsoSettingsTab from './CompanySsoSettingsTab';
 
 const BILLING_TYPES = [
   { value: 0, label: 'Reserved Slots' },
@@ -19,6 +20,17 @@ const INVITE_STATUS = {
 const CompanySettings = () => {
   const { activeCompanyId, companyDetails, isCorporateMode, refreshCompanyDetails } = useCompany();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tabParam = searchParams.get('tab');
+  const activeTab = tabParam === 'sso' ? 'sso' : 'profile';
+
+  const setActiveTab = (tab) => {
+    if (tab === 'sso') {
+      setSearchParams({ tab: 'sso' }, { replace: true });
+    } else {
+      setSearchParams({}, { replace: true });
+    }
+  };
 
   const [form, setForm] = useState({
     name: '',
@@ -128,7 +140,7 @@ const CompanySettings = () => {
 
   if (!isCorporateMode) return null;
 
-  if (loading) {
+  if (loading && activeTab === 'profile') {
     return (
       <div className="loading" style={{ minHeight: '60vh', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
         <div className="spinner" />
@@ -143,10 +155,42 @@ const CompanySettings = () => {
       <h1 style={{ margin: '0 0 0.35rem 0', color: 'var(--color-text-primary)', display: 'flex', alignItems: 'center', gap: '10px' }}>
         <span style={{ fontSize: '2rem' }}>⚙️</span> Company Settings
       </h1>
-      <p style={{ color: 'var(--color-text-secondary)', marginBottom: '1.75rem' }}>
-        {companyDetails?.name || form.name} · Update profile, billing type, and manage pending invitations.
+      <p style={{ color: 'var(--color-text-secondary)', marginBottom: '1rem' }}>
+        {companyDetails?.name || form.name} · Profile, invitations, and enterprise SSO.
       </p>
 
+      <div
+        role="tablist"
+        aria-label="Company settings sections"
+        style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.5rem', flexWrap: 'wrap' }}
+      >
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeTab === 'profile'}
+          className={`btn ${activeTab === 'profile' ? 'btn-primary' : 'btn-secondary'}`}
+          style={{ fontSize: '0.9rem' }}
+          onClick={() => setActiveTab('profile')}
+          data-testid="company-settings-tab-profile"
+        >
+          Profile
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeTab === 'sso'}
+          className={`btn ${activeTab === 'sso' ? 'btn-primary' : 'btn-secondary'}`}
+          style={{ fontSize: '0.9rem' }}
+          onClick={() => setActiveTab('sso')}
+          data-testid="company-settings-tab-sso"
+        >
+          SSO
+        </button>
+      </div>
+
+      {activeTab === 'sso' ? (
+        <CompanySsoSettingsTab />
+      ) : (
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '1.5rem' }}>
         <form
           onSubmit={handleSave}
@@ -355,6 +399,7 @@ const CompanySettings = () => {
           )}
         </div>
       </div>
+      )}
     </div>
   );
 };

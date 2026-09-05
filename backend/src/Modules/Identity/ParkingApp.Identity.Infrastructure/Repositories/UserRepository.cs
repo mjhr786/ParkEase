@@ -121,6 +121,42 @@ internal class UserExternalLoginRepository : IdentityRepository<UserExternalLogi
     }
 }
 
+internal class CorporateSsoIdentityLinkRepository : IdentityRepository<CorporateSsoIdentityLink>, ICorporateSsoIdentityLinkRepository
+{
+    public CorporateSsoIdentityLinkRepository(IIdentityDbContext context) : base((DbContext)context) { }
+
+    public async Task<CorporateSsoIdentityLink?> GetByCompanySubjectAsync(
+        Guid companyId,
+        SsoProtocol protocol,
+        string subject,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(subject))
+            return null;
+
+        var sub = subject.Trim();
+        return await _dbSet.FirstOrDefaultAsync(
+            l => l.CompanyId == companyId && l.Protocol == protocol && l.Subject == sub,
+            cancellationToken);
+    }
+
+    public async Task<CorporateSsoIdentityLink?> GetByCompanyUserAsync(
+        Guid companyId,
+        Guid userId,
+        CancellationToken cancellationToken = default) =>
+        await _dbSet.FirstOrDefaultAsync(
+            l => l.CompanyId == companyId && l.UserId == userId,
+            cancellationToken);
+
+    public async Task<IReadOnlyList<CorporateSsoIdentityLink>> GetByUserIdAsync(
+        Guid userId,
+        CancellationToken cancellationToken = default) =>
+        await _dbSet
+            .Where(l => l.UserId == userId)
+            .OrderByDescending(l => l.LinkedAtUtc)
+            .ToListAsync(cancellationToken);
+}
+
 internal class VehicleRepository : IdentityRepository<Vehicle>, IVehicleRepository
 {
     public VehicleRepository(IIdentityDbContext context) : base((DbContext)context) { }

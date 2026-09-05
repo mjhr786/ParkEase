@@ -18,6 +18,9 @@ public interface ICorporateDbContext
     DbSet<CorporateWaitlistEntry> CorporateWaitlistEntries { get; }
     DbSet<CorporateInvoice> CorporateInvoices { get; }
     DbSet<CorporateInvoiceLineItem> CorporateInvoiceLineItems { get; }
+    DbSet<CompanySsoConfiguration> CompanySsoConfigurations { get; }
+    DbSet<CompanySsoDomain> CompanySsoDomains { get; }
+    DbSet<CorporateSsoAuditEvent> CorporateSsoAuditEvents { get; }
 
     DbSet<TEntity> Set<TEntity>() where TEntity : class;
     DatabaseFacade Database { get; }

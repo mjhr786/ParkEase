@@ -7,6 +7,7 @@ const navItems = [
   { to: '/admin/listings', label: 'Listings', icon: '🅿️' },
   { to: '/admin/bookings', label: 'Bookings', icon: '📅' },
   { to: '/admin/payments', label: 'Payments', icon: '💳' },
+  { to: '/admin/corporate-sso', label: 'Corporate SSO', icon: '🔐' },
   { to: '/admin/audit', label: 'Audit log', icon: '📝' },
   { to: '/admin/outbox', label: 'Outbox', icon: '📬' },
 ];

@@ -61,6 +61,7 @@ public class ApplicationDbContext : DbContext,
     public DbSet<Vehicle> Vehicles => Set<Vehicle>();
     public DbSet<DeviceToken> DeviceTokens => Set<DeviceToken>();
     public DbSet<UserExternalLogin> ExternalLogins => Set<UserExternalLogin>();
+    public DbSet<CorporateSsoIdentityLink> CorporateSsoIdentityLinks => Set<CorporateSsoIdentityLink>();
 
     // Corporate Module
     public DbSet<Company> Companies => Set<Company>();
@@ -73,8 +74,18 @@ public class ApplicationDbContext : DbContext,
     public DbSet<CorporateWaitlistEntry> CorporateWaitlistEntries => Set<CorporateWaitlistEntry>();
     public DbSet<CorporateInvoice> CorporateInvoices => Set<CorporateInvoice>();
     public DbSet<CorporateInvoiceLineItem> CorporateInvoiceLineItems => Set<CorporateInvoiceLineItem>();
+    public DbSet<CompanySsoConfiguration> CompanySsoConfigurations => Set<CompanySsoConfiguration>();
+    public DbSet<CompanySsoDomain> CompanySsoDomains => Set<CompanySsoDomain>();
+    public DbSet<CorporateSsoAuditEvent> CorporateSsoAuditEvents => Set<CorporateSsoAuditEvent>();
     public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
     public DbSet<AdminActionLog> AdminActionLogs => Set<AdminActionLog>();
+
+    protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
+    {
+        base.OnConfiguring(optionsBuilder);
+        optionsBuilder.ConfigureWarnings(warnings =>
+            warnings.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning));
+    }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

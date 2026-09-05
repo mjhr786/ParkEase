@@ -3,7 +3,8 @@ using FluentValidation;
 using Microsoft.Extensions.DependencyInjection;
 using ParkingApp.Application.CQRS;
 using ParkingApp.Identity.Application.DTOs;
-
+using ParkingApp.Identity.Application.Interfaces;
+using ParkingApp.Identity.Application.Services;
 using ParkingApp.Identity.Application.Validators;
 
 namespace ParkingApp.Identity.Application;
@@ -21,6 +22,9 @@ public static class IdentityApplicationModule
         services.AddScoped<IValidator<LinkExternalLoginDto>, LinkExternalLoginDtoValidator>();
         services.AddScoped<IValidator<SetPasswordDto>, SetPasswordDtoValidator>();
         services.AddScoped<IValidator<ChangePasswordDto>, ChangePasswordDtoValidator>();
+        services.AddScoped<ICorporateSessionIssuer, CorporateSessionIssuer>();
+        // PR9: optional metrics hook; swap for Prometheus/OTel implementation when host exists.
+        services.AddSingleton<ICorporateSsoMetrics, NoOpCorporateSsoMetrics>();
         services.AddHandlersFromAssembly(Assembly.GetExecutingAssembly(), throwIfMissingHandlers: false);
         return services;
     }

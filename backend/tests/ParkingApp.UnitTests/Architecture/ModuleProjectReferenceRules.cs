@@ -63,6 +63,7 @@ public class ModuleProjectReferenceRules
                 "ParkingApp.Identity.Domain",
                 "ParkingApp.Identity.Contracts",
                 "ParkingApp.Identity.Application",
+                "ParkingApp.Corporate.Contracts",
             },
 
             ["ParkingApp.Marketplace.Domain"] = new(StringComparer.Ordinal)
@@ -104,6 +105,7 @@ public class ModuleProjectReferenceRules
                 "ParkingApp.Corporate.Contracts",
                 "ParkingApp.Marketplace.Contracts",
                 "ParkingApp.Identity.Contracts",
+                "ParkingApp.Admin.Contracts",
             },
             ["ParkingApp.Corporate.Infrastructure"] = new(StringComparer.Ordinal)
             {

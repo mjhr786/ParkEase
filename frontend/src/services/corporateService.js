@@ -45,6 +45,73 @@ class CorporateService {
     });
   }
 
+  // ══════════════════════════════════════════════════════
+  // SSO (company admin)
+  // ══════════════════════════════════════════════════════
+
+  async getSsoConfig() {
+    return api.request(`/v1/corporate/companies/${this.getCompanyId()}/sso`);
+  }
+
+  async upsertSsoConfig(data) {
+    return api.request(`/v1/corporate/companies/${this.getCompanyId()}/sso`, {
+      method: 'PUT',
+      body: JSON.stringify(data)
+    });
+  }
+
+  async addSsoDomain(domain) {
+    return api.request(`/v1/corporate/companies/${this.getCompanyId()}/sso/domains`, {
+      method: 'POST',
+      body: JSON.stringify({ domain })
+    });
+  }
+
+  async verifySsoDomain(domainId) {
+    return api.request(
+      `/v1/corporate/companies/${this.getCompanyId()}/sso/domains/${domainId}/verify`,
+      { method: 'POST' }
+    );
+  }
+
+  async removeSsoDomain(domainId) {
+    return api.request(
+      `/v1/corporate/companies/${this.getCompanyId()}/sso/domains/${domainId}`,
+      { method: 'DELETE' }
+    );
+  }
+
+  async testSso() {
+    return api.request(`/v1/corporate/companies/${this.getCompanyId()}/sso/test`, {
+      method: 'POST'
+    });
+  }
+
+  async enableSso() {
+    return api.request(`/v1/corporate/companies/${this.getCompanyId()}/sso/enable`, {
+      method: 'POST'
+    });
+  }
+
+  async disableSso() {
+    return api.request(`/v1/corporate/companies/${this.getCompanyId()}/sso/disable`, {
+      method: 'POST'
+    });
+  }
+
+  async getSsoAudit(take = 50) {
+    return api.request(
+      `/v1/corporate/companies/${this.getCompanyId()}/sso/audit?take=${take}`
+    );
+  }
+
+  async unlinkSsoIdentity(linkId) {
+    return api.request(
+      `/v1/corporate/companies/${this.getCompanyId()}/sso/links/${linkId}`,
+      { method: 'DELETE' }
+    );
+  }
+
   async getDashboard() {
     return api.request(`/v1/corporate/companies/${this.getCompanyId()}/dashboard`);
   }

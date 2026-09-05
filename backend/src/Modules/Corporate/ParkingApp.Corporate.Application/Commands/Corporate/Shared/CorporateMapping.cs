@@ -24,7 +24,8 @@ internal static class CorporateMapping
             company.IsActive,
             company.Memberships.Count(m => !m.IsDeleted && m.IsActive),
             company.Allocations.Count(a => !a.IsDeleted && a.Status == AllocationStatus.Active),
-            company.CreatedAt);
+            company.CreatedAt,
+            company.Slug);
     }
 
     public static ParkingAllocationDto ToAllocationDto(

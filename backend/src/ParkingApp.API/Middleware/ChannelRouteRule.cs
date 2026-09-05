@@ -170,7 +170,26 @@ public static class ChannelRouteMatrix
             new("auth-external-link", "POST", "/api/auth/external/link", ChannelAccess.AllProductChannels | ChannelAccess.PlatformAdminRole),
             new("auth-external-providers", "GET", "/api/auth/external/providers", ChannelAccess.AllProductChannels | ChannelAccess.PlatformAdminRole),
             new("auth-set-password", "POST", "/api/auth/set-password", ChannelAccess.AllProductChannels | ChannelAccess.PlatformAdminRole),
+            // Corporate enterprise SSO (explicit for discoverability / theory tests; not marketplace external)
+            new("auth-corp-sso-discover", "GET", "/api/auth/corporate/sso/discover",
+                ChannelAccess.AllProductChannels | ChannelAccess.PlatformAdminRole),
+            new("auth-corp-sso-start", "POST", "/api/auth/corporate/sso/start",
+                ChannelAccess.AllProductChannels | ChannelAccess.PlatformAdminRole),
+            new("auth-corp-sso-callback", "GET", "/api/auth/corporate/sso/callback",
+                ChannelAccess.AllProductChannels | ChannelAccess.PlatformAdminRole),
+            new("auth-corp-sso-complete", "POST", "/api/auth/corporate/sso/complete",
+                ChannelAccess.AllProductChannels | ChannelAccess.PlatformAdminRole),
+            new("auth-corp-sso-prefix", "*", "/api/auth/corporate/sso/**",
+                ChannelAccess.AllProductChannels | ChannelAccess.PlatformAdminRole),
             new("auth-prefix", "*", "/api/auth/**", ChannelAccess.AllProductChannels | ChannelAccess.PlatformAdminRole),
+
+            // Corporate SSO company admin (also covered by corp-company-scoped; explicit for matrix tests)
+            new("corp-sso-admin", "*", "/api/v1/corporate/companies/{companyId}/sso/**",
+                ChannelAccess.CorporateBound | ChannelAccess.PlatformAdminRole,
+                EnforceCompanyIdMatch: true),
+            new("corp-sso-admin-root", "*", "/api/v1/corporate/companies/{companyId}/sso",
+                ChannelAccess.CorporateBound | ChannelAccess.PlatformAdminRole,
+                EnforceCompanyIdMatch: true),
 
             // ── Users / vehicles / device tokens ──
             new("users-me", "*", "/api/users/me", ChannelAccess.AllProductChannels | ChannelAccess.PlatformAdminRole),

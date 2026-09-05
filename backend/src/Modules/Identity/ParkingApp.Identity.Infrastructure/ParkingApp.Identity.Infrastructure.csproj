@@ -11,16 +11,19 @@
     <ProjectReference Include="..\ParkingApp.Identity.Domain\ParkingApp.Identity.Domain.csproj" />
     <ProjectReference Include="..\ParkingApp.Identity.Contracts\ParkingApp.Identity.Contracts.csproj" />
     <ProjectReference Include="..\ParkingApp.Identity.Application\ParkingApp.Identity.Application.csproj" />
+    <ProjectReference Include="..\..\Corporate\ParkingApp.Corporate.Contracts\ParkingApp.Corporate.Contracts.csproj" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="BCrypt.Net-Next" Version="4.0.3" />
     <PackageReference Include="Google.Apis.Auth" Version="1.69.0" />
+    <PackageReference Include="Microsoft.AspNetCore.DataProtection" Version="9.0.0" />
     <PackageReference Include="Microsoft.EntityFrameworkCore" Version="9.0.0" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" Version="9.0.0" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.3" />
     <PackageReference Include="Microsoft.Extensions.Http" Version="10.0.3" />
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.3" />
     <PackageReference Include="Microsoft.Extensions.Options" Version="10.0.3" />
+    <PackageReference Include="Microsoft.IdentityModel.Protocols.OpenIdConnect" Version="8.0.0" />
     <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.0.0" />
   </ItemGroup>
   <ItemGroup>

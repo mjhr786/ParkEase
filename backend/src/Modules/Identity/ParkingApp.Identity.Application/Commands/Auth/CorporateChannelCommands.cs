@@ -37,22 +37,25 @@ public sealed record GetChannelContextQuery(
 internal sealed class CorporateLoginHandler : ICommandHandler<CorporateLoginCommand, ApiResponse<CorporateLoginResponseDto>>
 {
     private readonly IIdentityUnitOfWork _unitOfWork;
-    private readonly ITokenService _tokenService;
     private readonly IPasswordHasher _passwordHasher;
+    private readonly ICorporateSessionIssuer _sessionIssuer;
     private readonly ICompanyMembershipLookup _memberships;
+    private readonly ICompanySsoConfigLookup _ssoConfigLookup;
     private readonly ILogger<CorporateLoginHandler> _logger;
 
     public CorporateLoginHandler(
         IIdentityUnitOfWork unitOfWork,
-        ITokenService tokenService,
         IPasswordHasher passwordHasher,
+        ICorporateSessionIssuer sessionIssuer,
         ICompanyMembershipLookup memberships,
+        ICompanySsoConfigLookup ssoConfigLookup,
         ILogger<CorporateLoginHandler> logger)
     {
         _unitOfWork = unitOfWork;
-        _tokenService = tokenService;
         _passwordHasher = passwordHasher;
+        _sessionIssuer = sessionIssuer;
         _memberships = memberships;
+        _ssoConfigLookup = ssoConfigLookup;
         _logger = logger;
     }
 
@@ -61,7 +64,8 @@ internal sealed class CorporateLoginHandler : ICommandHandler<CorporateLoginComm
         CancellationToken cancellationToken = default)
     {
         var user = await _unitOfWork.Users.GetByEmailAsync(command.Dto.Email.ToLower().Trim(), cancellationToken);
-        if (user == null || !_passwordHasher.Verify(command.Dto.Password, user.PasswordHash))
+        if (user == null || string.IsNullOrEmpty(user.PasswordHash)
+            || !_passwordHasher.Verify(command.Dto.Password, user.PasswordHash))
         {
             _logger.LogWarning("Corporate login failed for email: {Email}", command.Dto.Email);
             return new ApiResponse<CorporateLoginResponseDto>(
@@ -70,97 +74,63 @@ internal sealed class CorporateLoginHandler : ICommandHandler<CorporateLoginComm
 
         if (!user.IsActive)
             return new ApiResponse<CorporateLoginResponseDto>(
-                false, "Account disabled", null, new List<string> { "Your account has been disabled" });
+                false, "Account disabled", null, new List<string> { "Your account has been disabled" },
+                "account_disabled");
 
-        var memberships = await _memberships.GetActiveMembershipsAsync(user.Id, cancellationToken);
-
-        // KD-16: zero memberships → Corporate bootstrap (no company_id / company_role)
-        if (memberships.Count == 0)
+        // Password coexistence gate (KD-CS-13) before mint for the company that will bind.
+        Guid? companyForGate = command.Dto.CompanyId;
+        if (companyForGate is null)
         {
-            var session = await MintCorporateAsync(user, companyId: null, companyRole: null, cancellationToken);
-            _logger.LogInformation("Corporate bootstrap login: {UserId}", user.Id);
-            return new ApiResponse<CorporateLoginResponseDto>(true, "Corporate bootstrap session",
-                new CorporateLoginResponseDto
-                {
-                    Session = session,
-                    IsBootstrap = true,
-                    RequiresCompanySelection = false,
-                    Memberships = Array.Empty<CompanyMembershipOptionDto>()
-                });
+            var memberships = await _memberships.GetActiveMembershipsAsync(user.Id, cancellationToken);
+            if (memberships.Count == 1)
+                companyForGate = memberships[0].CompanyId;
         }
 
-        if (command.Dto.CompanyId is Guid requestedCompanyId)
+        if (companyForGate is Guid gateCompanyId)
         {
-            var match = memberships.FirstOrDefault(m => m.CompanyId == requestedCompanyId);
-            if (match is null)
-            {
-                return new ApiResponse<CorporateLoginResponseDto>(
-                    false,
-                    "Not a member of the selected company",
-                    null,
-                    new List<string> { "Active membership required for companyId" },
-                    "membership_required");
-            }
-
-            var session = await MintCorporateAsync(user, match.CompanyId, match.Role, cancellationToken);
-            return new ApiResponse<CorporateLoginResponseDto>(true, "Corporate login successful",
-                new CorporateLoginResponseDto
-                {
-                    Session = session,
-                    IsBootstrap = false,
-                    RequiresCompanySelection = false,
-                    Memberships = Map(memberships)
-                });
+            var gate = await EvaluatePasswordLoginGateAsync(gateCompanyId, cancellationToken);
+            if (gate is not null)
+                return gate;
         }
 
-        if (memberships.Count == 1)
-        {
-            var only = memberships[0];
-            var session = await MintCorporateAsync(user, only.CompanyId, only.Role, cancellationToken);
-            return new ApiResponse<CorporateLoginResponseDto>(true, "Corporate login successful",
-                new CorporateLoginResponseDto
-                {
-                    Session = session,
-                    IsBootstrap = false,
-                    RequiresCompanySelection = false,
-                    Memberships = Map(memberships)
-                });
-        }
+        var result = await _sessionIssuer.IssueCorporateSessionAsync(
+            user,
+            preferredCompanyId: command.Dto.CompanyId,
+            forbidBootstrap: false,
+            cancellationToken);
 
-        // Multiple memberships, no companyId → selection required (no tokens until choice)
-        return new ApiResponse<CorporateLoginResponseDto>(
-            false,
-            "Company selection required",
-            new CorporateLoginResponseDto
-            {
-                Session = null,
-                IsBootstrap = false,
-                RequiresCompanySelection = true,
-                Memberships = Map(memberships)
-            },
-            new List<string> { "Provide companyId to complete corporate login" },
-            "company_selection_required");
+        if (result.Success)
+            _logger.LogInformation("Corporate password login: {UserId}", user.Id);
+
+        return result;
     }
 
-    private async Task<TokenDto> MintCorporateAsync(
-        Domain.Entities.User user,
-        Guid? companyId,
-        string? companyRole,
+    /// <summary>
+    /// Block password when company set PasswordLoginAllowed=false and tenant SSO is enabled
+    /// (IsEnabled &amp;&amp; !ForceDisabledByPlatform). Default PasswordLoginAllowed=true → no change.
+    /// </summary>
+    private async Task<ApiResponse<CorporateLoginResponseDto>?> EvaluatePasswordLoginGateAsync(
+        Guid companyId,
         CancellationToken cancellationToken)
     {
-        var channel = ProductChannel.Corporate;
-        var accessToken = _tokenService.GenerateAccessToken(user, channel, companyId, companyRole);
-        var refreshToken = _tokenService.GenerateRefreshToken();
-        user.RecordLogin(refreshToken, _tokenService.CreateRefreshTokenExpiryUtc());
-        user.BindSession(channel, companyId, companyRole);
-        _unitOfWork.Users.Update(user);
-        await _unitOfWork.SaveChangesAsync(cancellationToken);
-        return AuthTokenDtoFactory.Create(accessToken, refreshToken, user, channel, companyId, companyRole,
-            accessTokenExpirationMinutes: _tokenService.AccessTokenExpirationMinutes);
-    }
+        var snapshot = await _ssoConfigLookup.GetByCompanyIdAsync(companyId, cancellationToken);
+        if (snapshot is null)
+            return null;
 
-    private static IReadOnlyList<CompanyMembershipOptionDto> Map(IReadOnlyList<CompanyMembershipSummary> memberships) =>
-        memberships.Select(m => new CompanyMembershipOptionDto(m.CompanyId, m.CompanyName, m.Role)).ToList();
+        if (!snapshot.PasswordLoginAllowed
+            && snapshot.IsEnabled
+            && !snapshot.ForceDisabledByPlatform)
+        {
+            return new ApiResponse<CorporateLoginResponseDto>(
+                false,
+                "Password login is disabled for this company. Use company SSO.",
+                null,
+                new List<string> { "password_login_disabled" },
+                "password_login_disabled");
+        }
+
+        return null;
+    }
 }
 
 internal sealed class SwitchChannelHandler : ICommandHandler<SwitchChannelCommand, ApiResponse<TokenDto>>

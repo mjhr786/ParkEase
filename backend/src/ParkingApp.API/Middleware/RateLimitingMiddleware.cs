@@ -3,6 +3,7 @@ using Microsoft.Extensions.Options;
 using ParkingApp.API.Options;
 using ParkingApp.Application.DTOs;
 using ParkingApp.Identity.Application.Options;
+using CorporateSsoOptions = ParkingApp.Identity.Application.Options.CorporateSsoOptions;
 
 namespace ParkingApp.API.Middleware;
 
@@ -19,13 +20,16 @@ public class RateLimitingMiddleware
     private readonly ILogger<RateLimitingMiddleware> _logger;
     private readonly IOptionsMonitor<IotLprOptions>? _iotOptions;
     private readonly IOptionsMonitor<ExternalAuthOptions>? _externalAuthOptions;
+    private readonly IOptionsMonitor<CorporateSsoOptions>? _corporateSsoOptions;
     private static readonly ConcurrentDictionary<string, Queue<DateTime>> _requestTimes = new();
     private static readonly ConcurrentDictionary<string, Queue<DateTime>> _iotRequestTimes = new();
     private static readonly ConcurrentDictionary<string, Queue<DateTime>> _externalAuthRequestTimes = new();
+    private static readonly ConcurrentDictionary<string, Queue<DateTime>> _corporateSsoRequestTimes = new();
     private static readonly Timer _cleanupTimer;
     private const int MaxRequests = 100;
     private const int DefaultIotMaxRequests = 30;
     private const int DefaultExternalAuthMaxRequests = 20;
+    private const int DefaultCorporateSsoMaxRequests = 15;
     private const int WindowSeconds = 60;
     private const int CleanupIntervalMinutes = 5;
 
@@ -46,12 +50,14 @@ public class RateLimitingMiddleware
         RequestDelegate next,
         ILogger<RateLimitingMiddleware> logger,
         IOptionsMonitor<IotLprOptions>? iotOptions = null,
-        IOptionsMonitor<ExternalAuthOptions>? externalAuthOptions = null)
+        IOptionsMonitor<ExternalAuthOptions>? externalAuthOptions = null,
+        IOptionsMonitor<CorporateSsoOptions>? corporateSsoOptions = null)
     {
         _next = next;
         _logger = logger;
         _iotOptions = iotOptions;
         _externalAuthOptions = externalAuthOptions;
+        _corporateSsoOptions = corporateSsoOptions;
     }
 
     public async Task InvokeAsync(HttpContext context)
@@ -113,6 +119,30 @@ public class RateLimitingMiddleware
             return;
         }
 
+        // Corporate SSO-only bucket (skip global 100/min double-count) — KD-CS-17
+        if (IsCorporateSsoPath(context.Request.Path))
+        {
+            var ssoLimit = ResolveCorporateSsoLimitPerMinute();
+            if (!IsRequestAllowed(clientId, _corporateSsoRequestTimes, ssoLimit))
+            {
+                _logger.LogWarning(
+                    "Corporate SSO rate limit exceeded Client={ClientId} LimitPerMinute={Limit}",
+                    clientId, ssoLimit);
+                context.Response.StatusCode = 429;
+                context.Response.Headers.Append("Retry-After", WindowSeconds.ToString());
+                await context.Response.WriteAsJsonAsync(new ApiResponse<object>(
+                    false,
+                    "Rate limit exceeded. Please try again later.",
+                    null,
+                    new List<string> { "rate_limited" },
+                    "rate_limited"));
+                return;
+            }
+
+            await _next(context);
+            return;
+        }
+
         if (!IsRequestAllowed(clientId, _requestTimes, MaxRequests))
         {
             _logger.LogWarning("Rate limit exceeded for client: {ClientId}", clientId);
@@ -138,6 +168,12 @@ public class RateLimitingMiddleware
         return Math.Clamp(configured, 1, 10_000);
     }
 
+    private int ResolveCorporateSsoLimitPerMinute()
+    {
+        var configured = _corporateSsoOptions?.CurrentValue.RateLimitPerMinute ?? DefaultCorporateSsoMaxRequests;
+        return Math.Clamp(configured, 1, 10_000);
+    }
+
     /// <summary>Exposed for unit tests.</summary>
     public static bool IsIotPath(PathString path) =>
         path.StartsWithSegments("/api/iot", StringComparison.OrdinalIgnoreCase);
@@ -148,6 +184,10 @@ public class RateLimitingMiddleware
     /// </summary>
     public static bool IsExternalAuthPath(PathString path) =>
         path.StartsWithSegments("/api/auth/external", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>SSO-only rate limit bucket (does not double-count global budget).</summary>
+    public static bool IsCorporateSsoPath(PathString path) =>
+        path.StartsWithSegments("/api/auth/corporate/sso", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>Exposed for unit tests.</summary>
     public static bool ShouldSkipRateLimit(PathString path)

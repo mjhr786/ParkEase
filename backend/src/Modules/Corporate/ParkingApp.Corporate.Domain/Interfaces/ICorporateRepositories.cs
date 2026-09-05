@@ -26,6 +26,8 @@ public interface ICompanyRepository : IRepository<Company>
     Task<bool> IsUserMemberAsync(Guid companyId, Guid userId, CancellationToken cancellationToken = default);
     Task<UserCompanyMembership?> GetMembershipAsync(Guid companyId, Guid userId, CancellationToken cancellationToken = default);
     Task<bool> ExistsByRegistrationNumberAsync(string registrationNumber, CancellationToken cancellationToken = default);
+    /// <summary>True if another non-deleted company already owns the normalized slug.</summary>
+    Task<bool> ExistsBySlugAsync(string slug, Guid? excludeCompanyId = null, CancellationToken cancellationToken = default);
 }
 
 public interface ICorporateBookingRepository : IRepository<CorporateBooking>

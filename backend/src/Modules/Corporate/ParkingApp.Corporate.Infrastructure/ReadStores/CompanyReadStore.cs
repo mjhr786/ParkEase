@@ -27,7 +27,8 @@ internal sealed class CompanyReadStore : ICompanyReadStore
                 c."ContactPhone" AS ContactPhone, c."BillingAddress" AS BillingAddress, c."BillingType" AS BillingType, c."IsActive" AS IsActive,
                 CAST((SELECT COUNT(*) FROM "UserCompanyMemberships" m2 WHERE m2."CompanyId" = c."Id" AND m2."IsDeleted" = FALSE) AS INTEGER) AS MemberCount,
                 CAST((SELECT COUNT(*) FROM "ParkingAllocations" pa WHERE pa."CompanyId" = c."Id" AND pa."IsDeleted" = FALSE) AS INTEGER) AS ActiveAllocationCount,
-                c."CreatedAt" AS CreatedAt
+                c."CreatedAt" AS CreatedAt,
+                c."Slug" AS Slug
             FROM "Companies" c
             INNER JOIN "UserCompanyMemberships" m ON m."CompanyId" = c."Id"
             WHERE m."UserId" = @UserId
@@ -55,6 +56,7 @@ internal sealed class CompanyReadStore : ICompanyReadStore
                 c."BillingType" AS BillingType,
                 c."IsActive" AS IsActive,
                 c."CreatedAt" AS CreatedAt,
+                c."Slug" AS Slug,
                 COALESCE(m."MemberCount", 0) AS MemberCount,
                 COALESCE(a."ActiveAllocationCount", 0) AS ActiveAllocationCount
             FROM "Companies" c
@@ -96,7 +98,8 @@ internal sealed class CompanyReadStore : ICompanyReadStore
             row.IsActive,
             row.MemberCount,
             row.ActiveAllocationCount,
-            row.CreatedAt);
+            row.CreatedAt,
+            row.Slug);
     }
 
     public async Task<(IReadOnlyList<MembershipDto> Members, int TotalCount)> GetCompanyMembersAsync(
@@ -1168,6 +1171,7 @@ internal sealed class CompanyReadStore : ICompanyReadStore
         public int MemberCount { get; set; }
         public int ActiveAllocationCount { get; set; }
         public DateTime CreatedAt { get; set; }
+        public string? Slug { get; set; }
     }
 
     private sealed class MembershipRow

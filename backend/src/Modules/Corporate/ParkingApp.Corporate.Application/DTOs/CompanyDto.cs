@@ -22,7 +22,9 @@ public record CompanyDto(
     bool IsActive,
     int MemberCount,
     int ActiveAllocationCount,
-    DateTime CreatedAt);
+    DateTime CreatedAt,
+    /// <summary>Public vanity slug for Corporate SSO entry (/corporate/login?company=slug).</summary>
+    string? Slug = null);
 
 public record CreateCompanyDto(
     [Required][StringLength(200, MinimumLength = 3)] string Name,
@@ -45,7 +47,9 @@ public record UpdateCompanyDto(
     [EmailAddress] string? ContactEmail = null,
     [Phone] string? ContactPhone = null,
     [StringLength(500)] string? BillingAddress = null,
-    BillingType? BillingType = null);
+    BillingType? BillingType = null,
+    /// <summary>Public company slug for SSO entry links (OQ-8). Lowercase [a-z0-9-]+.</summary>
+    [StringLength(64, MinimumLength = 1)] string? Slug = null);
 
 // G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��G��
 // MEMBERSHIP DTOs

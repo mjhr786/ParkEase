@@ -90,6 +90,9 @@ public class AuthController : ControllerBase
         if (result.Success)
             return Ok(result);
 
+        if (result.Code is "password_login_disabled")
+            return StatusCode(StatusCodes.Status403Forbidden, result);
+
         if (result.Code is "company_selection_required" or "membership_required")
             return BadRequest(result);
 

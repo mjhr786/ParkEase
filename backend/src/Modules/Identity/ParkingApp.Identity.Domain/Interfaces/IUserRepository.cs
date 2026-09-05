@@ -58,8 +58,26 @@ public interface IUserExternalLoginRepository : IRepository<UserExternalLogin>
         CancellationToken cancellationToken = default);
 }
 
+public interface ICorporateSsoIdentityLinkRepository : IRepository<CorporateSsoIdentityLink>
+{
+    Task<CorporateSsoIdentityLink?> GetByCompanySubjectAsync(
+        Guid companyId,
+        SsoProtocol protocol,
+        string subject,
+        CancellationToken cancellationToken = default);
+
+    Task<CorporateSsoIdentityLink?> GetByCompanyUserAsync(
+        Guid companyId,
+        Guid userId,
+        CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<CorporateSsoIdentityLink>> GetByUserIdAsync(
+        Guid userId,
+        CancellationToken cancellationToken = default);
+}
+
 /// <summary>
-/// Identity module unit-of-work port (users, vehicles, device tokens, external logins).
+/// Identity module unit-of-work port (users, vehicles, device tokens, external logins, corporate SSO links).
 /// </summary>
 public interface IIdentityUnitOfWork : IUnitOfWorkTransaction
 {
@@ -67,4 +85,5 @@ public interface IIdentityUnitOfWork : IUnitOfWorkTransaction
     IVehicleRepository Vehicles { get; }
     IDeviceTokenRepository DeviceTokens { get; }
     IUserExternalLoginRepository ExternalLogins { get; }
+    ICorporateSsoIdentityLinkRepository CorporateSsoLinks { get; }
 }

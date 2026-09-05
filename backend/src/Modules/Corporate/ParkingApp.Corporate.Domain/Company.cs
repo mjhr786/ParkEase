@@ -1,4 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
+using System.Text.RegularExpressions;
 using ParkingApp.BuildingBlocks.Enums;
 using ParkingApp.BuildingBlocks.Domain;
 using ParkingApp.Domain.Enums;
@@ -16,7 +17,18 @@ namespace ParkingApp.Corporate.Domain;
 /// </summary>
 public class Company : BaseEntity
 {
+    private static readonly Regex SlugRegex = new(
+        @"^[a-z0-9]+(?:-[a-z0-9]+)*$",
+        RegexOptions.CultureInvariant | RegexOptions.Compiled);
+
     public string Name { get; private set; } = string.Empty;
+
+    /// <summary>
+    /// Public vanity slug for Corporate SSO entry (/corporate/login?company={slug}).
+    /// Unique among non-deleted companies when set. Format: [a-z0-9-]+.
+    /// </summary>
+    public string? Slug { get; private set; }
+
     public string RegistrationNumber { get; private set; } = string.Empty;
     public string ContactEmail { get; private set; } = string.Empty;
     public string ContactPhone { get; private set; } = string.Empty;
@@ -31,6 +43,7 @@ public class Company : BaseEntity
     public virtual ICollection<CorporateBooking> CorporateBookings { get; private set; } = new List<CorporateBooking>();
     public virtual ICollection<CompanyUsage> Usages { get; private set; } = new List<CompanyUsage>();
     public virtual ICollection<CorporateWaitlistEntry> WaitlistEntries { get; private set; } = new List<CorporateWaitlistEntry>();
+    public virtual CompanySsoConfiguration? SsoConfiguration { get; private set; }
 
     // Required for EF Core materialization — no business logic.
     [ExcludeFromCodeCoverage]
@@ -74,6 +87,7 @@ public class Company : BaseEntity
         BillingAddress = billingAddress?.Trim() ?? string.Empty;
         BillingType = billingType;
         CreatedByUserId = createdByUserId;
+        Slug = GenerateSlugFromName(Name);
     }
 
     public static Company Create(
@@ -89,6 +103,54 @@ public class Company : BaseEntity
         company.AddMembershipInternal(createdByUserId, CompanyRole.Admin);
 
         return company;
+    }
+
+    /// <summary>
+    /// Sets or updates the public company slug (OQ-8). Caller must enforce global uniqueness.
+    /// </summary>
+    public void SetSlug(string slug)
+    {
+        if (string.IsNullOrWhiteSpace(slug))
+            throw new ArgumentException("Slug is required.", nameof(slug));
+
+        var normalized = slug.Trim().ToLowerInvariant();
+        if (normalized.Length > 64)
+            throw new ArgumentException("Slug must be at most 64 characters.", nameof(slug));
+        if (!SlugRegex.IsMatch(normalized))
+            throw new ArgumentException("Slug must match [a-z0-9-]+ (no leading/trailing hyphen).", nameof(slug));
+
+        Slug = normalized;
+        UpdatedAt = DateTime.UtcNow;
+    }
+
+    /// <summary>Sanitized slug seed from company name (collision suffix applied by migration / application layer).</summary>
+    public static string GenerateSlugFromName(string name)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+            return "company";
+
+        var sb = new System.Text.StringBuilder();
+        var prevHyphen = false;
+        foreach (var ch in name.Trim().ToLowerInvariant())
+        {
+            if (ch is >= 'a' and <= 'z' or >= '0' and <= '9')
+            {
+                sb.Append(ch);
+                prevHyphen = false;
+            }
+            else if (!prevHyphen && sb.Length > 0)
+            {
+                sb.Append('-');
+                prevHyphen = true;
+            }
+        }
+
+        var slug = sb.ToString().Trim('-');
+        if (string.IsNullOrEmpty(slug))
+            slug = "company";
+        if (slug.Length > 48)
+            slug = slug[..48].TrimEnd('-');
+        return slug;
     }
 
     public UserCompanyMembership AddMember(Guid adminUserId, Guid userId, CompanyRole role, string? employeeCode = null, int priority = 1)

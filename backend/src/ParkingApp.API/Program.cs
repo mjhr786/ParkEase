@@ -1,6 +1,7 @@
 using System.IO.Compression;
 using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.ResponseCompression;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.FileProviders;
@@ -84,6 +85,32 @@ try
         builder.Configuration.GetSection(ChannelIsolationOptions.SectionName));
     builder.Services.Configure<ParkingApp.Identity.Application.Options.ExternalAuthOptions>(
         builder.Configuration.GetSection(ParkingApp.Identity.Application.Options.ExternalAuthOptions.SectionName));
+    builder.Services.Configure<ParkingApp.Identity.Application.Options.CorporateSsoOptions>(
+        builder.Configuration.GetSection(ParkingApp.Identity.Application.Options.CorporateSsoOptions.SectionName));
+
+    // Data Protection key ring for Corporate SSO secrets (KD-CS-12).
+    // Dev: local FS. Staging/prod: set CorporateSso:DataProtectionKeysPath to a shared volume or configure Blob/Key Vault.
+    var ssoKeysPath = builder.Configuration["CorporateSso:DataProtectionKeysPath"];
+    var dataProtection = builder.Services.AddDataProtection()
+        .SetApplicationName("ParkEase");
+    if (!string.IsNullOrWhiteSpace(ssoKeysPath))
+    {
+        Directory.CreateDirectory(ssoKeysPath);
+        dataProtection.PersistKeysToFileSystem(new DirectoryInfo(ssoKeysPath));
+        Log.Information("Data Protection keys path: {KeysPath}", ssoKeysPath);
+    }
+    else if (builder.Environment.IsDevelopment())
+    {
+        var devKeys = Path.Combine(builder.Environment.ContentRootPath, "dp-keys");
+        Directory.CreateDirectory(devKeys);
+        dataProtection.PersistKeysToFileSystem(new DirectoryInfo(devKeys));
+        Log.Information("Data Protection keys (dev): {KeysPath}", devKeys);
+    }
+    else
+    {
+        Log.Warning(
+            "CorporateSso:DataProtectionKeysPath is not set. Multi-node SSO secret unprotect will fail unless a shared key ring is configured.");
+    }
 
     builder.Services.AddInfrastructure(builder.Configuration);
     builder.Services.AddNotificationServices(builder.Configuration);

@@ -1,23 +1,27 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
+import api from '../../services/api';
 import showToast from '../../utils/toast.jsx';
 import { safeReturnUrl } from '../../utils/safeReturnUrl';
 
 /**
  * Corporate product entry (PR6 / KD-3 / KD-16).
  * Supports bootstrap (zero memberships), single/multi company bind, and ?companyId= preselect.
+ * Enterprise SSO via company slug / work email — never marketplace social buttons.
  */
 export default function CorporateLogin() {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [loading, setLoading] = useState(false);
+    const [ssoLoading, setSsoLoading] = useState(false);
     const [memberships, setMemberships] = useState(null);
     const { loginCorporate, isAuthenticated, channel, isBootstrap } = useAuth();
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
     const returnUrl = safeReturnUrl(searchParams.get('returnUrl'));
     const preselectedCompanyId = searchParams.get('companyId') || null;
+    const companySlug = searchParams.get('company') || null;
 
     const finishSuccess = (result) => {
         if (result.isBootstrap) {
@@ -57,6 +61,11 @@ export default function CorporateLogin() {
         if (result.success) {
             showToast.success(result.isBootstrap ? 'Welcome — create your company' : 'Signed in to Corporate');
             finishSuccess(result);
+        } else if (result.code === 'password_login_disabled') {
+            showToast.error(
+                result.message ||
+                    'Password login is disabled for this company. Use company SSO below.'
+            );
         } else {
             showToast.error(result.message || 'Corporate login failed');
         }
@@ -69,10 +78,58 @@ export default function CorporateLogin() {
         if (result.success) {
             showToast.success('Signed in to Corporate');
             finishSuccess(result);
+        } else if (result.code === 'password_login_disabled') {
+            showToast.error(
+                result.message ||
+                    'Password login is disabled for this company. Use company SSO below.'
+            );
         } else {
             showToast.error(result.message || 'Could not bind company');
         }
         setLoading(false);
+    };
+
+    /** Enterprise SSO only — not Google/Apple/Facebook consumer social. */
+    const handleCompanySso = async () => {
+        setSsoLoading(true);
+        try {
+            const payload = {
+                client: 'web',
+                returnUrl: returnUrl || '/corporate/dashboard',
+                emailHint: email || undefined,
+            };
+            if (companySlug) payload.companySlug = companySlug;
+            else if (preselectedCompanyId) payload.companyId = preselectedCompanyId;
+            else if (email) payload.email = email;
+            else {
+                showToast.error('Enter your work email or open the company SSO link to continue with SSO');
+                setSsoLoading(false);
+                return;
+            }
+
+            const response = await api.corporateSsoStart(payload);
+            if (response.success && response.data?.authorizationUrl) {
+                // Optional in-app return path (relative only; API enforces allowlist)
+                try {
+                    sessionStorage.setItem(
+                        'parkease.corporate.sso.returnPath',
+                        returnUrl || '/corporate/dashboard'
+                    );
+                } catch {
+                    /* ignore */
+                }
+                window.location.assign(response.data.authorizationUrl);
+                return;
+            }
+            showToast.error(
+                response.message ||
+                    response.code ||
+                    'Company SSO is not available. Contact your administrator.'
+            );
+        } catch (err) {
+            showToast.error(err?.message || 'Could not start company SSO');
+        }
+        setSsoLoading(false);
     };
 
     return (
@@ -144,9 +201,46 @@ export default function CorporateLogin() {
                             />
                         </div>
 
-                        <button type="submit" className="btn btn-primary btn-full" disabled={loading}>
+                        <button type="submit" className="btn btn-primary btn-full" disabled={loading || ssoLoading}>
                             {loading ? 'Signing in...' : 'Sign in to Corporate'}
                         </button>
+
+                        <div
+                            style={{
+                                margin: '1.25rem 0',
+                                textAlign: 'center',
+                                color: 'var(--color-text-secondary)',
+                                fontSize: '0.875rem',
+                            }}
+                        >
+                            or
+                        </div>
+
+                        <button
+                            type="button"
+                            className="btn btn-secondary btn-full"
+                            disabled={loading || ssoLoading}
+                            onClick={handleCompanySso}
+                            data-testid="corporate-sso-button"
+                        >
+                            {ssoLoading ? 'Redirecting to company IdP…' : 'Continue with company SSO'}
+                        </button>
+                        <p
+                            style={{
+                                marginTop: '0.75rem',
+                                fontSize: '0.8rem',
+                                color: 'var(--color-text-secondary)',
+                            }}
+                        >
+                            Uses your organization&apos;s identity provider (Entra, Okta, etc.).
+                            Not Google/Apple consumer sign-in.
+                            {companySlug ? (
+                                <>
+                                    {' '}
+                                    Company: <strong>{companySlug}</strong>
+                                </>
+                            ) : null}
+                        </p>
                     </form>
                 )}
 

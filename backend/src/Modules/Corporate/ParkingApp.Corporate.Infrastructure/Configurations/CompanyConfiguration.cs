@@ -12,6 +12,7 @@ internal sealed class CompanyConfiguration : IEntityTypeConfiguration<Company>
     {
 entity.HasKey(e => e.Id);
             entity.Property(e => e.Name).HasMaxLength(200).IsRequired();
+            entity.Property(e => e.Slug).HasMaxLength(64);
             entity.Property(e => e.RegistrationNumber).HasMaxLength(100).IsRequired();
             entity.Property(e => e.ContactEmail).HasMaxLength(255).IsRequired();
             entity.Property(e => e.ContactPhone).HasMaxLength(20).IsRequired();
@@ -19,6 +20,11 @@ entity.HasKey(e => e.Id);
 
             entity.HasIndex(e => e.RegistrationNumber).IsUnique();
             entity.HasIndex(e => e.CreatedByUserId);
+            // Unique among non-deleted companies when slug is set
+            entity.HasIndex(e => e.Slug)
+                .IsUnique()
+                .HasFilter("\"Slug\" IS NOT NULL AND \"IsDeleted\" = false")
+                .HasDatabaseName("IX_Companies_Slug");
 
 //             entity.HasOne(e => e.CreatedByUser)
 //                 .WithMany()

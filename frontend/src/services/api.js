@@ -308,6 +308,51 @@ class ApiService {
     });
   }
 
+  /**
+   * Corporate enterprise SSO discover (GET /api/auth/corporate/sso/discover).
+   * Does not reveal whether a user account exists.
+   */
+  async corporateSsoDiscover({ email, domain } = {}) {
+    const params = new URLSearchParams();
+    if (email) params.set('email', email);
+    if (domain) params.set('domain', domain);
+    const q = params.toString();
+    return this.request(`/auth/corporate/sso/discover${q ? `?${q}` : ''}`);
+  }
+
+  /**
+   * Corporate enterprise SSO start (POST /api/auth/corporate/sso/start).
+   * Returns { authorizationUrl, state } for browser redirect to company IdP.
+   */
+  async corporateSsoStart(payload = {}) {
+    return this.request('/auth/corporate/sso/start', {
+      method: 'POST',
+      body: JSON.stringify({
+        companySlug: payload.companySlug || undefined,
+        companyId: payload.companyId || undefined,
+        email: payload.email || undefined,
+        emailDomain: payload.emailDomain || undefined,
+        emailHint: payload.emailHint || undefined,
+        returnUrl: payload.returnUrl || undefined,
+        client: payload.client || 'web',
+      }),
+    });
+  }
+
+  /**
+   * Corporate enterprise SSO complete (POST /api/auth/corporate/sso/complete).
+   * Exchanges one-time sso_code for CorporateLoginResponseDto session.
+   */
+  async corporateSsoComplete({ exchangeCode, ssoCode } = {}) {
+    return this.request('/auth/corporate/sso/complete', {
+      method: 'POST',
+      body: JSON.stringify({
+        exchangeCode: exchangeCode || ssoCode || undefined,
+        ssoCode: ssoCode || exchangeCode || undefined,
+      }),
+    });
+  }
+
   /** Authenticated channel switch / re-bind (POST /api/auth/channel). */
   async switchChannel({ channel, companyId, bootstrap } = {}) {
     const body = { channel };
@@ -968,6 +1013,45 @@ class ApiService {
     params.set('page', String(page));
     params.set('pageSize', String(pageSize));
     return this.request(`/admin/audit?${params.toString()}`);
+  }
+
+  // Platform Admin — Corporate SSO oversight (PR6)
+  async getAdminCorporateSsoList({
+    search,
+    forceDisabledOnly,
+    enabledOnly,
+    page = 1,
+    pageSize = 25,
+  } = {}) {
+    const params = new URLSearchParams();
+    if (search) params.set('search', search);
+    if (forceDisabledOnly !== undefined && forceDisabledOnly !== null && forceDisabledOnly !== '') {
+      params.set('forceDisabledOnly', String(forceDisabledOnly));
+    }
+    if (enabledOnly !== undefined && enabledOnly !== null && enabledOnly !== '') {
+      params.set('enabledOnly', String(enabledOnly));
+    }
+    params.set('page', String(page));
+    params.set('pageSize', String(pageSize));
+    return this.request(`/admin/corporate-sso?${params.toString()}`);
+  }
+
+  async forceDisableCompanySso(companyId, reason) {
+    return this.request(`/admin/corporate-sso/${companyId}/force-disable`, {
+      method: 'POST',
+      body: JSON.stringify({ reason: reason || undefined }),
+    });
+  }
+
+  async clearForceDisableCompanySso(companyId, reason) {
+    return this.request(`/admin/corporate-sso/${companyId}/clear-force-disable`, {
+      method: 'POST',
+      body: JSON.stringify({ reason: reason || undefined }),
+    });
+  }
+
+  async getAdminCompanySsoAudit(companyId, take = 50) {
+    return this.request(`/admin/corporate-sso/${companyId}/audit?take=${take}`);
   }
 
   // Platform Admin — listings moderation

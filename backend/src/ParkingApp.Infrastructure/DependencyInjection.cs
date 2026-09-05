@@ -84,7 +84,8 @@ public static class DependencyInjection
                 npgsqlOptions.UseNetTopologySuite();
                 npgsqlOptions.CommandTimeout(30);
                 npgsqlOptions.EnableRetryOnFailure(maxRetryCount: 3);
-            }));
+            }).ConfigureWarnings(warnings =>
+                warnings.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning)));
         services.AddMemoryCache();
 
         // Dapper SQL connection factory (same pool-friendly connection string)

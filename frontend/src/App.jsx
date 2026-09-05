@@ -38,6 +38,7 @@ const CompanyInvoices = React.lazy(() => import('./pages/Corporate/CompanyInvoic
 const CompanySettings = React.lazy(() => import('./pages/Corporate/CompanySettings'));
 const AcceptInvitation = React.lazy(() => import('./pages/Corporate/AcceptInvitation'));
 const CorporateLogin = React.lazy(() => import('./pages/Corporate/CorporateLogin'));
+const CorporateSsoComplete = React.lazy(() => import('./pages/Corporate/CorporateSsoComplete'));
 const CreateCompany = React.lazy(() => import('./pages/Corporate/CreateCompany'));
 const LeaseBrowse = React.lazy(() => import('./pages/Corporate/LeaseBrowse'));
 const OutboxAdmin = React.lazy(() => import('./pages/Admin/OutboxAdmin'));
@@ -54,6 +55,7 @@ const AdminBookingDetail = React.lazy(() => import('./pages/Admin/AdminBookingDe
 const AdminPayments = React.lazy(() => import('./pages/Admin/AdminPayments'));
 const AdminPaymentDetail = React.lazy(() => import('./pages/Admin/AdminPaymentDetail'));
 const AdminAuditLog = React.lazy(() => import('./pages/Admin/AdminAuditLog'));
+const AdminCorporateSso = React.lazy(() => import('./pages/Admin/AdminCorporateSso'));
 const AdminRoute = React.lazy(() => import('./components/AdminRoute'));
 const LprRegistry = React.lazy(() => import('./pages/Vendor/LprRegistry'));
 const AccessPassScanner = React.lazy(() => import('./pages/Vendor/AccessPassScanner'));
@@ -93,6 +95,7 @@ function Header() {
           items: [
             { to: '/admin', icon: '🛡️', label: 'Admin Panel' },
             { to: '/admin/users', icon: '👥', label: 'Manage Users' },
+            { to: '/admin/corporate-sso', icon: '🔐', label: 'Corporate SSO' },
             { to: '/admin/audit', icon: '📝', label: 'Audit Log' },
             { to: '/admin/outbox', icon: '📬', label: 'Outbox' },
           ],
@@ -735,6 +738,7 @@ function AppRoutes() {
           }
         />
         <Route path="/corporate/login" element={<CorporateLogin />} />
+        <Route path="/corporate/sso/complete" element={<CorporateSsoComplete />} />
         <Route
           path="/corporate/create-company"
           element={
@@ -833,6 +837,7 @@ function AppRoutes() {
           <Route path="bookings/:id" element={<AdminBookingDetail />} />
           <Route path="payments" element={<AdminPayments />} />
           <Route path="payments/:id" element={<AdminPaymentDetail />} />
+          <Route path="corporate-sso" element={<AdminCorporateSso />} />
           <Route path="audit" element={<AdminAuditLog />} />
           <Route path="outbox" element={<OutboxAdmin />} />
         </Route>
