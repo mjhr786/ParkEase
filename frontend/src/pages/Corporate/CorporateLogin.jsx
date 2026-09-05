@@ -205,20 +205,10 @@ export default function CorporateLogin() {
                             {loading ? 'Signing in...' : 'Sign in to Corporate'}
                         </button>
 
-                        <div
-                            style={{
-                                margin: '1.25rem 0',
-                                textAlign: 'center',
-                                color: 'var(--color-text-secondary)',
-                                fontSize: '0.875rem',
-                            }}
-                        >
-                            or
-                        </div>
-
                         <button
                             type="button"
                             className="btn btn-secondary btn-full"
+                            style={{ marginTop: '1rem' }}
                             disabled={loading || ssoLoading}
                             onClick={handleCompanySso}
                             data-testid="corporate-sso-button"

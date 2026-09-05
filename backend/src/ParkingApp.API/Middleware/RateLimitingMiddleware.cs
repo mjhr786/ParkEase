@@ -18,9 +18,11 @@ public class RateLimitingMiddleware
 {
     private readonly RequestDelegate _next;
     private readonly ILogger<RateLimitingMiddleware> _logger;
+    private readonly IConfiguration? _configuration;
     private readonly IOptionsMonitor<IotLprOptions>? _iotOptions;
     private readonly IOptionsMonitor<ExternalAuthOptions>? _externalAuthOptions;
     private readonly IOptionsMonitor<CorporateSsoOptions>? _corporateSsoOptions;
+    private readonly IHostEnvironment? _env;
     private static readonly ConcurrentDictionary<string, Queue<DateTime>> _requestTimes = new();
     private static readonly ConcurrentDictionary<string, Queue<DateTime>> _iotRequestTimes = new();
     private static readonly ConcurrentDictionary<string, Queue<DateTime>> _externalAuthRequestTimes = new();
@@ -48,20 +50,49 @@ public class RateLimitingMiddleware
 
     public RateLimitingMiddleware(
         RequestDelegate next,
+        ILogger<RateLimitingMiddleware> logger)
+        : this(next, logger, null, null, null, null, null)
+    {
+    }
+
+    public RateLimitingMiddleware(
+        RequestDelegate next,
         ILogger<RateLimitingMiddleware> logger,
-        IOptionsMonitor<IotLprOptions>? iotOptions = null,
-        IOptionsMonitor<ExternalAuthOptions>? externalAuthOptions = null,
-        IOptionsMonitor<CorporateSsoOptions>? corporateSsoOptions = null)
+        IOptionsMonitor<IotLprOptions>? iotOptions,
+        IOptionsMonitor<ExternalAuthOptions>? externalAuthOptions,
+        IOptionsMonitor<CorporateSsoOptions>? corporateSsoOptions)
+        : this(next, logger, null, iotOptions, externalAuthOptions, corporateSsoOptions, null)
+    {
+    }
+
+    public RateLimitingMiddleware(
+        RequestDelegate next,
+        ILogger<RateLimitingMiddleware> logger,
+        IConfiguration? configuration,
+        IOptionsMonitor<IotLprOptions>? iotOptions,
+        IOptionsMonitor<ExternalAuthOptions>? externalAuthOptions,
+        IOptionsMonitor<CorporateSsoOptions>? corporateSsoOptions,
+        IHostEnvironment? env)
     {
         _next = next;
         _logger = logger;
+        _configuration = configuration;
         _iotOptions = iotOptions;
         _externalAuthOptions = externalAuthOptions;
         _corporateSsoOptions = corporateSsoOptions;
+        _env = env;
     }
 
     public async Task InvokeAsync(HttpContext context)
     {
+        if (_configuration?.GetValue<bool>("RateLimiting:Disabled", false) == true ||
+            _configuration?.GetValue<bool>("RateLimiting:Enabled", true) == false ||
+            _env?.IsEnvironment("Testing") == true)
+        {
+            await _next(context);
+            return;
+        }
+
         if (HttpMethods.IsOptions(context.Request.Method))
         {
             await _next(context);

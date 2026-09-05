@@ -56,6 +56,8 @@ public sealed class DualPoolApiFactory : WebApplicationFactory<Program>
                 ["Jwt:Issuer"] = "ParkingApp",
                 ["Jwt:Audience"] = "ParkingApp",
                 ["ChannelIsolation:Enabled"] = "false",
+                ["RateLimiting:Disabled"] = "true",
+                ["RateLimiting:Enabled"] = "false",
                 ["Logging:File:Enabled"] = "false",
                 ["Storage:Provider"] = "Local",
                 // L4 smoke stubs IDispatcher — do not require Postgres migrate

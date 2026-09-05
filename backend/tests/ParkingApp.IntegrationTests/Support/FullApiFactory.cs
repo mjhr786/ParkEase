@@ -87,6 +87,8 @@ public sealed class FullApiFactory : WebApplicationFactory<Program>
                 ["ExternalAuth:Providers:Google:ClientIds:0"] = "test-google-client",
                 ["ExternalAuth:Providers:Apple:Enabled"] = _externalAuthEnabled ? "true" : "false",
                 ["ExternalAuth:Providers:Apple:ClientIds:0"] = "test.apple.client",
+                ["RateLimiting:Disabled"] = "true",
+                ["RateLimiting:Enabled"] = "false",
                 ["Logging:File:Enabled"] = "false",
                 ["Logging:Serilog:MinimumLevel"] = "Warning",
                 ["Storage:Provider"] = "Local",

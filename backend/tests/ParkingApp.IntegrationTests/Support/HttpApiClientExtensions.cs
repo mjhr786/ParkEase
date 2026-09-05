@@ -206,7 +206,7 @@ public static class HttpApiClientExtensions
         return (response, body);
     }
 
-    public static async Task<(HttpResponseMessage Response, ApiResponse<bool>? Body)> ChangePasswordAsync(
+    public static async Task<(HttpResponseMessage Response, ApiResponse<bool?>? Body)> ChangePasswordAsync(
         this HttpClient client,
         string currentPassword,
         string newPassword,
@@ -217,7 +217,7 @@ public static class HttpApiClientExtensions
             new ChangePasswordDto(currentPassword, newPassword),
             JsonOptions,
             cancellationToken);
-        var body = await response.ReadApiResponseAsync<bool>(cancellationToken);
+        var body = await response.ReadApiResponseAsync<bool?>(cancellationToken);
         return (response, body);
     }
 }
