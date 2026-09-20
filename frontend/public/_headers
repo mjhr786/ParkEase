@@ -9,7 +9,10 @@
   X-Content-Type-Options: nosniff
   Referrer-Policy: strict-origin-when-cross-origin
   Permissions-Policy: geolocation=(self), camera=(), microphone=()
-
+  # same-origin-allow-popups is required for Google Sign-In:
+  # Google's OAuth popup sets COOP: same-origin on its side. Without this header,
+  # Chrome blocks the postMessage that delivers the auth token back to this page.
+  Cross-Origin-Opener-Policy: same-origin-allow-popups
 # ─── Immutable cache for Vite content-hashed assets ─────────────────────────
 # Vite writes chunk filenames with a content hash (e.g. vendor-react-abc123.js).
 # The hash changes on every rebuild, so the filename is a permanent, unique URL.
