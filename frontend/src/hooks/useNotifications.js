@@ -3,7 +3,8 @@ import * as signalR from '@microsoft/signalr';
 import { API_BASE_URL } from '../config';
 import { AUTH_CHANGED_EVENT } from '../utils/authEvents';
 
-// Use empty string for production (same origin) or localhost for development
+// Resolved at build time from VITE_API_URL (cross-origin on Cloudflare Pages)
+// or falls back to '' (same-origin) / localhost for development.
 const API_URL = API_BASE_URL;
 
 /**
@@ -40,12 +41,18 @@ export function useNotifications(onNotification) {
             return;
         }
 
-        // Build connection with JWT authentication
+        // Build connection with JWT authentication.
+        // Transport order: WebSocket (preferred) → SSE → LongPolling.
+        // skipNegotiation is intentionally omitted: it forced WS-only with no fallback,
+        // which silently breaks when the SPA and API are on different origins and WS
+        // is blocked (e.g. Cloudflare proxy, restrictive corporate firewall).
         const connection = new signalR.HubConnectionBuilder()
             .withUrl(`${API_URL}/hubs/notifications`, {
                 accessTokenFactory: () => localStorage.getItem('accessToken'),
-                skipNegotiation: true,
-                transport: signalR.HttpTransportType.WebSockets
+                transport:
+                    signalR.HttpTransportType.WebSockets |
+                    signalR.HttpTransportType.ServerSentEvents |
+                    signalR.HttpTransportType.LongPolling,
             })
             .withAutomaticReconnect([0, 2000, 5000, 10000, 30000])
             // Quiet in production builds; keep Warning+ for real issues

@@ -468,6 +468,9 @@ docs/*
 !docs/channel-isolation-implementation-status.md
 !docs/API_ENDPOINTS_CHANNEL_ISOLATION.md
 !docs/corporate-parking-flow.md
+# Cloudflare Pages migration documentation
+!docs/cloudflare-pages-migration-analysis.md
+!docs/cloudflare-pages-implementation-plan.md
 
 # Local tools / one-off utilities
 ResetOutbox/
@@ -479,3 +482,9 @@ CheckDB.cs
 /backend/src/ParkingApp.API/appsettings.Staging.json
 /frontend/.env.production.example
 /frontend/.env.staging.example
+API_ENDPOINTS_MOBILE.md
+/docs/cloudflare-pages-implementation-plan.md
+/docs/cloudflare-pages-migration-analysis.md
+/.github/workflows/deploy-frontend.yml
+/API_ENDPOINTS_MOBILE.md
+/backend/src/ParkingApp.API/wwwroot/index.html

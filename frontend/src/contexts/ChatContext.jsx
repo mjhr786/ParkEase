@@ -145,11 +145,17 @@ export function ChatProvider({ children }) {
         const token = localStorage.getItem('accessToken');
         if (!token) return;
 
+        // Transport order: WebSocket (preferred) → SSE → LongPolling.
+        // skipNegotiation is intentionally omitted: it forced WS-only with no fallback,
+        // which silently breaks when the SPA and API are on different origins and WS
+        // is blocked (e.g. Cloudflare proxy, restrictive corporate firewall).
         const connection = new signalR.HubConnectionBuilder()
             .withUrl(`${API_BASE_URL}/hubs/chat`, {
                 accessTokenFactory: () => localStorage.getItem('accessToken') || '',
-                skipNegotiation: true,
-                transport: signalR.HttpTransportType.WebSockets,
+                transport:
+                    signalR.HttpTransportType.WebSockets |
+                    signalR.HttpTransportType.ServerSentEvents |
+                    signalR.HttpTransportType.LongPolling,
             })
             .withAutomaticReconnect([0, 2000, 5000, 10000, 30000])
             .configureLogging(signalR.LogLevel.Warning)

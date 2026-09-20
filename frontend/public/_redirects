@@ -1,0 +1,4 @@
+# Cloudflare Pages SPA fallback
+# All paths → index.html with 200 (this is a rewrite, NOT a redirect)
+# Cloudflare serves static files first; this only fires for paths with no matching asset
+/*    /index.html   200
