@@ -34,7 +34,11 @@ vi.mock('../services/api', () => ({
     deleteProfile: vi.fn(),
     getExternalProviders: vi.fn().mockResolvedValue({
       success: true,
-      data: { providers: [] },
+      data: { providers: ['Google'] },
+    }),
+    getLinkedExternalLogins: vi.fn().mockResolvedValue({
+      success: true,
+      data: { linkedProviders: ['Google'] },
     }),
   },
 }));

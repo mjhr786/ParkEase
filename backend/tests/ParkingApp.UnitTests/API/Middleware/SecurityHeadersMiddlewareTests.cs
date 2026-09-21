@@ -39,9 +39,9 @@ public class SecurityHeadersMiddlewareTests
         headers.Should().ContainKey("Permissions-Policy");
         headers["Permissions-Policy"].ToString().Should().Be("geolocation=(), microphone=(), camera=()");
 
-        // OAuth popups (Google GIS / Apple) need same-origin-allow-popups, not same-origin
+        // Google Identity Services (GIS) requires unsafe-none for postMessage communication from accounts.google.com
         headers.Should().ContainKey("Cross-Origin-Opener-Policy");
-        headers["Cross-Origin-Opener-Policy"].ToString().Should().Be("same-origin-allow-popups");
+        headers["Cross-Origin-Opener-Policy"].ToString().Should().Be("unsafe-none");
 
         var csp = headers["Content-Security-Policy"].ToString();
         csp.Should().Contain("https://accounts.google.com");

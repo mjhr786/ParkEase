@@ -36,11 +36,9 @@ public class SecurityHeadersMiddleware
 
         context.Response.Headers.Append("Content-Security-Policy", csp);
 
-        // Allow OAuth/GIS popups to retain window.opener so the opener can observe
-        // popup.closed (avoids Chrome "COOP would block the window.closed call" noise
-        // and hung Google Sign-In when FedCM is unavailable). Do NOT use "same-origin"
-        // here — that severs opener and breaks ux_mode: 'popup'.
-        context.Response.Headers.Append("Cross-Origin-Opener-Policy", "same-origin-allow-popups");
+        // Set unsafe-none to permit Google Identity Services (GIS) iframe and OAuth popups
+        // to send postMessage to the parent window without Chrome blocking cross-origin messages.
+        context.Response.Headers.Append("Cross-Origin-Opener-Policy", "unsafe-none");
         
         // Referrer Policy
         context.Response.Headers.Append("Referrer-Policy", "strict-origin-when-cross-origin");
@@ -48,11 +46,15 @@ public class SecurityHeadersMiddleware
         // Permissions Policy
         context.Response.Headers.Append("Permissions-Policy", "geolocation=(), microphone=(), camera=()");
         
-        // HSTS - only add in production with HTTPS
-        if (!context.Request.IsHttps)
+        // HSTS — forces browsers to always use HTTPS for this domain, eliminating the
+        // HTTP→HTTPS redirect round-trip on every new session. max-age=31536000 = 1 year
+        // (OWASP recommended minimum for production APIs).
+        // includeSubDomains also protects any API subdomains against SSL stripping attacks.
+        if (context.Request.IsHttps)
         {
-            // Uncomment in production with HTTPS
-            // context.Response.Headers.Append("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
+            context.Response.Headers.Append(
+                "Strict-Transport-Security",
+                "max-age=31536000; includeSubDomains");
         }
 
         await _next(context);

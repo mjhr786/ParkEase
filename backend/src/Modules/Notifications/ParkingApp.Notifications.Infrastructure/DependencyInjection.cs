@@ -54,32 +54,38 @@ public static class DependencyInjection
         return services;
     }
 
+    private static readonly object FirebaseLock = new();
+
     private static void InitializeFirebase(IConfiguration configuration)
     {
-        // Only initialize once
         if (FirebaseApp.DefaultInstance != null)
             return;
 
-        try
+        lock (FirebaseLock)
         {
-            // Build the service account JSON from individual config keys
-            // (avoids storing the raw private key in a single config blob)
-            var projectId = configuration["Firebase:ProjectId"];
-            var clientEmail = configuration["Firebase:ClientEmail"];
-            var privateKeyId = configuration["Firebase:PrivateKeyId"];
-            var privateKey = configuration["Firebase:PrivateKey"]
-                ?.Replace("\\n", "\n"); // handle escaped newlines from env vars
-
-            if (string.IsNullOrWhiteSpace(projectId) ||
-                string.IsNullOrWhiteSpace(clientEmail) ||
-                string.IsNullOrWhiteSpace(privateKey))
-            {
-                // No credentials configured ΓÇö fall back to mock in development
-                Console.WriteLine(">> Firebase credentials not configured ΓÇö push notifications will be mocked");
+            if (FirebaseApp.DefaultInstance != null)
                 return;
-            }
 
-            var serviceAccountJson = $@"{{
+            try
+            {
+                // Build the service account JSON from individual config keys
+                // (avoids storing the raw private key in a single config blob)
+                var projectId = configuration["Firebase:ProjectId"];
+                var clientEmail = configuration["Firebase:ClientEmail"];
+                var privateKeyId = configuration["Firebase:PrivateKeyId"];
+                var privateKey = configuration["Firebase:PrivateKey"]
+                    ?.Replace("\\n", "\n"); // handle escaped newlines from env vars
+
+                if (string.IsNullOrWhiteSpace(projectId) ||
+                    string.IsNullOrWhiteSpace(clientEmail) ||
+                    string.IsNullOrWhiteSpace(privateKey))
+                {
+                    // No credentials configured — fall back to mock in development
+                    Console.WriteLine(">> Firebase credentials not configured — push notifications will be mocked");
+                    return;
+                }
+
+                var serviceAccountJson = $@"{{
   ""type"": ""service_account"",
   ""project_id"": ""{projectId}"",
   ""private_key_id"": ""{privateKeyId}"",
@@ -93,19 +99,24 @@ public static class DependencyInjection
   ""universe_domain"": ""googleapis.com""
 }}";
 
-            FirebaseApp.Create(new AppOptions
-            {
-                Credential = GoogleCredential
-                    .FromJson(serviceAccountJson)
-                    .CreateScoped("https://www.googleapis.com/auth/firebase.messaging")
-            });
+                FirebaseApp.Create(new AppOptions
+                {
+                    Credential = GoogleCredential
+                        .FromJson(serviceAccountJson)
+                        .CreateScoped("https://www.googleapis.com/auth/firebase.messaging")
+                });
 
-            Console.WriteLine($">> Firebase Admin SDK initialized for project: {projectId}");
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($">> Firebase initialization failed: {ex.Message}");
-            // Non-fatal ΓÇö app still runs, push notifications will fail gracefully
+                Console.WriteLine($">> Firebase Admin SDK initialized for project: {projectId}");
+            }
+            catch (ArgumentException) when (FirebaseApp.DefaultInstance != null)
+            {
+                // Race condition during concurrent test initialization — safely ignored.
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($">> Firebase initialization failed: {ex.Message}");
+                // Non-fatal — app still runs, push notifications will fail gracefully
+            }
         }
     }
 }

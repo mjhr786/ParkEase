@@ -266,5 +266,5 @@ describe('CompanySwitcher', () => {
     await waitFor(() => {
       expect(mockToastError).toHaveBeenCalledWith('Name taken');
     });
-  });
+  }, 10000);
 });

@@ -49,6 +49,12 @@ public class ExceptionHandlingMiddleware
         }
     }
 
+    private static readonly JsonSerializerOptions DefaultJsonOptions = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
+    };
+
     private static async Task HandleExceptionAsync(HttpContext context, Exception exception)
     {
         if (context.Response.HasStarted)
@@ -61,12 +67,7 @@ public class ExceptionHandlingMiddleware
         context.Response.StatusCode = (int)statusCode;
 
         var response = new ApiResponse<object>(false, message, null, errors);
-        var json = JsonSerializer.Serialize(response, new JsonSerializerOptions
-        {
-            PropertyNamingPolicy = JsonNamingPolicy.CamelCase
-        });
-
-        await context.Response.WriteAsync(json);
+        await JsonSerializer.SerializeAsync(context.Response.Body, response, DefaultJsonOptions);
     }
 
     private static bool IsClientFault(Exception exception) =>

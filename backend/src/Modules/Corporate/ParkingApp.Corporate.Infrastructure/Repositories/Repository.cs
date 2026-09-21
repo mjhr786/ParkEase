@@ -23,29 +23,30 @@ internal class Repository<T> : IRepository<T> where T : BaseEntity
 
     public virtual async Task<IEnumerable<T>> GetAllAsync(CancellationToken cancellationToken = default)
     {
-        return await _dbSet.ToListAsync(cancellationToken);
+        return await _dbSet.AsNoTracking().ToListAsync(cancellationToken);
     }
 
     public virtual async Task<IEnumerable<T>> FindAsync(Expression<Func<T, bool>> predicate, CancellationToken cancellationToken = default)
     {
-        return await _dbSet.Where(predicate).ToListAsync(cancellationToken);
+        return await _dbSet.AsNoTracking().Where(predicate).ToListAsync(cancellationToken);
     }
 
     public virtual async Task<T?> FirstOrDefaultAsync(Expression<Func<T, bool>> predicate, CancellationToken cancellationToken = default)
     {
-        return await _dbSet.FirstOrDefaultAsync(predicate, cancellationToken);
+        return await _dbSet.AsNoTracking().FirstOrDefaultAsync(predicate, cancellationToken);
     }
 
+    // AnyAsync — pure predicate, no entity materialisation.
     public virtual async Task<bool> AnyAsync(Expression<Func<T, bool>> predicate, CancellationToken cancellationToken = default)
     {
-        return await _dbSet.AnyAsync(predicate, cancellationToken);
+        return await _dbSet.AsNoTracking().AnyAsync(predicate, cancellationToken);
     }
 
     public virtual async Task<int> CountAsync(Expression<Func<T, bool>>? predicate = null, CancellationToken cancellationToken = default)
     {
         return predicate == null
-            ? await _dbSet.CountAsync(cancellationToken)
-            : await _dbSet.CountAsync(predicate, cancellationToken);
+            ? await _dbSet.AsNoTracking().CountAsync(cancellationToken)
+            : await _dbSet.AsNoTracking().CountAsync(predicate, cancellationToken);
     }
 
     public virtual async Task<T> AddAsync(T entity, CancellationToken cancellationToken = default)

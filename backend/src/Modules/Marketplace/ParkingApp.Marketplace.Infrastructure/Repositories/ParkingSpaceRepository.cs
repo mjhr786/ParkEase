@@ -211,6 +211,7 @@ internal sealed class ParkingSpaceRepository : MarketplaceRepository<ParkingSpac
         // KD-9: marketplace owner/vendor listings exclude company-owned (corporate-only) inventory.
         // Admin listing APIs use SearchForAdminAsync (unfiltered by IsCorporateOnly).
         return await _dbSet
+            .AsNoTracking()
             .Where(p => p.OwnerId == ownerId && !p.IsCorporateOnly)
             .OrderByDescending(p => p.CreatedAt)
             .ToListAsync(cancellationToken);
@@ -814,6 +815,7 @@ internal sealed class PaymentRepository : MarketplaceRepository<Payment>, IPayme
     public async Task<IEnumerable<Payment>> GetByUserIdAsync(Guid userId, CancellationToken cancellationToken = default)
     {
         return await _dbSet
+            .AsNoTracking()
             .Include(p => p.Booking)
             .Where(p => p.UserId == userId)
             .OrderByDescending(p => p.CreatedAt)
@@ -882,7 +884,7 @@ internal sealed class ReviewRepository : MarketplaceRepository<Review>, IReviewR
     public async Task<IEnumerable<Review>> GetByParkingSpaceIdAsync(Guid parkingSpaceId, CancellationToken cancellationToken = default)
     {
         return await _dbSet
-            
+            .AsNoTracking()
             .Where(r => r.ParkingSpaceId == parkingSpaceId && r.IsApproved)
             .OrderByDescending(r => r.CreatedAt)
             .ToListAsync(cancellationToken);
@@ -891,6 +893,7 @@ internal sealed class ReviewRepository : MarketplaceRepository<Review>, IReviewR
     public async Task<IEnumerable<Review>> GetByUserIdAsync(Guid userId, CancellationToken cancellationToken = default)
     {
         return await _dbSet
+            .AsNoTracking()
             .Include(r => r.ParkingSpace)
             .Where(r => r.UserId == userId)
             .OrderByDescending(r => r.CreatedAt)
@@ -899,11 +902,13 @@ internal sealed class ReviewRepository : MarketplaceRepository<Review>, IReviewR
 
     public async Task<double> GetAverageRatingAsync(Guid parkingSpaceId, CancellationToken cancellationToken = default)
     {
-        var reviews = await _dbSet
+        // Use database-side aggregation to avoid materialising all Review entities.
+        var avg = await _dbSet
+            .AsNoTracking()
             .Where(r => r.ParkingSpaceId == parkingSpaceId)
-            .ToListAsync(cancellationToken);
+            .AverageAsync(r => (double?)r.Rating, cancellationToken);
 
-        return reviews.Count > 0 ? reviews.Average(r => r.Rating) : 0;
+        return avg ?? 0;
     }
 }
 
