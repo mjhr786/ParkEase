@@ -1,4 +1,4 @@
-﻿using ParkingApp.BuildingBlocks.Domain;
+using ParkingApp.BuildingBlocks.Domain;
 namespace ParkingApp.Marketplace.Domain.Events;
 
 /// <summary>Marketplace booking request created (Pending).</summary>
@@ -59,6 +59,25 @@ public sealed record BookingOverstayFeeAssessedEvent(
     decimal FeeAmount,
     int BillableMinutes,
     decimal DeltaAmount) : DomainEvent;
+
+public sealed record BookingSessionEndRemindedEvent(
+    Guid BookingId,
+    Guid UserId,
+    Guid ParkingSpaceId,
+    string? BookingReference) : DomainEvent;
+
+public sealed record BookingOverstayNotifiedEvent(
+    Guid BookingId,
+    Guid UserId,
+    Guid ParkingSpaceId,
+    string? BookingReference) : DomainEvent;
+
+public sealed record BookingAutoCheckedOutEvent(
+    Guid BookingId,
+    Guid UserId,
+    Guid ParkingSpaceId,
+    string? BookingReference,
+    decimal OverstayFeeAmount) : DomainEvent;
 
 /// <summary>Overstay fee (or portion) paid successfully.</summary>
 public sealed record BookingOverstayFeePaidEvent(

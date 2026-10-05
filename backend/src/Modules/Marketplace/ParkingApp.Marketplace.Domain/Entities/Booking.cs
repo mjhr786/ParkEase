@@ -506,6 +506,7 @@ public class Booking : BaseEntity
 
         OverstayNotifiedAt = notifiedAtUtc;
         UpdatedAt = DateTime.UtcNow;
+        AddDomainEvent(new BookingOverstayNotifiedEvent(Id, UserId, ParkingSpaceId, BookingReference));
         return true;
     }
 
@@ -522,6 +523,7 @@ public class Booking : BaseEntity
 
         SessionEndRemindedAt = remindedAtUtc;
         UpdatedAt = DateTime.UtcNow;
+        AddDomainEvent(new BookingSessionEndRemindedEvent(Id, UserId, ParkingSpaceId, BookingReference));
         return true;
     }
 

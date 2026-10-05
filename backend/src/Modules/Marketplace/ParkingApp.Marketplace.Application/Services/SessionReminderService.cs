@@ -5,7 +5,7 @@ using ParkingApp.Marketplace.Application.Interfaces;
 using ParkingApp.Marketplace.Application.Options;
 using ParkingApp.Marketplace.Contracts.Enums;
 using ParkingApp.Marketplace.Domain.Interfaces;
-using NotificationType = ParkingApp.Messaging.Contracts.Enums.NotificationType;
+using ParkingApp.Application.Interfaces;
 
 namespace ParkingApp.Marketplace.Application.Services;
 
@@ -15,20 +15,23 @@ namespace ParkingApp.Marketplace.Application.Services;
 internal sealed class SessionReminderService : ISessionReminderService
 {
     private readonly IMarketplaceUnitOfWork _unitOfWork;
-    private readonly INotificationSender _notificationSender;
+    private readonly ICacheService _cache;
     private readonly IOptionsMonitor<SessionReminderOptions> _options;
     private readonly ILogger<SessionReminderService> _logger;
+    private readonly TimeProvider _timeProvider;
 
     public SessionReminderService(
         IMarketplaceUnitOfWork unitOfWork,
-        INotificationSender notificationSender,
+        ICacheService cache,
         IOptionsMonitor<SessionReminderOptions> options,
-        ILogger<SessionReminderService> logger)
+        ILogger<SessionReminderService> logger,
+        TimeProvider timeProvider)
     {
         _unitOfWork = unitOfWork;
-        _notificationSender = notificationSender;
+        _cache = cache;
         _options = options;
         _logger = logger;
+        _timeProvider = timeProvider;
     }
 
     public async Task<SessionReminderResult> ProcessAsync(int batchSize, CancellationToken cancellationToken = default)
@@ -39,10 +42,20 @@ internal sealed class SessionReminderService : ISessionReminderService
 
         var leadMinutes = Math.Clamp(opts.LeadMinutes, 1, 24 * 60);
         var take = Math.Clamp(batchSize, 1, 200);
-        var now = DateTime.UtcNow;
+        var now = _timeProvider.GetUtcNow().UtcDateTime;
         var windowEnd = now.AddMinutes(leadMinutes);
 
-        var candidates = await _unitOfWork.Bookings.GetEndingSoonForReminderAsync(
+        var lockKey = "job:session-reminder";
+        var acquired = await _cache.AcquireLockAsync(lockKey, TimeSpan.FromMinutes(2), cancellationToken);
+        if (!acquired)
+        {
+            _logger.LogInformation("Job {JobName} is already running. Skipping.", lockKey);
+            return new SessionReminderResult(0, 0);
+        }
+
+        try
+        {
+            var candidates = await _unitOfWork.Bookings.GetEndingSoonForReminderAsync(
             now,
             windowEnd,
             take,
@@ -60,40 +73,26 @@ internal sealed class SessionReminderService : ISessionReminderService
             var minutesLeft = Math.Max(1, (int)Math.Ceiling((booking.EndDateTime - now).TotalMinutes));
             var canExtend = CanRequestExtension(booking);
 
-            try
-            {
-                await _notificationSender.SendAsync(
-                    booking.UserId,
-                    new NotificationSendRequest(
-                        NotificationType.SystemAlert.ToString(),
-                        canExtend
-                            ? $"Parking ends in ~{minutesLeft} min — extend?"
-                            : $"Parking ends in ~{minutesLeft} min",
-                        BuildMessage(title, reference, minutesLeft, canExtend),
-                        Channels: new[] { "InApp" },
-                        Data: BuildGuestData(booking.Id, canExtend, minutesLeft)),
-                    cancellationToken);
+            if (!booking.TryMarkSessionEndReminded(now))
+                continue;
 
-                if (!booking.TryMarkSessionEndReminded(now))
-                    continue;
-
-                _unitOfWork.Bookings.Update(booking);
-                notified++;
-                _logger.LogInformation(
-                    "Session end reminder sent for booking {BookingId} (~{Minutes} min left)",
-                    booking.Id,
-                    minutesLeft);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Failed session end reminder for booking {BookingId}", booking.Id);
-            }
+            _unitOfWork.Bookings.Update(booking);
+            notified++;
+            _logger.LogInformation(
+                "Session end reminder staged for outbox on booking {BookingId} (~{Minutes} min left)",
+                booking.Id,
+                minutesLeft);
         }
 
         if (notified > 0 || candidates.Count > 0)
             await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         return new SessionReminderResult(notified, candidates.Count);
+        }
+        finally
+        {
+            await _cache.ReleaseLockAsync(lockKey, CancellationToken.None);
+        }
     }
 
     /// <summary>
@@ -102,30 +101,4 @@ internal sealed class SessionReminderService : ISessionReminderService
     internal static bool CanRequestExtension(ParkingApp.Marketplace.Domain.Entities.Booking booking) =>
         (booking.Status == BookingStatus.Confirmed || booking.Status == BookingStatus.InProgress)
         && !booking.HasPendingExtension;
-
-    private static Dictionary<string, string> BuildGuestData(Guid bookingId, bool canExtend, int minutesLeft)
-    {
-        return new Dictionary<string, string>
-        {
-            { "BookingId", bookingId.ToString() },
-            { "Type", "booking.session.ending" },
-            { "CanExtend", canExtend ? "true" : "false" },
-            { "ActionExtend", canExtend ? "true" : "false" },
-            { "ActionCheckout", bookingId != Guid.Empty ? "true" : "false" },
-            { "MinutesLeft", minutesLeft.ToString() },
-            { "CheckoutPath", $"/bookings/{bookingId}" },
-            { "ExtendPath", canExtend ? $"/bookings/{bookingId}?action=extend" : string.Empty }
-        };
-    }
-
-    private static string BuildMessage(string title, string reference, int minutesLeft, bool canExtend)
-    {
-        var msg =
-            $"Your booking at {title} (ref {reference}) ends in about {minutesLeft} minute(s).";
-
-        if (canExtend)
-            return msg + " Tap Extend to stay longer, or Check out when you leave.";
-
-        return msg + " Open your booking for details.";
-    }
 }

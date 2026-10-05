@@ -46,8 +46,6 @@ namespace ParkingApp.Notifications.Infrastructure.Services
                 return;
             }
 
-            to = "mshaikh8992@gmail.com"; // Override for testing - Remove in production
-
             try
             {
                 object emailRequest;

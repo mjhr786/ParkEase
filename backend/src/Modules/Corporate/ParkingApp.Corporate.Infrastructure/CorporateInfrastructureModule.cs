@@ -41,7 +41,10 @@ public static class CorporateInfrastructureModule
         services.Configure<WaitlistAutoPromotionOptions>(
             configuration.GetSection(WaitlistAutoPromotionOptions.SectionName));
         services.AddScoped<IWaitlistPromotionStore, WaitlistPromotionStore>();
-        services.AddHostedService<WaitlistAutoPromotionBackgroundService>();
+        if (configuration.GetValue<bool>("Jobs:UseHostedServices", true))
+        {
+            services.AddHostedService<WaitlistAutoPromotionBackgroundService>();
+        }
 
         return services;
     }

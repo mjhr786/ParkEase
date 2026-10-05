@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.DataProtection.EntityFrameworkCore;
 using ParkingApp.BuildingBlocks.Domain;
 using ParkingApp.Marketplace.Domain.Entities;
 using ParkingApp.Identity.Domain.Entities;
@@ -29,7 +30,8 @@ public class ApplicationDbContext : DbContext,
     ParkingApp.Messaging.Infrastructure.Persistence.IMessagingDbContext,
     IMarketplaceDbContext,
     ICorporateDbContext,
-    IAdminDbContext
+    IAdminDbContext,
+    IDataProtectionKeyContext
 {
     private readonly ICorporateTenantContext? _tenantContext;
 
@@ -79,6 +81,7 @@ public class ApplicationDbContext : DbContext,
     public DbSet<CorporateSsoAuditEvent> CorporateSsoAuditEvents => Set<CorporateSsoAuditEvent>();
     public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
     public DbSet<AdminActionLog> AdminActionLogs => Set<AdminActionLog>();
+    public DbSet<DataProtectionKey> DataProtectionKeys { get; set; } = null!;
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {

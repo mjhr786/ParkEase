@@ -88,8 +88,11 @@ public static class MarketplaceInfrastructureModule
         services.AddSingleton<IWalletPassService, WalletPassService>();
         services.AddSingleton<IEventPackageTicketPdfService, EventPackageTicketPdfService>();
         services.AddSingleton<IOcppChargeStationAdapter, MockOcppChargeStationAdapter>();
-        services.AddHostedService<OverstayDetectionBackgroundService>();
-        services.AddHostedService<SessionReminderBackgroundService>();
+        if (configuration?.GetValue<bool>("Jobs:UseHostedServices", true) ?? true)
+        {
+            services.AddHostedService<OverstayDetectionBackgroundService>();
+            services.AddHostedService<SessionReminderBackgroundService>();
+        }
 
         return services;
     }

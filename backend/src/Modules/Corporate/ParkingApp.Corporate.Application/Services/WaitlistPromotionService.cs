@@ -24,19 +24,22 @@ internal sealed class WaitlistPromotionService : IWaitlistPromotionService
     private readonly IMarketplaceBookingService _marketplaceBookingService;
     private readonly ICacheService _cache;
     private readonly ILogger<WaitlistPromotionService> _logger;
+    private readonly TimeProvider _timeProvider;
 
     public WaitlistPromotionService(
         ICorporateUnitOfWork corporate,
         IWaitlistPromotionStore store,
         IMarketplaceBookingService marketplaceBookingService,
         ICacheService cache,
-        ILogger<WaitlistPromotionService> logger)
+        ILogger<WaitlistPromotionService> logger,
+        TimeProvider timeProvider)
     {
         _corporate = corporate;
         _store = store;
         _marketplaceBookingService = marketplaceBookingService;
         _cache = cache;
         _logger = logger;
+        _timeProvider = timeProvider;
     }
 
     public async Task<ApiResponse<CorporateReservationResultDto>> PromoteAsync(
@@ -87,13 +90,13 @@ internal sealed class WaitlistPromotionService : IWaitlistPromotionService
             var sharedSlotUsageBySlot = await _corporate.CorporateBookings.GetSharedSlotUsageCountsAsync(
                 companyId,
                 allocation.Id,
-                DateTime.UtcNow.AddDays(-30),
+                _timeProvider.GetUtcNow().UtcDateTime.AddDays(-30),
                 cancellationToken);
             var anonymousOccupiedSharedBookings = Math.Max(0, activeSharedCount - occupiedSharedSlotNumbers.Count);
             var recentBookingCreations = await _corporate.CorporateBookings.GetRecentBookingCreateCountAsync(
                 companyId,
                 targetMembership.Id,
-                DateTime.UtcNow.AddHours(-24),
+                _timeProvider.GetUtcNow().UtcDateTime.AddHours(-24),
                 cancellationToken);
 
             var duration = waitlistEntry.RequestedEndDateTime - waitlistEntry.RequestedStartDateTime;
@@ -218,7 +221,7 @@ internal sealed class WaitlistPromotionService : IWaitlistPromotionService
         int batchSize = 25,
         CancellationToken cancellationToken = default)
     {
-        var utcNow = DateTime.UtcNow;
+        var utcNow = _timeProvider.GetUtcNow().UtcDateTime;
         var take = Math.Clamp(batchSize, 1, 100);
 
         var expired = await _store.ExpireStalePendingAsync(utcNow, cancellationToken);

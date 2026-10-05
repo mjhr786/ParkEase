@@ -1,0 +1,104 @@
+﻿# =============================================================================
+# backend/.dockerignore
+# Build context: backend/
+# =============================================================================
+
+# ── VCS / IDE ────────────────────────────────────────────────────────────────
+.git
+.gitignore
+.gitattributes
+.vs
+.vscode
+*.user
+*.suo
+*.sln.ide
+
+# ── Build outputs ─────────────────────────────────────────────────────────────
+**/bin/
+**/obj/
+
+# ── Test results ─────────────────────────────────────────────────────────────
+**/TestResults/
+TestResults/
+TestResults-w5/
+TestResults-w7/
+TestResults-w8/
+TestResults-w11/
+TestResults-w12/
+TestResults-w13/
+TestResults-w14/
+TestResults-w24/
+
+# ── Publish output (local, not for Docker) ───────────────────────────────────
+publish/
+publish-for-filezilla.bat
+
+# ── Log / diagnostic files ────────────────────────────────────────────────────
+*.log
+api_build.log
+build.log
+build_app_diag.log
+build_bb_diag.log
+build_infra_diag.log
+logs/
+*.diag
+
+# ── Test projects (not needed to build or run the API) ───────────────────────
+tests/
+
+# ── Unused source projects ────────────────────────────────────────────────────
+# Gateway is a separate deployment unit (YARP reverse proxy)
+src/ParkingApp.Gateway/
+# ResetOutbox is a CLI maintenance tool - not referenced by ParkingApp.API
+ResetOutbox/
+# tools/ is local development tooling only
+tools/
+# Scratch/analysis scripts at the backend root
+CheckDB.cs
+src/QueryDb.cs
+old_waitlist.patch
+
+# ── SQLite dev database (should NOT be in production image) ──────────────────
+src/ParkingApp.API/parking.db
+
+# ── Data Protection keys (ephemeral, runtime-generated; not source files) ────
+src/ParkingApp.API/dp-keys/
+
+# ── Secret-containing appsettings (NEVER bake live credentials into image) ───
+# appsettings.Production.json has been SANITIZED (credentials = placeholders).
+# It is safe to include in the image. All real secrets must be supplied via
+# Cloud Run environment variables or Secret Manager at deploy time.
+#
+# appsettings.Development.json: dev-only, not needed in container
+src/ParkingApp.API/appsettings.Development.json
+# appsettings.Staging.json: staging-only, not needed in this Production image
+src/ParkingApp.API/appsettings.Staging.json
+# Backup of the original Production file that DID contain live credentials
+src/ParkingApp.API/appsettings.Production.json.bak
+
+# ── Raw .env files ────────────────────────────────────────────────────────────
+.env
+.env.*
+
+# ── Certificate / key files ───────────────────────────────────────────────────
+**/*.pfx
+**/*.p12
+**/*.pem
+**/*.key
+secrets/
+*secrets*
+
+# ── launchSettings.json (dev-only profile, not used in containers) ────────────
+src/ParkingApp.API/Properties/launchSettings.json
+
+# ── Visual Studio artefacts ───────────────────────────────────────────────────
+**/*.csproj.user
+**/*.http
+**/*.sln.ide
+
+# ── Node / frontend ───────────────────────────────────────────────────────────
+node_modules/
+
+# ── macOS / Windows clutter ───────────────────────────────────────────────────
+.DS_Store
+Thumbs.db

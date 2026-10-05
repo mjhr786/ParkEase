@@ -53,6 +53,9 @@ public sealed class FullApiFactory : WebApplicationFactory<Program>
     /// <summary>Stub IdP validator registered for this host (CI-safe).</summary>
     public FakeExternalTokenValidator FakeExternalTokens { get; } = new();
 
+    /// <summary>Controllable clock for time-dependent background jobs.</summary>
+    public Microsoft.Extensions.Time.Testing.FakeTimeProvider Clock { get; } = new();
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         // Force Development: process/host may default to Production (breaks JWT HTTPS metadata + secrets).
@@ -94,7 +97,8 @@ public sealed class FullApiFactory : WebApplicationFactory<Program>
                 ["Storage:Provider"] = "Local",
                 ["API_BASE_URL"] = "http://localhost",
                 // Full pipeline owns migrate against Testcontainers
-                ["Database:ApplyMigrationsOnStartup"] = "true"
+                ["Database:ApplyMigrationsOnStartup"] = "true",
+                ["InternalJobs:ApiKey"] = "TestKey123!"
             });
         });
 
@@ -110,6 +114,10 @@ public sealed class FullApiFactory : WebApplicationFactory<Program>
             // Guarantee in-memory cache even if host already bound Redis from secrets
             services.RemoveAll<ICacheService>();
             services.AddSingleton<ICacheService, InMemoryCacheService>();
+
+            // Allow tests to manipulate time for BackgroundServices/HTTP endpoints
+            services.RemoveAll<TimeProvider>();
+            services.AddSingleton<TimeProvider>(Clock);
 
             // No real Stripe in IT — deterministic create-order / verify / refund
             services.RemoveAll<IPaymentService>();

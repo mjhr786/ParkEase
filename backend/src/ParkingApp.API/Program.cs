@@ -38,6 +38,20 @@ try
 
     var builder = WebApplication.CreateBuilder(args);
 
+    // ─── Cloud Run PORT binding ───────────────────────────────────────────────────
+    // Cloud Run injects PORT at runtime (typically 8080, but not guaranteed).
+    // We read it here and set ASPNETCORE_URLS so Kestrel listens on 0.0.0.0:PORT.
+    // This is the single authoritative URL configuration for container deployments.
+    // It has no effect in development (where launchSettings.json / dotnet run sets
+    // the URL) because ASPNETCORE_ENVIRONMENT != Production in that context.
+    var cloudRunPort = Environment.GetEnvironmentVariable("PORT");
+    if (!string.IsNullOrWhiteSpace(cloudRunPort))
+    {
+        // Override whatever ASPNETCORE_URLS is set to (including the Dockerfile default).
+        builder.WebHost.UseUrls($"http://0.0.0.0:{cloudRunPort}");
+        Log.Information("Cloud Run PORT detected: listening on http://0.0.0.0:{Port}", cloudRunPort);
+    }
+
     // Serilog from configuration (file sink optional; shorter retention on free tier)
     builder.Host.UseSerilog((context, services, loggerConfiguration) =>
     {
@@ -109,8 +123,8 @@ try
     }
     else
     {
-        Log.Warning(
-            "CorporateSso:DataProtectionKeysPath is not set. Multi-node SSO secret unprotect will fail unless a shared key ring is configured.");
+        dataProtection.PersistKeysToDbContext<ApplicationDbContext>();
+        Log.Information("Data Protection keys persisted to PostgreSQL via ApplicationDbContext");
     }
 
     builder.Services.AddInfrastructure(builder.Configuration);
@@ -124,6 +138,7 @@ try
     builder.Services.AddAdminApplication();
 
     // Add Controllers with JSON source generator for hot DTO types
+    builder.Services.AddScoped<ParkingApp.API.Filters.ApiKeyAuthFilter>();
     builder.Services.AddControllers()
         .AddJsonOptions(options =>
         {

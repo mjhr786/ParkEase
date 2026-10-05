@@ -62,6 +62,8 @@ public static class DependencyInjection
 
     private static void RegisterSharedInfrastructure(IServiceCollection services, IConfiguration configuration)
     {
+        services.AddSingleton(TimeProvider.System);
+
         // Database - PostgreSQL with PostGIS.
         // Note: WebApplicationFactory ConfigureAppConfiguration often does not win over
         // appsettings for values read during Program service registration. A parseable
@@ -99,7 +101,10 @@ public static class DependencyInjection
         services.AddScoped<IOutboxWriter, OutboxWriter>();
         services.AddScoped<IOutboxProcessor, OutboxProcessor>();
         services.AddScoped<IOutboxAdminStore, OutboxAdminStore>();
-        services.AddHostedService<OutboxBackgroundService>();
+        if (configuration.GetValue<bool>("Jobs:UseHostedServices", true))
+        {
+            services.AddHostedService<OutboxBackgroundService>();
+        }
 
         // Unit of Work: one implementation; context ports resolve to the same scoped instance
         services.AddScoped<UnitOfWork>();

@@ -37,7 +37,8 @@ public class WaitlistPromotionServiceTests
         _store.Object,
         _marketplaceBookings.Object,
         _cache.Object,
-        NullLogger<WaitlistPromotionService>.Instance);
+        NullLogger<WaitlistPromotionService>.Instance,
+        TimeProvider.System);
 
     [Fact]
     public async Task PromoteAsync_WhenCompanyMissing_ReturnsFailure()

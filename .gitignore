@@ -431,6 +431,10 @@ backend/src/ParkingApp.API/wwwroot/assets/
 # Production / Development secrets (ignore local copies; keep API versions tracked)
 appsettings.Production.json
 !backend/src/ParkingApp.API/appsettings.Production.json
+appsettings*.bak
+appsettings*.bac
+*.bak
+*.bac
 
 # Development secrets
 appsettings.Development.json
@@ -488,3 +492,8 @@ API_ENDPOINTS_MOBILE.md
 /.github/workflows/deploy-frontend.yml
 /API_ENDPOINTS_MOBILE.md
 /backend/src/ParkingApp.API/wwwroot/index.html
+
+# ASP.NET Core Data Protection local development keys
+**/dp-keys/
+
+/backend/publish - Old working Copy
