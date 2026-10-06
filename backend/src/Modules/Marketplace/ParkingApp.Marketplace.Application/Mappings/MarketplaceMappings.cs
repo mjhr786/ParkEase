@@ -4,6 +4,7 @@ using ParkingApp.Marketplace.Contracts.DTOs;
 using ParkingApp.Marketplace.Contracts.Enums;
 using ParkingApp.BuildingBlocks.Enums;
 using ParkingApp.Marketplace.Domain.Entities;
+using ParkingApp.Marketplace.Domain.Models;
 using ParkingApp.Marketplace.Domain.Services;
 
 namespace ParkingApp.Marketplace.Application.Mappings;
@@ -92,9 +93,22 @@ public static class MarketplaceMappings
         double? distanceKm = null,
         int? durationMinutes = null,
         DateTime? priceAsOfUtc = null)
+        => parking.ToDtoWithFullDetails(
+            activeBookings.Select(static b => new BookingAvailabilityRead(
+                b.ParkingSpaceId, b.Status, b.StartDateTime, b.EndDateTime, b.SlotNumber)),
+            distanceKm,
+            durationMinutes,
+            priceAsOfUtc);
+
+    public static ParkingSpaceDto ToDtoWithFullDetails(
+        this ParkingSpace parking,
+        IEnumerable<BookingAvailabilityRead> activeBookings,
+        double? distanceKm = null,
+        int? durationMinutes = null,
+        DateTime? priceAsOfUtc = null)
     {
         var asOf = priceAsOfUtc ?? DateTime.UtcNow;
-        var bookingsList = activeBookings as IList<Booking> ?? activeBookings.ToList();
+        var bookingsList = activeBookings as IList<BookingAvailabilityRead> ?? activeBookings.ToList();
         var availableForPrice = EstimateAvailableAt(parking, bookingsList, asOf);
         var dyn = parking.GetEffectiveHourlyRate(asOf, availableForPrice);
 
@@ -200,8 +214,15 @@ public static class MarketplaceMappings
     /// Falls back to entity AvailableSpots when no bookings provided.
     /// </summary>
     public static int EstimateAvailableAt(ParkingSpace parking, IEnumerable<Booking> bookings, DateTime asOfUtc)
+        => EstimateAvailableAt(
+            parking,
+            bookings.Select(static b => new BookingAvailabilityRead(
+                b.ParkingSpaceId, b.Status, b.StartDateTime, b.EndDateTime, b.SlotNumber)),
+            asOfUtc);
+
+    public static int EstimateAvailableAt(ParkingSpace parking, IEnumerable<BookingAvailabilityRead> bookings, DateTime asOfUtc)
     {
-        var list = bookings as IList<Booking> ?? bookings.ToList();
+        var list = bookings as IList<BookingAvailabilityRead> ?? bookings.ToList();
         if (list.Count == 0)
             return parking.AvailableSpots;
 

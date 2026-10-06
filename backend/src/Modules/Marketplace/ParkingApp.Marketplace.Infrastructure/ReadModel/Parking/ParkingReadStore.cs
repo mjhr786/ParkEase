@@ -7,6 +7,7 @@ using ParkingApp.Application.DTOs;
 using ParkingApp.Marketplace.Contracts.DTOs;
 using ParkingApp.Marketplace.Application.Interfaces;
 using ParkingApp.Marketplace.Application.Options;
+using ParkingApp.Marketplace.Application.Queries.Parking;
 using ParkingApp.Application.Interfaces;
 using ParkingApp.BuildingBlocks.Domain;
 using ParkingApp.Marketplace.Domain.Entities;
@@ -35,8 +36,7 @@ internal sealed class ParkingReadStore : IParkingReadStore
 
     public async Task<IReadOnlyList<ParkingSpace>> SearchAsync(ParkingSearchDto criteria, CancellationToken ct = default)
     {
-        // Parity with SearchParkingHandler - IParkingSpaceRepository.SearchAsync call site
-        // (parkingType / vehicleType historically not passed from the handler).
+        criteria = DiscoverySearchCanonical.Apply(criteria);
         var amenities = criteria.Amenities != null ? string.Join(",", criteria.Amenities) : null;
         var maxPageSize = Math.Clamp(_discoveryOptions.CurrentValue.Search.MaxPageSize, 1, 100);
 
@@ -54,12 +54,12 @@ internal sealed class ParkingReadStore : IParkingReadStore
             criteria.RadiusKm,
             criteria.MinPrice,
             criteria.MaxPrice,
-            parkingType: null,
-            vehicleType: null,
+            criteria.ParkingType?.ToString(),
+            criteria.VehicleType?.ToString(),
             amenities,
             criteria.MinRating,
             criteria.HasEvCharging,
-            ResolveListingCategory(criteria));
+            DiscoverySearchCanonical.ResolveListingCategory(criteria));
 
         var sortBy = criteria.SortBy;
         var sortDescending = criteria.SortDescending;
@@ -109,6 +109,7 @@ internal sealed class ParkingReadStore : IParkingReadStore
 
     public async Task<int> CountSearchAsync(ParkingSearchDto criteria, CancellationToken ct = default)
     {
+        criteria = DiscoverySearchCanonical.Apply(criteria);
         var amenities = criteria.Amenities != null ? string.Join(",", criteria.Amenities) : null;
 
         var query = _db.ParkingSpaces
@@ -125,122 +126,30 @@ internal sealed class ParkingReadStore : IParkingReadStore
             criteria.RadiusKm,
             criteria.MinPrice,
             criteria.MaxPrice,
-            parkingType: null,
-            vehicleType: null,
+            criteria.ParkingType?.ToString(),
+            criteria.VehicleType?.ToString(),
             amenities,
             criteria.MinRating,
             criteria.HasEvCharging,
-            ResolveListingCategory(criteria));
+            DiscoverySearchCanonical.ResolveListingCategory(criteria));
 
         return await query.CountAsync(ct);
     }
 
     public async Task<IReadOnlyList<ParkingMapDto>> GetMapPinsAsync(ParkingSearchDto criteria, CancellationToken ct = default)
     {
-        var sql = new StringBuilder();
-        var parameters = new DynamicParameters();
-
-        // Parity with marketplace search: exclude company-only inventory from public map.
-        // Project first image URL only (split_part) so map payloads stay small.
-        sql.Append("""
-            SELECT "Id", "Title", "Address", "City", "Latitude", "Longitude",
-                   "HourlyRate",
-                   CASE
-                     WHEN "ImageUrls" IS NULL OR BTRIM("ImageUrls") = '' THEN NULL
-                     ELSE split_part("ImageUrls", ',', 1)
-                   END AS "ThumbnailUrl",
-                   "AverageRating", "ParkingType", "ListingCategory", "InstantBook",
-                   "TotalSpots", "AvailableSpots", "IsDynamicPricingEnabled",
-                   "DynamicMinMultiplier", "DynamicMaxMultiplier",
-                   "PeakHourMultiplier", "WeekendMultiplier", "TimeZoneId"
-            FROM "ParkingSpaces"
-            WHERE "IsActive" = TRUE AND "IsDeleted" = FALSE AND "IsCorporateOnly" = FALSE
-            """);
-
-        if (!string.IsNullOrEmpty(criteria.State))
-        {
-            sql.Append(""" AND LOWER("State") = LOWER(@State)""");
-            parameters.Add("State", criteria.State);
-        }
-        if (!string.IsNullOrEmpty(criteria.City))
-        {
-            sql.Append(""" AND LOWER("City") LIKE '%' || LOWER(@City) || '%'""");
-            parameters.Add("City", criteria.City);
-        }
-        if (!string.IsNullOrEmpty(criteria.Address))
-        {
-            sql.Append(""" AND (LOWER("Address") LIKE '%' || LOWER(@Address) || '%' OR LOWER("Title") LIKE '%' || LOWER(@Address) || '%')""");
-            parameters.Add("Address", criteria.Address);
-        }
-        if (criteria.Latitude.HasValue && criteria.Longitude.HasValue && criteria.RadiusKm.HasValue)
-        {
-            sql.Append(""" AND "Location" IS NOT NULL AND ST_DWithin("Location", ST_SetSRID(ST_MakePoint(@Lng, @Lat), 4326)::geography, @RadiusM)""");
-            parameters.Add("Lng", criteria.Longitude.Value);
-            parameters.Add("Lat", criteria.Latitude.Value);
-            parameters.Add("RadiusM", criteria.RadiusKm.Value * 1000);
-        }
-        if (criteria.MinPrice.HasValue)
-        {
-            sql.Append(""" AND "HourlyRate" >= @MinPrice""");
-            parameters.Add("MinPrice", criteria.MinPrice.Value);
-        }
-        if (criteria.MaxPrice.HasValue)
-        {
-            sql.Append(""" AND "HourlyRate" <= @MaxPrice""");
-            parameters.Add("MaxPrice", criteria.MaxPrice.Value);
-        }
-        if (criteria.ParkingType.HasValue)
-        {
-            sql.Append(""" AND "ParkingType" = @ParkingType""");
-            parameters.Add("ParkingType", (int)criteria.ParkingType.Value);
-        }
-        if (criteria.VehicleType.HasValue)
-        {
-            sql.Append(""" AND ("AllowedVehicleTypes" IS NULL OR "AllowedVehicleTypes" LIKE '%' || @VehicleType || '%')""");
-            parameters.Add("VehicleType", criteria.VehicleType.Value.ToString());
-        }
-        if (criteria.MinRating.HasValue)
-        {
-            sql.Append(""" AND "AverageRating" >= @MinRating""");
-            parameters.Add("MinRating", criteria.MinRating.Value);
-        }
-        if (criteria.Amenities != null && criteria.Amenities.Count > 0)
-        {
-            for (int i = 0; i < criteria.Amenities.Count; i++)
-            {
-                var amenity = criteria.Amenities[i]?.Trim() ?? string.Empty;
-                if (string.Equals(amenity, "EV_Charging", StringComparison.OrdinalIgnoreCase)
-                    || string.Equals(amenity, "EV Charging", StringComparison.OrdinalIgnoreCase))
-                {
-                    sql.Append(""" AND ("HasEvCharging" = TRUE OR "Amenities" LIKE '%EV%')""");
-                    continue;
-                }
-
-                var paramName = $"Amenity{i}";
-                sql.Append($""" AND "Amenities" LIKE '%' || @{paramName} || '%'""");
-                parameters.Add(paramName, amenity);
-            }
-        }
-
-        if (criteria.HasEvCharging == true)
-            sql.Append(""" AND "HasEvCharging" = TRUE""");
-
-        var listingCategory = ResolveListingCategory(criteria);
-        if (listingCategory.HasValue)
-        {
-            sql.Append(""" AND "ListingCategory" = @ListingCategory""");
-            parameters.Add("ListingCategory", (int)listingCategory.Value);
-        }
-
+        var canonical = DiscoverySearchCanonical.Apply(criteria);
         var maxPins = Math.Clamp(_discoveryOptions.CurrentValue.Map.MaxPins, 50, 2000);
-        sql.Append(" LIMIT @MaxPins");
-        parameters.Add("MaxPins", maxPins);
+        var (sql, parameterValues) = BuildMapPinsQuery(canonical, maxPins);
+        var parameters = new DynamicParameters();
+        foreach (var pair in parameterValues)
+            parameters.Add(pair.Key, pair.Value);
 
         using var connection = _sql.CreateConnection();
         var rows = await connection.QueryAsync<MapRow>(
-            new CommandDefinition(sql.ToString(), parameters, cancellationToken: ct));
+            new CommandDefinition(sql, parameters, cancellationToken: ct));
 
-        var asOf = criteria.StartDateTime?.ToUniversalTime() ?? DateTime.UtcNow;
+        var asOf = canonical.StartDateTime?.ToUniversalTime() ?? DateTime.UtcNow;
         return rows.Select(r =>
         {
             var dyn = DynamicPricingCalculator.Calculate(
@@ -272,15 +181,113 @@ internal sealed class ParkingReadStore : IParkingReadStore
         }).ToList();
     }
 
-    private static ListingCategory? ResolveListingCategory(ParkingSearchDto criteria)
+    /// <summary>
+    /// Map pin SQL. Geographic parameters are the canonical cache-key values.
+    /// Parking type, vehicle type, rating, EV, and listing category match list/count.
+    /// </summary>
+    internal static (string Sql, IReadOnlyDictionary<string, object?> Parameters) BuildMapPinsQuery(
+        ParkingSearchDto criteria,
+        int maxPins)
     {
-        if (criteria.ListingCategory.HasValue)
-            return criteria.ListingCategory;
-        if (criteria.IsResidential == true)
-            return ListingCategory.Residential;
-        if (criteria.IsResidential == false)
-            return ListingCategory.Commercial;
-        return null;
+        criteria = DiscoverySearchCanonical.Apply(criteria);
+        var sql = new StringBuilder();
+        var parameters = new Dictionary<string, object?>(StringComparer.Ordinal);
+
+        // Parity with marketplace search: exclude company-only inventory from public map.
+        // Project first image URL only (split_part) so map payloads stay small.
+        sql.Append("""
+            SELECT "Id", "Title", "Address", "City", "Latitude", "Longitude",
+                   "HourlyRate",
+                   CASE
+                     WHEN "ImageUrls" IS NULL OR BTRIM("ImageUrls") = '' THEN NULL
+                     ELSE split_part("ImageUrls", ',', 1)
+                   END AS "ThumbnailUrl",
+                   "AverageRating", "ParkingType", "ListingCategory", "InstantBook",
+                   "TotalSpots", "AvailableSpots", "IsDynamicPricingEnabled",
+                   "DynamicMinMultiplier", "DynamicMaxMultiplier",
+                   "PeakHourMultiplier", "WeekendMultiplier", "TimeZoneId"
+            FROM "ParkingSpaces"
+            WHERE "IsActive" = TRUE AND "IsDeleted" = FALSE AND "IsCorporateOnly" = FALSE
+            """);
+
+        if (!string.IsNullOrEmpty(criteria.State))
+        {
+            sql.Append(""" AND LOWER("State") = LOWER(@State)""");
+            parameters["State"] = criteria.State;
+        }
+        if (!string.IsNullOrEmpty(criteria.City))
+        {
+            sql.Append(""" AND LOWER("City") LIKE '%' || LOWER(@City) || '%'""");
+            parameters["City"] = criteria.City;
+        }
+        if (!string.IsNullOrEmpty(criteria.Address))
+        {
+            sql.Append(""" AND (LOWER("Address") LIKE '%' || LOWER(@Address) || '%' OR LOWER("Title") LIKE '%' || LOWER(@Address) || '%')""");
+            parameters["Address"] = criteria.Address;
+        }
+        if (criteria.Latitude.HasValue && criteria.Longitude.HasValue && criteria.RadiusKm.HasValue)
+        {
+            sql.Append(""" AND "Location" IS NOT NULL AND ST_DWithin("Location", ST_SetSRID(ST_MakePoint(@Lng, @Lat), 4326)::geography, @RadiusM)""");
+            parameters["Lng"] = criteria.Longitude.Value;
+            parameters["Lat"] = criteria.Latitude.Value;
+            parameters["RadiusM"] = criteria.RadiusKm.Value * 1000;
+        }
+        if (criteria.MinPrice.HasValue)
+        {
+            sql.Append(""" AND "HourlyRate" >= @MinPrice""");
+            parameters["MinPrice"] = criteria.MinPrice.Value;
+        }
+        if (criteria.MaxPrice.HasValue)
+        {
+            sql.Append(""" AND "HourlyRate" <= @MaxPrice""");
+            parameters["MaxPrice"] = criteria.MaxPrice.Value;
+        }
+        if (criteria.ParkingType.HasValue)
+        {
+            sql.Append(""" AND "ParkingType" = @ParkingType""");
+            parameters["ParkingType"] = (int)criteria.ParkingType.Value;
+        }
+        if (criteria.VehicleType.HasValue)
+        {
+            sql.Append(""" AND ("AllowedVehicleTypes" IS NULL OR "AllowedVehicleTypes" LIKE '%' || @VehicleType || '%')""");
+            parameters["VehicleType"] = criteria.VehicleType.Value.ToString();
+        }
+        if (criteria.MinRating.HasValue)
+        {
+            sql.Append(""" AND "AverageRating" >= @MinRating""");
+            parameters["MinRating"] = criteria.MinRating.Value;
+        }
+        if (criteria.Amenities != null && criteria.Amenities.Count > 0)
+        {
+            for (int i = 0; i < criteria.Amenities.Count; i++)
+            {
+                var amenity = criteria.Amenities[i]?.Trim() ?? string.Empty;
+                if (string.Equals(amenity, "EV_Charging", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(amenity, "EV Charging", StringComparison.OrdinalIgnoreCase))
+                {
+                    sql.Append(""" AND ("HasEvCharging" = TRUE OR "Amenities" LIKE '%EV%')""");
+                    continue;
+                }
+
+                var paramName = $"Amenity{i}";
+                sql.Append($""" AND "Amenities" LIKE '%' || @{paramName} || '%'""");
+                parameters[paramName] = amenity;
+            }
+        }
+
+        if (criteria.HasEvCharging == true)
+            sql.Append(""" AND "HasEvCharging" = TRUE""");
+
+        var listingCategory = DiscoverySearchCanonical.ResolveListingCategory(criteria);
+        if (listingCategory.HasValue)
+        {
+            sql.Append(""" AND "ListingCategory" = @ListingCategory""");
+            parameters["ListingCategory"] = (int)listingCategory.Value;
+        }
+
+        sql.Append(" LIMIT @MaxPins");
+        parameters["MaxPins"] = maxPins;
+        return (sql.ToString(), parameters);
     }
 
     private static IQueryable<ParkingSpace> ApplySearchFilters(

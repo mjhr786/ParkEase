@@ -77,6 +77,16 @@ public interface IBookingRepository : IRepository<Booking>
     Task<bool> IsSlotOccupiedInWindowAsync(Guid parkingSpaceId, int slotNumber, DateTime startDateTime, DateTime endDateTime, Guid? excludeBookingId = null, CancellationToken cancellationToken = default);
     Task<bool> HasBlockingBookingsForSpaceAsync(Guid parkingSpaceId, DateTime utcNow, CancellationToken cancellationToken = default);
     Task<IEnumerable<Booking>> GetActiveBookingsForSpacesAsync(IEnumerable<Guid> parkingSpaceIds, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Discovery availability for the given spaces. Same six active statuses and future
+    /// <c>EndDateTime</c> filter as <see cref="GetActiveBookingsForSpacesAsync"/>, projected
+    /// to the five columns search consumes.
+    /// </summary>
+    Task<IReadOnlyList<BookingAvailabilityRead>> GetDiscoveryBookingAvailabilityAsync(
+        IEnumerable<Guid> parkingSpaceIds,
+        CancellationToken cancellationToken = default);
+
     Task<IEnumerable<Booking>> GetForecastRelevantBookingsForSpacesAsync(IEnumerable<Guid> parkingSpaceIds, DateTime fromUtc, DateTime toUtc, CancellationToken cancellationToken = default);
 
     /// <summary>

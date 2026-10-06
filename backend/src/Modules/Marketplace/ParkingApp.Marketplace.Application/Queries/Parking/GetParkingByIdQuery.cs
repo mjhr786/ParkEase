@@ -13,6 +13,7 @@ using ParkingApp.Marketplace.Application.Mappings;
 using ParkingApp.BuildingBlocks.Domain;
 using ParkingApp.Marketplace.Domain.Entities;
 using ParkingApp.Marketplace.Domain.Interfaces;
+using ParkingApp.Marketplace.Domain.Models;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using ParkingApp.BuildingBlocks.Logging;
@@ -160,14 +161,15 @@ internal sealed class SearchParkingHandler : IQueryHandler<SearchParkingQuery, A
         // Default true when options missing — preserves historical OSRM-on-search behavior.
         var useOsrmOnSearch = _routingOptions.CurrentValue.UseOsrmOnSearch;
 
-        // Clamp paging before cache key so oversized client PageSize cannot fragment or oversize cache.
-        var dto = NormalizeSearchPaging(query.Dto, maxPageSize);
-        var amenitiesKey = dto.Amenities != null ? string.Join(",", dto.Amenities.OrderBy(a => a)) : "";
-        var cacheKey = CacheKeys.Search(
-            dto.State, dto.City, dto.Address, dto.ParkingType, dto.VehicleType,
-            dto.MinPrice, dto.MaxPrice, amenitiesKey, dto.Page, dto.PageSize,
-            dto.Latitude, dto.Longitude, dto.RadiusKm, dto.MinRating, dto.SortBy, dto.SortDescending,
-            useOsrmOnSearch);
+        // Clamp paging before the cache key so an oversized PageSize cannot fragment the cache.
+        // Geographic inputs are snapped to the key's precision before the query runs.
+        var dto = DiscoverySearchCanonical.Apply(NormalizeSearchPaging(query.Dto, maxPageSize));
+
+        // StartDateTime changes price-as-of. It is not a cache dimension.
+        if (dto.StartDateTime.HasValue)
+            return await SearchUncachedAsync(dto, useOsrmOnSearch, cancellationToken);
+
+        var cacheKey = BuildSearchCacheKey(dto, useOsrmOnSearch);
         var cached = await _cache.GetAsync<ParkingSearchResultDto>(cacheKey, cancellationToken);
         if (cached != null)
         {
@@ -175,16 +177,38 @@ internal sealed class SearchParkingHandler : IQueryHandler<SearchParkingQuery, A
             return new ApiResponse<ParkingSearchResultDto>(true, null, cached);
         }
 
+        var result = await SearchUncachedAsync(dto, useOsrmOnSearch, cancellationToken);
+        if (result.Success && result.Data is not null)
+            await _cache.SetAsync(cacheKey, result.Data, TimeSpan.FromMinutes(cacheMinutes), cancellationToken);
+
+        return result;
+    }
+
+    internal static string BuildSearchCacheKey(ParkingSearchDto dto, bool useOsrmOnSearch) =>
+        CacheKeys.Search(
+            dto.State, dto.City, dto.Address, dto.ParkingType, dto.VehicleType,
+            dto.MinPrice, dto.MaxPrice, DiscoverySearchCanonical.AmenitiesKey(dto.Amenities),
+            dto.Page, dto.PageSize,
+            dto.Latitude, dto.Longitude, dto.RadiusKm, dto.MinRating, dto.SortBy, dto.SortDescending,
+            useOsrmOnSearch,
+            DiscoverySearchCanonical.RequireEvCharging(dto),
+            DiscoverySearchCanonical.ListingCategoryKey(dto));
+
+    private async Task<ApiResponse<ParkingSearchResultDto>> SearchUncachedAsync(
+        ParkingSearchDto dto,
+        bool useOsrmOnSearch,
+        CancellationToken cancellationToken)
+    {
         _logger.LogDebug("Searching parking spaces: City={City}, Type={ParkingType}, Page={Page}/{PageSize}",
             dto.City, dto.ParkingType, dto.Page, dto.PageSize);
 
         var parkingList = (await _readStore.SearchAsync(dto, cancellationToken)).ToList();
         var totalCount = await _readStore.CountSearchAsync(dto, cancellationToken);
 
-        // Batch fetch active bookings (N+1 fix) - write-model UoW still used for live reservations
+        // Narrow availability projection. Detail and owner listings still load full Booking entities.
         var parkingIds = parkingList.Select(p => p.Id).ToList();
-        var allBookings = await _unitOfWork.Bookings.GetActiveBookingsForSpacesAsync(parkingIds, cancellationToken);
-        var bookingsByParkingId = allBookings.GroupBy(b => b.ParkingSpaceId).ToDictionary(g => g.Key, g => g.ToList());
+        var availability = await _unitOfWork.Bookings.GetDiscoveryBookingAvailabilityAsync(parkingIds, cancellationToken);
+        var bookingsByParkingId = availability.GroupBy(b => b.ParkingSpaceId).ToDictionary(g => g.Key, g => g.ToList());
 
         List<(double Distance, int Duration)>? routings = null;
         if (dto.Latitude.HasValue && dto.Longitude.HasValue && parkingList.Count > 0)
@@ -208,7 +232,7 @@ internal sealed class SearchParkingHandler : IQueryHandler<SearchParkingQuery, A
         for (int i = 0; i < parkingList.Count; i++)
         {
             var parking = parkingList[i];
-            var bookings = bookingsByParkingId.GetValueOrDefault(parking.Id) ?? new List<Booking>();
+            var bookings = bookingsByParkingId.GetValueOrDefault(parking.Id) ?? new List<BookingAvailabilityRead>();
             double? distance = null;
             int? duration = null;
 
@@ -239,8 +263,6 @@ internal sealed class SearchParkingHandler : IQueryHandler<SearchParkingQuery, A
         var result = new ParkingSearchResultDto(
             parkingDtos, totalCount, dto.Page, dto.PageSize,
             (int)Math.Ceiling((double)totalCount / dto.PageSize));
-
-        await _cache.SetAsync(cacheKey, result, TimeSpan.FromMinutes(cacheMinutes), cancellationToken);
 
         return new ApiResponse<ParkingSearchResultDto>(true, null, result);
     }
@@ -279,11 +301,16 @@ internal sealed class GetMapCoordinatesHandler : IQueryHandler<GetMapCoordinates
     {
         var mapOpts = _discoveryOptions.CurrentValue.Map;
         var cacheMinutes = Math.Clamp(mapOpts.CacheMinutes, 1, 60);
-        var dto = query.Dto;
-        var amenitiesKey = dto.Amenities != null ? string.Join(",", dto.Amenities.OrderBy(a => a)) : "";
-        var cacheKey = CacheKeys.Map(
-            dto.State, dto.City, dto.Address, dto.ParkingType, dto.VehicleType,
-            dto.MinPrice, dto.MaxPrice, dto.RadiusKm, dto.Latitude, dto.Longitude, amenitiesKey);
+        var dto = DiscoverySearchCanonical.Apply(query.Dto);
+
+        // StartDateTime changes pin price-as-of. It is not a cache dimension.
+        if (dto.StartDateTime.HasValue)
+        {
+            var fresh = await _readStore.GetMapPinsAsync(dto, cancellationToken);
+            return new ApiResponse<List<ParkingMapDto>>(true, null, fresh.ToList());
+        }
+
+        var cacheKey = BuildMapCacheKey(dto);
         var cached = await _cache.GetAsync<List<ParkingMapDto>>(cacheKey, cancellationToken);
         if (cached != null)
             return new ApiResponse<List<ParkingMapDto>>(true, null, cached);
@@ -294,6 +321,15 @@ internal sealed class GetMapCoordinatesHandler : IQueryHandler<GetMapCoordinates
         await _cache.SetAsync(cacheKey, dtos, TimeSpan.FromMinutes(cacheMinutes), cancellationToken);
         return new ApiResponse<List<ParkingMapDto>>(true, null, dtos);
     }
+
+    internal static string BuildMapCacheKey(ParkingSearchDto dto) =>
+        CacheKeys.Map(
+            dto.State, dto.City, dto.Address, dto.ParkingType, dto.VehicleType,
+            dto.MinPrice, dto.MaxPrice, dto.RadiusKm, dto.Latitude, dto.Longitude,
+            DiscoverySearchCanonical.AmenitiesKey(dto.Amenities),
+            dto.MinRating,
+            DiscoverySearchCanonical.RequireEvCharging(dto),
+            DiscoverySearchCanonical.ListingCategoryKey(dto));
 }
 
 

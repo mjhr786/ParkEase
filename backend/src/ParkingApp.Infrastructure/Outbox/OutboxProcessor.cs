@@ -83,7 +83,8 @@ public sealed class OutboxProcessor : IOutboxProcessor
             }
 
             // Atomically claim the message (ExecuteUpdate is relational-only; InMemory unit tests use local claim).
-            if (_db.Database.IsRelational())
+            var relational = _db.Database.IsRelational();
+            if (relational)
             {
                 var rowsAffected = await _db.OutboxMessages
                     .Where(m => m.Id == message.Id && (m.Status == OutboxStatus.Pending || m.Status == OutboxStatus.Failed))
@@ -98,9 +99,13 @@ public sealed class OutboxProcessor : IOutboxProcessor
                     continue;
                 }
 
-                // Sync the local tracked entity so subsequent SaveChangesAsync doesn't overwrite
+                // Handlers such as the ticket email handler share this context and call SaveChanges.
+                // ExecuteUpdate does not refresh the tracker, so detach before dispatch. A later
+                // SaveChanges must not flush the pre-claim snapshot or the in-memory Processing row.
+                var claimedAttempt = message.AttemptCount + 1;
+                DetachTrackedOutbox(message.Id);
                 message.Status = OutboxStatus.Processing;
-                message.AttemptCount += 1;
+                message.AttemptCount = claimedAttempt;
             }
             else
             {
@@ -112,6 +117,8 @@ public sealed class OutboxProcessor : IOutboxProcessor
                 await _db.SaveChangesAsync(cancellationToken);
             }
 
+            var claimed = message.AttemptCount;
+
             // After claim, do not cancel mid-side-effect because the HTTP request ended.
             // Otherwise the row can be retried and non-idempotent handlers fire again.
             var workToken = CancellationToken.None;
@@ -120,10 +127,28 @@ public sealed class OutboxProcessor : IOutboxProcessor
             {
                 await DispatchMessageAsync(message, workToken);
 
-                message.Status = OutboxStatus.Processed;
-                message.ProcessedAtUtc = DateTime.UtcNow;
-                message.LastError = null;
-                processed++;
+                if (relational)
+                {
+                    if (await CompleteRelationalAttemptAsync(
+                            message,
+                            claimed,
+                            OutboxStatus.Processed,
+                            lastError: null,
+                            availableAfterUtc: null,
+                            processedAtUtc: DateTime.UtcNow,
+                            success: true,
+                            workToken))
+                    {
+                        processed++;
+                    }
+                }
+                else
+                {
+                    message.Status = OutboxStatus.Processed;
+                    message.ProcessedAtUtc = DateTime.UtcNow;
+                    message.LastError = null;
+                    processed++;
+                }
             }
             catch (Exception ex)
             {
@@ -134,17 +159,109 @@ public sealed class OutboxProcessor : IOutboxProcessor
                     message.TypeName,
                     message.AttemptCount);
 
-                message.Status = message.AttemptCount >= 10 ? OutboxStatus.Failed : OutboxStatus.Pending;
-                message.LastError = ex.Message.Length > 2000 ? ex.Message[..2000] : ex.Message;
-                // Exponential backoff: 2^attempt seconds (capped)
-                var delaySeconds = Math.Min(300, Math.Pow(2, Math.Min(message.AttemptCount, 8)));
-                message.AvailableAfterUtc = DateTime.UtcNow.AddSeconds(delaySeconds);
+                var lastError = ex.Message.Length > 2000 ? ex.Message[..2000] : ex.Message;
+                // Exponential backoff: 2^attempt seconds (capped). The exponent cap makes 300 unreachable.
+                var delaySeconds = Math.Min(300, Math.Pow(2, Math.Min(claimed, 8)));
+                var availableAfterUtc = DateTime.UtcNow.AddSeconds(delaySeconds);
+                var failedStatus = claimed >= 10 ? OutboxStatus.Failed : OutboxStatus.Pending;
+
+                if (relational)
+                {
+                    await CompleteRelationalAttemptAsync(
+                        message,
+                        claimed,
+                        failedStatus,
+                        lastError,
+                        availableAfterUtc,
+                        processedAtUtc: null,
+                        success: false,
+                        workToken);
+                }
+                else
+                {
+                    message.Status = failedStatus;
+                    message.LastError = lastError;
+                    message.AvailableAfterUtc = availableAfterUtc;
+                }
             }
 
-            await _db.SaveChangesAsync(workToken);
+            if (!relational)
+                await _db.SaveChangesAsync(workToken);
         }
 
         return processed;
+    }
+
+    /// <summary>
+    /// Completes only the attempt this worker claimed. A zero-row update means the row moved;
+    /// accept that only when the stored status, attempt, and error already match this completion.
+    /// </summary>
+    private async Task<bool> CompleteRelationalAttemptAsync(
+        OutboxMessage message,
+        int claimedAttempt,
+        OutboxStatus status,
+        string? lastError,
+        DateTime? availableAfterUtc,
+        DateTime? processedAtUtc,
+        bool success,
+        CancellationToken cancellationToken)
+    {
+        var owned = _db.OutboxMessages.Where(m =>
+            m.Id == message.Id &&
+            m.Status == OutboxStatus.Processing &&
+            m.AttemptCount == claimedAttempt);
+
+        var rows = success
+            ? await owned.ExecuteUpdateAsync(s => s
+                .SetProperty(x => x.Status, status)
+                .SetProperty(x => x.ProcessedAtUtc, processedAtUtc)
+                .SetProperty(x => x.LastError, lastError),
+                cancellationToken)
+            : await owned.ExecuteUpdateAsync(s => s
+                .SetProperty(x => x.Status, status)
+                .SetProperty(x => x.LastError, lastError)
+                .SetProperty(x => x.AvailableAfterUtc, availableAfterUtc),
+                cancellationToken);
+
+        if (rows > 0)
+        {
+            message.Status = status;
+            message.LastError = lastError;
+            if (success)
+                message.ProcessedAtUtc = processedAtUtc;
+            else
+                message.AvailableAfterUtc = availableAfterUtc;
+
+            RestoreUnchangedTracking(message);
+            return true;
+        }
+
+        var current = await _db.OutboxMessages.AsNoTracking()
+            .Where(m => m.Id == message.Id)
+            .Select(m => new { m.Status, m.AttemptCount, m.LastError })
+            .FirstOrDefaultAsync(cancellationToken);
+
+        DetachTrackedOutbox(message.Id);
+
+        return current != null
+            && current.Status == status
+            && current.AttemptCount == claimedAttempt
+            && current.LastError == lastError;
+    }
+
+    private void DetachTrackedOutbox(Guid id)
+    {
+        foreach (var entry in _db.ChangeTracker.Entries<OutboxMessage>().ToList())
+        {
+            if (entry.Entity.Id == id)
+                entry.State = EntityState.Detached;
+        }
+    }
+
+    private void RestoreUnchangedTracking(OutboxMessage message)
+    {
+        DetachTrackedOutbox(message.Id);
+        _db.Entry(message).State = EntityState.Unchanged;
     }
 
     private async Task DispatchMessageAsync(OutboxMessage message, CancellationToken cancellationToken)

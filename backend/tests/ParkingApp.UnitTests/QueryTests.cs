@@ -16,6 +16,7 @@ using ParkingApp.Marketplace.Application.Interfaces;
 using ParkingApp.Corporate.Application.Interfaces;
 using ParkingApp.BuildingBlocks.Domain;
 using ParkingApp.Marketplace.Domain.Entities;
+using ParkingApp.Marketplace.Domain.Models;
 using ParkingApp.Identity.Domain.Entities;
 using ParkingApp.Messaging.Domain.Entities;
 using ParkingApp.Corporate.Domain;
@@ -196,15 +197,18 @@ public class QueryTests
         var handler = new SearchParkingHandler(
             _mockUnitOfWork.Object, _mockReadStore.Object, _mockCache.Object, _mockRouting.Object,
             discoveryMonitor, routingMonitor, _mockSearchLogger.Object);
-        var parking = new ParkingSpace { Id = Guid.NewGuid(), Title = "Test Park", IsActive = true };
-        var bookings = new List<Booking> { new Booking { ParkingSpaceId = parking.Id, StartDateTime = DateTime.UtcNow.AddHours(1), EndDateTime = DateTime.UtcNow.AddHours(2) } };
+        var parking = new ParkingSpace { Id = Guid.NewGuid(), Title = "Test Park", IsActive = true, TotalSpots = 2, AvailableSpots = 2 };
+        var start = DateTime.UtcNow.AddHours(1);
+        var end = DateTime.UtcNow.AddHours(2);
+        var availability = new BookingAvailabilityRead(parking.Id, BookingStatus.Confirmed, start, end, 4);
 
         _mockReadStore.Setup(r => r.SearchAsync(It.IsAny<ParkingSearchDto>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new List<ParkingSpace> { parking });
         _mockReadStore.Setup(r => r.CountActiveAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(1);
-        _mockBookingRepository.Setup(r => r.GetActiveBookingsForSpacesAsync(It.IsAny<List<Guid>>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(bookings);
+        _mockBookingRepository
+            .Setup(r => r.GetDiscoveryBookingAvailabilityAsync(It.IsAny<IEnumerable<Guid>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<BookingAvailabilityRead> { availability });
 
         var searchDto = new ParkingSearchDto { City = "TestCity", Page = 1, PageSize = 10 };
 
@@ -214,7 +218,16 @@ public class QueryTests
         // Assert
         result.Success.Should().BeTrue();
         result.Data!.ParkingSpaces.Should().HaveCount(1);
-        result.Data.ParkingSpaces.First().ActiveReservations.Should().NotBeNull();
+        var reservation = result.Data.ParkingSpaces.First().ActiveReservations.Should().ContainSingle().Subject;
+        reservation.StartDateTime.Should().Be(start);
+        reservation.EndDateTime.Should().Be(end);
+        reservation.SlotNumber.Should().Be(4);
+        _mockBookingRepository.Verify(
+            r => r.GetActiveBookingsForSpacesAsync(It.IsAny<IEnumerable<Guid>>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+        _mockBookingRepository.Verify(
+            r => r.GetDiscoveryBookingAvailabilityAsync(It.IsAny<IEnumerable<Guid>>(), It.IsAny<CancellationToken>()),
+            Times.Once);
     }
 
     private sealed class TestDiscoveryOptionsMonitor : Microsoft.Extensions.Options.IOptionsMonitor<ParkingApp.Marketplace.Application.Options.MarketplaceDiscoveryOptions>

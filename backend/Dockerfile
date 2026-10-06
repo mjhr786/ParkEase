@@ -1,7 +1,7 @@
 # =============================================================================
 # ParkEase API - Multi-Stage Dockerfile
 # Build context : backend/
-# Target        : Google Cloud Run
+# Target        : Generic Linux Docker hosting
 # .NET version  : 9.0 (mcr.microsoft.com/dotnet/sdk:9.0 / aspnet:9.0)
 #
 # Dependency graph resolved from .csproj ProjectReference entries:

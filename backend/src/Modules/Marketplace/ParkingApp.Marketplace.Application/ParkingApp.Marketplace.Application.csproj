@@ -22,6 +22,7 @@
     <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="10.0.2" />
   </ItemGroup>
   <ItemGroup>
+    <InternalsVisibleTo Include="ParkingApp.Marketplace.Infrastructure" />
     <InternalsVisibleTo Include="ParkingApp.UnitTests" />
     <InternalsVisibleTo Include="ParkingApp.Marketplace.UnitTests" />
     <InternalsVisibleTo Include="ParkingApp.IntegrationTests" />

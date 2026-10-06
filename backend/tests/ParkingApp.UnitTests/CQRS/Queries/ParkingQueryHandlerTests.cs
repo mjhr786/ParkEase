@@ -24,6 +24,7 @@ using ParkingApp.Marketplace.Application.Interfaces;
 using ParkingApp.Corporate.Application.Interfaces;
 using ParkingApp.BuildingBlocks.Domain;
 using ParkingApp.Marketplace.Domain.Entities;
+using ParkingApp.Marketplace.Domain.Models;
 using ParkingApp.Identity.Domain.Entities;
 using ParkingApp.Messaging.Domain.Entities;
 using ParkingApp.Corporate.Domain;
@@ -51,6 +52,9 @@ public class ParkingQueryHandlerTests
 
         _mockUow.Setup(u => u.ParkingSpaces).Returns(_mockParkingRepo.Object);
         _mockUow.Setup(u => u.Bookings).Returns(_mockBookingRepo.Object);
+        _mockBookingRepo
+            .Setup(r => r.GetDiscoveryBookingAvailabilityAsync(It.IsAny<IEnumerable<Guid>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Array.Empty<BookingAvailabilityRead>());
         
         _mockCache = new Mock<ICacheService>();
         _mockRouting = new Mock<IRoutingService>();

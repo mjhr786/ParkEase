@@ -3,6 +3,7 @@ using NetTopologySuite.Geometries;
 using ParkingApp.Marketplace.Domain.Entities;
 using ParkingApp.Marketplace.Contracts.Enums;
 using ParkingApp.Marketplace.Domain.Interfaces;
+using ParkingApp.Marketplace.Domain.Models;
 using ParkingApp.Marketplace.Domain.ValueObjects;
 using ParkingApp.Marketplace.Infrastructure.Persistence;
 
@@ -421,6 +422,29 @@ internal sealed class BookingRepository : MarketplaceRepository<Booking>, IBooki
                         b.Status == BookingStatus.PendingExtension ||
                         b.Status == BookingStatus.AwaitingExtensionPayment) &&
                        b.EndDateTime > DateTime.UtcNow)
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<BookingAvailabilityRead>> GetDiscoveryBookingAvailabilityAsync(
+        IEnumerable<Guid> parkingSpaceIds,
+        CancellationToken cancellationToken = default)
+    {
+        return await _dbSet
+            .AsNoTracking()
+            .Where(b => parkingSpaceIds.Contains(b.ParkingSpaceId) &&
+                       (b.Status == BookingStatus.Confirmed ||
+                        b.Status == BookingStatus.InProgress ||
+                        b.Status == BookingStatus.Pending ||
+                        b.Status == BookingStatus.AwaitingPayment ||
+                        b.Status == BookingStatus.PendingExtension ||
+                        b.Status == BookingStatus.AwaitingExtensionPayment) &&
+                       b.EndDateTime > DateTime.UtcNow)
+            .Select(b => new BookingAvailabilityRead(
+                b.ParkingSpaceId,
+                b.Status,
+                b.StartDateTime,
+                b.EndDateTime,
+                b.SlotNumber))
             .ToListAsync(cancellationToken);
     }
 

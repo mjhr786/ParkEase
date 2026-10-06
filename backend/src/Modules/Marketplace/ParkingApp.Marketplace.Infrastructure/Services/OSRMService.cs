@@ -13,6 +13,12 @@ internal sealed class OSRMService : IRoutingService
     /// <summary>Public demo server typically allows up to ~100 coordinates per request.</summary>
     private const int MaxCoordinatesPerRequest = 80;
 
+    /// <summary>
+    /// Bounds one public OSRM table call. The platform HttpClient default is 100 seconds.
+    /// Applied by the typed-client registration. Timeout uses the existing per-chunk catch.
+    /// </summary>
+    internal static readonly TimeSpan HttpTimeout = TimeSpan.FromSeconds(1);
+
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         PropertyNameCaseInsensitive = true

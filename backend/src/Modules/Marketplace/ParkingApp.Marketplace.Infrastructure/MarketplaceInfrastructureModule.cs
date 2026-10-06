@@ -74,7 +74,10 @@ public static class MarketplaceInfrastructureModule
         services.AddScoped<IDashboardRepository, DashboardRepository>();
 
         services.AddScoped<IPaymentService, StripePaymentService>();
-        services.AddHttpClient<IRoutingService, OSRMService>();
+        services.AddHttpClient<IRoutingService, OSRMService>(client =>
+        {
+            client.Timeout = OSRMService.HttpTimeout;
+        });
         services.AddScoped<IParkingAvailabilityModelService, ParkingAvailabilityMlModelService>();
 
         services.AddScoped<IParkingSpaceLookup, ParkingSpaceLookup>();

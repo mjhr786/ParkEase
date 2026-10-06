@@ -58,4 +58,28 @@ public class CacheKeysSearchTests
         withOsrm.Should().Contain("osrm:1");
         withoutOsrm.Should().Contain("osrm:0");
     }
+
+    [Fact]
+    public void CanonicalCoordinate_MatchesRoundedKey_AndIsIdempotent()
+    {
+        var first = CacheKeys.CanonicalCoordinate(18.52041);
+        var sameBucket = CacheKeys.CanonicalCoordinate(18.52044);
+        var nextBucket = CacheKeys.CanonicalCoordinate(18.52045);
+
+        first.Should().Be(sameBucket);
+        CacheKeys.RoundCoord(first).Should().Be("18.5204");
+        CacheKeys.RoundCoord(CacheKeys.CanonicalCoordinate(first)).Should().Be("18.5204");
+        nextBucket.Should().NotBe(first);
+        CacheKeys.RoundCoord(nextBucket).Should().Be("18.5205");
+    }
+
+    [Fact]
+    public void CanonicalRadius_UsesExistingOneDecimalRounding()
+    {
+        CacheKeys.CanonicalRadius(5.04).Should().Be(CacheKeys.CanonicalRadius(5.0));
+        CacheKeys.RoundRadius(CacheKeys.CanonicalRadius(5.04)).Should().Be("5.0");
+        CacheKeys.CanonicalRadius(1.25).Should().Be(1.2);
+        CacheKeys.CanonicalRadius(1.35).Should().Be(1.4);
+        CacheKeys.RoundRadius(CacheKeys.CanonicalRadius(1.35)).Should().Be("1.4");
+    }
 }

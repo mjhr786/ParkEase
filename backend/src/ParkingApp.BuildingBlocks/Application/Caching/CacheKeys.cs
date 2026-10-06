@@ -68,12 +68,15 @@ public static class CacheKeys
         double? minRating = null,
         string? sortBy = null,
         bool sortDescending = false,
-        bool useOsrmOnSearch = true) =>
+        bool useOsrmOnSearch = true,
+        bool requireEvCharging = false,
+        string? listingCategory = null) =>
         string.Create(CultureInfo.InvariantCulture,
-            $"search:{state}:{city}:{address}:{parkingType}:{vehicleType}:{minPrice}:{maxPrice}:{amenitiesKey}:{page}:{pageSize}:geo:{RoundCoord(latitude)}:{RoundCoord(longitude)}:{RoundRadius(radiusKm)}:r:{minRating}:s:{sortBy}:{sortDescending}:osrm:{(useOsrmOnSearch ? 1 : 0)}");
+            $"search:{state}:{city}:{address}:{parkingType}:{vehicleType}:{minPrice}:{maxPrice}:{amenitiesKey}:{page}:{pageSize}:geo:{RoundCoord(latitude)}:{RoundCoord(longitude)}:{RoundRadius(radiusKm)}:r:{minRating}:s:{sortBy}:{sortDescending}:osrm:{(useOsrmOnSearch ? 1 : 0)}:ev:{(requireEvCharging ? 1 : 0)}:cat:{listingCategory}");
 
     /// <summary>
     /// Map pins cache key. Coordinates are rounded for stable keys under minor GPS jitter.
+    /// Min rating, EV, and listing category are part of the key because they change the pin set.
     /// </summary>
     public static string Map(
         string? state,
@@ -86,9 +89,12 @@ public static class CacheKeys
         double? radiusKm,
         double? latitude,
         double? longitude,
-        string amenitiesKey) =>
+        string amenitiesKey,
+        double? minRating = null,
+        bool requireEvCharging = false,
+        string? listingCategory = null) =>
         string.Create(CultureInfo.InvariantCulture,
-            $"map:{state}:{city}:{address}:{parkingType}:{vehicleType}:{minPrice}:{maxPrice}:{RoundRadius(radiusKm)}:{RoundCoord(latitude)}:{RoundCoord(longitude)}:{amenitiesKey}");
+            $"map:{state}:{city}:{address}:{parkingType}:{vehicleType}:{minPrice}:{maxPrice}:{RoundRadius(radiusKm)}:{RoundCoord(latitude)}:{RoundCoord(longitude)}:{amenitiesKey}:r:{minRating}:ev:{(requireEvCharging ? 1 : 0)}:cat:{listingCategory}");
 
     /// <summary>~11 m precision at equator; enough to separate nearby searches without exploding key cardinality.</summary>
     public static string RoundCoord(double? value) =>
@@ -100,6 +106,29 @@ public static class CacheKeys
         radiusKm.HasValue
             ? Math.Round(radiusKm.Value, 1).ToString("0.0", CultureInfo.InvariantCulture)
             : string.Empty;
+
+    /// <summary>
+    /// Coordinate value that <see cref="RoundCoord"/> puts in the cache key.
+    /// Queries must use this value so a shared key cannot cover two different circles.
+    /// </summary>
+    public static double? CanonicalCoordinate(double? value)
+    {
+        if (!value.HasValue || !double.IsFinite(value.Value))
+            return value;
+
+        return double.Parse(RoundCoord(value), NumberStyles.Float, CultureInfo.InvariantCulture);
+    }
+
+    /// <summary>
+    /// Radius in kilometres that <see cref="RoundRadius"/> puts in the cache key.
+    /// </summary>
+    public static double? CanonicalRadius(double? radiusKm)
+    {
+        if (!radiusKm.HasValue || !double.IsFinite(radiusKm.Value))
+            return radiusKm;
+
+        return double.Parse(RoundRadius(radiusKm), NumberStyles.Float, CultureInfo.InvariantCulture);
+    }
 
     // ── Pattern invalidation (namespace:* → version bump on Redis) ──────────
 
