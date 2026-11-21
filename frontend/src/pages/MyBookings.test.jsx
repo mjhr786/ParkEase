@@ -3,6 +3,7 @@ import { render, screen, waitFor, cleanup } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import MyBookings from './MyBookings';
+import api from '../services/api';
 
 const mockGetMyBookings = vi.fn();
 const mockCancelBooking = vi.fn();
@@ -23,11 +24,24 @@ const mockGetAccessPass = vi.fn();
 const mockRequestExtension = vi.fn();
 const mockCalculatePrice = vi.fn();
 
+vi.mock('../contexts/AuthContext', () => ({
+  useAuth: () => ({
+    user: { firstName: 'Pat', lastName: 'Lee', phoneNumber: '9876543210' },
+    updateUser: vi.fn(),
+  }),
+}));
+
 vi.mock('../services/api', () => ({
   default: {
     getMyBookings: (...args) => mockGetMyBookings(...args),
     cancelBooking: (...args) => mockCancelBooking(...args),
     getStripeConfig: (...args) => mockGetStripeConfig(...args),
+    getPaymentsConfig: vi.fn().mockResolvedValue({
+      success: true,
+      data: { upiEnabled: false, stripePublishableKey: 'pk_test', upiContactRequired: false },
+    }),
+    createUpiPaymentOrder: vi.fn(),
+    updateProfile: vi.fn(),
     checkIn: (...args) => mockCheckIn(...args),
     checkOut: (...args) => mockCheckOut(...args),
     getAccessPass: (...args) => mockGetAccessPass(...args),
@@ -48,6 +62,10 @@ vi.mock('../utils/toast.jsx', () => ({
 }));
 
 vi.mock('../components/StripeCheckout', () => ({
+  default: () => null,
+}));
+
+vi.mock('../components/UpiCheckout', () => ({
   default: () => null,
 }));
 
@@ -85,6 +103,10 @@ describe('MyBookings page', () => {
     mockSubscribeToRefresh.mockReturnValue(() => {});
     mockGetStripeConfig.mockResolvedValue({ publishableKey: 'pk_test' });
     mockGetMyBookings.mockResolvedValue({ success: true, data: [] });
+    api.getPaymentsConfig.mockResolvedValue({
+      success: true,
+      data: { upiEnabled: false, stripePublishableKey: 'pk_test', upiContactRequired: false },
+    });
   });
 
   afterEach(() => {
@@ -301,6 +323,59 @@ describe('MyBookings page', () => {
       expect(screen.getByText(/extension approved — pay/i)).toBeInTheDocument();
     });
     expect(screen.getByRole('button', { name: /pay ₹80/i })).toBeInTheDocument();
+  });
+
+  it('skips picker and starts card payment when UPI is disabled', async () => {
+    const user = userEvent.setup();
+    api.createPaymentOrder.mockResolvedValue({ success: true, data: 'pi_secret' });
+    mockGetMyBookings.mockResolvedValue({
+      success: true,
+      data: [{ ...confirmedBooking, status: 6 }],
+    });
+
+    renderMyBookings();
+    await waitFor(() => expect(screen.getByText('Airport Lot')).toBeInTheDocument());
+
+    await user.click(screen.getByRole('button', { name: /pay ₹200/i }));
+
+    await waitFor(() => expect(api.createPaymentOrder).toHaveBeenCalled());
+    expect(screen.queryByRole('heading', { name: /choose payment method/i })).not.toBeInTheDocument();
+    expect(api.createUpiPaymentOrder).not.toHaveBeenCalled();
+  });
+
+  it('shows method picker before create-order when UPI is enabled', async () => {
+    const user = userEvent.setup();
+    api.getPaymentsConfig.mockResolvedValue({
+      success: true,
+      data: { upiEnabled: true, stripePublishableKey: 'pk_test', upiContactRequired: false },
+    });
+    api.createUpiPaymentOrder.mockResolvedValue({
+      success: true,
+      data: {
+        upiIntentUrl: 'upi://pay?pa=m@upi&am=200',
+        providerPaymentId: 'pay_1',
+        providerOrderId: 'order_1',
+        expiresAtUtc: new Date(Date.now() + 900000).toISOString(),
+      },
+    });
+    mockGetMyBookings.mockResolvedValue({
+      success: true,
+      data: [{ ...confirmedBooking, status: 6 }],
+    });
+
+    renderMyBookings();
+    await waitFor(() => expect(screen.getByText('Airport Lot')).toBeInTheDocument());
+
+    await user.click(screen.getByRole('button', { name: /pay ₹200/i }));
+
+    expect(api.createPaymentOrder).not.toHaveBeenCalled();
+    expect(screen.getByRole('heading', { name: /choose payment method/i })).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: /^upi$/i }));
+    await waitFor(() =>
+      expect(api.createUpiPaymentOrder).toHaveBeenCalledWith('b-1', { payOverstayFee: false }),
+    );
+    expect(api.createPaymentOrder).not.toHaveBeenCalled();
   });
 });
 

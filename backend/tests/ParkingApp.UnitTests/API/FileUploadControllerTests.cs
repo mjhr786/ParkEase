@@ -2,6 +2,7 @@ using System.Security.Claims;
 using FluentAssertions;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging;
 using Moq;
 using ParkingApp.API.Controllers;
 using ParkingApp.Application.CQRS;
@@ -24,7 +25,7 @@ public class FileUploadControllerTests
     public FileUploadControllerTests()
     {
         _dispatcherMock = new Mock<IDispatcher>();
-        _controller = new FileUploadController(_dispatcherMock.Object);
+        _controller = new FileUploadController(_dispatcherMock.Object, Mock.Of<ILogger<FileUploadController>>());
     }
 
     private void SetupControllerUser(ControllerBase controller, Guid userId, string role = "Vendor")
@@ -54,7 +55,7 @@ public class FileUploadControllerTests
         fileMock.Setup(f => f.Length).Returns(1024);
         fileMock.Setup(f => f.FileName).Returns("test.jpg");
         fileMock.Setup(f => f.ContentType).Returns("image/jpeg");
-        fileMock.Setup(f => f.OpenReadStream()).Returns(new MemoryStream());
+        fileMock.Setup(f => f.OpenReadStream()).Returns(() => new MemoryStream(new byte[] { 0xFF, 0xD8, 0xFF, 0xD9 }));
 
         var files = new List<IFormFile> { fileMock.Object };
 
@@ -79,6 +80,27 @@ public class FileUploadControllerTests
         var result = await _controller.UploadParkingFiles(Guid.NewGuid(), new List<IFormFile>(), CancellationToken.None);
 
         result.Should().BeOfType<BadRequestObjectResult>();
+    }
+
+    [Fact]
+    public async Task UploadParkingFiles_RejectsContentThatDoesNotMatchDeclaredType()
+    {
+        var userId = Guid.NewGuid();
+        SetupControllerUser(_controller, userId);
+
+        var fileMock = new Mock<IFormFile>();
+        fileMock.Setup(f => f.Length).Returns(64);
+        fileMock.Setup(f => f.FileName).Returns("test.jpg");
+        fileMock.Setup(f => f.ContentType).Returns("image/jpeg");
+        fileMock.Setup(f => f.OpenReadStream()).Returns(() => new MemoryStream("not-an-image"u8.ToArray()));
+
+        var result = await _controller.UploadParkingFiles(Guid.NewGuid(), new List<IFormFile> { fileMock.Object }, CancellationToken.None);
+
+        var badRequest = result.Should().BeOfType<BadRequestObjectResult>().Subject;
+        badRequest.Value.Should().NotBeNull();
+        _dispatcherMock.Verify(
+            d => d.SendAsync(It.IsAny<UploadParkingFilesCommand>(), It.IsAny<CancellationToken>()),
+            Times.Never);
     }
 
     [Fact]

@@ -34,6 +34,9 @@ public class RefundRequest
     /// Required for live gateways; mocks ignore it.
     /// </summary>
     public string? GatewayTransactionId { get; set; }
+
+    /// <summary>Stored payment gateway name. MockGateway refunds fail closed.</summary>
+    public string? PaymentGateway { get; set; }
 }
 
 public class RefundResult
@@ -44,6 +47,8 @@ public class RefundResult
     public string? ErrorMessage { get; set; }
 }
 
+public sealed record PaymentCaptureCheck(Guid BookingId, decimal Amount, string Currency, string Purpose);
+
 /// <summary>
 /// Application port for payment gateway adapters (Stripe, Razorpay, mock, etc.).
 /// Implemented in Infrastructure.
@@ -52,7 +57,7 @@ public interface IPaymentService
 {
     Task<PaymentResult> ProcessPaymentAsync(PaymentRequest request, CancellationToken cancellationToken = default);
     Task<string> CreateOrderAsync(decimal amount, string currency = "INR", Dictionary<string, string>? notes = null, CancellationToken cancellationToken = default);
-    Task<bool> VerifyPaymentSignatureAsync(string paymentId, string orderId, string signature, CancellationToken cancellationToken = default);
+    Task<bool> VerifyPaymentSignatureAsync(string paymentId, string orderId, string signature, CancellationToken cancellationToken = default, PaymentCaptureCheck? expected = null);
     Task<RefundResult> ProcessRefundAsync(RefundRequest request, CancellationToken cancellationToken = default);
     Task<PaymentStatus> GetPaymentStatusAsync(string transactionId, CancellationToken cancellationToken = default);
 }

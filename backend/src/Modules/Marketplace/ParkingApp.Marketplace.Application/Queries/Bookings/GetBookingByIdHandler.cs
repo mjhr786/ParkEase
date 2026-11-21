@@ -20,10 +20,18 @@ namespace ParkingApp.Marketplace.Application.Queries.Bookings;
 internal sealed class GetBookingByIdHandler : IQueryHandler<GetBookingByIdQuery, ApiResponse<BookingDto>>
 {
     private readonly IMarketplaceUnitOfWork _unitOfWork;
+    private readonly IUnpaidExpiryService? _unpaidExpiry;
 
-    public GetBookingByIdHandler(IMarketplaceUnitOfWork unitOfWork)
+    public GetBookingByIdHandler(IMarketplaceUnitOfWork unitOfWork, IUnpaidExpiryService unpaidExpiry)
     {
         _unitOfWork = unitOfWork;
+        _unpaidExpiry = unpaidExpiry;
+    }
+
+    public GetBookingByIdHandler(IMarketplaceUnitOfWork unitOfWork)
+        : this(unitOfWork, unpaidExpiry: null!)
+    {
+        _unpaidExpiry = null;
     }
 
     public async Task<ApiResponse<BookingDto>> HandleAsync(GetBookingByIdQuery query, CancellationToken cancellationToken = default)
@@ -45,6 +53,9 @@ internal sealed class GetBookingByIdHandler : IQueryHandler<GetBookingByIdQuery,
         {
             return new ApiResponse<BookingDto>(false, "Unauthorized", null);
         }
+
+        if (_unpaidExpiry is not null)
+            await _unpaidExpiry.ExpireIfDueAsync(booking, cancellationToken);
 
         return new ApiResponse<BookingDto>(true, null, booking.ToDto());
     }

@@ -1,4 +1,3 @@
-using ParkingApp.Application.Contracts.Notifications;
 using ParkingApp.Application.Caching;
 using ParkingApp.Application.CQRS;
 using ParkingApp.Application.DTOs;
@@ -7,13 +6,10 @@ using ParkingApp.Marketplace.Contracts.DTOs;
 using ParkingApp.Application.Interfaces;
 using ParkingApp.Marketplace.Application.Interfaces;
 
-using ParkingApp.Marketplace.Application.Mappings;
 using ParkingApp.Marketplace.Application.Services;
-using ParkingApp.BuildingBlocks.Domain;
 using ParkingApp.Marketplace.Domain.Entities;
 using ParkingApp.Marketplace.Contracts.Enums;
 using ParkingApp.Marketplace.Domain.Interfaces;
-using ParkingApp.BuildingBlocks.Exceptions;
 using Microsoft.Extensions.Logging;
 
 namespace ParkingApp.Marketplace.Application.Commands.Payments;
@@ -38,20 +34,25 @@ public sealed record ProcessRefundCommand(Guid UserId, RefundRequestDto Dto) : I
 
 internal sealed class ProcessPaymentHandler : ICommandHandler<ProcessPaymentCommand, ApiResponse<PaymentResultDto>>
 {
+    internal const string MockGateway = "MockGateway";
+
     private readonly IMarketplaceUnitOfWork _unitOfWork;
     private readonly IPaymentService _paymentService;
     private readonly ICacheService _cache;
+    private readonly IPaymentCaptureOrchestrator _captureOrchestrator;
     private readonly ILogger<ProcessPaymentHandler> _logger;
 
     public ProcessPaymentHandler(
         IMarketplaceUnitOfWork unitOfWork,
         IPaymentService paymentService,
         ICacheService cache,
+        IPaymentCaptureOrchestrator captureOrchestrator,
         ILogger<ProcessPaymentHandler> logger)
     {
         _unitOfWork = unitOfWork;
         _paymentService = paymentService;
         _cache = cache;
+        _captureOrchestrator = captureOrchestrator;
         _logger = logger;
     }
 
@@ -68,70 +69,41 @@ internal sealed class ProcessPaymentHandler : ICommandHandler<ProcessPaymentComm
             return new ApiResponse<PaymentResultDto>(false, "Booking must be approved by the owner before payment", null);
 
         var existingPayment = await _unitOfWork.Payments.GetByBookingIdAsync(command.Dto.BookingId, cancellationToken);
-        if (existingPayment != null && existingPayment.Status == PaymentStatus.Completed)
-            return new ApiResponse<PaymentResultDto>(false, "Payment already completed", null);
 
+        var expectedCapture = PaymentChargeResolver.ResolveExpectedCapture(booking);
         var paymentRequest = new PaymentRequest
         {
             BookingId = command.Dto.BookingId,
             UserId = command.UserId,
-            Amount = booking.TotalAmount,
+            Amount = expectedCapture.Amount,
             Currency = "INR",
             PaymentMethod = command.Dto.PaymentMethod,
             Description = $"Parking booking: {booking.BookingReference}"
         };
 
-        _logger.LogInformation("Processing payment for booking {BookingId}, amount {Amount}", command.Dto.BookingId, booking.TotalAmount);
+        _logger.LogInformation("Processing payment for booking {BookingId}, amount {Amount}", command.Dto.BookingId, expectedCapture.Amount);
         var result = await _paymentService.ProcessPaymentAsync(paymentRequest, cancellationToken);
 
-        var payment = existingPayment ?? Payment.CreatePending(
-            command.Dto.BookingId,
-            command.UserId,
-            booking.TotalAmount,
-            command.Dto.PaymentMethod);
-
         if (result.Success)
         {
-            payment.MarkSucceeded(
-                result.TransactionId,
-                result.PaymentGatewayReference,
-                "MockGateway",
-                amount: booking.TotalAmount,
-                receiptUrl: result.ReceiptUrl);
+            if (string.IsNullOrWhiteSpace(result.TransactionId))
+                return new ApiResponse<PaymentResultDto>(false, "Payment succeeded without a transaction id", null);
 
-            var isExtensionPayment = booking.Status == BookingStatus.AwaitingExtensionPayment;
-            // Extension: BookingExtensionConfirmedEvent; regular: BookingConfirmedEvent + PaymentCompletedEvent
-            if (isExtensionPayment)
-                booking.ConfirmExtension();
-            else
-            {
-                booking.Confirm();
-                booking.RecordPaymentCompleted(payment.Id, booking.TotalAmount, "INR", isExtensionPayment: false);
-                await BayAssignmentHelper.TryApplyAsync(_unitOfWork, booking, cancellationToken);
-            }
+            var capture = await _captureOrchestrator.CaptureAsync(
+                new PaymentCaptureCommand(
+                    booking.Id,
+                    expectedCapture.Purpose,
+                    result.TransactionId,
+                    result.PaymentGatewayReference,
+                    expectedCapture.Amount,
+                    "INR",
+                    MockGateway,
+                    command.Dto.PaymentMethod),
+                cancellationToken);
 
-            _unitOfWork.Bookings.Update(booking);
-        }
-        else
-        {
-            payment.ApplyGatewayResult(
-                result.Status,
-                result.TransactionId,
-                result.PaymentGatewayReference,
-                "MockGateway",
-                receiptUrl: result.ReceiptUrl,
-                failureReason: result.ErrorMessage);
-        }
+            if (!capture.Success)
+                return new ApiResponse<PaymentResultDto>(false, capture.Message ?? "Payment capture failed", null);
 
-        if (existingPayment == null)
-            await _unitOfWork.Payments.AddAsync(payment, cancellationToken);
-        else
-            _unitOfWork.Payments.Update(payment);
-
-        await _unitOfWork.SaveChangesAsync(cancellationToken);
-
-        if (result.Success)
-        {
             var parking = booking.ParkingSpace ?? await _unitOfWork.ParkingSpaces.GetByIdAsync(booking.ParkingSpaceId, cancellationToken);
             await CacheInvalidation.ForBookingChangeAsync(
                 _cache,
@@ -139,25 +111,74 @@ internal sealed class ProcessPaymentHandler : ICommandHandler<ProcessPaymentComm
                 memberId: booking.UserId,
                 vendorId: parking?.OwnerId,
                 cancellationToken);
+
+            return new ApiResponse<PaymentResultDto>(true, null, new PaymentResultDto(
+                true, capture.TransactionId, capture.Status, "Payment successful", result.ReceiptUrl));
         }
 
-        return new ApiResponse<PaymentResultDto>(result.Success, null, new PaymentResultDto(
-            result.Success, result.TransactionId, result.Status,
-            result.Success ? "Payment successful" : result.ErrorMessage, result.ReceiptUrl));
+        if (existingPayment is not { Status: PaymentStatus.Completed })
+        {
+            var payment = existingPayment ?? Payment.CreatePending(
+                command.Dto.BookingId,
+                command.UserId,
+                expectedCapture.Amount,
+                command.Dto.PaymentMethod);
+
+            payment.ApplyGatewayResult(
+                result.Status,
+                result.TransactionId,
+                result.PaymentGatewayReference,
+                MockGateway,
+                receiptUrl: result.ReceiptUrl,
+                failureReason: result.ErrorMessage);
+
+            if (existingPayment == null)
+                await _unitOfWork.Payments.AddAsync(payment, cancellationToken);
+            else
+                _unitOfWork.Payments.Update(payment);
+
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
+        }
+
+        return new ApiResponse<PaymentResultDto>(false, null, new PaymentResultDto(
+            false, result.TransactionId, result.Status, result.ErrorMessage, result.ReceiptUrl));
     }
 }
 
 internal sealed class CreatePaymentOrderHandler : ICommandHandler<CreatePaymentOrderCommand, ApiResponse<string>>
 {
     private readonly IMarketplaceUnitOfWork _unitOfWork;
-    private readonly IPaymentService _paymentService;
+    private readonly IStripeCheckoutService _stripeCheckout;
+    private readonly IPaymentCheckoutStore _checkoutStore;
+    private readonly ICacheService _cache;
+    private readonly IUnpaidExpiryService _unpaidExpiry;
     private readonly ILogger<CreatePaymentOrderHandler> _logger;
 
-    public CreatePaymentOrderHandler(IMarketplaceUnitOfWork unitOfWork, IPaymentService paymentService, ILogger<CreatePaymentOrderHandler> logger)
+    public CreatePaymentOrderHandler(
+        IMarketplaceUnitOfWork unitOfWork,
+        IStripeCheckoutService stripeCheckout,
+        IPaymentCheckoutStore checkoutStore,
+        ICacheService cache,
+        IUnpaidExpiryService unpaidExpiry,
+        ILogger<CreatePaymentOrderHandler> logger)
     {
         _unitOfWork = unitOfWork;
-        _paymentService = paymentService;
+        _stripeCheckout = stripeCheckout;
+        _checkoutStore = checkoutStore;
+        _cache = cache;
+        _unpaidExpiry = unpaidExpiry;
         _logger = logger;
+    }
+
+    public CreatePaymentOrderHandler(
+        IMarketplaceUnitOfWork unitOfWork,
+        IStripeCheckoutService stripeCheckout,
+        IPaymentCheckoutStore checkoutStore,
+        ICacheService cache,
+        ILogger<CreatePaymentOrderHandler> logger)
+        : this(unitOfWork, stripeCheckout, checkoutStore, cache, null!, logger)
+    {
+        _unpaidExpiry = null!;
     }
 
     public async Task<ApiResponse<string>> HandleAsync(CreatePaymentOrderCommand command, CancellationToken cancellationToken = default)
@@ -166,73 +187,97 @@ internal sealed class CreatePaymentOrderHandler : ICommandHandler<CreatePaymentO
         if (booking == null) return new ApiResponse<string>(false, "Booking not found", null);
         if (booking.UserId != command.UserId) return new ApiResponse<string>(false, "Unauthorized", null);
 
-        var payOverstay = command.PayOverstayFee == true
-            || (command.PayOverstayFee != false
-                && booking.OverstayFeeOutstanding > 0
-                && booking.Status is BookingStatus.InProgress or BookingStatus.Completed or BookingStatus.Confirmed);
+        if (_unpaidExpiry is not null)
+            await _unpaidExpiry.ExpireIfDueAsync(booking, cancellationToken);
 
-        decimal amount;
-        Dictionary<string, string>? notes;
+        if (!PaymentChargeResolver.TryResolve(booking, command.PayOverstayFee, out var charge, out var error))
+            return new ApiResponse<string>(false, error, null);
 
-        if (payOverstay)
+        var lockKey = PaymentLock.Key(booking.Id, charge.Purpose);
+        if (!await _cache.AcquireLockAsync(lockKey, PaymentLock.Ttl, cancellationToken))
         {
-            if (booking.OverstayFeeOutstanding <= 0)
-                return new ApiResponse<string>(false, "No outstanding overstay fee", null);
-
-            amount = booking.OverstayFeeOutstanding;
-            notes = new Dictionary<string, string>
-            {
-                { "bookingId", booking.Id.ToString() },
-                { "purpose", "overstay" },
-                { "bookingReference", booking.BookingReference ?? string.Empty }
-            };
-        }
-        else
-        {
-            if (booking.Status != BookingStatus.AwaitingPayment &&
-                booking.Status != BookingStatus.AwaitingExtensionPayment)
-                return new ApiResponse<string>(false, "Booking is not awaiting payment", null);
-
-            amount = booking.Status == BookingStatus.AwaitingExtensionPayment
-                ? (booking.PendingExtensionAmount ?? booking.TotalAmount)
-                : booking.TotalAmount;
-
-            notes = new Dictionary<string, string>
-            {
-                { "bookingId", booking.Id.ToString() },
-                { "purpose", booking.Status == BookingStatus.AwaitingExtensionPayment ? "extension" : "booking" }
-            };
+            return new ApiResponse<string>(
+                false,
+                "A payment is already in progress",
+                null,
+                Code: PaymentErrorCodes.PaymentInProgress);
         }
 
         try
         {
-            var orderId = await _paymentService.CreateOrderAsync(amount, "INR", notes, cancellationToken);
-            return new ApiResponse<string>(true, null, orderId);
+            foreach (var live in await _checkoutStore.ListLiveOrdersAsync(booking.Id, charge.Purpose, cancellationToken))
+            {
+                live.Cancel();
+                _checkoutStore.Update(live);
+            }
+
+            var session = await _stripeCheckout.CreateCardSessionAsync(
+                charge.Amount, "INR", charge.Notes, cancellationToken);
+
+            _checkoutStore.Add(PaymentOrder.Create(
+                booking.Id,
+                charge.Purpose,
+                PaymentOrder.RailStripe,
+                PaymentOrder.ProviderStripe,
+                session.PaymentIntentId,
+                charge.Amount,
+                "INR",
+                PaymentOrderStatus.Created));
+
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
+            return new ApiResponse<string>(true, null, session.ClientSecret);
         }
-        catch (Exception ex)
+        catch (Exception ex) when (UniqueConstraint.IsViolation(ex))
+        {
+            _unitOfWork.ClearChangeTracker();
+            return new ApiResponse<string>(
+                false,
+                "A payment is already in progress",
+                null,
+                Code: PaymentErrorCodes.PaymentInProgress);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
             _logger.LogError(ex, "Failed to create payment order for booking {BookingId}", command.BookingId);
             return new ApiResponse<string>(false, "Failed to create payment order", null);
+        }
+        finally
+        {
+            await _cache.ReleaseLockAsync(lockKey, cancellationToken);
         }
     }
 }
 
 internal sealed class VerifyPaymentHandler : ICommandHandler<VerifyPaymentCommand, ApiResponse<PaymentResultDto>>
 {
+    internal const string StripeGateway = "Stripe";
+
     private readonly IMarketplaceUnitOfWork _unitOfWork;
     private readonly IPaymentService _paymentService;
     private readonly ICacheService _cache;
+    private readonly IPaymentCheckoutStore _checkoutStore;
+    private readonly IUpiCheckoutService _upiCheckout;
+    private readonly IPaymentCaptureOrchestrator _captureOrchestrator;
+    private readonly IUnpaidExpiryService? _unpaidExpiry;
     private readonly ILogger<VerifyPaymentHandler> _logger;
 
     public VerifyPaymentHandler(
         IMarketplaceUnitOfWork unitOfWork,
         IPaymentService paymentService,
         ICacheService cache,
-        ILogger<VerifyPaymentHandler> logger)
+        IPaymentCheckoutStore checkoutStore,
+        IUpiCheckoutService upiCheckout,
+        IPaymentCaptureOrchestrator captureOrchestrator,
+        ILogger<VerifyPaymentHandler> logger,
+        IUnpaidExpiryService? unpaidExpiry = null)
     {
         _unitOfWork = unitOfWork;
         _paymentService = paymentService;
         _cache = cache;
+        _checkoutStore = checkoutStore;
+        _upiCheckout = upiCheckout;
+        _captureOrchestrator = captureOrchestrator;
+        _unpaidExpiry = unpaidExpiry;
         _logger = logger;
     }
 
@@ -242,138 +287,290 @@ internal sealed class VerifyPaymentHandler : ICommandHandler<VerifyPaymentComman
         if (booking == null) return new ApiResponse<PaymentResultDto>(false, "Booking not found", null);
         if (booking.UserId != command.UserId) return new ApiResponse<PaymentResultDto>(false, "Unauthorized", null);
 
-        var isExtensionPayment = booking.Status == BookingStatus.AwaitingExtensionPayment;
-        var isOverstayPayment = !isExtensionPayment
-            && booking.Status is not BookingStatus.AwaitingPayment
-            && booking.OverstayFeeOutstanding > 0;
+        if (_unpaidExpiry is not null)
+            await _unpaidExpiry.ExpireIfDueAsync(booking, cancellationToken);
 
-        // Idempotent overstay: already paid this PI
-        if (isOverstayPayment
-            && !string.IsNullOrWhiteSpace(command.Dto.RazorpayPaymentId)
-            && string.Equals(booking.OverstayFeeTransactionId, command.Dto.RazorpayPaymentId, StringComparison.Ordinal))
+        var paymentId = command.Dto.RazorpayPaymentId?.Trim();
+        var orderId = command.Dto.RazorpayOrderId?.Trim();
+        var signature = command.Dto.RazorpaySignature?.Trim();
+
+        // (a) overstay already captured with this provider payment id
+        if (!string.IsNullOrWhiteSpace(paymentId)
+            && string.Equals(booking.OverstayFeeTransactionId, paymentId, StringComparison.Ordinal))
         {
             return new ApiResponse<PaymentResultDto>(true, "Overstay fee already paid", new PaymentResultDto(
                 true, booking.OverstayFeeTransactionId, PaymentStatus.Completed, "Overstay fee already paid", null));
         }
 
-        var existingPayment = await _unitOfWork.Payments.GetByBookingIdAsync(command.Dto.BookingId, cancellationToken);
-        if (!isOverstayPayment && existingPayment != null && existingPayment.Status == PaymentStatus.Completed)
+        var order = await FindOrderAsync(orderId, paymentId, cancellationToken);
+        var decision = PaymentRailDetector.Detect(order, paymentId, orderId, signature, command.Dto.Rail);
+        if (decision.Mismatch)
         {
-            // Idempotent recovery path: finalize extension if still awaiting extension payment.
-            if (isExtensionPayment)
-            {
-                booking.ConfirmExtension();
-                _unitOfWork.Bookings.Update(booking);
-                await _unitOfWork.SaveChangesAsync(cancellationToken);
-                var parkingForExtension = await _unitOfWork.ParkingSpaces.GetByIdAsync(booking.ParkingSpaceId, cancellationToken);
-                await CacheInvalidation.ForBookingChangeAsync(
-                    _cache, booking.ParkingSpaceId, booking.UserId, parkingForExtension?.OwnerId, cancellationToken);
-                return new ApiResponse<PaymentResultDto>(true, "Extension payment already completed", new PaymentResultDto(
-                    true, existingPayment.TransactionId, PaymentStatus.Completed, "Extension confirmed", existingPayment.ReceiptUrl));
-            }
-
-            return new ApiResponse<PaymentResultDto>(true, "Payment already completed", new PaymentResultDto(
-                true, existingPayment.TransactionId, PaymentStatus.Completed, "Payment already completed", existingPayment.ReceiptUrl));
+            return new ApiResponse<PaymentResultDto>(
+                false,
+                "Payment rail does not match the order",
+                null,
+                Code: PaymentErrorCodes.RailMismatch);
         }
 
-        if (string.IsNullOrWhiteSpace(command.Dto.RazorpayPaymentId)
-            || string.IsNullOrWhiteSpace(command.Dto.RazorpayOrderId)
-            || string.IsNullOrWhiteSpace(command.Dto.RazorpaySignature))
+        var rail = decision.Rail;
+        if (rail is null)
+        {
+            if (!string.IsNullOrWhiteSpace(paymentId)
+                && !string.IsNullOrWhiteSpace(orderId)
+                && !string.IsNullOrWhiteSpace(signature))
+            {
+                rail = PaymentRailDetector.Stripe;
+            }
+            else if (!string.IsNullOrWhiteSpace(paymentId) && !string.IsNullOrWhiteSpace(orderId))
+            {
+                rail = PaymentRailDetector.Upi;
+            }
+        }
+
+        if (string.Equals(rail, PaymentRailDetector.Stripe, StringComparison.Ordinal))
+        {
+            if (string.IsNullOrWhiteSpace(paymentId)
+                || string.IsNullOrWhiteSpace(orderId)
+                || string.IsNullOrWhiteSpace(signature))
+            {
+                return new ApiResponse<PaymentResultDto>(false, "Payment verification fields are required", null);
+            }
+        }
+        else if (string.Equals(rail, PaymentRailDetector.Upi, StringComparison.Ordinal))
+        {
+            if (string.IsNullOrWhiteSpace(paymentId) || string.IsNullOrWhiteSpace(orderId))
+                return new ApiResponse<PaymentResultDto>(false, "Payment verification fields are required", null);
+        }
+        else
         {
             return new ApiResponse<PaymentResultDto>(false, "Payment verification fields are required", null);
         }
 
+        var expectedCapture = PaymentChargeResolver.ResolveExpectedCapture(booking);
+        var lockKey = PaymentLock.Key(booking.Id, expectedCapture.Purpose);
+        if (!await _cache.AcquireLockAsync(lockKey, PaymentLock.WebhookTtl, cancellationToken))
+        {
+            return new ApiResponse<PaymentResultDto>(
+                false,
+                "A payment is already in progress",
+                null,
+                Code: PaymentErrorCodes.PaymentInProgress);
+        }
+
+        try
+        {
+            await _checkoutStore.LockOrderAsync(booking.Id, expectedCapture.Purpose, cancellationToken);
+
+            if (string.Equals(rail, PaymentRailDetector.Upi, StringComparison.Ordinal))
+                return await VerifyUpiAsync(booking, paymentId!, orderId!, expectedCapture, cancellationToken);
+
+            return await VerifyStripeAsync(
+                booking, paymentId!, orderId!, signature!, expectedCapture, cancellationToken);
+        }
+        finally
+        {
+            await _cache.ReleaseLockAsync(lockKey, cancellationToken);
+        }
+    }
+
+    private async Task<ApiResponse<PaymentResultDto>> VerifyStripeAsync(
+        Booking booking,
+        string paymentId,
+        string orderId,
+        string signature,
+        PaymentChargeResolver.Charge expectedCapture,
+        CancellationToken cancellationToken)
+    {
         var isValid = await _paymentService.VerifyPaymentSignatureAsync(
-            command.Dto.RazorpayPaymentId, command.Dto.RazorpayOrderId, command.Dto.RazorpaySignature, cancellationToken);
+            paymentId,
+            orderId,
+            signature,
+            cancellationToken,
+            new PaymentCaptureCheck(booking.Id, expectedCapture.Amount, "INR", expectedCapture.Purpose));
         if (!isValid)
         {
-            _logger.LogWarning("Invalid payment signature for booking {BookingId}", command.Dto.BookingId);
+            _logger.LogWarning("Invalid payment signature for booking {BookingId}", booking.Id);
             return new ApiResponse<PaymentResultDto>(false, "Invalid payment signature", null);
         }
 
-        // ── Overstay fee payment (does not replace primary booking Payment) ──
-        if (isOverstayPayment)
+        var capture = await _captureOrchestrator.CaptureAsync(
+            new PaymentCaptureCommand(
+                booking.Id,
+                expectedCapture.Purpose,
+                paymentId,
+                orderId,
+                expectedCapture.Amount,
+                "INR",
+                StripeGateway,
+                PaymentMethod.CreditCard),
+            cancellationToken);
+
+        if (capture.NeedsRefund)
         {
-            var outstanding = booking.OverstayFeeOutstanding;
-            try
-            {
-                booking.MarkOverstayFeePaid(
-                    outstanding,
-                    command.Dto.RazorpayPaymentId,
-                    DateTime.UtcNow);
-            }
-            catch (DomainException ex)
-            {
-                return new ApiResponse<PaymentResultDto>(false, ex.Message, null);
-            }
-
-            _unitOfWork.Bookings.Update(booking);
-            await _unitOfWork.SaveChangesAsync(cancellationToken);
-
-            var parkingForOverstay = await _unitOfWork.ParkingSpaces.GetByIdAsync(booking.ParkingSpaceId, cancellationToken);
-            await CacheInvalidation.ForBookingChangeAsync(
-                _cache, booking.ParkingSpaceId, booking.UserId, parkingForOverstay?.OwnerId, cancellationToken);
-
-            _logger.LogInformation(
-                "Overstay fee paid for booking {BookingId}, amount {Amount}, remaining {Remaining}",
-                booking.Id, outstanding, booking.OverstayFeeOutstanding);
-
-            return new ApiResponse<PaymentResultDto>(true, "Overstay fee paid successfully", new PaymentResultDto(
-                true, command.Dto.RazorpayPaymentId, PaymentStatus.Completed, "Overstay fee paid successfully", null));
+            await TryRefundAsync(paymentId, expectedCapture.Amount, StripeGateway, cancellationToken);
+            return new ApiResponse<PaymentResultDto>(false, capture.Message ?? "Payment capture failed", null);
         }
 
-        var paymentAmount = isExtensionPayment
-            ? (booking.PendingExtensionAmount ?? booking.TotalAmount)
-            : booking.TotalAmount;
-
-        Payment payment;
-        bool isNewPayment;
-        if (existingPayment != null)
+        if (!capture.Success)
         {
-            payment = existingPayment;
-            isNewPayment = false;
-        }
-        else
-        {
-            payment = Payment.CreatePending(
-                command.Dto.BookingId,
-                command.UserId,
-                paymentAmount,
-                PaymentMethod.CreditCard);
-            isNewPayment = true;
+            _logger.LogWarning(
+                "Capture rejected for booking {BookingId} purpose {Purpose} outcome {Outcome}",
+                booking.Id,
+                expectedCapture.Purpose,
+                capture.Outcome);
+            return new ApiResponse<PaymentResultDto>(false, capture.Message ?? "Payment capture failed", null);
         }
 
-        payment.MarkSucceeded(
-            command.Dto.RazorpayPaymentId,
-            command.Dto.RazorpayOrderId,
-            "Razorpay",
-            amount: paymentAmount);
+        await InvalidateAsync(booking, cancellationToken);
+        return new ApiResponse<PaymentResultDto>(true, capture.Message, new PaymentResultDto(
+            true, capture.TransactionId, capture.Status, capture.Message, capture.ReceiptUrl));
+    }
 
-        // Extension: BookingExtensionConfirmedEvent; regular: BookingConfirmed + PaymentCompleted events
-        if (isExtensionPayment)
-            booking.ConfirmExtension();
-        else
+    private async Task<ApiResponse<PaymentResultDto>> VerifyUpiAsync(
+        Booking booking,
+        string paymentId,
+        string orderId,
+        PaymentChargeResolver.Charge expectedCapture,
+        CancellationToken cancellationToken)
+    {
+        UpiPaymentSnapshot snapshot;
+        try
         {
-            booking.Confirm();
-            booking.RecordPaymentCompleted(payment.Id, paymentAmount, "INR", isExtensionPayment: false);
-            await BayAssignmentHelper.TryApplyAsync(_unitOfWork, booking, cancellationToken);
+            using var getCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            getCts.CancelAfter(PaymentLock.WebhookGetTimeout);
+            snapshot = await _upiCheckout.GetPaymentAsync(paymentId, getCts.Token);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException || cancellationToken.IsCancellationRequested)
+        {
+            _logger.LogWarning(ex, "UPI verify GET failed for booking {BookingId}", booking.Id);
+            return new ApiResponse<PaymentResultDto>(false, "Unable to verify UPI payment", null);
         }
 
-        _unitOfWork.Bookings.Update(booking);
+        if (!string.Equals(snapshot.Status, "captured", StringComparison.OrdinalIgnoreCase))
+            return new ApiResponse<PaymentResultDto>(false, "Payment has not been captured", null);
 
-        if (isNewPayment)
-            await _unitOfWork.Payments.AddAsync(payment, cancellationToken);
-        else
-            _unitOfWork.Payments.Update(payment);
+        var capturedPaymentId = string.IsNullOrWhiteSpace(snapshot.Id) ? paymentId : snapshot.Id;
+        var capturedOrderId = snapshot.OrderId ?? orderId;
+        var expected = new PaymentCaptureCheck(
+            booking.Id, expectedCapture.Amount, "INR", expectedCapture.Purpose);
+        if (!_upiCheckout.MatchesExpected(snapshot, expected))
+        {
+            PaymentObservability.LogMatcherMismatch(
+                _logger,
+                booking.Id,
+                expectedCapture.Purpose,
+                PaymentObservability.ToMinorUnits(expectedCapture.Amount),
+                snapshot.AmountMinor,
+                capturedPaymentId);
+            PaymentObservability.LogNeedsRefund(
+                _logger,
+                booking.Id,
+                expectedCapture.Purpose,
+                capturedPaymentId,
+                PaymentObservability.ReasonMismatch);
+            await TryRefundAsync(capturedPaymentId, expectedCapture.Amount, PaymentOrder.ProviderRazorpay, cancellationToken);
+            return new ApiResponse<PaymentResultDto>(false, "Payment does not match this booking", null);
+        }
 
-        await _unitOfWork.SaveChangesAsync(cancellationToken);
+        var capture = await _captureOrchestrator.CaptureAsync(
+            new PaymentCaptureCommand(
+                booking.Id,
+                expectedCapture.Purpose,
+                capturedPaymentId,
+                capturedOrderId,
+                expectedCapture.Amount,
+                "INR",
+                PaymentOrder.ProviderRazorpay,
+                PaymentMethod.UPI),
+            cancellationToken);
 
+        if (capture.NeedsRefund)
+        {
+            PaymentObservability.LogNeedsRefund(
+                _logger,
+                booking.Id,
+                expectedCapture.Purpose,
+                capturedPaymentId,
+                PaymentObservability.CaptureRefundReason(capture.Outcome));
+            await TryRefundAsync(capturedPaymentId, expectedCapture.Amount, PaymentOrder.ProviderRazorpay, cancellationToken);
+            return new ApiResponse<PaymentResultDto>(false, capture.Message ?? "Payment capture failed", null);
+        }
+
+        if (!capture.Success)
+        {
+            _logger.LogWarning(
+                "UPI capture rejected for booking {BookingId} purpose {Purpose} outcome {Outcome}",
+                booking.Id,
+                expectedCapture.Purpose,
+                capture.Outcome);
+            return new ApiResponse<PaymentResultDto>(false, capture.Message ?? "Payment capture failed", null);
+        }
+
+        await InvalidateAsync(booking, cancellationToken);
+        return new ApiResponse<PaymentResultDto>(true, capture.Message, new PaymentResultDto(
+            true, capture.TransactionId, capture.Status, capture.Message, capture.ReceiptUrl));
+    }
+
+    private async Task TryRefundAsync(
+        string providerPaymentId,
+        decimal amount,
+        string gateway,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await _paymentService.ProcessRefundAsync(
+                new RefundRequest
+                {
+                    Amount = amount,
+                    Reason = "unconfirmable captured charge",
+                    GatewayTransactionId = providerPaymentId,
+                    PaymentGateway = gateway
+                },
+                cancellationToken);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogWarning(ex, "Verify auto-refund failed for {ProviderPaymentId}", providerPaymentId);
+        }
+    }
+
+    private async Task InvalidateAsync(Booking booking, CancellationToken cancellationToken)
+    {
         var parkingSpace = await _unitOfWork.ParkingSpaces.GetByIdAsync(booking.ParkingSpaceId, cancellationToken);
         await CacheInvalidation.ForBookingChangeAsync(
             _cache, booking.ParkingSpaceId, booking.UserId, parkingSpace?.OwnerId, cancellationToken);
+    }
 
-        return new ApiResponse<PaymentResultDto>(true, "Payment verified successfully", new PaymentResultDto(
-            true, payment.TransactionId, PaymentStatus.Completed, "Payment verified successfully", null));
+    private async Task<PaymentOrder?> FindOrderAsync(
+        string? orderId,
+        string? paymentId,
+        CancellationToken cancellationToken)
+    {
+        if (!string.IsNullOrWhiteSpace(orderId))
+        {
+            var byRazorpay = await _checkoutStore.FindByProviderOrderIdAsync(
+                PaymentOrder.ProviderRazorpay, orderId, cancellationToken);
+            if (byRazorpay is not null)
+                return byRazorpay;
+            var byStripe = await _checkoutStore.FindByProviderOrderIdAsync(
+                PaymentOrder.ProviderStripe, orderId, cancellationToken);
+            if (byStripe is not null)
+                return byStripe;
+        }
+
+        if (!string.IsNullOrWhiteSpace(paymentId))
+        {
+            var byPay = await _checkoutStore.FindByProviderPaymentIdAsync(
+                PaymentOrder.ProviderRazorpay, paymentId, cancellationToken);
+            if (byPay is not null)
+                return byPay;
+            return await _checkoutStore.FindByProviderPaymentIdAsync(
+                PaymentOrder.ProviderStripe, paymentId, cancellationToken);
+        }
+
+        return null;
     }
 }
 
@@ -404,7 +601,8 @@ internal sealed class ProcessRefundHandler : ICommandHandler<ProcessRefundComman
             PaymentId = command.Dto.PaymentId,
             Amount = command.Dto.Amount,
             Reason = command.Dto.Reason,
-            GatewayTransactionId = payment.TransactionId
+            GatewayTransactionId = payment.TransactionId,
+            PaymentGateway = payment.PaymentGateway
         };
 
         _logger.LogInformation("Processing refund for payment {PaymentId}, amount {Amount}", command.Dto.PaymentId, command.Dto.Amount);

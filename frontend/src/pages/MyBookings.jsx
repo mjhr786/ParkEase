@@ -6,7 +6,9 @@ import api from '../services/api';
 import { handleApiError } from '../utils/errorHandler';
 import showToast from '../utils/toast.jsx';
 import StripeCheckout from '../components/StripeCheckout';
+import UpiCheckout from '../components/UpiCheckout';
 import BookedSlots from '../components/BookedSlots';
+import { useAuth } from '../contexts/AuthContext';
 import {
     isDayBasedPricing,
     toDateOnly,
@@ -149,8 +151,14 @@ export default function MyBookings() {
     const [accessPassLoading, setAccessPassLoading] = useState(false);
 
     const { subscribeToRefresh } = useNotificationContext();
+    const { user, updateUser } = useAuth();
     const [searchParams, setSearchParams] = useSearchParams();
     const deepLinkHandled = useRef(false);
+    const [paymentsConfig, setPaymentsConfig] = useState({ upiEnabled: false, upiContactRequired: null, stripePublishableKey: null });
+    const [picker, setPicker] = useState(null);
+    const [upiSession, setUpiSession] = useState(null);
+    const [phoneForm, setPhoneForm] = useState('');
+    const [phoneSaving, setPhoneSaving] = useState(false);
 
     const fetchBookings = useCallback(async () => {
         setLoading(true);
@@ -295,44 +303,101 @@ export default function MyBookings() {
     const [payingId, setPayingId] = useState(null);
     const [stripeConfig, setStripeConfig] = useState({ clientSecret: null, publishableKey: null, bookingId: null });
 
-    // Fetch Stripe publishable key on mount
     useEffect(() => {
-        // console.log("[DEBUG] Fetching Stripe Config on mount...");
-        api.getStripeConfig().then(res => {
-            // console.log("[DEBUG] getStripeConfig response:", res);
-            if (res.publishableKey) {
-                setStripeConfig(prev => ({ ...prev, publishableKey: res.publishableKey }));
-            } else if (res.data?.publishableKey) {
-                setStripeConfig(prev => ({ ...prev, publishableKey: res.data.publishableKey }));
-            } else {
-                console.error("[DEBUG] publishableKey NOT found in response!");
+        api.getPaymentsConfig().then(res => {
+            const data = res.data || res;
+            setPaymentsConfig({
+                upiEnabled: !!data.upiEnabled,
+                upiContactRequired: data.upiContactRequired,
+                stripePublishableKey: data.stripePublishableKey || null,
+            });
+            if (data.stripePublishableKey) {
+                setStripeConfig(prev => ({ ...prev, publishableKey: data.stripePublishableKey }));
             }
-        }).catch((err) => {
-            console.error("[DEBUG] Error fetching Stripe Config:", err);
+        }).catch(() => {
+            api.getStripeConfig().then(res => {
+                const key = res.publishableKey || res.data?.publishableKey;
+                if (key) setStripeConfig(prev => ({ ...prev, publishableKey: key }));
+            }).catch(() => {});
         });
     }, []);
 
-    const handlePayment = async (bookingId, amount, { payOverstayFee = false } = {}) => {
-        setPayingId(bookingId);
+    const handlePayment = (bookingId, amount, { payOverstayFee = false } = {}) => {
+        if (paymentsConfig.upiEnabled) {
+            setPicker({ bookingId, amount, payOverstayFee: !!payOverstayFee });
+            setPhoneForm(user?.phoneNumber || '');
+            return;
+        }
+        startCardPayment(bookingId, amount, { payOverstayFee });
+    };
 
+    const startCardPayment = async (bookingId, amount, { payOverstayFee = false } = {}) => {
+        setPayingId(bookingId);
+        setPicker(null);
         try {
-            // 1. Create PaymentIntent on backend
             const orderRes = await api.createPaymentOrder(bookingId, { payOverstayFee });
             if (!orderRes.success) {
                 throw new Error(orderRes.message || 'Failed to create payment order');
             }
-
-            // orderRes.data is the clientSecret
             setStripeConfig(prev => ({
                 ...prev,
                 clientSecret: orderRes.data,
                 bookingId,
                 payOverstayFee: !!payOverstayFee,
             }));
-
         } catch (err) {
             showToast.error(handleApiError(err, 'Failed to initiate payment'));
             setPayingId(null);
+        }
+    };
+
+    const startUpiPayment = async (bookingId, { payOverstayFee = false } = {}) => {
+        const contactRequired = paymentsConfig.upiContactRequired === true || !user?.phoneNumber;
+        if (contactRequired) {
+            showToast.error('Add a 10-digit Indian mobile number to pay with UPI');
+            return;
+        }
+        setPayingId(bookingId);
+        setPicker(null);
+        try {
+            const orderRes = await api.createUpiPaymentOrder(bookingId, { payOverstayFee });
+            if (!orderRes.success) {
+                if (orderRes.code === 'upi_contact_required' || orderRes.code === 'upi_contact_invalid') {
+                    showToast.error(orderRes.code === 'upi_contact_invalid'
+                        ? 'Enter a 10-digit Indian mobile'
+                        : 'Add a phone number to pay with UPI');
+                    setPicker({ bookingId, amount: null, payOverstayFee, needPhone: true });
+                    setPayingId(null);
+                    return;
+                }
+                throw new Error(orderRes.message || 'Failed to create UPI payment');
+            }
+            setUpiSession({ ...orderRes.data, bookingId, payOverstayFee: !!payOverstayFee });
+        } catch (err) {
+            showToast.error(handleApiError(err, 'Failed to initiate UPI payment'));
+            setPayingId(null);
+        }
+    };
+
+    const savePhoneAndRetryUpi = async () => {
+        if (!picker) return;
+        setPhoneSaving(true);
+        try {
+            const response = await api.updateProfile({
+                firstName: user?.firstName,
+                lastName: user?.lastName,
+                phoneNumber: phoneForm.trim(),
+            });
+            if (!response?.success) {
+                throw new Error(response?.message || 'Failed to update profile');
+            }
+            updateUser({ phoneNumber: phoneForm.trim() });
+            setPaymentsConfig(prev => ({ ...prev, upiContactRequired: false }));
+            await startUpiPayment(picker.bookingId, { payOverstayFee: picker.payOverstayFee });
+        } catch (err) {
+            showToast.error(handleApiError(err, 'Enter a 10-digit Indian mobile'));
+        } finally {
+            setPhoneSaving(false);
         }
     };
 
@@ -367,6 +432,24 @@ export default function MyBookings() {
         setStripeConfig(prev => ({ ...prev, clientSecret: null, bookingId: null, payOverstayFee: false }));
         setPayingId(null);
     };
+
+    const handleUpiSuccess = async () => {
+        showToast.success(
+            upiSession?.payOverstayFee
+                ? 'Overstay fee paid successfully! 🎉'
+                : 'Payment successful! 🎉'
+        );
+        setUpiSession(null);
+        setPayingId(null);
+        fetchBookings();
+    };
+
+    const handleUpiCancel = () => {
+        setUpiSession(null);
+        setPayingId(null);
+    };
+
+    const upiContactBlocked = paymentsConfig.upiContactRequired === true || !user?.phoneNumber;
 
     // Review Handlers
     const handleOpenReviewModal = (bookingId, parkingId) => {
@@ -1049,6 +1132,65 @@ export default function MyBookings() {
                             Close
                         </button>
                     </div>
+                </div>
+            )}
+
+            {picker && (
+                <div className="stripe-modal-overlay">
+                    <div className="card stripe-modal">
+                        <h3 className="card-title mb-2">Choose payment method</h3>
+                        <div className="flex gap-1" style={{ flexDirection: 'column' }}>
+                            <button
+                                type="button"
+                                className="btn btn-primary"
+                                onClick={() => startCardPayment(picker.bookingId, picker.amount, { payOverstayFee: picker.payOverstayFee })}
+                            >
+                                Card
+                            </button>
+                            <button
+                                type="button"
+                                className="btn btn-secondary"
+                                disabled={upiContactBlocked}
+                                onClick={() => startUpiPayment(picker.bookingId, { payOverstayFee: picker.payOverstayFee })}
+                            >
+                                UPI
+                            </button>
+                            {upiContactBlocked && (
+                                <div>
+                                    <p style={{ fontSize: '0.85rem' }}>Add a 10-digit Indian mobile number to use UPI.</p>
+                                    <input
+                                        type="tel"
+                                        value={phoneForm}
+                                        onChange={(e) => setPhoneForm(e.target.value)}
+                                        placeholder="10-digit mobile"
+                                        style={{ width: '100%', marginBottom: '0.5rem' }}
+                                    />
+                                    <button
+                                        type="button"
+                                        className="btn btn-primary"
+                                        disabled={phoneSaving}
+                                        onClick={savePhoneAndRetryUpi}
+                                    >
+                                        {phoneSaving ? 'Saving...' : 'Save phone and continue'}
+                                    </button>
+                                </div>
+                            )}
+                            <button type="button" className="btn btn-secondary" onClick={() => setPicker(null)}>
+                                Cancel
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {upiSession && (
+                <div className="stripe-modal-overlay">
+                    <UpiCheckout
+                        session={upiSession}
+                        bookingId={upiSession.bookingId}
+                        onSuccess={handleUpiSuccess}
+                        onCancel={handleUpiCancel}
+                    />
                 </div>
             )}
 

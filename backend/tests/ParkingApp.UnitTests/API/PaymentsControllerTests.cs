@@ -4,11 +4,15 @@ using FluentAssertions;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Options;
 using Moq;
 using ParkingApp.API.Controllers;
 using ParkingApp.Application.CQRS;
 using ParkingApp.Application.DTOs;
+using ParkingApp.Identity.Contracts;
 using ParkingApp.Marketplace.Application.Commands.Payments;
+using ParkingApp.Marketplace.Application.Options;
 using ParkingApp.Marketplace.Application.Queries.Payments;
 using ParkingApp.Marketplace.Contracts.DTOs;
 using ParkingApp.Marketplace.Contracts.Enums;
@@ -19,12 +23,20 @@ public class PaymentsControllerTests
 {
     private readonly Mock<IDispatcher> _dispatcher = new();
     private readonly Mock<IConfiguration> _configuration = new();
+    private readonly Mock<IUserLookup> _userLookup = new();
+    private readonly Mock<IHostEnvironment> _environment = new();
     private readonly PaymentsController _controller;
     private readonly Guid _userId = Guid.NewGuid();
 
     public PaymentsControllerTests()
     {
-        _controller = new PaymentsController(_dispatcher.Object, _configuration.Object);
+        _environment.Setup(e => e.EnvironmentName).Returns(Environments.Development);
+        _controller = new PaymentsController(
+            _dispatcher.Object,
+            _configuration.Object,
+            _userLookup.Object,
+            Options.Create(new UpiPaymentsOptions { Enabled = false }),
+            _environment.Object);
         SetUser(_userId);
     }
 
@@ -53,6 +65,38 @@ public class PaymentsControllerTests
         var ok = result.Should().BeOfType<OkObjectResult>().Subject;
         var prop = ok.Value!.GetType().GetProperty("publishableKey");
         prop!.GetValue(ok.Value).Should().Be("pk_test_abc");
+    }
+
+    [Fact]
+    public async Task GetConfig_Anonymous_OmitsUpiContactRequired()
+    {
+        SetUser(null);
+        _controller.ControllerContext.HttpContext.User = new ClaimsPrincipal(new ClaimsIdentity());
+        _configuration.Setup(c => c["Stripe:PublishableKey"]).Returns("pk_live");
+
+        var result = await _controller.GetConfig(CancellationToken.None);
+
+        var ok = result.Should().BeOfType<OkObjectResult>().Subject;
+        var body = ok.Value.Should().BeOfType<ApiResponse<PaymentsConfigDto>>().Subject;
+        body.Data.Should().NotBeNull();
+        body.Data!.UpiEnabled.Should().BeFalse();
+        body.Data.StripePublishableKey.Should().Be("pk_live");
+        body.Data.UpiContactRequired.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task GetConfig_JwtEmptyPhone_UpiContactRequiredTrue()
+    {
+        _userLookup
+            .Setup(u => u.GetByIdAsync(_userId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new UserSummary(_userId, "a@b.com", "A", "B", PhoneNumber: null));
+        _configuration.Setup(c => c["Stripe:PublishableKey"]).Returns("pk_test");
+
+        var result = await _controller.GetConfig(CancellationToken.None);
+
+        var ok = result.Should().BeOfType<OkObjectResult>().Subject;
+        var body = ok.Value.Should().BeOfType<ApiResponse<PaymentsConfigDto>>().Subject;
+        body.Data!.UpiContactRequired.Should().BeTrue();
     }
 
     [Fact]

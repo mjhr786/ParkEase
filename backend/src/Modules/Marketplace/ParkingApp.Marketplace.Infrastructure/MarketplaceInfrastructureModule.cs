@@ -49,6 +49,8 @@ public static class MarketplaceInfrastructureModule
                 configuration.GetSection(WalletPassOptions.SectionName));
             services.Configure<ValetOptions>(
                 configuration.GetSection(ValetOptions.SectionName));
+            services.Configure<UpiPaymentsOptions>(
+                configuration.GetSection(UpiPaymentsOptions.SectionName));
         }
         else
         {
@@ -60,6 +62,7 @@ public static class MarketplaceInfrastructureModule
             services.Configure<SessionReminderOptions>(_ => { });
             services.Configure<WalletPassOptions>(_ => { });
             services.Configure<ValetOptions>(_ => { });
+            services.Configure<UpiPaymentsOptions>(_ => { });
         }
 
         services.AddScoped<IParkingSpaceRepository, ParkingSpaceRepository>();
@@ -73,7 +76,18 @@ public static class MarketplaceInfrastructureModule
         services.AddScoped<IReviewReadStore, ReviewReadStore>();
         services.AddScoped<IDashboardRepository, DashboardRepository>();
 
-        services.AddScoped<IPaymentService, StripePaymentService>();
+        services.AddScoped<StripePaymentService>();
+        services.AddScoped<IPaymentService, PaymentGatewayRouter>();
+        services.AddScoped<IStripeCheckoutService>(sp => sp.GetRequiredService<StripePaymentService>());
+        services.AddScoped<IPaymentCheckoutStore, PaymentCheckoutStore>();
+        services.AddScoped<IPaymentWebhookProcessor, RazorpayWebhookProcessor>();
+        services.AddScoped<IStripeWebhookProcessor, StripeWebhookProcessor>();
+        services.AddHttpClient(RazorpayUpiCheckoutService.HttpClientName, client =>
+        {
+            client.BaseAddress = new Uri("https://api.razorpay.com/");
+            client.Timeout = TimeSpan.FromSeconds(15);
+        });
+        services.AddScoped<IUpiCheckoutService, RazorpayUpiCheckoutService>();
         services.AddHttpClient<IRoutingService, OSRMService>(client =>
         {
             client.Timeout = OSRMService.HttpTimeout;

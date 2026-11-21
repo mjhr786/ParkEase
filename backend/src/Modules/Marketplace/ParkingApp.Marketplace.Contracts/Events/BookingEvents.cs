@@ -29,6 +29,13 @@ public sealed record BookingCancelledEvent(
     string? BookingReference,
     string? Reason) : DomainEvent;
 
+public sealed record BookingPaymentExpiredEvent(
+    Guid BookingId,
+    Guid UserId,
+    Guid ParkingSpaceId,
+    string? BookingReference,
+    string? Reason) : DomainEvent;
+
 /// <summary>Vendor rejected a pending booking request.</summary>
 public sealed record BookingRejectedEvent(
     Guid BookingId,

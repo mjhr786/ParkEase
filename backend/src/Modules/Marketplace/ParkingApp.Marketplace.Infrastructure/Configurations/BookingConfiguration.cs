@@ -29,6 +29,7 @@ entity.HasKey(e => e.Id);
             entity.Property(e => e.EvChargingFeeAmount).HasPrecision(18, 2);
             entity.Property(e => e.EvIdleFeeAmount).HasPrecision(18, 2);
             entity.Property(e => e.OverstayFeeTransactionId).HasMaxLength(100);
+            entity.Property(e => e.ExtensionFeeTransactionId).HasMaxLength(100);
             entity.Property(e => e.FacilityLevel).HasMaxLength(32);
             entity.Property(e => e.FacilityZone).HasMaxLength(64);
             entity.Property(e => e.BayLabel).HasMaxLength(32);

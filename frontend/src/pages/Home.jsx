@@ -143,6 +143,50 @@ export default function Home() {
                 </div>
             </section>
 
+            {/* User Guide & Knowledge Hub Banner */}
+            <section className="container mt-3">
+                <div className="card" style={{
+                    background: 'var(--gradient-card)',
+                    border: '1px solid var(--color-border)',
+                    padding: '2.5rem',
+                    borderRadius: 'var(--radius-lg)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    flexWrap: 'wrap',
+                    gap: '1.5rem',
+                }}>
+                    <div style={{ maxWidth: '650px' }}>
+                        <div style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.5rem',
+                            padding: '0.25rem 0.75rem',
+                            background: 'var(--color-primary-alpha)',
+                            color: 'var(--color-accent-light)',
+                            borderRadius: '999px',
+                            fontSize: '0.8rem',
+                            fontWeight: '600',
+                            marginBottom: '0.75rem',
+                        }}>
+                            📖 New to ParkEase? One-Stop User Guide
+                        </div>
+                        <h2 style={{ fontSize: '1.75rem', marginBottom: '0.5rem' }}>
+                            Comprehensive User Guide &amp; Knowledge Hub
+                        </h2>
+                        <p style={{ color: 'var(--color-text-secondary)', fontSize: '0.95rem', lineHeight: '1.6' }}>
+                            Interactive walkthroughs for Drivers, Space Hosts, Corporate Enterprise teams, and Administrators.
+                            Explore our live 10-state booking machine, pricing calculator, and 5-minute onboarding checklists.
+                        </p>
+                    </div>
+                    <div>
+                        <Link to="/guide" className="btn btn-outline" style={{ whiteSpace: 'nowrap', padding: '0.75rem 1.5rem', fontSize: '1rem' }}>
+                            Explore User Guide →
+                        </Link>
+                    </div>
+                </div>
+            </section>
+
             {/* CTA for Listing Space */}
             <section className="container mt-3 mb-3">
                 <div className="card" style={{ textAlign: 'center', padding: '3rem' }}>

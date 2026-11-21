@@ -28,10 +28,67 @@ public class BookingDomainTests
         booking.DomainEvents.Should().ContainSingle(e => e is BookingConfirmedEvent);
     }
 
+    [Fact]
+    public void ExpireUnpaid_FromAwaitingPayment_SetsExpiredAndRaisesPaymentExpiredEvent()
+    {
+        var booking = new Booking
+        {
+            Status = BookingStatus.AwaitingPayment,
+            UserId = Guid.NewGuid(),
+            ParkingSpaceId = Guid.NewGuid(),
+            BookingReference = "BK-PAY-1"
+        };
+
+        booking.ExpireUnpaid("qr expired");
+
+        booking.Status.Should().Be(BookingStatus.Expired);
+        var expired = booking.DomainEvents.Should().ContainSingle(e => e is BookingPaymentExpiredEvent)
+            .Which.Should().BeOfType<BookingPaymentExpiredEvent>().Subject;
+        expired.BookingId.Should().Be(booking.Id);
+        expired.UserId.Should().Be(booking.UserId);
+        expired.ParkingSpaceId.Should().Be(booking.ParkingSpaceId);
+        expired.BookingReference.Should().Be("BK-PAY-1");
+        expired.Reason.Should().Be("qr expired");
+        booking.DomainEvents.Should().NotContain(e => e is BookingCancelledEvent);
+    }
+
+    [Fact]
+    public void Confirm_FromExpired_Throws()
+    {
+        var booking = new Booking { Status = BookingStatus.Expired };
+
+        var act = () => booking.Confirm();
+
+        act.Should().Throw<BusinessRuleException>()
+            .WithMessage("Cannot confirm booking in Expired status");
+    }
+
+    [Fact]
+    public void ExpireUnpaid_FromConfirmed_Throws()
+    {
+        var booking = new Booking { Status = BookingStatus.Confirmed };
+
+        var act = () => booking.ExpireUnpaid("too late");
+
+        act.Should().Throw<BusinessRuleException>()
+            .WithMessage("Cannot expire unpaid booking in Confirmed status");
+    }
+
+    [Fact]
+    public void RecordExtensionFeePaid_SetsExtensionFeeTransactionId()
+    {
+        var booking = new Booking { Status = BookingStatus.AwaitingExtensionPayment };
+
+        booking.RecordExtensionFeePaid("  pi_ext_1  ");
+
+        booking.ExtensionFeeTransactionId.Should().Be("pi_ext_1");
+    }
+
     [Theory]
     [InlineData(BookingStatus.Confirmed)]
     [InlineData(BookingStatus.Cancelled)]
     [InlineData(BookingStatus.Completed)]
+    [InlineData(BookingStatus.Expired)]
     public void Confirm_WhenStatusIsNotPendingOrAwaitingPayment_ShouldThrowException(BookingStatus status)
     {
         // Arrange

@@ -8,6 +8,7 @@ using ParkingApp.BuildingBlocks.Exceptions;
 using ParkingApp.Marketplace.Application.DTOs;
 using ParkingApp.Marketplace.Application.Interfaces;
 using ParkingApp.Marketplace.Contracts.Enums;
+using ParkingApp.Marketplace.Domain.Entities;
 using ParkingApp.Marketplace.Domain.Interfaces;
 
 namespace ParkingApp.Marketplace.Application.Commands.Admin;
@@ -115,6 +116,15 @@ internal sealed class AdminGetPaymentHandler : IQueryHandler<AdminGetPaymentQuer
     }
 }
 
+public sealed record AdminProcessPaymentOrderRefundCommand(
+    Guid ActorAdminUserId,
+    string ActorEmail,
+    Guid PaymentOrderId,
+    string Reason,
+    decimal? Amount,
+    string? IpAddress,
+    string? UserAgent) : ICommand<ApiResponse<AdminPaymentOrderRefundDto>>;
+
 internal sealed class AdminProcessRefundHandler
     : ICommandHandler<AdminProcessRefundCommand, ApiResponse<AdminPaymentDetailDto>>
 {
@@ -178,7 +188,8 @@ internal sealed class AdminProcessRefundHandler
             PaymentId = payment.Id,
             Amount = amount,
             Reason = reason,
-            GatewayTransactionId = payment.TransactionId
+            GatewayTransactionId = payment.TransactionId,
+            PaymentGateway = payment.PaymentGateway
         };
 
         _logger.LogInformation(
@@ -229,5 +240,126 @@ internal sealed class AdminProcessRefundHandler
         {
             return DomainExceptionMapping.ToFailureResponse<AdminPaymentDetailDto>(ex);
         }
+    }
+}
+
+internal sealed class AdminProcessPaymentOrderRefundHandler
+    : ICommandHandler<AdminProcessPaymentOrderRefundCommand, ApiResponse<AdminPaymentOrderRefundDto>>
+{
+    private readonly IMarketplaceUnitOfWork _unitOfWork;
+    private readonly IPaymentCheckoutStore _checkoutStore;
+    private readonly IPaymentService _paymentService;
+    private readonly IAdminAudit _audit;
+    private readonly ILogger<AdminProcessPaymentOrderRefundHandler> _logger;
+
+    public AdminProcessPaymentOrderRefundHandler(
+        IMarketplaceUnitOfWork unitOfWork,
+        IPaymentCheckoutStore checkoutStore,
+        IPaymentService paymentService,
+        IAdminAudit audit,
+        ILogger<AdminProcessPaymentOrderRefundHandler> logger)
+    {
+        _unitOfWork = unitOfWork;
+        _checkoutStore = checkoutStore;
+        _paymentService = paymentService;
+        _audit = audit;
+        _logger = logger;
+    }
+
+    public async Task<ApiResponse<AdminPaymentOrderRefundDto>> HandleAsync(
+        AdminProcessPaymentOrderRefundCommand command,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(command.Reason))
+            return new ApiResponse<AdminPaymentOrderRefundDto>(false, "Reason is required", null);
+
+        var reason = command.Reason.Trim();
+        if (reason.Length > 500)
+            return new ApiResponse<AdminPaymentOrderRefundDto>(false, "Reason must be at most 500 characters", null);
+
+        var order = await _checkoutStore.FindByIdAsync(command.PaymentOrderId, cancellationToken);
+        if (order is null)
+            return new ApiResponse<AdminPaymentOrderRefundDto>(false, "Payment order not found", null);
+
+        if (string.IsNullOrWhiteSpace(order.ProviderPaymentId))
+            return new ApiResponse<AdminPaymentOrderRefundDto>(false, "Payment order has no gateway payment id to refund", null);
+
+        var amount = command.Amount is > 0 ? command.Amount.Value : order.Amount;
+        if (amount <= 0 || amount > order.Amount)
+            return new ApiResponse<AdminPaymentOrderRefundDto>(false, "Refund amount is invalid", null);
+
+        var refundRequest = new RefundRequest
+        {
+            Amount = amount,
+            Reason = reason,
+            GatewayTransactionId = order.ProviderPaymentId,
+            PaymentGateway = order.Provider
+        };
+
+        _logger.LogInformation(
+            "Admin {ActorId} refunding payment order {PaymentOrderId} amount {Amount}",
+            command.ActorAdminUserId,
+            order.Id,
+            amount);
+
+        var result = await _paymentService.ProcessRefundAsync(refundRequest, cancellationToken);
+        if (!result.Success)
+        {
+            return new ApiResponse<AdminPaymentOrderRefundDto>(
+                false,
+                result.ErrorMessage ?? "Gateway refund failed",
+                new AdminPaymentOrderRefundDto(
+                    order.Id, order.BookingId, order.Purpose, false, null, 0m, result.ErrorMessage));
+        }
+
+        if (string.Equals(order.Purpose, "booking", StringComparison.Ordinal))
+        {
+            var payment = await _unitOfWork.Payments.GetByBookingIdAsync(order.BookingId, cancellationToken);
+            if (payment is { Status: PaymentStatus.Completed or PaymentStatus.PartialRefund }
+                && string.Equals(payment.TransactionId, order.ProviderPaymentId, StringComparison.Ordinal))
+            {
+                try
+                {
+                    payment.RecordRefund(result.RefundedAmount, $"[Admin] {reason}", result.RefundTransactionId);
+                    _unitOfWork.Payments.Update(payment);
+                }
+                catch (DomainException ex)
+                {
+                    return DomainExceptionMapping.ToFailureResponse<AdminPaymentOrderRefundDto>(ex);
+                }
+            }
+        }
+
+        _audit.Stage(new AdminAuditEntry(
+            command.ActorAdminUserId,
+            command.ActorEmail,
+            "PaymentOrder.AdminRefund",
+            "PaymentOrder",
+            order.Id,
+            JsonSerializer.Serialize(new
+            {
+                reason,
+                amount = result.RefundedAmount,
+                refundTransactionId = result.RefundTransactionId,
+                bookingId = order.BookingId,
+                purpose = order.Purpose,
+                providerPaymentId = order.ProviderPaymentId
+            }),
+            command.IpAddress,
+            command.UserAgent));
+
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        return new ApiResponse<AdminPaymentOrderRefundDto>(
+            true,
+            "Refund processed",
+            new AdminPaymentOrderRefundDto(
+                order.Id,
+                order.BookingId,
+                order.Purpose,
+                true,
+                result.RefundTransactionId,
+                result.RefundedAmount,
+                "Refund processed"));
     }
 }

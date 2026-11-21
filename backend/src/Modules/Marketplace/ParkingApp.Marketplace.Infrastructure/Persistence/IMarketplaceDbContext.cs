@@ -13,6 +13,8 @@ public interface IMarketplaceDbContext
     DbSet<Booking> Bookings { get; }
     DbSet<ParkingPass> ParkingPasses { get; }
     DbSet<Payment> Payments { get; }
+    DbSet<PaymentOrder> PaymentOrders { get; }
+    DbSet<PaymentWebhookEvent> PaymentWebhookEvents { get; }
     DbSet<Review> Reviews { get; }
     DbSet<Favorite> Favorites { get; }
     DbSet<LprAccessAttempt> LprAccessAttempts { get; }

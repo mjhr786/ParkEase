@@ -18,6 +18,9 @@ public class RateLimitingMiddlewareTests
     [InlineData("/favicon.ico")]
     [InlineData("/")]
     [InlineData("/styles.css")]
+    [InlineData("/api/payments/webhooks/razorpay")]
+    [InlineData("/API/payments/webhooks/razorpay")]
+    [InlineData("/api/payments/webhooks/stripe")]
     public void ShouldSkipRateLimit_StaticAndInfrastructurePaths(string path)
     {
         RateLimitingMiddleware.ShouldSkipRateLimit(new PathString(path)).Should().BeTrue();
@@ -27,6 +30,7 @@ public class RateLimitingMiddlewareTests
     [InlineData("/api/parking/search")]
     [InlineData("/api/auth/login")]
     [InlineData("/api/bookings")]
+    [InlineData("/api/payments/upi/create-order")]
     public void ShouldSkipRateLimit_ApiPaths_AreLimited(string path)
     {
         RateLimitingMiddleware.ShouldSkipRateLimit(new PathString(path)).Should().BeFalse();
@@ -49,5 +53,14 @@ public class RateLimitingMiddlewareTests
     public void IsExternalAuthPath_DoesNotMatchOtherRoutes(string path)
     {
         RateLimitingMiddleware.IsExternalAuthPath(new PathString(path)).Should().BeFalse();
+    }
+
+    [Fact]
+    public void IsUpiCreateOrderPath_MatchesCreateOrderOnly()
+    {
+        RateLimitingMiddleware.IsUpiCreateOrderPath(new PathString("/api/payments/upi/create-order")).Should().BeTrue();
+        RateLimitingMiddleware.IsUpiCreateOrderPath(new PathString("/API/payments/upi/create-order")).Should().BeTrue();
+        RateLimitingMiddleware.IsUpiCreateOrderPath(new PathString("/api/payments/upi/orders/order_1")).Should().BeFalse();
+        RateLimitingMiddleware.IsUpiCreateOrderPath(new PathString("/api/payments/create-order")).Should().BeFalse();
     }
 }

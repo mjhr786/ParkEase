@@ -45,4 +45,20 @@ public record RefundResultDto(
     string? Message
 );
 
+public sealed record UpiCreateOrderDto(Guid BookingId, bool PayOverstayFee = false);
+
+public sealed record UpiCheckoutDto(
+    string ProviderOrderId,
+    string ProviderPaymentId,
+    string UpiIntentUrl,
+    decimal Amount,
+    string Currency,
+    DateTime ExpiresAtUtc,
+    string? DisplayVpa = null);
+
+public sealed record PaymentsConfigDto(
+    bool UpiEnabled,
+    string? StripePublishableKey,
+    bool? UpiContactRequired);
+
 

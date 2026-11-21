@@ -1,0 +1,1037 @@
+/* =============================================================================
+   ParkEase Knowledge Hub & User Guide Stylesheet
+   Supports Dark & Light Themes via ParkEase CSS Tokens
+   ============================================================================= */
+
+.user-guide-page {
+  padding-bottom: 5rem;
+  min-height: calc(100vh - 120px);
+  color: var(--color-text-primary);
+  animation: guideFadeIn 0.3s ease-out;
+}
+
+@keyframes guideFadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* -----------------------------------------------------------------------------
+   Hero Banner
+   ----------------------------------------------------------------------------- */
+.guide-hero {
+  background: var(--gradient-card);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xl);
+  padding: 3rem 2.5rem;
+  margin-top: 1.5rem;
+  margin-bottom: 2.5rem;
+  position: relative;
+  overflow: hidden;
+  box-shadow: var(--shadow-lg);
+}
+
+.guide-hero::after {
+  content: '';
+  position: absolute;
+  top: -60px;
+  right: -60px;
+  width: 240px;
+  height: 240px;
+  background: radial-gradient(circle, var(--color-accent-light) 0%, transparent 70%);
+  opacity: 0.15;
+  pointer-events: none;
+  filter: blur(40px);
+}
+
+.guide-hero-badge-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem;
+  margin-bottom: 1.25rem;
+}
+
+.guide-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.35rem 0.85rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  border-radius: 999px;
+  letter-spacing: 0.02em;
+  background: var(--color-primary-alpha);
+  color: var(--color-accent-light);
+  border: 1px solid var(--color-hover-border);
+}
+
+.guide-badge-success {
+  background: var(--alert-success-bg);
+  color: var(--color-success);
+  border-color: var(--alert-success-border);
+}
+
+.guide-badge-warning {
+  background: rgba(245, 158, 11, 0.12);
+  color: var(--color-warning);
+  border-color: rgba(245, 158, 11, 0.35);
+}
+
+.guide-hero-title {
+  font-size: 2.5rem;
+  font-weight: 800;
+  line-height: 1.2;
+  margin-bottom: 0.85rem;
+  background: var(--gradient-hero-text);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.guide-hero-subtitle {
+  font-size: 1.1rem;
+  color: var(--color-text-secondary);
+  max-width: 780px;
+  line-height: 1.6;
+  margin-bottom: 2rem;
+}
+
+/* Hero Quick Stats */
+.guide-stats-strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 1rem;
+  margin-top: 1.75rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--color-border);
+}
+
+.guide-stat-card {
+  background: var(--color-bg-glass);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 0.85rem 1.1rem;
+  display: flex;
+  flex-direction: column;
+}
+
+.guide-stat-number {
+  font-size: 1.45rem;
+  font-weight: 700;
+  color: var(--color-accent-light);
+}
+
+.guide-stat-label {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+  margin-top: 0.2rem;
+}
+
+/* -----------------------------------------------------------------------------
+   Search & Action Toolbar
+   ----------------------------------------------------------------------------- */
+.guide-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 2rem;
+  padding: 1rem 1.25rem;
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+}
+
+.guide-search-wrapper {
+  position: relative;
+  flex: 1;
+  min-width: 280px;
+}
+
+.guide-search-icon {
+  position: absolute;
+  left: 1rem;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 1.1rem;
+  opacity: 0.7;
+  pointer-events: none;
+}
+
+.guide-search-input {
+  width: 100%;
+  padding: 0.75rem 1rem 0.75rem 2.8rem;
+  background: var(--color-bg-tertiary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  color: var(--color-text-primary);
+  font-size: 0.95rem;
+  transition: all 0.2s ease;
+}
+
+.guide-search-input:focus {
+  outline: none;
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 3px var(--color-focus-ring);
+}
+
+.guide-search-clear {
+  position: absolute;
+  right: 0.85rem;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  font-size: 1rem;
+  padding: 4px 8px;
+  border-radius: 4px;
+}
+
+.guide-search-clear:hover {
+  color: var(--color-text-primary);
+}
+
+.guide-quick-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.guide-action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.65rem 1.1rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-tertiary);
+  color: var(--color-text-primary);
+  cursor: pointer;
+  transition: all 0.2s;
+  text-decoration: none;
+}
+
+.guide-action-btn:hover {
+  background: var(--color-hover-bg);
+  border-color: var(--color-accent);
+  transform: translateY(-1px);
+}
+
+.guide-action-btn-primary {
+  background: var(--gradient-primary);
+  border: none;
+  color: var(--color-text-on-accent);
+}
+
+.guide-action-btn-primary:hover {
+  filter: brightness(1.1);
+  box-shadow: var(--shadow-glow);
+}
+
+/* -----------------------------------------------------------------------------
+   Interactive Onboarding Checklist Card
+   ----------------------------------------------------------------------------- */
+.guide-checklist-card {
+  background: var(--gradient-card);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: 1.75rem;
+  margin-bottom: 2.5rem;
+  box-shadow: var(--shadow-md);
+}
+
+.guide-checklist-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.25rem;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.guide-checklist-title {
+  font-size: 1.25rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.guide-progress-bar-container {
+  width: 100%;
+  height: 8px;
+  background: var(--color-bg-tertiary);
+  border-radius: 999px;
+  overflow: hidden;
+  margin-bottom: 1.25rem;
+}
+
+.guide-progress-bar-fill {
+  height: 100%;
+  background: var(--gradient-primary);
+  transition: width 0.4s ease;
+  border-radius: 999px;
+}
+
+.guide-checklist-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 0.85rem;
+}
+
+.guide-check-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.85rem;
+  padding: 0.9rem 1.1rem;
+  background: var(--color-bg-tertiary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.guide-check-item:hover {
+  border-color: var(--color-accent);
+  background: var(--color-hover-bg);
+}
+
+.guide-check-item.completed {
+  opacity: 0.85;
+  background: rgba(16, 185, 129, 0.05);
+  border-color: rgba(16, 185, 129, 0.3);
+}
+
+.guide-checkbox-custom {
+  width: 20px;
+  height: 20px;
+  border-radius: 6px;
+  border: 2px solid var(--control-border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 2px;
+  flex-shrink: 0;
+  font-size: 0.75rem;
+  transition: all 0.2s;
+}
+
+.guide-check-item.completed .guide-checkbox-custom {
+  background: var(--color-success);
+  border-color: var(--color-success);
+  color: #fff;
+}
+
+.guide-check-title {
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.guide-check-desc {
+  font-size: 0.8rem;
+  color: var(--color-text-secondary);
+  margin-top: 0.2rem;
+  line-height: 1.4;
+}
+
+.guide-check-link {
+  display: inline-block;
+  margin-top: 0.4rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--color-accent-light);
+  text-decoration: none;
+}
+
+.guide-check-link:hover {
+  text-decoration: underline;
+}
+
+/* -----------------------------------------------------------------------------
+   Notification & Overstay Explorer Grid
+   ----------------------------------------------------------------------------- */
+.guide-notifications-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1rem;
+  margin-top: 1.5rem;
+  margin-bottom: 2rem;
+}
+
+.guide-notif-card {
+  background: var(--color-bg-tertiary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 1rem 1.25rem;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.85rem;
+  transition: transform 0.2s, border-color 0.2s;
+}
+
+.guide-notif-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--color-accent);
+}
+
+.guide-notif-icon {
+  font-size: 1.5rem;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.guide-notif-type {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--color-text-primary);
+}
+
+.guide-notif-desc {
+  font-size: 0.82rem;
+  color: var(--color-text-secondary);
+  margin-top: 0.25rem;
+  line-height: 1.45;
+}
+
+/* -----------------------------------------------------------------------------
+   Persona Tabs Navigation
+   ----------------------------------------------------------------------------- */
+.guide-tabs-nav {
+  display: flex;
+  gap: 0.6rem;
+  overflow-x: auto;
+  padding-bottom: 0.75rem;
+  margin-bottom: 2rem;
+  border-bottom: 1px solid var(--color-border);
+  scrollbar-width: thin;
+}
+
+.guide-tab-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.75rem 1.35rem;
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  color: var(--color-text-secondary);
+  font-size: 0.92rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.2s ease;
+}
+
+.guide-tab-btn:hover {
+  color: var(--color-text-primary);
+  background: var(--color-hover-bg);
+  border-color: var(--color-hover-border);
+}
+
+.guide-tab-btn.active {
+  background: var(--color-primary-alpha);
+  color: var(--color-accent-light);
+  border-color: var(--color-accent);
+  box-shadow: 0 0 16px rgba(99, 102, 241, 0.15);
+}
+
+.guide-tab-pill {
+  font-size: 0.75rem;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: var(--color-bg-tertiary);
+  color: var(--color-text-muted);
+}
+
+.guide-tab-btn.active .guide-tab-pill {
+  background: var(--color-accent);
+  color: var(--color-text-on-accent);
+}
+
+/* -----------------------------------------------------------------------------
+   Persona Header & Concept Cards
+   ----------------------------------------------------------------------------- */
+.guide-persona-header {
+  background: var(--gradient-card);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: 2rem;
+  margin-bottom: 2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.guide-persona-title-row {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.guide-persona-icon-circle {
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  background: var(--color-primary-alpha);
+  border: 1px solid var(--color-accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+}
+
+.guide-persona-name {
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: var(--color-text-primary);
+}
+
+.guide-persona-description {
+  font-size: 0.95rem;
+  color: var(--color-text-secondary);
+  line-height: 1.6;
+}
+
+/* -----------------------------------------------------------------------------
+   Workflow Cards Grid
+   ----------------------------------------------------------------------------- */
+.guide-workflows-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+  margin-bottom: 3.5rem;
+}
+
+.guide-workflow-card {
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: 2rem;
+  box-shadow: var(--shadow-sm);
+  transition: border-color 0.2s, box-shadow 0.2s;
+  position: relative;
+}
+
+.guide-workflow-card:hover {
+  border-color: var(--color-hover-border);
+  box-shadow: var(--shadow-md);
+}
+
+.guide-workflow-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 1.25rem;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.guide-workflow-step-badge {
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-accent-light);
+  margin-bottom: 0.35rem;
+}
+
+.guide-workflow-title {
+  font-size: 1.35rem;
+  font-weight: 700;
+  color: var(--color-text-primary);
+}
+
+.guide-workflow-action-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.55rem 1rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  border-radius: var(--radius-md);
+  background: var(--color-primary-alpha);
+  color: var(--color-accent-light);
+  border: 1px solid var(--color-accent);
+  text-decoration: none;
+  transition: all 0.2s;
+}
+
+.guide-workflow-action-link:hover {
+  background: var(--color-accent);
+  color: var(--color-text-on-accent);
+  transform: translateY(-1px);
+}
+
+.guide-workflow-objective {
+  font-size: 0.95rem;
+  color: var(--color-text-secondary);
+  line-height: 1.6;
+  margin-bottom: 1.5rem;
+  padding-bottom: 1.25rem;
+  border-bottom: 1px solid var(--color-border);
+}
+
+/* Steps Sequence */
+.guide-steps-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  margin-bottom: 1.75rem;
+}
+
+.guide-step-row {
+  display: flex;
+  gap: 1.1rem;
+  align-items: flex-start;
+}
+
+.guide-step-num {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--color-bg-tertiary);
+  border: 2px solid var(--color-accent);
+  color: var(--color-accent-light);
+  font-weight: 700;
+  font-size: 0.88rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.guide-step-content {
+  flex: 1;
+}
+
+.guide-step-heading {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  margin-bottom: 0.25rem;
+}
+
+.guide-step-text {
+  font-size: 0.88rem;
+  color: var(--color-text-secondary);
+  line-height: 1.55;
+}
+
+/* Callout Boxes (Architect & QA Tips) */
+.guide-callout {
+  border-radius: var(--radius-md);
+  padding: 1.1rem 1.35rem;
+  font-size: 0.88rem;
+  line-height: 1.55;
+  margin-top: 1.25rem;
+  display: flex;
+  gap: 0.85rem;
+  align-items: flex-start;
+}
+
+.guide-callout-info {
+  background: var(--color-primary-alpha);
+  border: 1px solid var(--color-hover-border);
+  color: var(--color-text);
+}
+
+.guide-callout-warning {
+  background: rgba(245, 158, 11, 0.08);
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  color: var(--color-warning);
+}
+
+.guide-callout-architecture {
+  background: rgba(139, 92, 246, 0.08);
+  border: 1px solid rgba(139, 92, 246, 0.3);
+  color: #c4b5fd;
+}
+
+.guide-callout-icon {
+  font-size: 1.25rem;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.guide-callout-body strong {
+  color: var(--color-text-primary);
+}
+
+/* -----------------------------------------------------------------------------
+   Interactive State Machine Visualizer
+   ----------------------------------------------------------------------------- */
+.guide-state-machine-container {
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: 2rem;
+  margin-bottom: 3.5rem;
+}
+
+.guide-states-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1rem;
+  margin-top: 1.5rem;
+  margin-bottom: 1.75rem;
+}
+
+.guide-state-pill-btn {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.85rem 1rem;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-tertiary);
+  color: var(--color-text-primary);
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.2s;
+}
+
+.guide-state-pill-btn:hover {
+  border-color: var(--color-accent);
+  transform: translateY(-2px);
+}
+
+.guide-state-pill-btn.active {
+  border-color: var(--color-accent);
+  background: var(--color-primary-alpha);
+  box-shadow: 0 0 12px rgba(99, 102, 241, 0.2);
+}
+
+.guide-state-code {
+  font-family: monospace;
+  font-size: 0.75rem;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: var(--color-hover-bg);
+  color: var(--color-text-muted);
+}
+
+.guide-state-detail-box {
+  background: var(--color-bg-tertiary);
+  border: 1px solid var(--color-accent);
+  border-radius: var(--radius-md);
+  padding: 1.5rem;
+  animation: guideFadeIn 0.25s ease-out;
+}
+
+.guide-state-detail-title {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--color-accent-light);
+  margin-bottom: 0.6rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* -----------------------------------------------------------------------------
+   Interactive Pricing Simulator Widget
+   ----------------------------------------------------------------------------- */
+.guide-pricing-sim-card {
+  background: var(--gradient-card);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: 2rem;
+  margin-bottom: 3.5rem;
+}
+
+.guide-calc-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2rem;
+  margin-top: 1.5rem;
+}
+
+@media (max-width: 768px) {
+  .guide-calc-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.guide-calc-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.guide-calc-output {
+  background: var(--color-bg-tertiary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.guide-calc-line-item {
+  display: flex;
+  justify-content: space-between;
+  padding: 0.5rem 0;
+  font-size: 0.9rem;
+  color: var(--color-text-secondary);
+  border-bottom: 1px dashed var(--color-border);
+}
+
+.guide-calc-total-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-top: 1rem;
+  margin-top: 0.5rem;
+  border-top: 2px solid var(--color-border);
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: var(--color-text-primary);
+}
+
+.guide-calc-total-val {
+  color: var(--color-success);
+  font-size: 1.4rem;
+}
+
+/* -----------------------------------------------------------------------------
+   Architecture Blueprint Diagram
+   ----------------------------------------------------------------------------- */
+.guide-arch-container {
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: 2rem;
+  margin-bottom: 3.5rem;
+}
+
+.guide-arch-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1.25rem;
+  margin-top: 1.5rem;
+}
+
+.guide-arch-layer {
+  background: var(--color-bg-tertiary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 1.25rem;
+  position: relative;
+}
+
+.guide-arch-layer-title {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--color-accent-light);
+  margin-bottom: 0.75rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.guide-arch-item-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.guide-arch-item {
+  font-size: 0.85rem;
+  color: var(--color-text-secondary);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.guide-arch-item::before {
+  content: '▸';
+  color: var(--color-accent);
+}
+
+/* -----------------------------------------------------------------------------
+   FAQ Accordion
+   ----------------------------------------------------------------------------- */
+.guide-faq-section {
+  margin-bottom: 3.5rem;
+}
+
+.guide-faq-filter-row {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-bottom: 1.5rem;
+}
+
+.guide-faq-filter-btn {
+  padding: 0.45rem 0.9rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  border-radius: 999px;
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.guide-faq-filter-btn.active {
+  background: var(--color-accent);
+  color: var(--color-text-on-accent);
+  border-color: var(--color-accent);
+}
+
+.guide-faq-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.guide-faq-item {
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  transition: border-color 0.2s;
+}
+
+.guide-faq-item:hover {
+  border-color: var(--color-hover-border);
+}
+
+.guide-faq-question-btn {
+  width: 100%;
+  padding: 1.15rem 1.35rem;
+  background: transparent;
+  border: none;
+  color: var(--color-text-primary);
+  font-size: 0.95rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  text-align: left;
+  cursor: pointer;
+  gap: 1rem;
+}
+
+.guide-faq-question-btn:focus-visible {
+  outline: 2px solid var(--color-accent);
+}
+
+.guide-faq-arrow {
+  transition: transform 0.25s ease;
+  font-size: 0.85rem;
+  color: var(--color-accent);
+  flex-shrink: 0;
+}
+
+.guide-faq-arrow.open {
+  transform: rotate(180deg);
+}
+
+.guide-faq-answer {
+  padding: 0 1.35rem 1.25rem 1.35rem;
+  font-size: 0.88rem;
+  color: var(--color-text-secondary);
+  line-height: 1.6;
+  border-top: 1px solid var(--color-border);
+  padding-top: 1rem;
+  animation: guideFadeIn 0.2s ease-out;
+}
+
+/* -----------------------------------------------------------------------------
+   Glossary Grid
+   ----------------------------------------------------------------------------- */
+.guide-glossary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1.25rem;
+  margin-top: 1.5rem;
+}
+
+.guide-glossary-card {
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 1.25rem;
+}
+
+.guide-glossary-term {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--color-accent-light);
+  margin-bottom: 0.4rem;
+}
+
+.guide-glossary-def {
+  font-size: 0.85rem;
+  color: var(--color-text-secondary);
+  line-height: 1.5;
+}
+
+/* -----------------------------------------------------------------------------
+   Print Styles (Cheatsheet & PDF Manual)
+   ----------------------------------------------------------------------------- */
+@media print {
+  body {
+    background: #fff !important;
+    color: #000 !important;
+  }
+
+  .header, .footer, .guide-toolbar, .guide-tabs-nav, .guide-quick-actions, .guide-action-btn {
+    display: none !important;
+  }
+
+  .guide-hero {
+    background: none !important;
+    border: 1px solid #ccc !important;
+    color: #000 !important;
+    box-shadow: none !important;
+    padding: 1.5rem !important;
+  }
+
+  .guide-hero-title {
+    -webkit-text-fill-color: #000 !important;
+    color: #000 !important;
+    font-size: 2rem !important;
+  }
+
+  .guide-workflow-card, .guide-checklist-card, .guide-state-machine-container, .guide-pricing-sim-card {
+    page-break-inside: avoid;
+    border: 1px solid #ddd !important;
+    background: #fff !important;
+    color: #000 !important;
+    box-shadow: none !important;
+  }
+
+  .guide-step-num {
+    border-color: #000 !important;
+    color: #000 !important;
+    background: #eee !important;
+  }
+
+  .guide-step-heading, .guide-workflow-title, .guide-stat-number {
+    color: #000 !important;
+  }
+
+  .guide-step-text, .guide-workflow-objective, .guide-stat-label, .guide-check-desc {
+    color: #333 !important;
+  }
+
+  .guide-callout {
+    border-color: #aaa !important;
+    background: #f9f9f9 !important;
+    color: #000 !important;
+  }
+}

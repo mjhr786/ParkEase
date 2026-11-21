@@ -48,4 +48,11 @@ public class InternalJobsController : ControllerBase
         var result = await _dispatcher.SendAsync(new PromoteWaitlistCommand(batchSize), cancellationToken);
         return Ok(result);
     }
+
+    [HttpPost("payments/expire-awaiting")]
+    public async Task<IActionResult> ExpireAwaitingPayments([FromQuery] int batchSize = 50, CancellationToken cancellationToken = default)
+    {
+        var result = await _dispatcher.SendAsync(new ExpireAwaitingPaymentsCommand(batchSize), cancellationToken);
+        return Ok(result);
+    }
 }

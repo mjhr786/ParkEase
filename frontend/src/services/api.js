@@ -456,6 +456,21 @@ class ApiService {
     return this.request('/payments/stripe-config');
   }
 
+  async getPaymentsConfig() {
+    return this.request('/payments/config');
+  }
+
+  async createUpiPaymentOrder(bookingId, { payOverstayFee } = {}) {
+    return this.request('/payments/upi/create-order', {
+      method: 'POST',
+      body: JSON.stringify({ bookingId, payOverstayFee: !!payOverstayFee }),
+    });
+  }
+
+  async getUpiPaymentOrder(orderId) {
+    return this.request(`/payments/upi/orders/${encodeURIComponent(orderId)}`);
+  }
+
   async createPaymentOrder(bookingId, { payOverstayFee } = {}) {
     const body = payOverstayFee
       ? { bookingId, payOverstayFee: true }

@@ -27,11 +27,13 @@ public class RateLimitingMiddleware
     private static readonly ConcurrentDictionary<string, Queue<DateTime>> _iotRequestTimes = new();
     private static readonly ConcurrentDictionary<string, Queue<DateTime>> _externalAuthRequestTimes = new();
     private static readonly ConcurrentDictionary<string, Queue<DateTime>> _corporateSsoRequestTimes = new();
+    private static readonly ConcurrentDictionary<string, Queue<DateTime>> _upiCreateOrderRequestTimes = new();
     private static readonly Timer _cleanupTimer;
     private const int MaxRequests = 100;
     private const int DefaultIotMaxRequests = 30;
     private const int DefaultExternalAuthMaxRequests = 20;
     private const int DefaultCorporateSsoMaxRequests = 15;
+    private const int DefaultUpiCreateOrderMaxRequests = 10;
     private const int WindowSeconds = 60;
     private const int CleanupIntervalMinutes = 5;
 
@@ -174,6 +176,30 @@ public class RateLimitingMiddleware
             return;
         }
 
+        // UPI create-order dedicated bucket (skip global 100/min double-count)
+        if (HttpMethods.IsPost(context.Request.Method) && IsUpiCreateOrderPath(context.Request.Path))
+        {
+            var upiLimit = ResolveUpiCreateOrderLimitPerMinute();
+            if (!IsRequestAllowed(clientId, _upiCreateOrderRequestTimes, upiLimit))
+            {
+                _logger.LogWarning(
+                    "UPI create-order rate limit exceeded Client={ClientId} LimitPerMinute={Limit}",
+                    clientId, upiLimit);
+                context.Response.StatusCode = 429;
+                context.Response.Headers.Append("Retry-After", WindowSeconds.ToString());
+                await context.Response.WriteAsJsonAsync(new ApiResponse<object>(
+                    false,
+                    "Rate limit exceeded. Please try again later.",
+                    null,
+                    new List<string> { "rate_limited" },
+                    "rate_limited"));
+                return;
+            }
+
+            await _next(context);
+            return;
+        }
+
         if (!IsRequestAllowed(clientId, _requestTimes, MaxRequests))
         {
             _logger.LogWarning("Rate limit exceeded for client: {ClientId}", clientId);
@@ -205,6 +231,13 @@ public class RateLimitingMiddleware
         return Math.Clamp(configured, 1, 10_000);
     }
 
+    private int ResolveUpiCreateOrderLimitPerMinute()
+    {
+        var configured = _configuration?.GetValue("Payments:Upi:CreateOrderPerMinute", DefaultUpiCreateOrderMaxRequests)
+                         ?? DefaultUpiCreateOrderMaxRequests;
+        return Math.Clamp(configured, 1, 10_000);
+    }
+
     /// <summary>Exposed for unit tests.</summary>
     public static bool IsIotPath(PathString path) =>
         path.StartsWithSegments("/api/iot", StringComparison.OrdinalIgnoreCase);
@@ -220,6 +253,10 @@ public class RateLimitingMiddleware
     public static bool IsCorporateSsoPath(PathString path) =>
         path.StartsWithSegments("/api/auth/corporate/sso", StringComparison.OrdinalIgnoreCase);
 
+    /// <summary>Dedicated UPI create-order bucket (does not double-count global budget).</summary>
+    public static bool IsUpiCreateOrderPath(PathString path) =>
+        path.Equals("/api/payments/upi/create-order", StringComparison.OrdinalIgnoreCase);
+
     /// <summary>Exposed for unit tests.</summary>
     public static bool ShouldSkipRateLimit(PathString path)
     {
@@ -228,7 +265,8 @@ public class RateLimitingMiddleware
             return true;
 
         if (path.StartsWithSegments("/health", StringComparison.OrdinalIgnoreCase)
-            || path.StartsWithSegments("/hubs", StringComparison.OrdinalIgnoreCase))
+            || path.StartsWithSegments("/hubs", StringComparison.OrdinalIgnoreCase)
+            || path.StartsWithSegments("/api/payments/webhooks", StringComparison.OrdinalIgnoreCase))
         {
             return true;
         }
@@ -291,6 +329,8 @@ public class RateLimitingMiddleware
         CleanupStore(_requestTimes, cutoff);
         CleanupStore(_iotRequestTimes, cutoff);
         CleanupStore(_externalAuthRequestTimes, cutoff);
+        CleanupStore(_corporateSsoRequestTimes, cutoff);
+        CleanupStore(_upiCreateOrderRequestTimes, cutoff);
     }
 
     private static void CleanupStore(ConcurrentDictionary<string, Queue<DateTime>> store, DateTime cutoff)

@@ -23,6 +23,22 @@ public enum PaymentStatus
     PartialRefund = 4
 }
 
+public enum PaymentOrderStatus
+{
+    Created = 0,
+    Pending = 1,
+    Captured = 2,
+    Expired = 3,
+    Failed = 4,
+    Cancelled = 5
+}
+
+public enum PaymentWebhookEventStatus
+{
+    Received = 0,
+    Processed = 1
+}
+
 public enum PricingType
 {
     Hourly = 0,

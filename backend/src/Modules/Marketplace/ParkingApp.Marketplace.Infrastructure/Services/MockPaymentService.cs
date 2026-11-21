@@ -13,7 +13,12 @@ internal sealed class MockPaymentService : IPaymentService
         return Task.FromResult($"order_mock_{Guid.NewGuid().ToString("N")[..14]}");
     }
 
-    public Task<bool> VerifyPaymentSignatureAsync(string paymentId, string orderId, string signature, CancellationToken cancellationToken = default)
+    public Task<bool> VerifyPaymentSignatureAsync(
+        string paymentId,
+        string orderId,
+        string signature,
+        CancellationToken cancellationToken = default,
+        PaymentCaptureCheck? expected = null)
     {
         return Task.FromResult(true);
     }

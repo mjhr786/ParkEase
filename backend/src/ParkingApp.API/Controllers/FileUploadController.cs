@@ -17,14 +17,16 @@ namespace ParkingApp.API.Controllers;
 public class FileUploadController : ControllerBase
 {
     private readonly IDispatcher _dispatcher;
+    private readonly ILogger<FileUploadController> _logger;
     private static readonly string[] AllowedImageTypes = { "image/jpeg", "image/png", "image/webp" };
     private static readonly string[] AllowedVideoTypes = { "video/mp4", "video/webm" };
     private const long MaxImageSize = 5 * 1024 * 1024;
     private const long MaxVideoSize = 50 * 1024 * 1024;
 
-    public FileUploadController(IDispatcher dispatcher)
+    public FileUploadController(IDispatcher dispatcher, ILogger<FileUploadController> logger)
     {
         _dispatcher = dispatcher;
+        _logger = logger;
     }
 
     [HttpPost("parking/{parkingSpaceId:guid}/upload")]
@@ -63,6 +65,12 @@ public class FileUploadController : ControllerBase
                 continue;
             }
 
+            if (!ExtensionMatches(file.FileName, isImage))
+            {
+                errors.Add($"{file.FileName}: File extension does not match the declared type");
+                continue;
+            }
+
             var maxSize = isImage ? MaxImageSize : MaxVideoSize;
             if (file.Length > maxSize)
             {
@@ -71,7 +79,23 @@ public class FileUploadController : ControllerBase
                 continue;
             }
 
-            validFiles.Add(new UploadFilePayload(file.OpenReadStream(), file.FileName, file.ContentType));
+            var stream = file.OpenReadStream();
+            if (!SignatureMatches(stream, isImage))
+            {
+                await stream.DisposeAsync();
+                errors.Add($"{file.FileName}: File content does not match the declared type");
+                continue;
+            }
+
+            if (!stream.CanSeek)
+            {
+                await stream.DisposeAsync();
+                errors.Add($"{file.FileName}: Unable to read file");
+                continue;
+            }
+
+            stream.Position = 0;
+            validFiles.Add(new UploadFilePayload(stream, file.FileName, file.ContentType));
         }
 
         if (validFiles.Count == 0)
@@ -104,8 +128,43 @@ public class FileUploadController : ControllerBase
         }
         catch (Exception ex)
         {
-            return BadRequest(new { success = false, message = ex.Message });
+            _logger.LogWarning(ex, "Parking file upload failed for space {ParkingSpaceId}", parkingSpaceId);
+            foreach (var file in validFiles)
+                await file.Stream.DisposeAsync();
+            return BadRequest(new { success = false, message = "Upload failed" });
         }
+    }
+
+    private static bool ExtensionMatches(string fileName, bool isImage)
+    {
+        var ext = Path.GetExtension(fileName).ToLowerInvariant();
+        return isImage
+            ? ext is ".jpg" or ".jpeg" or ".png" or ".webp"
+            : ext is ".mp4" or ".webm";
+    }
+
+    /// <summary>
+    /// Content-Type is client-supplied. Require a matching file signature before storage.
+    /// </summary>
+    private static bool SignatureMatches(Stream stream, bool isImage)
+    {
+        Span<byte> header = stackalloc byte[16];
+        var read = stream.Read(header);
+        if (isImage)
+        {
+            if (read >= 3 && header[0] == 0xFF && header[1] == 0xD8 && header[2] == 0xFF)
+                return true;
+            if (read >= 8 && header[0] == 0x89 && header[1] == 0x50 && header[2] == 0x4E && header[3] == 0x47)
+                return true;
+            return read >= 12
+                && header[0] == (byte)'R' && header[1] == (byte)'I' && header[2] == (byte)'F' && header[3] == (byte)'F'
+                && header[8] == (byte)'W' && header[9] == (byte)'E' && header[10] == (byte)'B' && header[11] == (byte)'P';
+        }
+
+        if (read >= 4 && header[0] == 0x1A && header[1] == 0x45 && header[2] == 0xDF && header[3] == 0xA3)
+            return true;
+        return read >= 8
+            && header[4] == (byte)'f' && header[5] == (byte)'t' && header[6] == (byte)'y' && header[7] == (byte)'p';
     }
 
     [HttpDelete("parking/{parkingSpaceId:guid}/{fileName}")]

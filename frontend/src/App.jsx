@@ -61,6 +61,7 @@ const LprRegistry = React.lazy(() => import('./pages/Vendor/LprRegistry'));
 const AccessPassScanner = React.lazy(() => import('./pages/Vendor/AccessPassScanner'));
 const EventPackagesVendor = React.lazy(() => import('./pages/Vendor/EventPackages'));
 const EventPackagesBrowse = React.lazy(() => import('./pages/EventPackagesBrowse'));
+const UserGuide = React.lazy(() => import('./pages/UserGuide'));
 
 function Loading() {
   return (
@@ -102,9 +103,10 @@ function Header() {
         },
         {
           key: 'tools',
-          label: 'Tools',
+          label: 'Tools & Docs',
           icon: '🧰',
           items: [
+            { to: '/guide', icon: '📖', label: 'User Guide & Docs' },
             { to: '/tools/lpr-simulator', icon: '📷', label: 'LPR Simulator' },
             { to: '/tools/ev-charge-simulator', icon: '⚡', label: 'EV Charge Simulator' },
           ],
@@ -134,6 +136,7 @@ function Header() {
           icon: '👤',
           items: [
             { to: '/profile', icon: '👤', label: 'My Profile' },
+            { to: '/guide', icon: '📖', label: 'Knowledge Base' },
           ],
         },
         {
@@ -158,6 +161,7 @@ function Header() {
           { to: '/garage', icon: '🚗', label: 'My Garage' },
           { to: '/favorites', icon: '❤️', label: 'Favorites' },
           { to: '/profile', icon: '👤', label: 'My Profile' },
+          { to: '/guide', icon: '📖', label: 'User Guide' },
         ],
       },
       {
@@ -334,11 +338,13 @@ function Header() {
               <Link to="/corporate/dashboard" className="nav-link">Dashboard</Link>
               <Link to="/corporate/parking-spaces" className="nav-link">Inventory</Link>
               <Link to="/corporate/bookings" className="nav-link">Bookings</Link>
+              <Link to="/guide" className="nav-link">Guide</Link>
             </>
           ) : (
             <>
               <Link to="/search" className="nav-link">Find Parking</Link>
               <Link to="/events" className="nav-link">Events</Link>
+              <Link to="/guide" className="nav-link">User Guide</Link>
             </>
           )}
 
@@ -646,6 +652,9 @@ function AppRoutes() {
     <Suspense fallback={<Loading />}>
       <Routes>
         <Route path="/" element={<Home />} />
+        <Route path="/guide" element={<UserGuide />} />
+        <Route path="/user-guide" element={<Navigate to="/guide" replace />} />
+        <Route path="/help" element={<Navigate to="/guide" replace />} />
         <Route path="/search" element={<Search />} />
         <Route path="/events" element={<EventPackagesBrowse />} />
         <Route path="/parking/:id" element={<ParkingDetails />} />
@@ -880,14 +889,20 @@ function Footer() {
   return (
     <footer style={{
       borderTop: '1px solid var(--color-border)',
-      padding: '2rem 0',
+      padding: '2.5rem 0',
       textAlign: 'center',
       color: 'var(--color-text-muted)',
     }}>
       <div className="container">
+        <div style={{ display: 'flex', justifyContent: 'center', gap: '1.5rem', marginBottom: '1rem', flexWrap: 'wrap', fontSize: '0.9rem' }}>
+          <Link to="/" style={{ color: 'var(--color-text-secondary)', textDecoration: 'none' }}>Home</Link>
+          <Link to="/search" style={{ color: 'var(--color-text-secondary)', textDecoration: 'none' }}>Find Parking</Link>
+          <Link to="/events" style={{ color: 'var(--color-text-secondary)', textDecoration: 'none' }}>Events</Link>
+          <Link to="/guide" style={{ color: 'var(--color-accent-light)', textDecoration: 'none', fontWeight: '600' }}>📖 User Guide &amp; Knowledge Hub</Link>
+        </div>
         <p>&copy; {new Date().getFullYear()} ParkEase. All rights reserved.</p>
-        <p style={{ marginTop: '0.5rem', fontSize: '0.9rem' }}>
-          Find and book parking spaces instantly.
+        <p style={{ marginTop: '0.5rem', fontSize: '0.85rem' }}>
+          Find and book parking spaces instantly. Multi-tenant smart parking management platform.
         </p>
       </div>
     </footer>

@@ -1,8 +1,10 @@
 using System.IO.Compression;
+using System.Net;
 using System.Threading.RateLimiting;
 using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.ResponseCompression;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.FileProviders;
@@ -102,6 +104,32 @@ try
         builder.Configuration.GetSection(ParkingApp.Identity.Application.Options.ExternalAuthOptions.SectionName));
     builder.Services.Configure<ParkingApp.Identity.Application.Options.CorporateSsoOptions>(
         builder.Configuration.GetSection(ParkingApp.Identity.Application.Options.CorporateSsoOptions.SectionName));
+
+    // Nginx (and other RFC1918 reverse proxies) terminate TLS and set X-Forwarded-For.
+    // Loopback KnownProxies alone is not enough in production — trust private-network
+    // proxies, not the public internet.
+    builder.Services.Configure<ForwardedHeadersOptions>(options =>
+    {
+        options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+        options.ForwardLimit = 1;
+        // RFC1918 so Nginx (and other private reverse proxies) are trusted; not the public internet.
+        options.KnownNetworks.Add(new Microsoft.AspNetCore.HttpOverrides.IPNetwork(IPAddress.Parse("10.0.0.0"), 8));
+        options.KnownNetworks.Add(new Microsoft.AspNetCore.HttpOverrides.IPNetwork(IPAddress.Parse("172.16.0.0"), 12));
+        options.KnownNetworks.Add(new Microsoft.AspNetCore.HttpOverrides.IPNetwork(IPAddress.Parse("192.168.0.0"), 16));
+        foreach (var proxy in builder.Configuration.GetSection("ForwardedHeaders:KnownProxies").Get<string[]>() ?? [])
+        {
+            if (IPAddress.TryParse(proxy, out var ip))
+                options.KnownProxies.Add(ip);
+        }
+        foreach (var network in builder.Configuration.GetSection("ForwardedHeaders:KnownNetworks").Get<string[]>() ?? [])
+        {
+            if (System.Net.IPNetwork.TryParse(network, out var parsed))
+            {
+                options.KnownNetworks.Add(
+                    new Microsoft.AspNetCore.HttpOverrides.IPNetwork(parsed.BaseAddress, parsed.PrefixLength));
+            }
+        }
+    });
 
     // Data Protection key ring for Corporate SSO secrets (KD-CS-12).
     // Dev: local FS. Staging/prod: set CorporateSso:DataProtectionKeysPath to a shared volume or configure Blob/Key Vault.
@@ -344,6 +372,7 @@ try
     //   /api/iot/*                  → Iot:Lpr:RateLimitPerMinute          (default 30)
     //   /api/auth/external/*        → ExternalAuth:RateLimitPerMinute     (default 20)
     //   /api/auth/corporate/sso/*   → CorporateSso:RateLimitPerMinute     (default 15)
+    //   POST /api/payments/upi/create-order → Payments:Upi:CreateOrderPerMinute (default 10)
     //   /api/*  (everything else)   → RateLimiting:MaxRequestsPerMinute   (default 100)
     //   /health, /hubs, /uploads, OPTIONS preflights → bypassed entirely
     var rateLimitingDisabled = builder.Configuration.GetValue("RateLimiting:Disabled", false);
@@ -353,6 +382,7 @@ try
         var iotLimit     = Math.Clamp(builder.Configuration.GetValue("Iot:Lpr:RateLimitPerMinute", 30), 1, 10_000);
         var authLimit    = Math.Clamp(builder.Configuration.GetValue("ExternalAuth:RateLimitPerMinute", 20), 1, 10_000);
         var ssoLimit     = Math.Clamp(builder.Configuration.GetValue("CorporateSso:RateLimitPerMinute", 15), 1, 10_000);
+        var upiLimit     = Math.Clamp(builder.Configuration.GetValue("Payments:Upi:CreateOrderPerMinute", 10), 1, 10_000);
 
         builder.Services.AddRateLimiter(options =>
         {
@@ -360,11 +390,12 @@ try
             {
                 var path = ctx.Request.Path;
 
-                // OPTIONS preflights, health, hubs, and uploads bypass rate limiting.
+                // OPTIONS preflights, health, hubs, uploads, and PSP webhooks bypass rate limiting.
                 if (HttpMethods.IsOptions(ctx.Request.Method)
                     || path.StartsWithSegments("/health",  StringComparison.OrdinalIgnoreCase)
                     || path.StartsWithSegments("/hubs",    StringComparison.OrdinalIgnoreCase)
-                    || path.StartsWithSegments("/uploads", StringComparison.OrdinalIgnoreCase))
+                    || path.StartsWithSegments("/uploads", StringComparison.OrdinalIgnoreCase)
+                    || path.StartsWithSegments("/api/payments/webhooks", StringComparison.OrdinalIgnoreCase))
                 {
                     return RateLimitPartition.GetNoLimiter("bypass");
                 }
@@ -401,6 +432,19 @@ try
                         new SlidingWindowRateLimiterOptions
                         {
                             PermitLimit          = ssoLimit,
+                            Window               = TimeSpan.FromMinutes(1),
+                            SegmentsPerWindow    = 6,
+                            QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+                            QueueLimit           = 0,
+                        });
+
+                // UPI create-order: dedicated 10/min/IP bucket (does not consume the global API budget)
+                if (HttpMethods.IsPost(ctx.Request.Method)
+                    && path.Equals("/api/payments/upi/create-order", StringComparison.OrdinalIgnoreCase))
+                    return RateLimitPartition.GetSlidingWindowLimiter($"upi-create:{ip}", _ =>
+                        new SlidingWindowRateLimiterOptions
+                        {
+                            PermitLimit          = upiLimit,
                             Window               = TimeSpan.FromMinutes(1),
                             SegmentsPerWindow    = 6,
                             QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
@@ -447,6 +491,10 @@ try
     }
 
     // Configure middleware pipeline
+    // Forwarded headers must run first so rate limiting and UPI create-order see the
+    // Nginx-supplied client IP (X-Forwarded-For) rather than the proxy address.
+    app.UseForwardedHeaders();
+
     // CORS must run early so preflight OPTIONS and error responses get ACAO headers.
     app.UseCors("AllowFrontend");
 

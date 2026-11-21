@@ -7,7 +7,7 @@ using Stripe;
 
 namespace ParkingApp.Marketplace.Infrastructure.Services;
 
-internal sealed class StripePaymentService : IPaymentService
+internal sealed class StripePaymentService : IPaymentService, IStripeCheckoutService
 {
     private readonly ILogger<StripePaymentService> _logger;
 
@@ -17,24 +17,15 @@ internal sealed class StripePaymentService : IPaymentService
         StripeConfiguration.ApiKey = configuration["Stripe:SecretKey"];
     }
 
-    public async Task<string> CreateOrderAsync(decimal amount, string currency = "INR", Dictionary<string, string>? notes = null, CancellationToken cancellationToken = default)
+    public async Task<CardCheckoutSession> CreateCardSessionAsync(
+        decimal amount,
+        string currency = "INR",
+        Dictionary<string, string>? notes = null,
+        CancellationToken cancellationToken = default)
     {
         try
         {
-            long stripeAmount = (long)(amount * 100);
-            
-            // Stripe strictly enforces a minimum charge equivalent to $0.50 USD.
-            // For INR, it is roughly 40.00 INR. Enforcing minimum of 50.00 INR (5000 paise).
-            if (currency.Equals("inr", StringComparison.OrdinalIgnoreCase) && stripeAmount < 5000)
-            {
-                stripeAmount = 5000;
-                _logger.LogWarning("Amount {Amount} {Currency} is below Stripe's minimum. Bumped to 50.00 INR.", amount, currency);
-            }
-            else if (currency.Equals("usd", StringComparison.OrdinalIgnoreCase) && stripeAmount < 50)
-            {
-                stripeAmount = 50;
-                _logger.LogWarning("Amount {Amount} {Currency} is below Stripe's minimum. Bumped to 0.50 USD.", amount, currency);
-            }
+            long stripeAmount = PaymentCaptureMatcher.ToMinorUnits(amount);
 
             var options = new PaymentIntentCreateOptions
             {
@@ -50,8 +41,7 @@ internal sealed class StripePaymentService : IPaymentService
             _logger.LogInformation("Created Stripe PaymentIntent {PaymentIntentId} for amount {Amount} {Currency}",
                 paymentIntent.Id, amount, currency);
 
-            // Return the client secret (frontend needs this to confirm payment)
-            return paymentIntent.ClientSecret;
+            return new CardCheckoutSession(paymentIntent.Id, paymentIntent.ClientSecret);
         }
         catch (StripeException ex)
         {
@@ -65,7 +55,18 @@ internal sealed class StripePaymentService : IPaymentService
         }
     }
 
-    public async Task<bool> VerifyPaymentSignatureAsync(string paymentIntentId, string orderId, string signature, CancellationToken cancellationToken = default)
+    public async Task<string> CreateOrderAsync(decimal amount, string currency = "INR", Dictionary<string, string>? notes = null, CancellationToken cancellationToken = default)
+    {
+        var session = await CreateCardSessionAsync(amount, currency, notes, cancellationToken);
+        return session.ClientSecret;
+    }
+
+    public async Task<bool> VerifyPaymentSignatureAsync(
+        string paymentIntentId,
+        string orderId,
+        string signature,
+        CancellationToken cancellationToken = default,
+        PaymentCaptureCheck? expected = null)
     {
         try
         {
@@ -73,10 +74,17 @@ internal sealed class StripePaymentService : IPaymentService
             var paymentIntent = await service.GetAsync(paymentIntentId, cancellationToken: cancellationToken);
 
             var isSucceeded = paymentIntent.Status == "succeeded";
-            _logger.LogInformation("Stripe PaymentIntent {PaymentIntentId} verification: Status={Status}, Succeeded={Succeeded}",
-                paymentIntentId, paymentIntent.Status, isSucceeded);
+            var matchesExpected = expected is not null
+                && PaymentCaptureMatcher.Matches(
+                    paymentIntent.Amount,
+                    paymentIntent.Currency,
+                    paymentIntent.Metadata,
+                    expected);
+            var isValid = isSucceeded && matchesExpected;
+            _logger.LogInformation("Stripe PaymentIntent {PaymentIntentId} verification: Status={Status}, Succeeded={Succeeded}, CaptureMatch={CaptureMatch}",
+                paymentIntentId, paymentIntent.Status, isSucceeded, matchesExpected);
 
-            return isSucceeded;
+            return isValid;
         }
         catch (StripeException ex)
         {
@@ -94,19 +102,7 @@ internal sealed class StripePaymentService : IPaymentService
     {
         try
         {
-            long stripeAmount = (long)(request.Amount * 100);
-            
-            // Stripe strictly enforces a minimum charge equivalent to $0.50 USD.
-            if (request.Currency.Equals("inr", StringComparison.OrdinalIgnoreCase) && stripeAmount < 5000)
-            {
-                stripeAmount = 5000;
-                _logger.LogWarning("Amount {Amount} {Currency} is below Stripe's minimum. Bumped to 50.00 INR.", request.Amount, request.Currency);
-            }
-            else if (request.Currency.Equals("usd", StringComparison.OrdinalIgnoreCase) && stripeAmount < 50)
-            {
-                stripeAmount = 50;
-                _logger.LogWarning("Amount {Amount} {Currency} is below Stripe's minimum. Bumped to 0.50 USD.", request.Amount, request.Currency);
-            }
+            long stripeAmount = PaymentCaptureMatcher.ToMinorUnits(request.Amount);
 
             // Create a PaymentIntent for server-side processing
             var options = new PaymentIntentCreateOptions
@@ -173,7 +169,7 @@ internal sealed class StripePaymentService : IPaymentService
             var options = new RefundCreateOptions
             {
                 PaymentIntent = paymentIntentId,
-                Amount = (long)(request.Amount * 100),
+                Amount = PaymentCaptureMatcher.ToMinorUnits(request.Amount),
                 Reason = "requested_by_customer"
             };
 
@@ -182,7 +178,7 @@ internal sealed class StripePaymentService : IPaymentService
 
             return new RefundResult
             {
-                Success = refund.Status == "succeeded",
+                Success = refund.Status is "succeeded" or "pending",
                 RefundTransactionId = refund.Id,
                 RefundedAmount = request.Amount
             };

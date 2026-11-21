@@ -68,6 +68,9 @@ public class Booking : BaseEntity
     /// <summary>Last successful overstay fee payment transaction id (Stripe PaymentIntent).</summary>
     public string? OverstayFeeTransactionId { get; internal set; }
 
+    /// <summary>Last successful extension fee payment transaction id (Stripe PaymentIntent).</summary>
+    public string? ExtensionFeeTransactionId { get; internal set; }
+
     public DateTime? OverstayFeePaidAt { get; internal set; }
 
     /// <summary>Unpaid portion of assessed overstay fee.</summary>
@@ -435,6 +438,14 @@ public class Booking : BaseEntity
         AddDomainEvent(new BookingApprovedEvent(Id, UserId, ParkingSpaceId, BookingReference, RequiresPayment: true));
     }
 
+    public void ExpireUnpaid(string reason)
+    {
+        if (Status != BookingStatus.AwaitingPayment)
+            throw new BusinessRuleException("Booking.ExpireUnpaid", $"Cannot expire unpaid booking in {Status} status");
+        Status = BookingStatus.Expired;
+        AddDomainEvent(new BookingPaymentExpiredEvent(Id, UserId, ParkingSpaceId, BookingReference, reason));
+    }
+
     public void Cancel(string reason)
     {
         if (Status == BookingStatus.Completed || Status == BookingStatus.Cancelled)
@@ -627,6 +638,19 @@ public class Booking : BaseEntity
 
         AddDomainEvent(new BookingOverstayFeePaidEvent(
             Id, UserId, ParkingSpaceId, BookingReference, applied, OverstayFeeOutstanding, OverstayFeeTransactionId));
+    }
+
+    /// <summary>
+    /// Records the provider payment id for a successful extension fee capture.
+    /// Does not change booking status — call <see cref="ConfirmExtension"/> separately.
+    /// </summary>
+    public void RecordExtensionFeePaid(string transactionId)
+    {
+        if (string.IsNullOrWhiteSpace(transactionId))
+            throw new ValidationException("transactionId", "Transaction id is required");
+
+        ExtensionFeeTransactionId = transactionId.Trim();
+        UpdatedAt = DateTime.UtcNow;
     }
 
     public void ApplyDiscount(string discountCode, decimal discountAmount)

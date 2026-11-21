@@ -7,7 +7,7 @@ namespace ParkingApp.IntegrationTests.Support;
 /// Deterministic payment gateway for integration tests (no network, no randomness).
 /// Used by L2 payment lifecycle IT and L4 <see cref="FullApiFactory"/> HTTP journeys.
 /// </summary>
-public sealed class DeterministicPaymentService : IPaymentService
+public sealed class DeterministicPaymentService : IPaymentService, IStripeCheckoutService
 {
     public bool VerifySignatureResult { get; set; } = true;
     public bool RefundSucceeds { get; set; } = true;
@@ -17,9 +17,10 @@ public sealed class DeterministicPaymentService : IPaymentService
     public decimal? LastOrderAmount { get; private set; }
     public Dictionary<string, string>? LastOrderNotes { get; private set; }
     public string? LastVerifiedPaymentId { get; private set; }
+    public PaymentCaptureCheck? LastExpectedCapture { get; private set; }
     public string? LastRefundedGatewayTxnId { get; private set; }
 
-    public Task<string> CreateOrderAsync(
+    public Task<CardCheckoutSession> CreateCardSessionAsync(
         decimal amount,
         string currency = "INR",
         Dictionary<string, string>? notes = null,
@@ -28,16 +29,28 @@ public sealed class DeterministicPaymentService : IPaymentService
         LastOrderAmount = amount;
         LastOrderNotes = notes is null ? null : new Dictionary<string, string>(notes);
         LastOrderId = $"pi_test_{Guid.NewGuid():N}"[..24];
-        return Task.FromResult(LastOrderId);
+        return Task.FromResult(new CardCheckoutSession(LastOrderId, LastOrderId));
+    }
+
+    public async Task<string> CreateOrderAsync(
+        decimal amount,
+        string currency = "INR",
+        Dictionary<string, string>? notes = null,
+        CancellationToken cancellationToken = default)
+    {
+        var session = await CreateCardSessionAsync(amount, currency, notes, cancellationToken);
+        return session.ClientSecret;
     }
 
     public Task<bool> VerifyPaymentSignatureAsync(
         string paymentId,
         string orderId,
         string signature,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        PaymentCaptureCheck? expected = null)
     {
         LastVerifiedPaymentId = paymentId;
+        LastExpectedCapture = expected;
         return Task.FromResult(VerifySignatureResult);
     }
 

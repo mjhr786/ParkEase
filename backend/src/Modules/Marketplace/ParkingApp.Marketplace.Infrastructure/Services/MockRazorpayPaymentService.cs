@@ -27,7 +27,12 @@ internal sealed class MockRazorpayPaymentService : IPaymentService
         return orderId;
     }
 
-    public async Task<bool> VerifyPaymentSignatureAsync(string paymentId, string orderId, string signature, CancellationToken cancellationToken = default)
+    public async Task<bool> VerifyPaymentSignatureAsync(
+        string paymentId,
+        string orderId,
+        string signature,
+        CancellationToken cancellationToken = default,
+        PaymentCaptureCheck? expected = null)
     {
         // Simulate verification delay
         await Task.Delay(300, cancellationToken);

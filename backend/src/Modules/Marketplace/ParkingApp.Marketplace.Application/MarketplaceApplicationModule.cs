@@ -33,6 +33,7 @@ public static class MarketplaceApplicationModule
             services.Configure<SessionReminderOptions>(configuration.GetSection(SessionReminderOptions.SectionName));
             services.Configure<WalletPassOptions>(configuration.GetSection(WalletPassOptions.SectionName));
             services.Configure<ValetOptions>(configuration.GetSection(ValetOptions.SectionName));
+            services.Configure<UpiPaymentsOptions>(configuration.GetSection(UpiPaymentsOptions.SectionName));
         }
         else
         {
@@ -43,6 +44,7 @@ public static class MarketplaceApplicationModule
             services.Configure<SessionReminderOptions>(_ => { });
             services.Configure<WalletPassOptions>(_ => { });
             services.Configure<ValetOptions>(_ => { });
+            services.Configure<UpiPaymentsOptions>(_ => { });
         }
 
         services.AddScoped<IValidator<CreateParkingSpaceDto>, CreateParkingSpaceDtoValidator>();
@@ -57,6 +59,8 @@ public static class MarketplaceApplicationModule
         services.AddScoped<IBookingAvailabilityService, BookingAvailabilityService>();
         services.AddScoped<IOverstayDetectionService, OverstayDetectionService>();
         services.AddScoped<ISessionReminderService, SessionReminderService>();
+        services.AddScoped<IPaymentCaptureOrchestrator, PaymentCaptureOrchestrator>();
+        services.AddScoped<IUnpaidExpiryService, UnpaidExpiryService>();
 
         services.AddHandlersFromAssembly(Assembly.GetExecutingAssembly(), throwIfMissingHandlers: false);
         return services;

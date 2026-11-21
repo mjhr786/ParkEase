@@ -23,6 +23,11 @@ namespace ParkingApp.API.Serialization;
 [JsonSerializable(typeof(ApiResponse<List<ParkingMapDto>>))]
 [JsonSerializable(typeof(ApiResponse<UserDto>))]
 [JsonSerializable(typeof(ApiResponse<BookingDto>))]
+[JsonSerializable(typeof(ApiResponse<UpiCheckoutDto>))]
+[JsonSerializable(typeof(ApiResponse<PaymentsConfigDto>))]
+[JsonSerializable(typeof(UpiCreateOrderDto))]
+[JsonSerializable(typeof(UpiCheckoutDto))]
+[JsonSerializable(typeof(PaymentsConfigDto))]
 [JsonSerializable(typeof(PaginatedResponse<ParkingSpaceDto>))]
 public partial class ParkEaseJsonContext : JsonSerializerContext
 {

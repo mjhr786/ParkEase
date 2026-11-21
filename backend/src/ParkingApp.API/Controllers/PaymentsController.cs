@@ -2,14 +2,18 @@ using System.Security.Claims;
 using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Options;
 using ParkingApp.Application.CQRS;
 using ParkingApp.Marketplace.Application.Commands.Payments;
 using ParkingApp.Marketplace.Application.Commands.Reviews;
+using ParkingApp.Marketplace.Application.Options;
 using ParkingApp.Marketplace.Application.Queries.Dashboard;
 using ParkingApp.Marketplace.Application.Queries.Payments;
 using ParkingApp.Marketplace.Application.Queries.Reviews;
+using ParkingApp.Marketplace.Application.Services;
 using ParkingApp.Application.DTOs;
 using ParkingApp.Identity.Application.DTOs;
+using ParkingApp.Identity.Contracts;
 using ParkingApp.Marketplace.Contracts.DTOs;
 using ParkingApp.Messaging.Application.DTOs;
 using ParkingApp.Notifications.Application.DTOs;
@@ -25,11 +29,22 @@ public class PaymentsController : ControllerBase
 {
     private readonly IDispatcher _dispatcher;
     private readonly IConfiguration _configuration;
+    private readonly IUserLookup _userLookup;
+    private readonly IOptions<UpiPaymentsOptions> _upiOptions;
+    private readonly IHostEnvironment _environment;
 
-    public PaymentsController(IDispatcher dispatcher, IConfiguration configuration)
+    public PaymentsController(
+        IDispatcher dispatcher,
+        IConfiguration configuration,
+        IUserLookup userLookup,
+        IOptions<UpiPaymentsOptions> upiOptions,
+        IHostEnvironment environment)
     {
         _dispatcher = dispatcher;
         _configuration = configuration;
+        _userLookup = userLookup;
+        _upiOptions = upiOptions;
+        _environment = environment;
     }
 
     [AllowAnonymous]
@@ -38,6 +53,26 @@ public class PaymentsController : ControllerBase
     {
         var publishableKey = _configuration["Stripe:PublishableKey"];
         return Ok(new { publishableKey });
+    }
+
+    [AllowAnonymous]
+    [HttpGet("config")]
+    [ProducesResponseType(typeof(ApiResponse<PaymentsConfigDto>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetConfig(CancellationToken cancellationToken)
+    {
+        bool? upiContactRequired = null;
+        var userId = GetUserId();
+        if (userId is not null)
+        {
+            var user = await _userLookup.GetByIdAsync(userId.Value, cancellationToken);
+            upiContactRequired = string.IsNullOrWhiteSpace(user?.PhoneNumber);
+        }
+
+        var dto = new PaymentsConfigDto(
+            _upiOptions.Value.Enabled,
+            _configuration["Stripe:PublishableKey"],
+            upiContactRequired);
+        return Ok(new ApiResponse<PaymentsConfigDto>(true, null, dto));
     }
 
     [HttpGet("{id:guid}")]
@@ -87,7 +122,41 @@ public class PaymentsController : ControllerBase
         var result = await _dispatcher.SendAsync(
             new CreatePaymentOrderCommand(userId.Value, bookingId, payOverstayFee),
             cancellationToken);
-        return result.Success ? Ok(result) : BadRequest(result);
+        return MapPaymentResult(result);
+    }
+
+    [HttpPost("upi/create-order")]
+    [ProducesResponseType(typeof(ApiResponse<UpiCheckoutDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<UpiCheckoutDto>), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ApiResponse<UpiCheckoutDto>), StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> CreateUpiOrder([FromBody] UpiCreateOrderDto dto, CancellationToken cancellationToken)
+    {
+        var userId = GetUserId();
+        if (userId == null) return Unauthorized();
+
+        var result = await _dispatcher.SendAsync(
+            new CreateUpiPaymentOrderCommand(
+                userId.Value,
+                dto.BookingId,
+                dto.PayOverstayFee,
+                ResolveForwardedClientIp(),
+                Request.Headers.Referer.ToString(),
+                ResolveUserAgent(),
+                _environment.IsDevelopment()),
+            cancellationToken);
+        return MapPaymentResult(result);
+    }
+
+    [HttpGet("upi/orders/{orderId}")]
+    [ProducesResponseType(typeof(ApiResponse<UpiCheckoutDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<UpiCheckoutDto>), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetUpiOrder(string orderId, CancellationToken cancellationToken)
+    {
+        var userId = GetUserId();
+        if (userId == null) return Unauthorized();
+
+        var result = await _dispatcher.QueryAsync(new GetUpiPaymentOrderQuery(userId.Value, orderId), cancellationToken);
+        return result.Success ? Ok(result) : NotFound(result);
     }
 
     private static bool TryParseCreateOrderBody(
@@ -134,7 +203,7 @@ public class PaymentsController : ControllerBase
         if (userId == null) return Unauthorized();
 
         var result = await _dispatcher.SendAsync(new VerifyPaymentCommand(userId.Value, dto), cancellationToken);
-        return result.Success ? Ok(result) : BadRequest(result);
+        return MapPaymentResult(result);
     }
 
     [HttpPost("refund")]
@@ -152,6 +221,36 @@ public class PaymentsController : ControllerBase
     {
         var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
         return Guid.TryParse(userIdClaim, out var userId) ? userId : null;
+    }
+
+    private IActionResult MapPaymentResult<T>(ApiResponse<T> result)
+    {
+        if (result.Success)
+            return Ok(result);
+        if (string.Equals(result.Code, PaymentErrorCodes.PaymentInProgress, StringComparison.Ordinal))
+            return Conflict(result);
+        return BadRequest(result);
+    }
+
+    private string? ResolveForwardedClientIp()
+    {
+        var ip = HttpContext.Connection.RemoteIpAddress;
+        if (ip is null)
+            return null;
+        if (ip.IsIPv4MappedToIPv6)
+            ip = ip.MapToIPv4();
+        return ip.ToString();
+    }
+
+    private string ResolveUserAgent()
+    {
+        var userAgent = Request.Headers.UserAgent.ToString();
+        if (!string.IsNullOrWhiteSpace(userAgent))
+            return userAgent;
+        var client = Request.Headers["X-ParkEase-Client"].ToString();
+        if (string.Equals(client, "mobile", StringComparison.OrdinalIgnoreCase))
+            return "ParkEase/mobile";
+        return "ParkEase/web";
     }
 }
 

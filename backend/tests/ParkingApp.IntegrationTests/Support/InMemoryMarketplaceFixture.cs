@@ -6,6 +6,7 @@ using ParkingApp.Marketplace.Application.Commands.Payments;
 using ParkingApp.Marketplace.Application.Commands.Reviews;
 using ParkingApp.Marketplace.Application.Interfaces;
 using ParkingApp.Marketplace.Application.Queries.Reviews;
+using ParkingApp.Marketplace.Application.Services;
 using ParkingApp.Marketplace.Domain.Entities;
 using ParkingApp.Marketplace.Domain.Interfaces;
 
@@ -29,7 +30,10 @@ internal sealed class InMemoryMarketplaceFixture
     public Mock<IReviewRepository> Reviews { get; } = new();
     public Mock<ICacheService> Cache { get; } = new();
     public Mock<IReviewReadStore> ReviewReadStore { get; } = new();
+    public Mock<IPaymentCheckoutStore> CheckoutStore { get; } = new();
     public DeterministicPaymentService PaymentService { get; } = new();
+    public FakeUpiCheckoutService UpiCheckout { get; } = new();
+    public List<PaymentOrder> PaymentOrders { get; } = new();
 
     public InMemoryMarketplaceFixture()
     {
@@ -132,6 +136,62 @@ internal sealed class InMemoryMarketplaceFixture
             .Returns(Task.CompletedTask);
         Cache
             .Setup(c => c.RemoveAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        Cache
+            .Setup(c => c.AcquireLockAsync(It.IsAny<string>(), It.IsAny<TimeSpan>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
+        Cache
+            .Setup(c => c.ReleaseLockAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        CheckoutStore
+            .Setup(s => s.FindLiveOrderAsync(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((Guid bookingId, string purpose, CancellationToken _) =>
+                PaymentOrders.FirstOrDefault(o =>
+                    o.BookingId == bookingId
+                    && o.Purpose == purpose
+                    && o.IsLive));
+        CheckoutStore
+            .Setup(s => s.ListLiveOrdersAsync(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((Guid bookingId, string purpose, CancellationToken _) =>
+                (IReadOnlyList<PaymentOrder>)PaymentOrders
+                    .Where(o => o.BookingId == bookingId && o.Purpose == purpose && o.IsLive)
+                    .ToList());
+        CheckoutStore
+            .Setup(s => s.FindCapturedOrderAsync(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((Guid bookingId, string purpose, CancellationToken _) =>
+                PaymentOrders.FirstOrDefault(o =>
+                    o.BookingId == bookingId
+                    && o.Purpose == purpose
+                    && o.Status == ParkingApp.Marketplace.Contracts.Enums.PaymentOrderStatus.Captured));
+        CheckoutStore
+            .Setup(s => s.FindByProviderPaymentIdAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((string provider, string providerPaymentId, CancellationToken _) =>
+                PaymentOrders.FirstOrDefault(o =>
+                    o.Provider == provider && o.ProviderPaymentId == providerPaymentId));
+        CheckoutStore
+            .Setup(s => s.FindByProviderOrderIdAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((string provider, string providerOrderId, CancellationToken _) =>
+                PaymentOrders.FirstOrDefault(o =>
+                    o.Provider == provider && o.ProviderOrderId == providerOrderId));
+        CheckoutStore
+            .Setup(s => s.FindByIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((Guid id, CancellationToken _) => PaymentOrders.FirstOrDefault(o => o.Id == id));
+        CheckoutStore
+            .Setup(s => s.LockOrderAsync(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((Guid bookingId, string purpose, CancellationToken _) =>
+                PaymentOrders
+                    .Where(o => o.BookingId == bookingId && o.Purpose == purpose)
+                    .OrderByDescending(o => o.IsLive)
+                    .ThenByDescending(o => o.CreatedAt)
+                    .FirstOrDefault());
+        CheckoutStore
+            .Setup(s => s.Add(It.IsAny<PaymentOrder>()))
+            .Callback<PaymentOrder>(o => PaymentOrders.Add(o));
+        CheckoutStore
+            .Setup(s => s.Update(It.IsAny<PaymentOrder>()));
+        CheckoutStore
+            .Setup(s => s.ReloadAsync(It.IsAny<Booking>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
     }
 
@@ -249,10 +309,23 @@ internal sealed class InMemoryMarketplaceFixture
     }
 
     public CreatePaymentOrderHandler CreateOrderHandler() =>
-        new(UnitOfWork.Object, PaymentService, NullLogger<CreatePaymentOrderHandler>.Instance);
+        new(UnitOfWork.Object, PaymentService, CheckoutStore.Object, Cache.Object, NullLogger<CreatePaymentOrderHandler>.Instance);
 
-    public VerifyPaymentHandler VerifyHandler() =>
-        new(UnitOfWork.Object, PaymentService, Cache.Object, NullLogger<VerifyPaymentHandler>.Instance);
+    public VerifyPaymentHandler VerifyHandler()
+    {
+        var orchestrator = new PaymentCaptureOrchestrator(
+            UnitOfWork.Object,
+            CheckoutStore.Object,
+            NullLogger<PaymentCaptureOrchestrator>.Instance);
+        return new VerifyPaymentHandler(
+            UnitOfWork.Object,
+            PaymentService,
+            Cache.Object,
+            CheckoutStore.Object,
+            UpiCheckout,
+            orchestrator,
+            NullLogger<VerifyPaymentHandler>.Instance);
+    }
 
     public ProcessRefundHandler RefundHandler() =>
         new(UnitOfWork.Object, PaymentService, NullLogger<ProcessRefundHandler>.Instance);

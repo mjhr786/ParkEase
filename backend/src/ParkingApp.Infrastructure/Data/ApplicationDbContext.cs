@@ -48,6 +48,8 @@ public class ApplicationDbContext : DbContext,
     public DbSet<Booking> Bookings => Set<Booking>();
     public DbSet<ParkingPass> ParkingPasses => Set<ParkingPass>();
     public DbSet<Payment> Payments => Set<Payment>();
+    public DbSet<PaymentOrder> PaymentOrders => Set<PaymentOrder>();
+    public DbSet<PaymentWebhookEvent> PaymentWebhookEvents => Set<PaymentWebhookEvent>();
     public DbSet<Review> Reviews => Set<Review>();
     public DbSet<Conversation> Conversations => Set<Conversation>();
     public DbSet<ChatMessage> ChatMessages => Set<ChatMessage>();

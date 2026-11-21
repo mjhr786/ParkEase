@@ -65,6 +65,30 @@ public sealed class AdminPaymentsController : ControllerBase
         return result.Success ? Ok(result) : BadRequest(result);
     }
 
+    [HttpPost("orders/{id:guid}/refund")]
+    public async Task<IActionResult> RefundOrder(
+        Guid id,
+        [FromBody] AdminRefundPaymentRequest body,
+        CancellationToken cancellationToken = default)
+    {
+        var (actorId, actorEmail) = GetActor();
+        if (actorId is null)
+            return Unauthorized();
+
+        var result = await _dispatcher.SendAsync(
+            new AdminProcessPaymentOrderRefundCommand(
+                actorId.Value,
+                actorEmail ?? "unknown",
+                id,
+                body.Reason,
+                body.Amount,
+                GetIp(),
+                GetUserAgent()),
+            cancellationToken);
+
+        return result.Success ? Ok(result) : BadRequest(result);
+    }
+
     private (Guid? Id, string? Email) GetActor()
     {
         var idRaw = User.FindFirstValue(ClaimTypes.NameIdentifier)

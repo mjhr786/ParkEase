@@ -465,6 +465,9 @@ RecoveredFiles/
 
 # Docs folder (ignore contents; allowlisted runbooks/QA docs below)
 docs/*
+!docs/marketplace-upi-runbook.md
+!docs/marketplace-upi-dynamic-qr-design.md
+!docs/marketplace-upi-production-readiness.md
 # Channel isolation runbook / QA / API notes (PR9) — tracked
 !docs/channel-isolation-runbook.md
 !docs/channel-isolation-qa-matrix.md
@@ -497,3 +500,4 @@ API_ENDPOINTS_MOBILE.md
 **/dp-keys/
 
 /backend/publish - Old working Copy
+/docs

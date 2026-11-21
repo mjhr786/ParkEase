@@ -29,6 +29,7 @@ public sealed class FullApiFactory : WebApplicationFactory<Program>
     public const string JwtSecret = "FullApiIntegrationTestSecretKey_AtLeast32Chars!";
     public const string JwtIssuer = "ParkingApp";
     public const string JwtAudience = "ParkingApp";
+    public const string UpiWebhookSecret = "test_razorpay_webhook_secret";
 
     private readonly string _connectionString;
     private readonly bool _channelIsolationEnabled;
@@ -49,6 +50,9 @@ public sealed class FullApiFactory : WebApplicationFactory<Program>
 
     /// <summary>Shared deterministic gateway instance (signature verify / order ids for HTTP IT).</summary>
     public DeterministicPaymentService PaymentService { get; } = new();
+
+    /// <summary>Fake UPI checkout (upi://pay intent, no Razorpay network).</summary>
+    public FakeUpiCheckoutService UpiCheckoutService { get; } = new();
 
     /// <summary>Stub IdP validator registered for this host (CI-safe).</summary>
     public FakeExternalTokenValidator FakeExternalTokens { get; } = new();
@@ -98,7 +102,9 @@ public sealed class FullApiFactory : WebApplicationFactory<Program>
                 ["API_BASE_URL"] = "http://localhost",
                 // Full pipeline owns migrate against Testcontainers
                 ["Database:ApplyMigrationsOnStartup"] = "true",
-                ["InternalJobs:ApiKey"] = "TestKey123!"
+                ["InternalJobs:ApiKey"] = "TestKey123!",
+                ["Payments:Upi:Enabled"] = "false",
+                ["Payments:Upi:WebhookSecret"] = UpiWebhookSecret
             });
         });
 
@@ -122,6 +128,10 @@ public sealed class FullApiFactory : WebApplicationFactory<Program>
             // No real Stripe in IT — deterministic create-order / verify / refund
             services.RemoveAll<IPaymentService>();
             services.AddSingleton<IPaymentService>(PaymentService);
+            services.RemoveAll<IStripeCheckoutService>();
+            services.AddSingleton<IStripeCheckoutService>(PaymentService);
+            services.RemoveAll<IUpiCheckoutService>();
+            services.AddSingleton<IUpiCheckoutService>(UpiCheckoutService);
 
             // Outbox processes domain events on SaveChanges — stub external delivery so HTTP IT
             // does not hang on Resend/Firebase/network.

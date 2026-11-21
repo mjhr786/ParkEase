@@ -276,6 +276,10 @@ public static class ChannelRouteMatrix
                 ChannelAccess.Marketplace | ChannelAccess.PlatformAdminRole),
 
             // ── Payments ──
+            new("payments-upi", "*", "/api/payments/upi/**",
+                ChannelAccess.Marketplace | ChannelAccess.PlatformAdminRole),
+            new("payments-webhooks", "*", "/api/payments/webhooks/**",
+                ChannelAccess.Marketplace | ChannelAccess.PlatformAdminRole),
             new("payments", "*", "/api/payments/**",
                 ChannelAccess.Marketplace | ChannelAccess.PlatformAdminRole),
             new("payments-root", "*", "/api/payments",

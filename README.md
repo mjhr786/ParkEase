@@ -1,6 +1,7 @@
 # ParkEase - Smart Parking Management System
 
-A full-stack parking management platform built with **.NET 9 Web API**, **React**, and **React Native (Expo)**. Users can host parking spaces, discover spots, book, pay, chat, manage corporate fleets, and forecast availability—backed by production-grade caching, transactional outbox, and Clean Architecture.
+A full-stack enterprise parking management platform built with **.NET 9 Web API**, **React 18 (Vite SPA)**, and **React Native (Expo)**. Users can host parking spaces, discover spots, book, pay, chat, manage corporate fleets, and forecast availability—backed by production-grade caching, transactional outbox, and Clean Architecture.
+
 
 ## Features
 

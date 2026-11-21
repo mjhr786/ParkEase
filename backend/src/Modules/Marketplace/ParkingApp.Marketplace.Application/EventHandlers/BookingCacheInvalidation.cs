@@ -80,6 +80,22 @@ internal sealed class BookingCancelledParkingCacheHandler : IDomainEventHandler<
             _cache, _parkingSpaceLookup, domainEvent.ParkingSpaceId, domainEvent.UserId, cancellationToken);
 }
 
+internal sealed class BookingPaymentExpiredParkingCacheHandler : IDomainEventHandler<BookingPaymentExpiredEvent>
+{
+    private readonly ICacheService _cache;
+    private readonly IParkingSpaceLookup _parkingSpaceLookup;
+
+    public BookingPaymentExpiredParkingCacheHandler(ICacheService cache, IParkingSpaceLookup parkingSpaceLookup)
+    {
+        _cache = cache;
+        _parkingSpaceLookup = parkingSpaceLookup;
+    }
+
+    public Task HandleAsync(BookingPaymentExpiredEvent domainEvent, CancellationToken cancellationToken = default) =>
+        BookingCacheInvalidation.InvalidateAsync(
+            _cache, _parkingSpaceLookup, domainEvent.ParkingSpaceId, domainEvent.UserId, cancellationToken);
+}
+
 internal sealed class BookingApprovedParkingCacheHandler : IDomainEventHandler<BookingApprovedEvent>
 {
     private readonly ICacheService _cache;
@@ -255,6 +271,78 @@ internal sealed class BookingCancelledNotificationHandler : IDomainEventHandler<
 
         _logger.LogInformation(
             "Owner {OwnerId} notified of cancelled booking {BookingId}",
+            parking.OwnerId,
+            domainEvent.BookingId);
+    }
+}
+
+/// <summary>
+/// Driver + host InApp copy for unpaid UPI TTL expiry. Distinct from cancel copy.
+/// </summary>
+internal sealed class BookingPaymentExpiredNotificationHandler : IDomainEventHandler<BookingPaymentExpiredEvent>
+{
+    private readonly IParkingSpaceLookup _parkingSpaceLookup;
+    private readonly INotificationSender _notificationSender;
+    private readonly ILogger<BookingPaymentExpiredNotificationHandler> _logger;
+
+    public BookingPaymentExpiredNotificationHandler(
+        IParkingSpaceLookup parkingSpaceLookup,
+        INotificationSender notificationSender,
+        ILogger<BookingPaymentExpiredNotificationHandler> logger)
+    {
+        _parkingSpaceLookup = parkingSpaceLookup;
+        _notificationSender = notificationSender;
+        _logger = logger;
+    }
+
+    public async Task HandleAsync(BookingPaymentExpiredEvent domainEvent, CancellationToken cancellationToken = default)
+    {
+        var parking = await _parkingSpaceLookup.GetByIdAsync(domainEvent.ParkingSpaceId, cancellationToken);
+        var spaceName = parking?.Title ?? "your parking";
+
+        await _notificationSender.SendAsync(
+            domainEvent.UserId,
+            new NotificationSendRequest(
+                NotificationType.SystemAlert.ToString(),
+                "Booking Released",
+                $"Your parking booking for {spaceName} was released because payment was not completed in time. Book again to reserve your spot.",
+                Channels: null,
+                Data: new Dictionary<string, string>
+                {
+                    { "BookingId", domainEvent.BookingId.ToString() },
+                    { "BookingReference", domainEvent.BookingReference ?? string.Empty }
+                }),
+            cancellationToken);
+
+        if (parking is null)
+        {
+            _logger.LogWarning(
+                "BookingPaymentExpiredEvent for booking {BookingId}: parking {ParkingSpaceId} not found; skip host notify",
+                domainEvent.BookingId,
+                domainEvent.ParkingSpaceId);
+            return;
+        }
+
+        if (parking.OwnerId == domainEvent.UserId)
+            return;
+
+        await _notificationSender.SendAsync(
+            parking.OwnerId,
+            new NotificationSendRequest(
+                NotificationType.SystemAlert.ToString(),
+                "Booking Expired",
+                $"A booking for {spaceName} was automatically released — the driver did not complete payment in time.",
+                Channels: null,
+                Data: new Dictionary<string, string>
+                {
+                    { "BookingId", domainEvent.BookingId.ToString() },
+                    { "BookingReference", domainEvent.BookingReference ?? string.Empty }
+                }),
+            cancellationToken);
+
+        _logger.LogInformation(
+            "Driver {UserId} and host {OwnerId} notified of expired unpaid booking {BookingId}",
+            domainEvent.UserId,
             parking.OwnerId,
             domainEvent.BookingId);
     }

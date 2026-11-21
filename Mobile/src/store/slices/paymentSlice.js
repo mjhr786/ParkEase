@@ -32,6 +32,33 @@ export const processPaymentThunk = createAsyncThunk(
     }
 );
 
+export const getPaymentsConfigThunk = createAsyncThunk(
+    'payment/getConfig',
+    async (_, { rejectWithValue }) => {
+        try {
+            const response = await apiClient.get(ENDPOINTS.PAYMENTS.CONFIG);
+            return response.data.data || response.data;
+        } catch (error) {
+            return rejectWithValue(getErrorMessage(error));
+        }
+    }
+);
+
+export const createUpiPaymentOrderThunk = createAsyncThunk(
+    'payment/createUpiOrder',
+    async ({ bookingId, payOverstayFee = false }, { rejectWithValue }) => {
+        try {
+            const response = await apiClient.post(ENDPOINTS.PAYMENTS.UPI_CREATE_ORDER, {
+                bookingId,
+                payOverstayFee,
+            });
+            return response.data.data || response.data;
+        } catch (error) {
+            return rejectWithValue(error.response?.data || getErrorMessage(error));
+        }
+    }
+);
+
 /**
  * Creates a Razorpay order for a booking. The backend expects the booking ID
  * as a raw JSON string, not an object such as { bookingId }.
@@ -98,7 +125,9 @@ export const processRefundThunk = createAsyncThunk(
 
 const initialState = {
     stripeConfig: null,
+    paymentsConfig: null,
     paymentOrder: null,
+    upiOrder: null,
     paymentResult: null,
     paymentStatus: null,
     loading: false,
@@ -121,6 +150,21 @@ const paymentSlice = createSlice({
         builder
             .addCase(getStripeConfigThunk.fulfilled, (state, action) => {
                 state.stripeConfig = action.payload;
+            })
+            .addCase(getPaymentsConfigThunk.fulfilled, (state, action) => {
+                state.paymentsConfig = action.payload;
+            })
+            .addCase(createUpiPaymentOrderThunk.pending, (state) => {
+                state.loading = true;
+                state.error = null;
+            })
+            .addCase(createUpiPaymentOrderThunk.fulfilled, (state, action) => {
+                state.loading = false;
+                state.upiOrder = action.payload;
+            })
+            .addCase(createUpiPaymentOrderThunk.rejected, (state, action) => {
+                state.loading = false;
+                state.error = action.payload;
             })
             .addCase(processPaymentThunk.pending, (state) => {
                 state.loading = true;

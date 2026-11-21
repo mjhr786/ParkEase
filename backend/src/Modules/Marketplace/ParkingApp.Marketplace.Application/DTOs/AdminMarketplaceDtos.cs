@@ -138,3 +138,12 @@ public sealed record AdminPaymentPageDto(
 
 /// <param name="Amount">When null or ≤ 0, refunds the full remaining balance.</param>
 public sealed record AdminRefundPaymentRequest(string Reason, decimal? Amount = null);
+
+public sealed record AdminPaymentOrderRefundDto(
+    Guid PaymentOrderId,
+    Guid BookingId,
+    string Purpose,
+    bool Success,
+    string? RefundTransactionId,
+    decimal RefundedAmount,
+    string? Message);

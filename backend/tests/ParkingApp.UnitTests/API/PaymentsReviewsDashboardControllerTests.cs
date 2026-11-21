@@ -3,8 +3,12 @@ using FluentAssertions;
 using Xunit;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Options;
 using ParkingApp.API.Controllers;
 using ParkingApp.Application.CQRS;
+using ParkingApp.Identity.Contracts;
+using ParkingApp.Marketplace.Application.Options;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Http;
 
@@ -20,7 +24,14 @@ public class PaymentsReviewsDashboardControllerTests
     {
         _mockDispatcher = new Mock<IDispatcher>();
         _mockConfiguration = new Mock<IConfiguration>();
-        _paymentsController = new PaymentsController(_mockDispatcher.Object, _mockConfiguration.Object);
+        var environment = new Mock<IHostEnvironment>();
+        environment.Setup(e => e.EnvironmentName).Returns(Environments.Development);
+        _paymentsController = new PaymentsController(
+            _mockDispatcher.Object,
+            _mockConfiguration.Object,
+            Mock.Of<IUserLookup>(),
+            Options.Create(new UpiPaymentsOptions { Enabled = false }),
+            environment.Object);
     }
 
     [Fact]

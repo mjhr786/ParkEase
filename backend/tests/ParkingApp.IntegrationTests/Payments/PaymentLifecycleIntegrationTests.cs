@@ -51,11 +51,17 @@ public class PaymentLifecycleIntegrationTests
         verifyResult.Data!.Success.Should().BeTrue();
         verifyResult.Data.Status.Should().Be(PaymentStatus.Completed);
         booking.Status.Should().Be(BookingStatus.Confirmed);
+        fx.PaymentService.LastExpectedCapture.Should().NotBeNull();
+        fx.PaymentService.LastExpectedCapture!.BookingId.Should().Be(booking.Id);
+        fx.PaymentService.LastExpectedCapture.Amount.Should().Be(250m);
+        fx.PaymentService.LastExpectedCapture.Currency.Should().Be("INR");
+        fx.PaymentService.LastExpectedCapture.Purpose.Should().Be("booking");
         fx.AllPayments.Should().HaveCount(1);
         var payment = fx.AllPayments.Single();
         payment.Status.Should().Be(PaymentStatus.Completed);
         payment.TransactionId.Should().Be(paymentIntentId);
         payment.Amount.Should().Be(250m);
+        payment.PaymentGateway.Should().Be("Stripe");
 
         // 3) Idempotent re-verify does not create a second payment
         var verifyAgain = await fx.VerifyHandler().HandleAsync(new VerifyPaymentCommand(
@@ -207,5 +213,102 @@ public class PaymentLifecycleIntegrationTests
         result.Success.Should().BeFalse();
         payment.Status.Should().Be(PaymentStatus.Completed);
         payment.RefundAmount.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task Verify_Extension_WithCompletedBookingPayment_DoesNotConfirmExtensionWithoutNewCharge()
+    {
+        var fx = new InMemoryMarketplaceFixture();
+        var userId = Guid.NewGuid();
+        var parking = fx.SeedPublicParking();
+        var booking = fx.SeedAwaitingPaymentBooking(userId, parking.Id, amount: 200m);
+
+        var order = await fx.CreateOrderHandler()
+            .HandleAsync(new CreatePaymentOrderCommand(userId, booking.Id));
+        var originalPi = "pi_booking_original";
+        var verify = await fx.VerifyHandler().HandleAsync(new VerifyPaymentCommand(
+            userId,
+            new VerifyPaymentDto
+            {
+                BookingId = booking.Id,
+                RazorpayPaymentId = originalPi,
+                RazorpayOrderId = order.Data,
+                RazorpaySignature = "ok"
+            }));
+        verify.Success.Should().BeTrue();
+        booking.Status.Should().Be(BookingStatus.Confirmed);
+
+        var originalEnd = booking.EndDateTime;
+        booking.RequestExtension(originalEnd.AddHours(2), 75m);
+        booking.ApproveExtension();
+        booking.Status.Should().Be(BookingStatus.AwaitingExtensionPayment);
+
+        var replay = await fx.VerifyHandler().HandleAsync(new VerifyPaymentCommand(
+            userId,
+            new VerifyPaymentDto
+            {
+                BookingId = booking.Id,
+                RazorpayPaymentId = originalPi,
+                RazorpayOrderId = order.Data,
+                RazorpaySignature = "ok"
+            }));
+
+        replay.Success.Should().BeTrue();
+        booking.Status.Should().Be(BookingStatus.AwaitingExtensionPayment);
+        booking.EndDateTime.Should().Be(originalEnd);
+        booking.ExtensionFeeTransactionId.Should().BeNull();
+        fx.AllPayments.Should().HaveCount(1);
+        fx.AllPayments.Single().TransactionId.Should().Be(originalPi);
+    }
+
+    [Fact]
+    public async Task Verify_ExtensionCapture_SetsExtensionFeeTransactionId_KeepsOriginalBookingTransactionId()
+    {
+        var fx = new InMemoryMarketplaceFixture();
+        var userId = Guid.NewGuid();
+        var parking = fx.SeedPublicParking();
+        var booking = fx.SeedAwaitingPaymentBooking(userId, parking.Id, amount: 200m);
+
+        var bookingOrder = await fx.CreateOrderHandler()
+            .HandleAsync(new CreatePaymentOrderCommand(userId, booking.Id));
+        var originalPi = "pi_booking_keep";
+        (await fx.VerifyHandler().HandleAsync(new VerifyPaymentCommand(
+            userId,
+            new VerifyPaymentDto
+            {
+                BookingId = booking.Id,
+                RazorpayPaymentId = originalPi,
+                RazorpayOrderId = bookingOrder.Data,
+                RazorpaySignature = "ok"
+            }))).Success.Should().BeTrue();
+
+        booking.RequestExtension(booking.EndDateTime.AddHours(2), 75m);
+        booking.ApproveExtension();
+
+        var extensionOrder = await fx.CreateOrderHandler()
+            .HandleAsync(new CreatePaymentOrderCommand(userId, booking.Id));
+        extensionOrder.Success.Should().BeTrue();
+        fx.PaymentService.LastOrderAmount.Should().Be(75m);
+        fx.PaymentService.LastOrderNotes.Should().ContainKey("purpose")
+            .WhoseValue.Should().Be("extension");
+
+        var extensionPi = "pi_extension_new";
+        var verifyExtension = await fx.VerifyHandler().HandleAsync(new VerifyPaymentCommand(
+            userId,
+            new VerifyPaymentDto
+            {
+                BookingId = booking.Id,
+                RazorpayPaymentId = extensionPi,
+                RazorpayOrderId = extensionOrder.Data,
+                RazorpaySignature = "ok"
+            }));
+
+        verifyExtension.Success.Should().BeTrue();
+        booking.Status.Should().Be(BookingStatus.Confirmed);
+        booking.ExtensionFeeTransactionId.Should().Be(extensionPi);
+        fx.AllPayments.Should().HaveCount(1);
+        var payment = fx.AllPayments.Single();
+        payment.TransactionId.Should().Be(originalPi);
+        payment.PaymentGateway.Should().Be("Stripe");
     }
 }

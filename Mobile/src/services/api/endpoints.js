@@ -64,7 +64,10 @@ export const ENDPOINTS = {
     PAYMENTS: {
         BASE: '/payments',
         STRIPE_CONFIG: '/payments/stripe-config',
+        CONFIG: '/payments/config',
         CREATE_ORDER: '/payments/create-order',
+        UPI_CREATE_ORDER: '/payments/upi/create-order',
+        UPI_ORDER: (orderId) => `/payments/upi/orders/${orderId}`,
         VERIFY: '/payments/verify',
         REFUND: '/payments/refund',
         BY_ID: (id) => `/payments/${id}`,

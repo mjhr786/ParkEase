@@ -67,7 +67,9 @@ public class DependencyInjectionTests
         provider.GetService<IReviewReadStore>().Should().BeOfType<ParkingApp.Marketplace.Infrastructure.ReadModel.Reviews.ReviewReadStore>();
         provider.GetService<ITokenService>().Should().BeOfType<JwtTokenService>();
         provider.GetService<IPasswordHasher>().Should().BeOfType<BcryptPasswordHasher>();
-        provider.GetService<IPaymentService>().Should().BeOfType<StripePaymentService>();
+        provider.GetService<IPaymentService>().Should().BeOfType<PaymentGatewayRouter>();
+        provider.GetService<IStripeCheckoutService>().Should().BeOfType<StripePaymentService>();
+        provider.GetService<IUpiCheckoutService>().Should().BeOfType<RazorpayUpiCheckoutService>();
         provider.GetService<IEmailService>().Should().BeOfType<ResendEmailService>();
         provider.GetService<ICacheService>().Should().BeOfType<InMemoryCacheService>();
     }
